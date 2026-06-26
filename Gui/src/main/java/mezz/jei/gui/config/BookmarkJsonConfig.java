@@ -35,6 +35,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 
 	@SuppressWarnings("deprecation")
 	private final LegacyBookmarkConfig legacyBookmarkConfig;
+	private final BookmarkConfig iniBookmarkConfig;
 	private final Path jeiConfigurationDir;
 
 	private static Optional<Path> getPath(Path jeiConfigurationDir) {
@@ -53,6 +54,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 
 	public BookmarkJsonConfig(Path jeiConfigurationDir) {
 		this.jeiConfigurationDir = jeiConfigurationDir;
+		this.iniBookmarkConfig = new BookmarkConfig(jeiConfigurationDir);
 		//noinspection deprecation
 		this.legacyBookmarkConfig = new LegacyBookmarkConfig(jeiConfigurationDir);
 	}
@@ -62,6 +64,15 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	}
 
 	@Override
+	public void saveBookmarks(IRecipeManager recipeManager, IFocusFactory focusFactory, IGuiHelper guiHelper, IIngredientManager ingredientManager, RegistryAccess registryAccess, BookmarkList bookmarkList) {
+		iniBookmarkConfig.saveBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
+	}
+
+	@Override
+	public void loadBookmarks(IRecipeManager recipeManager, IFocusFactory focusFactory, IGuiHelper guiHelper, IIngredientManager ingredientManager, RegistryAccess registryAccess, BookmarkList bookmarkList) {
+		iniBookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
+	}
+
 	public boolean saveBookmarks(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
@@ -100,7 +111,6 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 			.orElse(false);
 	}
 
-	@Override
 	public void loadBookmarks(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,

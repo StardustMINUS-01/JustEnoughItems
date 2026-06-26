@@ -23,6 +23,16 @@ public interface IJeiKeyMapping {
 	boolean isActiveAndMatches(InputConstants.Key key);
 
 	/**
+	 * Returns true if the key mapping matches the key,
+	 * ignoring any currently pressed key modifiers.
+	 *
+	 * @since 15.20.0
+	 */
+	default boolean matchesIgnoringModifiers(InputConstants.Key key) {
+		return isActiveAndMatches(key);
+	}
+
+	/**
 	 * @return true if there is no key bound to this mapping.
 	 *
 	 * @since 11.0.1

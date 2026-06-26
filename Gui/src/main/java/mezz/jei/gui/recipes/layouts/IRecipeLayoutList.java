@@ -1,12 +1,8 @@
 package mezz.jei.gui.recipes.layouts;
 
-import mezz.jei.api.recipe.IFocusGroup;
-import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.common.config.RecipeSorterStage;
-import mezz.jei.gui.bookmarks.BookmarkList;
-import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
-import mezz.jei.gui.recipes.RecipesGui;
-import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
+import mezz.jei.gui.recipes.RecipeLayoutWithButtons;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,28 +14,21 @@ public interface IRecipeLayoutList {
 	static IRecipeLayoutList create(
 		Set<RecipeSorterStage> recipeSorterStages,
 		@Nullable AbstractContainerMenu container,
-		IFocusedRecipes<?> selectedRecipes,
-		IFocusGroup focusGroup,
-		BookmarkList bookmarkList,
-		IRecipeManager recipeManager,
-		RecipesGui recipesGui
+		@Nullable Player player,
+		List<? extends RecipeLayoutWithButtons<?>> unsortedList
 	) {
-		return new LazyRecipeLayoutList<>(
-			recipeSorterStages,
-			container,
-			selectedRecipes,
-			bookmarkList,
-			recipeManager,
-			recipesGui,
-			focusGroup
-		);
+		if (recipeSorterStages.isEmpty()) {
+			return new UnsortedRecipeLayoutList(unsortedList);
+		} else {
+			return new LazySortedRecipeLayoutList(recipeSorterStages, container, player, unsortedList);
+		}
 	}
 
 	int size();
 
-	List<IRecipeLayoutWithButtons<?>> subList(int from, int to);
+	List<RecipeLayoutWithButtons<?>> subList(int from, int to);
 
-	Optional<IRecipeLayoutWithButtons<?>> findFirst();
+	Optional<RecipeLayoutWithButtons<?>> findFirst();
 
 	void tick();
 }

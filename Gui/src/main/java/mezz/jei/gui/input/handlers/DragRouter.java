@@ -12,6 +12,8 @@ public class DragRouter {
 	private final List<IDragHandler> handlers;
 	@Nullable
 	private IDragHandler dragStartedCallback;
+	@Nullable
+	private UserInput pendingDragStartInput;
 
 	public DragRouter(IDragHandler... handlers) {
 		this.handlers = List.of(handlers);
@@ -23,6 +25,7 @@ public class DragRouter {
 
 	public boolean startDrag(Screen screen, UserInput input) {
 		cancelDrag();
+		this.pendingDragStartInput = input;
 
 		this.dragStartedCallback = this.handlers.stream()
 			.map(i -> i.handleDragStart(screen, input))
@@ -33,12 +36,28 @@ public class DragRouter {
 		return this.dragStartedCallback != null;
 	}
 
+	public boolean startDragIfIdle(Screen screen, UserInput input) {
+		if (this.dragStartedCallback != null) {
+			return false;
+		}
+		UserInput startInput = this.pendingDragStartInput == null ? input : this.pendingDragStartInput;
+		this.dragStartedCallback = this.handlers.stream()
+			.map(i -> i.handleDragStart(screen, startInput))
+			.flatMap(Optional::stream)
+			.findFirst()
+			.orElse(null);
+
+		return this.dragStartedCallback != null;
+	}
+
 	public boolean completeDrag(Screen screen, UserInput input) {
 		if (this.dragStartedCallback == null) {
+			this.pendingDragStartInput = null;
 			return false;
 		}
 		boolean result = this.dragStartedCallback.handleDragComplete(screen, input);
 		this.dragStartedCallback = null;
+		this.pendingDragStartInput = null;
 		return result;
 	}
 
@@ -47,5 +66,6 @@ public class DragRouter {
 			this.dragStartedCallback.handleDragCanceled();
 			this.dragStartedCallback = null;
 		}
+		this.pendingDragStartInput = null;
 	}
 }

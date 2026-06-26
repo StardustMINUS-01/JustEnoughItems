@@ -24,7 +24,7 @@ public class BookmarkFactory {
 	public <T> IngredientBookmark<T> create(ITypedIngredient<T> typedIngredient) {
 		typedIngredient = ingredientManager.normalizeTypedIngredient(typedIngredient);
 
-		Object bookmarkUid = typedIngredientCodec.encodeStart(serializationContext, typedIngredient)
+		String bookmarkUid = typedIngredientCodec.encodeStart(serializationContext, typedIngredient)
 			.result()
 			.orElse(JsonNull.INSTANCE)
 			.toString(); // JsonElement is slow for hash/equals, so use the string representation as the uid

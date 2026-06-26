@@ -5,29 +5,39 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.RecipeBookmarkElement;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
+import java.util.Optional;
 
 public class RecipeBookmark<R, I> implements IBookmark {
 	private final IElement<I> element;
 	private final IRecipeCategory<R> recipeCategory;
 	private final R recipe;
 	private final ResourceLocation recipeUid;
-	private final ITypedIngredient<I> displayIngredient;
-	private final boolean displayIsOutput;
+	private final ITypedIngredient<I> recipeOutput;
+	private final RecipeIngredientRole displayRole;
 	private boolean visible = true;
 
 	@Nullable
 	public static <T> RecipeBookmark<T, ?> create(
 		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
 		IIngredientManager ingredientManager
+	) {
+		return create(recipeLayoutDrawable, ingredientManager, false);
+	}
+
+	@Nullable
+	public static <T> RecipeBookmark<T, ?> create(
+		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
+		IIngredientManager ingredientManager,
+		boolean preserveAmount
 	) {
 		T recipe = recipeLayoutDrawable.getRecipe();
 		IRecipeCategory<T> recipeCategory = recipeLayoutDrawable.getRecipeCategory();
@@ -40,16 +50,19 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		{
 			ITypedIngredient<?> output = findFirst(recipeSlotsView, RecipeIngredientRole.OUTPUT);
 			if (output != null) {
-				output = ingredientManager.normalizeTypedIngredient(output);
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, true);
+				if (!preserveAmount) {
+					output = ingredientManager.normalizeTypedIngredient(output);
+				}
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, RecipeIngredientRole.OUTPUT);
 			}
 		}
-
 		{
 			ITypedIngredient<?> input = findFirst(recipeSlotsView, RecipeIngredientRole.INPUT);
 			if (input != null) {
-				input = ingredientManager.normalizeTypedIngredient(input);
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, false);
+				if (!preserveAmount) {
+					input = ingredientManager.normalizeTypedIngredient(input);
+				}
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, RecipeIngredientRole.INPUT);
 			}
 		}
 
@@ -62,10 +75,9 @@ public class RecipeBookmark<R, I> implements IBookmark {
 			if (slotView.getRole() != role) {
 				continue;
 			}
-			for (ITypedIngredient<?> ingredient : slotView.getAllIngredientsList()) {
-				if (ingredient != null) {
-					return ingredient;
-				}
+			Optional<ITypedIngredient<?>> outputOptional = slotView.getAllIngredients().findFirst();
+			if (outputOptional.isPresent()) {
+				return outputOptional.get();
 			}
 		}
 		return null;
@@ -75,15 +87,25 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		IRecipeCategory<R> recipeCategory,
 		R recipe,
 		ResourceLocation recipeUid,
-		ITypedIngredient<I> displayIngredient,
-		boolean displayIsOutput
+		ITypedIngredient<I> recipeOutput,
+		RecipeIngredientRole displayRole
 	) {
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
-		this.displayIngredient = displayIngredient;
+		this.recipeOutput = recipeOutput;
 		this.element = new RecipeBookmarkElement<>(this);
-		this.displayIsOutput = displayIsOutput;
+		this.displayRole = displayRole;
+	}
+
+	public RecipeBookmark(
+		IRecipeCategory<R> recipeCategory,
+		R recipe,
+		ResourceLocation recipeUid,
+		ITypedIngredient<I> recipeOutput,
+		boolean displayIsOutput
+	) {
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayIsOutput ? RecipeIngredientRole.OUTPUT : RecipeIngredientRole.INPUT);
 	}
 
 	@Override
@@ -95,16 +117,16 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		return recipeCategory;
 	}
 
+	public ResourceLocation getRecipeUid() {
+		return recipeUid;
+	}
+
 	public R getRecipe() {
 		return recipe;
 	}
 
-	public ITypedIngredient<I> getDisplayIngredient() {
-		return displayIngredient;
-	}
-
-	public boolean isDisplayIsOutput() {
-		return displayIsOutput;
+	public ITypedIngredient<I> getRecipeOutput() {
+		return recipeOutput;
 	}
 
 	@Override
@@ -122,41 +144,62 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		this.visible = visible;
 	}
 
+	public RecipeIngredientRole getDisplayRole() {
+		return displayRole;
+	}
+
+	public BookmarkItemMetadata createDefaultMetadata(String groupId) {
+		BookmarkItemType type = switch (displayRole) {
+			case INPUT -> BookmarkItemType.INGREDIENT;
+			case OUTPUT -> BookmarkItemType.RESULT;
+			default -> BookmarkItemType.ITEM;
+		};
+		return new BookmarkItemMetadata(
+			groupId,
+			type,
+			1,
+			getIngredientFactor(),
+			BookmarkItemMetadata.CHANCE_FULL,
+			recipeCategory.getRecipeType().getUid(),
+			recipeUid,
+			java.util.Set.of()
+		);
+	}
+
+	private long getIngredientFactor() {
+		if (recipeOutput.getIngredient() instanceof ItemStack stack) {
+			return Math.max(1, stack.getCount());
+		}
+		return 1;
+	}
+
 	@Override
 	public int hashCode() {
-		return Objects.hash(recipeUid, recipeCategory.getRecipeType());
+		return Objects.hash(recipeUid, displayRole, recipeOutput.getType(), getIngredientHash(recipeOutput.getIngredient()));
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof RecipeBookmark<?, ?> recipeBookmark) {
 			return recipeBookmark.recipeUid.equals(recipeUid) &&
-				recipeCategory.getRecipeType().equals(recipeBookmark.recipeCategory.getRecipeType());
+				recipeBookmark.displayRole == displayRole &&
+				recipeBookmark.recipeOutput.getType().equals(recipeOutput.getType()) &&
+				ingredientsEqual(recipeBookmark.recipeOutput.getIngredient(), recipeOutput.getIngredient());
 		}
 		return false;
 	}
 
-	@Override
-	public String toString() {
-		return "RecipeBookmark{" +
-			"recipeCategory=" + recipeCategory.getRecipeType() +
-			", recipe=" + recipe +
-			", recipeUid=" + recipeUid +
-			", displayIngredient=" + displayIngredient +
-			", visible=" + visible +
-			'}';
+	private static boolean ingredientsEqual(Object first, Object second) {
+		if (first instanceof ItemStack firstStack && second instanceof ItemStack secondStack) {
+			return ItemStack.matches(firstStack, secondStack);
+		}
+		return Objects.equals(first, second);
 	}
 
-	public <T> boolean isRecipe(RecipeType<T> otherType, T otherRecipe) {
-		RecipeType<R> recipeType = recipeCategory.getRecipeType();
-		if (recipeType.equals(otherType)) {
-			Class<? extends R> recipeClass = recipeType.getRecipeClass();
-			if (recipeClass.isInstance(otherRecipe)) {
-				R castRecipe = recipeClass.cast(otherRecipe);
-				ResourceLocation otherUid = recipeCategory.getRegistryName(castRecipe);
-				return recipeUid.equals(otherUid);
-			}
+	private static int getIngredientHash(Object ingredient) {
+		if (ingredient instanceof ItemStack stack) {
+			return ItemStack.hashItemAndComponents(stack);
 		}
-		return false;
+		return Objects.hashCode(ingredient);
 	}
 }

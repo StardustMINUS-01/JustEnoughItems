@@ -1,12 +1,12 @@
 package mezz.jei.common.gui.textures;
 
-import mezz.jei.common.gui.elements.HighResolutionDrawable;
-import net.minecraft.resources.ResourceLocation;
-
 import mezz.jei.api.constants.ModIds;
+import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
 import mezz.jei.common.gui.elements.DrawableSprite;
+import mezz.jei.common.gui.elements.HighResolutionDrawable;
+import net.minecraft.resources.ResourceLocation;
 
 public class Textures {
 	private final JeiSpriteUploader spriteUploader;
@@ -36,13 +36,16 @@ public class Textures {
 	private final IDrawableStatic arrowPrevious;
 	private final IDrawableStatic arrowNext;
 	private final IDrawableStatic recipeTransfer;
-	private final IDrawableStatic recipeBookmark;
+	private final DrawableSprite recipeBookmark;
+	private final DrawableSprite recipeFavorite;
 	private final IDrawableStatic configButtonIcon;
 	private final IDrawableStatic configButtonCheatIcon;
 	private final IDrawableStatic bookmarkButtonDisabledIcon;
 	private final IDrawableStatic bookmarkButtonEnabledIcon;
+	private final IDrawableStatic favoriteButtonDisabledIcon;
+	private final IDrawableStatic favoriteButtonEnabledIcon;
 	private final IDrawableStatic historyButtonDisabledIcon;
-	private final IDrawableStatic historyButtonEnabledIcon;
+	private final IDrawableStatic historyButtonEnabledICon;
 	private final IDrawableStatic infoIcon;
 	private final DrawableNineSliceTexture catalystTab;
 	private final DrawableNineSliceTexture recipeOptionsTab;
@@ -103,12 +106,15 @@ public class Textures {
 			.trim(0, 0, 1, 1);
 		this.recipeTransfer = createGuiSprite("icons/recipe_transfer", 7, 7);
 		this.recipeBookmark = createGuiSprite("icons/recipe_bookmark", 9, 9);
+		this.recipeFavorite = createGuiSprite("icons/recipe_favorite", 9, 9);
 		this.configButtonIcon = createGuiSprite("icons/config_button", 16, 16);
 		this.configButtonCheatIcon = createGuiSprite("icons/config_button_cheat", 16, 16);
 		this.bookmarkButtonDisabledIcon = createGuiSprite("icons/bookmark_button_disabled", 16, 16);
 		this.bookmarkButtonEnabledIcon = createGuiSprite("icons/bookmark_button_enabled", 16, 16);
+		this.favoriteButtonDisabledIcon = createGuiSprite("icons/favorite_button_disabled", 16, 16);
+		this.favoriteButtonEnabledIcon = createGuiSprite("icons/favorite_button_enabled", 16, 16);
 		this.historyButtonDisabledIcon = createGuiSprite("icons/history_button_disabled", 16, 16);
-		this.historyButtonEnabledIcon = createGuiSprite("icons/history_button_enabled", 16, 16);
+		this.historyButtonEnabledICon = createGuiSprite("icons/history_button_enabled", 16, 16);
 		this.infoIcon = createGuiSprite("icons/info", 16, 16);
 		this.flameIcon = createGuiSprite("icons/flame", 14, 14);
 		this.flameEmptyIcon = createGuiSprite("icons/flame_empty", 14, 14);
@@ -162,10 +168,6 @@ public class Textures {
 		return recipeTransfer;
 	}
 
-	public IDrawableStatic getRecipeBookmark() {
-		return recipeBookmark;
-	}
-
 	public IDrawableStatic getBookmarksFirst() {
 		return bookmarksFirst;
 	}
@@ -186,16 +188,20 @@ public class Textures {
 		return bookmarkButtonDisabledIcon;
 	}
 
+	public IDrawableStatic getBookmarkButtonEnabledIcon() {
+		return bookmarkButtonEnabledIcon;
+	}
+
 	public IDrawableStatic getHistoryButtonDisabledIcon() {
 		return historyButtonDisabledIcon;
 	}
 
-	public IDrawableStatic getHistoryButtonEnabledIcon() {
-		return historyButtonEnabledIcon;
+	public IDrawableStatic getHistoryButtonEnabledICon() {
+		return historyButtonEnabledICon;
 	}
 
-	public IDrawableStatic getBookmarkButtonEnabledIcon() {
-		return bookmarkButtonEnabledIcon;
+	public IDrawableStatic getHistoryButtonEnabledIcon() {
+		return historyButtonEnabledICon;
 	}
 
 	public DrawableNineSliceTexture getButtonForState(boolean pressed, boolean enabled, boolean hovered) {
@@ -276,6 +282,22 @@ public class Textures {
 
 	public IDrawableStatic getFlameEmptyIcon() {
 		return flameEmptyIcon;
+	}
+
+	public IDrawable getRecipeBookmark() {
+		return recipeBookmark;
+	}
+
+	public IDrawable getRecipeFavorite() {
+		return recipeFavorite;
+	}
+
+	public IDrawableStatic getFavoriteButtonDisabledIcon() {
+		return favoriteButtonDisabledIcon;
+	}
+
+	public IDrawableStatic getFavoriteButtonEnabledIcon() {
+		return favoriteButtonEnabledIcon;
 	}
 
 	public DrawableNineSliceTexture getScrollbarMarker() {

@@ -9,6 +9,15 @@ public interface IIngredientGridSource {
 	@Unmodifiable
 	List<IElement<?>> getElements();
 
+	@Unmodifiable
+	default List<IElement<?>> getElements(int columns) {
+		return getElements();
+	}
+
+	default boolean isEmpty() {
+		return getElements().isEmpty();
+	}
+
 	void addSourceListChangedListener(SourceListChangedListener listener);
 
 	interface SourceListChangedListener {

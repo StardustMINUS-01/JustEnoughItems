@@ -1,5 +1,6 @@
 package mezz.jei.gui.overlay.elements;
 
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
@@ -23,15 +24,17 @@ import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.BookmarkTooltipFeature;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.transfer.RecipeTransferUtil;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayActivator;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.IngredientGridTooltipHelper;
-import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.recipes.RecipeCategoryIconUtil;
 import mezz.jei.gui.util.FocusUtil;
@@ -46,27 +49,28 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	private final RecipeBookmark<R, I> recipeBookmark;
-	private final IClientConfig clientConfig;
+	private @Nullable IClientConfig clientConfig;
 	private final EnumMap<BookmarkTooltipFeature, TooltipComponent> cache = new EnumMap<>(BookmarkTooltipFeature.class);
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private @Nullable Optional<IRecipeLayoutDrawable<R>> cachedLayoutDrawable;
 
 	public RecipeBookmarkElement(RecipeBookmark<R, I> recipeBookmark) {
 		this.recipeBookmark = recipeBookmark;
-		this.clientConfig = Internal.getJeiClientConfigs().getClientConfig();
 	}
 
 	@Override
 	public ITypedIngredient<I> getTypedIngredient() {
-		return recipeBookmark.getDisplayIngredient();
+		return recipeBookmark.getRecipeOutput();
 	}
 
 	@Override
@@ -76,12 +80,26 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public IDrawable createRenderOverlay() {
+		boolean showRecipeHandlerIcon = Internal.getOptionalJeiClientConfigs()
+			.map(configs -> configs.getClientConfig().isShowRecipeHandlerIconEnabled())
+			.orElse(true);
+		if (!showRecipeHandlerIcon) {
+			return null;
+		}
 		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
 		return new RecipeBookmarkIcon(recipeCategory);
 	}
 
 	@Override
 	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
+		if (BookmarkGhostOverlayActivator.isOverlayRecipeInput(input, keyBindings.getOverlayRecipe())) {
+			return handleGhostOverlay(input);
+		}
+
+		if (BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
+			return handleAutoCrafting(input, keyBindings);
+		}
+
 		boolean transferOnce = input.is(keyBindings.getTransferRecipeBookmark());
 		boolean transferMax = input.is(keyBindings.getMaxTransferRecipeBookmark());
 		if (transferOnce || transferMax) {
@@ -107,6 +125,82 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		return false;
 	}
 
+	private boolean handleAutoCrafting(UserInput input, IInternalKeyMappings keyBindings) {
+		Minecraft minecraft = Minecraft.getInstance();
+		Screen screen = minecraft.screen;
+		if (screen == null) {
+			return false;
+		}
+
+		IRecipeLayoutDrawable<R> recipeLayout = getRecipeLayoutDrawable().orElse(null);
+		if (recipeLayout == null) {
+			return false;
+		}
+
+		return handleAutoCrafting(
+			input,
+			keyBindings,
+			recipeLayout,
+			BookmarkGhostOverlayActivator.getCurrentOrParentContainerMenu(screen),
+			() -> BookmarkGhostOverlayActivator.closeRecipeGui(screen),
+			BookmarkAutoCraftingActivator::activate
+		);
+	}
+
+	static boolean handleAutoCrafting(
+		UserInput input,
+		IInternalKeyMappings keyBindings,
+		IRecipeLayoutDrawable<?> recipeLayout,
+		@Nullable AbstractContainerMenu containerMenu,
+		Runnable onActivated,
+		AutoCraftingActivator activator
+	) {
+		if (!BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
+			return false;
+		}
+		return activator.activate(input, recipeLayout, containerMenu, onActivated);
+	}
+
+	@FunctionalInterface
+	interface AutoCraftingActivator {
+		boolean activate(
+			UserInput input,
+			IRecipeLayoutDrawable<?> recipeLayout,
+			@Nullable AbstractContainerMenu containerMenu,
+			Runnable onActivated
+		);
+	}
+
+	private boolean handleGhostOverlay(UserInput input) {
+		Minecraft minecraft = Minecraft.getInstance();
+		Screen screen = minecraft.screen;
+		if (screen == null) {
+			return false;
+		}
+
+		IRecipeLayoutDrawable<R> recipeLayout = getRecipeLayoutDrawable().orElse(null);
+		if (recipeLayout == null) {
+			return false;
+		}
+
+		return BookmarkGhostOverlayActivator.activate(
+			input,
+			recipeLayout,
+			BookmarkGhostOverlayActivator.getCurrentOrParentContainerMenu(screen),
+			() -> BookmarkGhostOverlayActivator.closeRecipeGui(screen),
+			getBookmarkQuantity()
+		);
+	}
+
+	private OptionalInt getBookmarkQuantity() {
+		return recipeBookmark.getRecipeOutput()
+			.getIngredient(VanillaTypes.ITEM_STACK)
+			.map(ItemStack::getCount)
+			.stream()
+			.mapToInt(Integer::intValue)
+			.findFirst();
+	}
+
 	@Override
 	public void show(IRecipesGui recipesGui, FocusUtil focusUtil, List<RecipeIngredientRole> roles) {
 		// ignore roles, always display the bookmarked recipe if it's clicked
@@ -120,7 +214,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public void getTooltip(JeiTooltip tooltip, IngredientGridTooltipHelper tooltipHelper, IIngredientRenderer<I> ingredientRenderer, IIngredientHelper<I> ingredientHelper) {
-		ITypedIngredient<I> displayIngredient = recipeBookmark.getDisplayIngredient();
+		ITypedIngredient<I> recipeOutput = recipeBookmark.getRecipeOutput();
 		R recipe = recipeBookmark.getRecipe();
 
 		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
@@ -128,7 +222,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 		addBookmarkTooltipFeaturesIfEnabled(tooltip);
 
-		if (recipeBookmark.isDisplayIsOutput()) {
+		if (recipeBookmark.getDisplayRole() == RecipeIngredientRole.OUTPUT) {
 			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
 			IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 			IModIdHelper modIdHelper = jeiRuntime.getJeiHelpers().getModIdHelper();
@@ -136,7 +230,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			ResourceLocation recipeName = recipeCategory.getRegistryName(recipe);
 			if (recipeName != null) {
 				String recipeModId = recipeName.getNamespace();
-				ResourceLocation ingredientName = ingredientHelper.getResourceLocation(displayIngredient.getIngredient());
+				ResourceLocation ingredientName = ingredientHelper.getResourceLocation(recipeOutput.getIngredient());
 				String ingredientModId = ingredientName.getNamespace();
 				if (!recipeModId.equals(ingredientModId)) {
 					String modName = modIdHelper.getFormattedModNameForModId(recipeModId);
@@ -147,11 +241,16 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 			tooltip.add(Component.empty());
 
-			SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, displayIngredient);
+			SafeIngredientUtil.getTooltip(tooltip, ingredientManager, ingredientRenderer, recipeOutput);
 		}
 	}
 
+	public void addRecipeTooltipFeatures(JeiTooltip tooltip) {
+		addBookmarkTooltipFeaturesIfEnabled(tooltip);
+	}
+
 	private void addBookmarkTooltipFeaturesIfEnabled(JeiTooltip tooltip) {
+		IClientConfig clientConfig = getClientConfig();
 		JeiTooltip transferComponents = createTransferComponents();
 
 		if (clientConfig.getBookmarkTooltipFeatures().isEmpty() && transferComponents.isEmpty()) {
@@ -175,6 +274,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	}
 
 	private void addBookmarkTooltipFeatures(JeiTooltip tooltip) {
+		IClientConfig clientConfig = getClientConfig();
 		for (BookmarkTooltipFeature feature : clientConfig.getBookmarkTooltipFeatures()) {
 			TooltipComponent component = cache.get(feature);
 			if (component == null) {
@@ -191,6 +291,13 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			}
 			tooltip.add(component);
 		}
+	}
+
+	private IClientConfig getClientConfig() {
+		if (clientConfig == null) {
+			clientConfig = Internal.getJeiClientConfigs().getClientConfig();
+		}
+		return clientConfig;
 	}
 
 	private JeiTooltip createTransferComponents() {
@@ -255,7 +362,8 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		return recipeBookmark.isVisible();
 	}
 
-	private static class RecipeBookmarkIcon implements IDrawable {
+	public static class RecipeBookmarkIcon implements IDrawable {
+		public static final float SCALE = 0.5f;
 		private final IDrawable icon;
 
 		public RecipeBookmarkIcon(IRecipeCategory<?> recipeCategory) {
@@ -288,11 +396,18 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 				// this z level seems to be the sweet spot so that
 				// 2D icons draw above the items, and
 				// 3D icons draw still draw under tooltips.
-				poseStack.translate(8 + xOffset, 8 + yOffset, 200);
-				poseStack.scale(0.5f, 0.5f, 0.5f);
+				Offset offset = getTopRightOffset(getWidth(), SCALE);
+				poseStack.translate(offset.x() + xOffset, offset.y() + yOffset, 200);
+				poseStack.scale(SCALE, SCALE, SCALE);
 				icon.draw(guiGraphics);
 			}
 			poseStack.popPose();
 		}
+
+		public static Offset getTopRightOffset(int width, float scale) {
+			return new Offset(Math.round(width - width * scale), 0);
+		}
+
+		public record Offset(int x, int y) {}
 	}
 }

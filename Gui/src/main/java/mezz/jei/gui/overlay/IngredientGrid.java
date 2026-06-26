@@ -26,6 +26,7 @@ import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.handlers.DeleteItemInputHandler;
+import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.util.AlignmentUtil;
 import net.minecraft.ChatFormatting;
@@ -42,6 +43,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -87,6 +89,10 @@ public class IngredientGrid implements IRecipeFocusSource, IIngredientGrid {
 
 	public int size() {
 		return this.ingredientListRenderer.size();
+	}
+
+	public int getColumnCount() {
+		return this.ingredientListRenderer.getColumnCount();
 	}
 
 	public void updateBounds(ImmutableRect2i availableArea, Set<ImmutableRect2i> guiExclusionAreas, @Nullable ImmutablePoint2i mouseExclusionPoint) {
@@ -155,13 +161,13 @@ public class IngredientGrid implements IRecipeFocusSource, IIngredientGrid {
 	public void draw(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		RenderSystem.disableBlend();
 
-		ingredientListRenderer.render(guiGraphics);
+		ingredientListRenderer.render(guiGraphics, mouseX, mouseY);
 
 		if (isMouseOver(mouseX, mouseY)) {
 			if (!this.deleteItemHandler.shouldDeleteItemOnClick(minecraft, mouseX, mouseY)) {
 				ingredientListRenderer.getSlots()
 					.filter(s -> s.getArea().contains(mouseX, mouseY))
-					.filter(s -> s.getOptionalElement().isPresent())
+					.filter(s -> s.getOptionalElement().filter(mezz.jei.gui.overlay.elements.IElement::isVisible).isPresent())
 					.findFirst()
 					.ifPresent(s -> drawHighlight(guiGraphics, s.getArea()));
 			}
@@ -276,6 +282,10 @@ public class IngredientGrid implements IRecipeFocusSource, IIngredientGrid {
 
 	public void set(int firstItemIndex, List<IElement<?>> ingredientList) {
 		this.ingredientListRenderer.set(firstItemIndex, ingredientList);
+	}
+
+	public void setSlotVisualsResolver(Function<IngredientListSlotContext, Optional<BookmarkSlotVisuals>> slotVisualsResolver) {
+		this.ingredientListRenderer.setSlotVisualsResolver(slotVisualsResolver);
 	}
 
 	public boolean hasRoom() {

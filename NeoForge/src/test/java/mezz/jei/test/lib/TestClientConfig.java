@@ -1,6 +1,7 @@
 package mezz.jei.test.lib;
 
 import mezz.jei.common.config.BookmarkTooltipFeature;
+import mezz.jei.common.config.BookmarkRecipeMarkerMode;
 import mezz.jei.common.config.GiveMode;
 import mezz.jei.common.config.HistoryDisplaySide;
 import mezz.jei.common.config.IClientConfig;
@@ -64,6 +65,11 @@ public class TestClientConfig implements IClientConfig {
 	}
 
 	@Override
+	public boolean isShowHiddenItemsEnabled() {
+		return getShowHiddenIngredients();
+	}
+
+	@Override
 	public List<BookmarkTooltipFeature> getBookmarkTooltipFeatures() {
 		return List.of();
 	}
@@ -76,6 +82,21 @@ public class TestClientConfig implements IClientConfig {
 	@Override
 	public boolean isDragToRearrangeBookmarksEnabled() {
 		return false;
+	}
+
+	@Override
+	public BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode() {
+		return BookmarkRecipeMarkerMode.NONE;
+	}
+
+	@Override
+	public boolean isShowRecipeHandlerIconEnabled() {
+		return false;
+	}
+
+	@Override
+	public int getFavoriteTreeDepth() {
+		return 0;
 	}
 
 	@Override
@@ -136,6 +157,11 @@ public class TestClientConfig implements IClientConfig {
 	@Override
 	public boolean getHideSingleTagContentTooltipEnabled() {
 		return true;
+	}
+
+	@Override
+	public boolean isHideSingleIngredientTagsEnabled() {
+		return getHideSingleTagContentTooltipEnabled();
 	}
 
 	@Override

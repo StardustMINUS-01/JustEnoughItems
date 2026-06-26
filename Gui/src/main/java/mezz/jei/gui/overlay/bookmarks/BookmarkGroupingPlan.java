@@ -1,0 +1,113 @@
+package mezz.jei.gui.overlay.bookmarks;
+
+import mezz.jei.gui.bookmarks.BookmarkGroupManager;
+import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.IBookmark;
+
+import java.util.List;
+import java.util.Set;
+
+public record BookmarkGroupingPlan(
+	List<IBookmark> bookmarks,
+	String targetGroupId,
+	boolean exclude,
+	List<IBookmark> releasedBookmarks
+) {
+	public BookmarkGroupingPlan {
+		bookmarks = List.copyOf(bookmarks);
+		releasedBookmarks = List.copyOf(releasedBookmarks);
+	}
+
+	public static BookmarkGroupingPlan create(
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
+		BookmarkPanelLayout.RowSlot<IBookmark> start,
+		BookmarkPanelLayout.RowSlot<IBookmark> end,
+		boolean exclude
+	) {
+		List<IBookmark> bookmarks = BookmarkPanelLayout.getItemsBetweenRecipeBounds(panelSlots, start, end);
+		List<IBookmark> releasedBookmarks = getReleasedBookmarks(panelSlots, start, end, bookmarks, exclude);
+		String targetGroupId = exclude ? BookmarkGroupManager.DEFAULT_GROUP_ID : start.groupId();
+		return new BookmarkGroupingPlan(bookmarks, targetGroupId, exclude, releasedBookmarks);
+	}
+
+	public boolean apply(BookmarkList bookmarkList, String newGroupTitle) {
+		if (bookmarks.isEmpty()) {
+			return false;
+		}
+		if (exclude) {
+			return bookmarkList.moveBookmarksToGroup(bookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID);
+		}
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetGroupId)) {
+			bookmarkList.createGroupForBookmarks(newGroupTitle, bookmarks);
+			return true;
+		}
+		boolean changed = bookmarkList.moveBookmarksToGroup(bookmarks, targetGroupId);
+		if (!releasedBookmarks.isEmpty()) {
+			changed = bookmarkList.moveBookmarksToGroup(releasedBookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID) || changed;
+		}
+		return changed;
+	}
+
+	private static List<IBookmark> getReleasedBookmarks(
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
+		BookmarkPanelLayout.RowSlot<IBookmark> start,
+		BookmarkPanelLayout.RowSlot<IBookmark> end,
+		List<IBookmark> selectedBookmarks,
+		boolean exclude
+	) {
+		if (exclude || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(start.groupId())) {
+			return List.of();
+		}
+
+		Set<IBookmark> selected = Set.copyOf(selectedBookmarks);
+		List<BookmarkPanelLayout.RowSlot<IBookmark>> rows = BookmarkPanelLayout.createRowSlots(panelSlots);
+		int endIndex = indexOfRow(rows, end);
+		if (endIndex < 0) {
+			return List.of();
+		}
+
+		List<IBookmark> released = new java.util.ArrayList<>();
+		int direction = Integer.compare(end.area().getY(), start.area().getY());
+		if (direction == 0) {
+			return List.of();
+		}
+		if (direction > 0) {
+			for (int i = endIndex + 1; i < rows.size(); i++) {
+				if (!start.groupId().equals(rows.get(i).groupId())) {
+					break;
+				}
+				addRowItems(panelSlots, rows.get(i), selected, released);
+			}
+		} else {
+			for (int i = endIndex - 1; i >= 0; i--) {
+				if (!start.groupId().equals(rows.get(i).groupId())) {
+					break;
+				}
+				addRowItems(panelSlots, rows.get(i), selected, released);
+			}
+		}
+		return released.stream().distinct().toList();
+	}
+
+	private static int indexOfRow(List<BookmarkPanelLayout.RowSlot<IBookmark>> rows, BookmarkPanelLayout.RowSlot<IBookmark> target) {
+		for (int i = 0; i < rows.size(); i++) {
+			if (rows.get(i).area().getY() == target.area().getY()) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private static void addRowItems(
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
+		BookmarkPanelLayout.RowSlot<IBookmark> row,
+		Set<IBookmark> selected,
+		List<IBookmark> released
+	) {
+		for (IBookmark bookmark : BookmarkPanelLayout.getItemsBetweenRecipeBounds(panelSlots, row, row)) {
+			if (!selected.contains(bookmark)) {
+				released.add(bookmark);
+			}
+		}
+	}
+}

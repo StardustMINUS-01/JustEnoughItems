@@ -32,11 +32,13 @@ public class IngredientListSlot {
 
 	public Optional<IClickableIngredientInternal<?>> getClickableIngredient() {
 		return Optional.ofNullable(element)
+			.filter(IElement::isVisible)
 			.map(element -> new ClickableIngredientInternal<>(element, this::isMouseOver, true, true));
 	}
 
 	public Optional<IDraggableIngredientInternal<?>> getDraggableIngredient() {
 		return Optional.ofNullable(element)
+			.filter(IElement::isVisible)
 			.map(element -> new DraggableIngredientInternal<>(element, area));
 	}
 
@@ -45,7 +47,7 @@ public class IngredientListSlot {
 	}
 
 	public boolean isMouseOver(double mouseX, double mouseY) {
-		return (this.element != null) && area.contains(mouseX, mouseY);
+		return (this.element != null) && element.isVisible() && area.contains(mouseX, mouseY);
 	}
 
 	public void setElement(IElement<?> element) {

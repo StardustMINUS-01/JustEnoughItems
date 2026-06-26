@@ -21,6 +21,12 @@ public class JeiMultiKeyMapping implements IJeiKeyMapping {
 	}
 
 	@Override
+	public boolean matchesIgnoringModifiers(InputConstants.Key key) {
+		return this.mappings.stream()
+			.anyMatch(m -> m.matchesIgnoringModifiers(key));
+	}
+
+	@Override
 	public boolean isUnbound() {
 		return this.mappings.stream()
 			.allMatch(IJeiKeyMapping::isUnbound);

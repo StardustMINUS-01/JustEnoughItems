@@ -11,6 +11,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.neoforged.neoforge.client.event.ContainerScreenEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
+import java.util.List;
+
 public class EventRegistration {
 	public static void registerEvents(RuntimeEventSubscriptions subscriptions, JeiEventHandlers eventHandlers) {
 		ClientInputHandler clientInputHandler = eventHandlers.clientInputHandler();
@@ -83,6 +85,7 @@ public class EventRegistration {
 		});
 	}
 
+	@SuppressWarnings("removal")
 	public static void registerGuiHandler(RuntimeEventSubscriptions subscriptions, GuiEventHandler guiEventHandler) {
 		subscriptions.register(ScreenEvent.Init.Post.class, event -> {
 			Screen screen = event.getScreen();
@@ -99,6 +102,11 @@ public class EventRegistration {
 			int mouseY = event.getMouseY();
 			guiEventHandler.onDrawForeground(containerScreen, guiGraphics, mouseX, mouseY);
 		});
+		subscriptions.register(ScreenEvent.BackgroundRendered.class, event -> {
+			Screen screen = event.getScreen();
+			var guiGraphics = event.getGuiGraphics();
+			guiEventHandler.onDrawBackgroundPost(screen, guiGraphics);
+		});
 		subscriptions.register(ScreenEvent.Render.Post.class, event -> {
 			Screen screen = event.getScreen();
 			var guiGraphics = event.getGuiGraphics();
@@ -113,5 +121,14 @@ public class EventRegistration {
 				event.setCompact(true);
 			}
 		});
+	}
+
+	@SuppressWarnings("removal")
+	public static List<Class<?>> getGuiRenderEventTypes() {
+		return List.of(
+			ContainerScreenEvent.Render.Foreground.class,
+			ScreenEvent.BackgroundRendered.class,
+			ScreenEvent.Render.Post.class
+		);
 	}
 }

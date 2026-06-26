@@ -1,9 +1,5 @@
 package mezz.jei.gui.overlay.bookmarks;
 
-import mezz.jei.api.ingredients.IIngredientRenderer;
-import mezz.jei.api.ingredients.IIngredientType;
-import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.util.ImmutableRect2i;
@@ -17,6 +13,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.List;
 import java.util.Optional;
@@ -54,19 +51,19 @@ public class BookmarkDragManager {
 		return element
 			.getBookmark()
 			.map(bookmark -> {
-				ITypedIngredient<V> ingredient = clicked.getTypedIngredient();
-				IIngredientType<V> type = ingredient.getType();
-
 				List<IBookmarkDragTarget> targets = bookmarkOverlay.createBookmarkDragTargets();
-				IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-				IIngredientRenderer<V> ingredientRenderer = ingredientManager.getIngredientRenderer(type);
 				ImmutableRect2i clickedArea = clicked.getArea();
+				BookmarkDragSelection selection = BookmarkDragSelection.create(
+					bookmarkOverlay.getBookmarkList(),
+					bookmark,
+					bookmarkOverlay.getPanelSlots(),
+					clickedArea
+				);
 				this.bookmarkDrag = new BookmarkDrag<>(
 					bookmarkOverlay,
 					targets,
-					ingredientRenderer,
-					ingredient,
 					bookmark,
+					selection,
 					input.getMouseX(),
 					input.getMouseY(),
 					clickedArea
@@ -80,11 +77,25 @@ public class BookmarkDragManager {
 		return new DragHandler();
 	}
 
+	public static boolean shouldStartBookmarkRearrangeDrag(boolean shiftDown, boolean dragToRearrangeBookmarksEnabled) {
+		return false;
+	}
+
 	private class DragHandler implements IDragHandler {
 		@Override
 		public Optional<IDragHandler> handleDragStart(Screen screen, UserInput input) {
+			if (input.getKey().getType() != InputConstants.Type.MOUSE ||
+				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT) {
+				stopDrag();
+				return Optional.empty();
+			}
+			if (Screen.hasShiftDown()) {
+				stopDrag();
+				return Optional.empty();
+			}
+
 			IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
-			if (!clientConfig.isDragToRearrangeBookmarksEnabled()) {
+			if (!shouldStartBookmarkRearrangeDrag(Screen.hasShiftDown(), clientConfig.isDragToRearrangeBookmarksEnabled())) {
 				stopDrag();
 				return Optional.empty();
 			}

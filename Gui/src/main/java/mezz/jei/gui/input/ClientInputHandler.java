@@ -1,8 +1,10 @@
 package mezz.jei.gui.input;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.core.util.ReflectionUtil;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.input.handlers.DragRouter;
 import mezz.jei.gui.input.handlers.UserInputRouter;
 import net.minecraft.client.Minecraft;
@@ -34,6 +36,7 @@ public class ClientInputHandler {
 	}
 
 	public void onInitGui() {
+		BookmarkAutoCraftingActivator.clearAutoCraftingInputs();
 		this.inputRouter.handleGuiChange();
 		this.dragRouter.handleGuiChange();
 	}
@@ -62,6 +65,10 @@ public class ClientInputHandler {
 		return false;
 	}
 
+	public void onKeyboardKeyReleased(UserInput input) {
+		BookmarkAutoCraftingActivator.releaseAutoCraftingInput(input.getKey());
+	}
+
 	/**
 	 * When we have keyboard focus, use Pre
 	 */
@@ -88,7 +95,8 @@ public class ClientInputHandler {
 
 		boolean handled = this.inputRouter.handleUserInput(screen, input, keybindings);
 
-		if (Minecraft.getInstance().screen == screen && input.is(keybindings.getLeftClick())) {
+		if (Minecraft.getInstance().screen == screen &&
+			isMouseDragButton(input)) {
 			handled |= this.dragRouter.startDrag(screen, input);
 		}
 		return handled;
@@ -101,10 +109,35 @@ public class ClientInputHandler {
 
 		boolean handled = this.inputRouter.handleUserInput(screen, input, keybindings);
 
-		if (input.is(keybindings.getLeftClick())) {
+		if (isMouseDragButton(input)) {
 			handled |= this.dragRouter.completeDrag(screen, input);
 		}
 		return handled;
+	}
+
+	public boolean onGuiMouseDragged(Screen screen, UserInput input) {
+		if (screenHelper.getGuiProperties(screen).isEmpty()) {
+			return false;
+		}
+
+		if (Minecraft.getInstance().screen == screen &&
+			isMouseDragButton(input)) {
+			return this.dragRouter.startDragIfIdle(screen, input);
+		}
+		return false;
+	}
+
+	public static boolean isMouseDragButton(UserInput input) {
+		if (input.getKey().getType() != InputConstants.Type.MOUSE) {
+			return false;
+		}
+		int mouseButton = input.getKey().getValue();
+		return mouseButton == InputConstants.MOUSE_BUTTON_LEFT ||
+			mouseButton == InputConstants.MOUSE_BUTTON_RIGHT;
+	}
+
+	public boolean onGuiMouseScroll(double mouseX, double mouseY, double scrollDelta) {
+		return onGuiMouseScroll(mouseX, mouseY, 0, scrollDelta);
 	}
 
 	public boolean onGuiMouseScroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {

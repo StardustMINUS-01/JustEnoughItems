@@ -28,11 +28,19 @@ public interface IClientConfig {
 
 	boolean getShowHiddenIngredients();
 
+	boolean isShowHiddenItemsEnabled();
+
 	List<BookmarkTooltipFeature> getBookmarkTooltipFeatures();
 
 	boolean isHoldShiftToShowBookmarkTooltipFeaturesEnabled();
 
 	boolean isDragToRearrangeBookmarksEnabled();
+
+	BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode();
+
+	boolean isShowRecipeHandlerIconEnabled();
+
+	int getFavoriteTreeDepth();
 
 	boolean isLookupHistoryEnabled();
 
@@ -67,6 +75,8 @@ public interface IClientConfig {
 	boolean isTagContentTooltipEnabled();
 
 	boolean getHideSingleTagContentTooltipEnabled();
+
+	boolean isHideSingleIngredientTagsEnabled();
 
 	boolean isShowTagRecipesEnabled();
 

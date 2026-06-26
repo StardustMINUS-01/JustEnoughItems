@@ -4,7 +4,6 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
@@ -21,11 +20,11 @@ public interface IRecipeGuiLogic {
 
 	boolean hasAllCategories();
 
-	boolean previousRecipeCategory();
+	void previousRecipeCategory();
 
 	int getRecipesPerPage();
 
-	boolean nextRecipeCategory();
+	void nextRecipeCategory();
 
 	void setRecipeCategory(IRecipeCategory<?> category);
 
@@ -33,9 +32,9 @@ public interface IRecipeGuiLogic {
 
 	void goToFirstPage();
 
-	boolean previousPage();
+	void previousPage();
 
-	boolean nextPage();
+	void nextPage();
 
 	void tick();
 
@@ -59,11 +58,9 @@ public interface IRecipeGuiLogic {
 	Stream<ITypedIngredient<?>> getRecipeCatalysts();
 	Stream<ITypedIngredient<?>> getRecipeCatalysts(IRecipeCategory<?> recipeCategory);
 
-	List<IRecipeLayoutWithButtons<?>> getVisibleRecipeLayoutsWithButtons(
+	List<RecipeLayoutWithButtons<?>> getVisibleRecipeLayoutsWithButtons(
 		int availableHeight,
 		int minRecipePadding,
-		@Nullable AbstractContainerMenu container,
-		BookmarkList bookmarkList,
-		RecipesGui recipesGui
+		@Nullable AbstractContainerMenu container
 	);
 }

@@ -26,13 +26,16 @@ public final class ClientConfig implements IClientConfig {
 	// cheat_mode
 	private final Supplier<GiveMode> giveMode;
 	private final Supplier<Boolean> cheatToHotbarUsingHotkeysEnabled;
-	private final Supplier<Boolean> showHiddenIngredients;
+	private final Supplier<Boolean> showHiddenItemsEnabled;
 
 	// bookmarks
 	private final Supplier<Boolean> addBookmarksToFrontEnabled;
 	private final Supplier<List<BookmarkTooltipFeature>> bookmarkTooltipFeatures;
 	private final Supplier<Boolean> holdShiftToShowBookmarkTooltipFeaturesEnabled;
 	private final Supplier<Boolean> dragToRearrangeBookmarksEnabled;
+	private final Supplier<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode;
+	private final Supplier<Boolean> showRecipeHandlerIconEnabled;
+	private final Supplier<Integer> favoriteTreeDepth;
 
 	// lookup history
 	private final ConfigValue<Boolean> lookupHistoryEnabled;
@@ -61,15 +64,17 @@ public final class ClientConfig implements IClientConfig {
 
 	// tags
 	private final Supplier<Boolean> tagContentTooltipEnabled;
-	private final Supplier<Boolean> hideSingleTagContentTooltipEnabled;
+	private final Supplier<Boolean> hideSingleIngredientTagsEnabled;
 
 	public ClientConfig(IConfigSchemaBuilder schema) {
+		this(schema, Services.PLATFORM.getModHelper().isInDev());
+	}
+
+	public ClientConfig(IConfigSchemaBuilder schema, boolean isDev) {
 		instance = this;
 
-		boolean isDev = Services.PLATFORM.getModHelper().isInDev();
-
 		IConfigCategoryBuilder appearance = schema.addCategory("appearance");
-		centerSearchBarEnabled = appearance.addBoolean("centerSearch",			defaultCenterSearchBar		);
+		centerSearchBarEnabled = appearance.addBoolean("centerSearch", defaultCenterSearchBar);
 		maxRecipeGuiHeight = appearance.addInteger(
 			"recipeGuiHeight",
 			defaultRecipeGuiHeight,
@@ -80,12 +85,15 @@ public final class ClientConfig implements IClientConfig {
 		IConfigCategoryBuilder cheating = schema.addCategory("cheating");
 		giveMode = cheating.addEnum("giveMode", GiveMode.defaultGiveMode);
 		cheatToHotbarUsingHotkeysEnabled = cheating.addBoolean("cheatToHotbarUsingHotkeysEnabled", false);
-		showHiddenIngredients = cheating.addBoolean("showHiddenIngredients", false);
+		showHiddenItemsEnabled = cheating.addBoolean("showHiddenIngredients", false);
 		showTagRecipesEnabled = cheating.addBoolean("showTagRecipesEnabled", isDev);
 
 		IConfigCategoryBuilder bookmarks = schema.addCategory("bookmarks");
 		addBookmarksToFrontEnabled = bookmarks.addBoolean("addBookmarksToFrontEnabled", false);
 		dragToRearrangeBookmarksEnabled = bookmarks.addBoolean("dragToRearrangeBookmarksEnabled", true);
+		bookmarkRecipeMarkerMode = bookmarks.addEnum("recipeMarkerMode", BookmarkRecipeMarkerMode.NONE);
+		showRecipeHandlerIconEnabled = bookmarks.addBoolean("showRecipeHandlerIcon", true);
+		favoriteTreeDepth = bookmarks.addInteger("favoriteTreeDepth", 9, 0, 100);
 
 		IConfigCategoryBuilder tooltips = schema.addCategory("tooltips");
 		bookmarkTooltipFeatures = tooltips.addList(
@@ -96,7 +104,7 @@ public final class ClientConfig implements IClientConfig {
 		holdShiftToShowBookmarkTooltipFeaturesEnabled = tooltips.addBoolean("holdShiftToShowBookmarkTooltipFeatures", true);
 		showCreativeTabNamesEnabled = tooltips.addBoolean("showCreativeTabNamesEnabled", false);
 		tagContentTooltipEnabled = tooltips.addBoolean("tagContentTooltipEnabled", true);
-		hideSingleTagContentTooltipEnabled = tooltips.addBoolean("hideSingleTagContentTooltipEnabled", true);
+		hideSingleIngredientTagsEnabled = tooltips.addBoolean("hideSingleTagContentTooltipEnabled", true);
 		ingredientsSummaryEnabled = tooltips.addBoolean("enableRecipesGuiIngredientsSummary", false);
 
 		IConfigCategoryBuilder performance = schema.addCategory("performance");
@@ -210,7 +218,12 @@ public final class ClientConfig implements IClientConfig {
 
 	@Override
 	public boolean getShowHiddenIngredients() {
-		return showHiddenIngredients.get();
+		return showHiddenItemsEnabled.get();
+	}
+
+	@Override
+	public boolean isShowHiddenItemsEnabled() {
+		return showHiddenItemsEnabled.get();
 	}
 
 	@Override
@@ -226,6 +239,21 @@ public final class ClientConfig implements IClientConfig {
 	@Override
 	public boolean isDragToRearrangeBookmarksEnabled() {
 		return dragToRearrangeBookmarksEnabled.get();
+	}
+
+	@Override
+	public BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode() {
+		return bookmarkRecipeMarkerMode.get();
+	}
+
+	@Override
+	public boolean isShowRecipeHandlerIconEnabled() {
+		return showRecipeHandlerIconEnabled.get();
+	}
+
+	@Override
+	public int getFavoriteTreeDepth() {
+		return favoriteTreeDepth.get();
 	}
 
 	@Override
@@ -320,7 +348,12 @@ public final class ClientConfig implements IClientConfig {
 
 	@Override
 	public boolean getHideSingleTagContentTooltipEnabled() {
-		return hideSingleTagContentTooltipEnabled.get();
+		return hideSingleIngredientTagsEnabled.get();
+	}
+
+	@Override
+	public boolean isHideSingleIngredientTagsEnabled() {
+		return hideSingleIngredientTagsEnabled.get();
 	}
 
 	@Override

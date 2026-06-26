@@ -45,6 +45,10 @@ public final class SafeIngredientUtil {
 		getRichTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient, tooltipFlag);
 	}
 
+	public static <T> void getTooltip(ITooltipBuilder tooltip, IIngredientManager ingredientManager, IIngredientRenderer<T> ingredientRenderer, ITypedIngredient<T> typedIngredient) {
+		getRichTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient);
+	}
+
 	public static <T> void getRichTooltip(
 		ITooltipBuilder tooltip,
 		IIngredientManager ingredientManager,

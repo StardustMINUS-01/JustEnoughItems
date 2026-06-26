@@ -25,6 +25,7 @@ import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.input.handlers.SameElementInputHandler;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.MaximalRectangle;
@@ -39,7 +40,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -118,7 +121,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		if (resetToFirstPage) {
 			firstItemIndex = 0;
 		}
-		List<IElement<?>> ingredientList = ingredientSource.getElements();
+		List<IElement<?>> ingredientList = getPageElements();
 		if (firstItemIndex >= ingredientList.size()) {
 			firstItemIndex = 0;
 		}
@@ -159,7 +162,12 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		}
 	}
 
-	private void updateGridBounds(final ImmutableRect2i availableArea, @Nullable ImmutablePoint2i mouseExclusionPoint, boolean navigationEnabled) {
+	private void updateGridBounds(
+		final ImmutableRect2i availableArea,
+		OptionalInt bottomLimit,
+		@Nullable ImmutablePoint2i mouseExclusionPoint,
+		boolean navigationEnabled
+	) {
 		ImmutableRect2i availableGridArea = availableArea.insetBy(BORDER_MARGIN);
 		if (gridConfig.drawBackground()) {
 			availableGridArea = availableGridArea
@@ -189,10 +197,20 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 			}
 		}
 
+		availableGridArea = limitAreaToBottom(availableGridArea, bottomLimit);
 		this.ingredientGrid.updateBounds(availableGridArea, guiExclusionAreas, mouseExclusionPoint);
 	}
 
 	public void updateBounds(final ImmutableRect2i availableArea, Set<ImmutableRect2i> guiExclusionAreas, @Nullable ImmutablePoint2i mouseExclusionPoint) {
+		updateBounds(availableArea, OptionalInt.empty(), guiExclusionAreas, mouseExclusionPoint);
+	}
+
+	public void updateBounds(
+		final ImmutableRect2i availableArea,
+		OptionalInt bottomLimit,
+		Set<ImmutableRect2i> guiExclusionAreas,
+		@Nullable ImmutablePoint2i mouseExclusionPoint
+	) {
 		this.active = true;
 		this.guiExclusionAreas = guiExclusionAreas;
 
@@ -201,12 +219,12 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 				case ENABLED -> true;
 				case DISABLED -> false;
 				case AUTO_HIDE -> {
-					updateGridBounds(availableArea, mouseExclusionPoint, false);
+					updateGridBounds(availableArea, bottomLimit, mouseExclusionPoint, false);
 					yield hasRoom() && this.pageDelegate.getPageCount() > 1;
 				}
 			};
 		if (navigationEnabled) {
-			updateGridBounds(availableArea, mouseExclusionPoint, true);
+			updateGridBounds(availableArea, bottomLimit, mouseExclusionPoint, true);
 		}
 		if (!hasRoom()) {
 			this.active = false;
@@ -222,6 +240,15 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		if (gridConfig.drawBackground()) {
 			this.backgroundArea = this.backgroundArea.expandBy(BORDER_PADDING);
 		}
+	}
+
+	public static ImmutableRect2i limitAreaToBottom(ImmutableRect2i area, OptionalInt bottomLimit) {
+		if (bottomLimit.isEmpty()) {
+			return area;
+		}
+		int bottom = Math.min(area.getY() + area.getHeight(), bottomLimit.getAsInt());
+		int height = Math.max(0, bottom - area.getY());
+		return new ImmutableRect2i(area.getX(), area.getY(), area.getWidth(), height);
 	}
 
 	private static ImmutableRect2i calculateSlotBackgroundArea(ImmutableRect2i ingredientGridArea, IIngredientGridConfig gridConfig) {
@@ -307,7 +334,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 	}
 
 	public boolean isEmpty() {
-		return this.ingredientSource.getElements().isEmpty();
+		return this.ingredientSource.isEmpty();
 	}
 
 	public void close() {
@@ -319,6 +346,10 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		this.ghostIngredientDragManager.drawOnForeground(guiGraphics, mouseX, mouseY);
 	}
 
+	public void setSlotVisualsResolver(Function<IngredientListSlotContext, Optional<BookmarkSlotVisuals>> slotVisualsResolver) {
+		this.ingredientGrid.setSlotVisualsResolver(slotVisualsResolver);
+	}
+
 	public IDragHandler createDragHandler() {
 		return this.ghostIngredientDragManager.createDragHandler();
 	}
@@ -327,8 +358,16 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		return this.ingredientGrid.size();
 	}
 
+	public int getColumnCount() {
+		return this.ingredientGrid.getColumnCount();
+	}
+
 	public Stream<IngredientListSlot> getSlots() {
 		return this.ingredientGrid.getSlots();
+	}
+
+	private List<IElement<?>> getPageElements() {
+		return ingredientSource.getElements(ingredientGrid.getColumnCount());
 	}
 
 	private class IngredientGridPaged implements IPaged {
@@ -337,7 +376,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 			if (getPageCount() <= 1) {
 				return false;
 			}
-			final int itemsCount = ingredientSource.getElements().size();
+			final int itemsCount = getPageElements().size();
 			if (itemsCount > 0) {
 				firstItemIndex += ingredientGrid.size();
 				if (firstItemIndex >= itemsCount) {
@@ -364,7 +403,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 				updateLayout(false);
 				return false;
 			}
-			final int itemsCount = ingredientSource.getElements().size();
+			final int itemsCount = getPageElements().size();
 
 			int pageNum = firstItemIndex / itemsPerPage;
 			if (pageNum == 0) {
@@ -396,7 +435,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 
 		@Override
 		public int getPageCount() {
-			final int itemCount = ingredientSource.getElements().size();
+			final int itemCount = getPageElements().size();
 			final int stacksPerPage = ingredientGrid.size();
 			if (stacksPerPage == 0) {
 				return 1;

@@ -7,8 +7,12 @@ import mezz.jei.common.network.IConnectionToClient;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.ServerPacketContext;
 import mezz.jei.common.network.packets.PacketCheatPermission;
+import mezz.jei.common.network.packets.PacketCraftingGridCraft;
+import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
+import mezz.jei.common.network.packets.PacketFillCraftingGrid;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
+import mezz.jei.common.network.packets.PacketPullBookmarkItems;
 import mezz.jei.common.network.packets.PacketRecipeTransfer;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
@@ -48,7 +52,11 @@ public class NetworkHandler {
 			.playToServer(PacketRecipeTransfer.TYPE, PacketRecipeTransfer.STREAM_CODEC, wrapServerHandler(PacketRecipeTransfer::process))
 			.playToServer(PacketSetHotbarItemStack.TYPE, PacketSetHotbarItemStack.STREAM_CODEC, wrapServerHandler(PacketSetHotbarItemStack::process))
 			.playToServer(PacketRequestCheatPermission.TYPE, PacketRequestCheatPermission.STREAM_CODEC, wrapServerHandler(PacketRequestCheatPermission::process))
+			.playToServer(PacketPullBookmarkItems.TYPE, PacketPullBookmarkItems.STREAM_CODEC, wrapServerHandler(PacketPullBookmarkItems::process))
+			.playToServer(PacketFillCraftingGrid.TYPE, PacketFillCraftingGrid.STREAM_CODEC, wrapServerHandler(PacketFillCraftingGrid::process))
+			.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
 			.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
+			.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process))
 		);
 	}
 

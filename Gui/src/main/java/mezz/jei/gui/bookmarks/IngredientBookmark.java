@@ -1,18 +1,33 @@
 package mezz.jei.gui.bookmarks;
 
+import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.subtypes.UidContext;
+import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientBookmarkElement;
-
-import java.util.Objects;
+import net.minecraft.world.item.ItemStack;
 
 public class IngredientBookmark<T> implements IBookmark {
 	private final IElement<T> element;
-	private final Object uid;
+	private final String uid;
 	private final ITypedIngredient<T> typedIngredient;
 	private boolean visible = true;
 
-	IngredientBookmark(ITypedIngredient<T> typedIngredient, Object uid) {
+	public static <T> IngredientBookmark<T> create(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		typedIngredient = ingredientManager.normalizeTypedIngredient(typedIngredient);
+		String uniqueId = ingredientHelper.getUniqueId(typedIngredient.getIngredient(), UidContext.Ingredient);
+		return new IngredientBookmark<>(typedIngredient, uniqueId);
+	}
+
+	public static <T> IngredientBookmark<T> createPreservingAmount(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		String uniqueId = ingredientHelper.getUniqueId(typedIngredient.getIngredient(), UidContext.Ingredient);
+		return new IngredientBookmark<>(typedIngredient, uniqueId);
+	}
+
+	IngredientBookmark(ITypedIngredient<T> typedIngredient, String uid) {
 		this.typedIngredient = typedIngredient;
 		this.uid = uid;
 		this.element = new IngredientBookmarkElement<>(this);
@@ -44,7 +59,7 @@ public class IngredientBookmark<T> implements IBookmark {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(uid, typedIngredient.getType());
+		return uid.hashCode();
 	}
 
 	@Override
@@ -53,18 +68,11 @@ public class IngredientBookmark<T> implements IBookmark {
 			return true;
 		}
 		if (obj instanceof IngredientBookmark<?> ingredientBookmark) {
-			return ingredientBookmark.uid.equals(uid) &&
-				ingredientBookmark.typedIngredient.getType().equals(typedIngredient.getType());
+			if (typedIngredient.getIngredient() instanceof ItemStack stackA && ingredientBookmark.typedIngredient.getIngredient() instanceof ItemStack stackB) {
+				return ItemStack.matches(stackA, stackB);
+			}
+			return ingredientBookmark.uid.equals(uid);
 		}
 		return false;
-	}
-
-	@Override
-	public String toString() {
-		return "IngredientBookmark{" +
-			"uid=" + uid +
-			", typedIngredient=" + typedIngredient +
-			", visible=" + visible +
-			'}';
 	}
 }

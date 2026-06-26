@@ -7,6 +7,10 @@ import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -15,6 +19,8 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.FocusUtil;
 import mezz.jei.gui.util.GiveAmount;
+import mezz.jei.common.util.JeiClientSoundUtil;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.item.ItemStack;
@@ -54,6 +60,11 @@ public class FocusInputHandler implements IUserInputHandler {
 			return handledClick;
 		}
 
+		Optional<IUserInputHandler> handledIngredientShortcut = handleIngredientShortcut(input, keyBindings);
+		if (handledIngredientShortcut.isPresent()) {
+			return handledIngredientShortcut;
+		}
+
 		if (toggleState.isCheatItemsEnabled()) {
 			if (screen instanceof AbstractContainerScreen) {
 				if (input.is(keyBindings.getCheatItemStack())) {
@@ -81,6 +92,52 @@ public class FocusInputHandler implements IUserInputHandler {
 		}
 
 		return Optional.empty();
+	}
+
+	private Optional<IUserInputHandler> handleIngredientShortcut(UserInput input, IInternalKeyMappings keyBindings) {
+		Optional<BookmarkHotkeyAction> action = getIngredientKeyboardAction(input, keyBindings);
+		if (action.isEmpty()) {
+			return Optional.empty();
+		}
+
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.filter(clicked -> clicked.getElement().isVisible())
+			.findFirst()
+			.flatMap(clicked -> {
+				if (!input.isSimulate()) {
+					executeIngredientKeyboardShortcut(clicked.getTypedIngredient(), action.get());
+				}
+				IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
+				return Optional.of(handler);
+			});
+	}
+
+	private static Optional<BookmarkHotkeyAction> getIngredientKeyboardAction(UserInput input, IInternalKeyMappings keyBindings) {
+		BookmarkHotkeyContext context = BookmarkHotkeyContext.builder(BookmarkHotkeySubject.INGREDIENT)
+			.hasIngredient(true)
+			.build();
+		if (input.is(keyBindings.getCopyIngredientName())) {
+			return BookmarkHotkeyRouter.resolveIngredientKeyboardAction(context, BookmarkHotkeyRouter.KeyboardKey.C, true);
+		}
+		if (input.is(keyBindings.getCopyIngredientTags())) {
+			return BookmarkHotkeyRouter.resolveIngredientKeyboardAction(context, BookmarkHotkeyRouter.KeyboardKey.D, true);
+		}
+		if (input.is(keyBindings.getCopyIngredientId())) {
+			return BookmarkHotkeyRouter.resolveIngredientKeyboardAction(context, BookmarkHotkeyRouter.KeyboardKey.X, true);
+		}
+		return Optional.empty();
+	}
+
+	private <T> void executeIngredientKeyboardShortcut(mezz.jei.api.ingredients.ITypedIngredient<T> typedIngredient, BookmarkHotkeyAction action) {
+		Minecraft minecraft = Minecraft.getInstance();
+		String text = switch (action) {
+			case COPY_NAME -> IngredientClipboardText.getIngredientName(typedIngredient, ingredientManager);
+			case COPY_OREDICT -> IngredientClipboardText.getIngredientTags(typedIngredient);
+			case COPY_ID -> IngredientClipboardText.getIngredientId(typedIngredient, ingredientManager);
+			default -> "";
+		};
+		minecraft.keyboardHandler.setClipboard(text);
+		JeiClientSoundUtil.playClickSound();
 	}
 
 	private Optional<IUserInputHandler> handleClick(UserInput input, IInternalKeyMappings keyBindings) {

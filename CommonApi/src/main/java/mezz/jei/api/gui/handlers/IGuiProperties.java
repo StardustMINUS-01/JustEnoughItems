@@ -20,4 +20,28 @@ public interface IGuiProperties {
 	int screenWidth();
 
 	int screenHeight();
+
+	default int getGuiLeft() {
+		return guiLeft();
+	}
+
+	default int getGuiTop() {
+		return guiTop();
+	}
+
+	default int getGuiXSize() {
+		return guiXSize();
+	}
+
+	default int getGuiYSize() {
+		return guiYSize();
+	}
+
+	default int getScreenWidth() {
+		return screenWidth();
+	}
+
+	default int getScreenHeight() {
+		return screenHeight();
+	}
 }

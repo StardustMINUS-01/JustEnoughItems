@@ -24,17 +24,26 @@ import mezz.jei.common.config.IJeiClientConfigs;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.core.util.LoggedTimer;
 import mezz.jei.gui.bookmarks.BookmarkCodec;
-import mezz.jei.gui.bookmarks.BookmarkList;
-import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
+import mezz.jei.gui.bookmarks.IBookmark;
+import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
+import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
+import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
 import mezz.jei.gui.config.ModNameSortingConfig;
 import mezz.jei.gui.events.GuiEventHandler;
+import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
+import mezz.jei.gui.favorites.FavoriteTreeBuilder;
+import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
+import mezz.jei.gui.favorites.GeneratedFavoriteRecipeScanner;
 import mezz.jei.gui.filter.FilterTextSource;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.ingredients.IListElement;
@@ -99,6 +108,9 @@ public class JeiGuiStarter {
 		ErrorUtil.checkNotNull(level, "minecraft.level");
 
 		RegistryAccess registryAccess = level.registryAccess();
+		BookmarkFactory bookmarkFactory = new BookmarkFactory(codecHelper, registryAccess, ingredientManager);
+		Codec<IBookmark> bookmarkCodec = BookmarkCodec.create(codecHelper, ingredientManager, recipeManager, bookmarkFactory)
+			.codec();
 
 		timer.start("Building ingredient list");
 		List<IListElementInfo<?>> ingredientList = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
@@ -111,6 +123,7 @@ public class JeiGuiStarter {
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = configData.ingredientTypeSortingConfig();
 		IClientToggleState toggleState = Internal.getClientToggleState();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
+		FavoriteRecipeConfig favoriteRecipeConfig = configData.favoriteRecipeConfig();
 		ILookupHistoryConfig lookupHistoryConfig = configData.lookupHistoryConfig();
 
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
@@ -146,9 +159,6 @@ public class JeiGuiStarter {
 		IIngredientFilter ingredientFilterApi = new IngredientFilterApi(ingredientFilter, filterTextSource);
 		registration.setIngredientFilter(ingredientFilterApi);
 
-		BookmarkFactory bookmarkFactory = new BookmarkFactory(codecHelper, registryAccess, ingredientManager);
-		Codec<IBookmark> bookmarkCodec = BookmarkCodec.create(codecHelper, ingredientManager, recipeManager, bookmarkFactory).codec();
-
 		LookupHistory lookupHistory = new LookupHistory(
 			recipeManager,
 			ingredientManager,
@@ -176,13 +186,18 @@ public class JeiGuiStarter {
 		);
 		registration.setIngredientListOverlay(ingredientListOverlay);
 
-		BookmarkList bookmarkList = new BookmarkList(recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkConfig, clientConfig, guiHelper, codecHelper, bookmarkFactory, bookmarkCodec);
-		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList, codecHelper, bookmarkCodec, bookmarkFactory);
+		BookmarkList bookmarkList = new BookmarkList(recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkConfig, clientConfig, guiHelper);
+		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
+		FavoriteRecipeStore favoriteRecipes = favoriteRecipeConfig.loadFavorites();
+		favoriteRecipes.addSourceListChangedListener(() -> favoriteRecipeConfig.saveFavorites(favoriteRecipes));
 
 		BookmarkOverlay bookmarkOverlay = OverlayHelper.createBookmarkOverlay(
 			ingredientManager,
+			recipeManager,
+			focusFactory,
 			screenHelper,
 			bookmarkList,
+			favoriteRecipes,
 			lookupHistory,
 			keyMappings,
 			bookmarkListConfig,
@@ -195,22 +210,32 @@ public class JeiGuiStarter {
 		);
 		registration.setBookmarkOverlay(bookmarkOverlay);
 
+		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
+		ClientCraftingGridClickRunner clientCraftingGridClickRunner = new ClientCraftingGridClickRunner();
+		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));
+
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,
 			bookmarkOverlay,
-			ingredientListOverlay
+			ingredientListOverlay,
+			bookmarkAutoCraftingRunner,
+			clientCraftingGridClickRunner
 		);
 
 		RecipesGui recipesGui = new RecipesGui(
 			recipeManager,
-			ingredientManager,
 			recipeTransferManager,
+			ingredientManager,
 			keyMappings,
 			focusFactory,
 			bookmarkList,
+			favoriteRecipes,
+			favoriteRecipeConfig,
 			lookupHistory,
 			guiHelper,
-			bookmarkFactory
+			clientCraftingGridClickRunner,
+			bookmarkOverlay::showBookmarkPanel,
+			bookmarkOverlay::showFavoritePanel
 		);
 		registration.setRecipesGui(recipesGui);
 
@@ -226,14 +251,40 @@ public class JeiGuiStarter {
 		);
 
 		FocusUtil focusUtil = new FocusUtil(focusFactory, clientConfig, ingredientManager);
+		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
+			recipeManager,
+			focusFactory,
+			ingredientManager
+		);
+		GeneratedFavoriteRecipeScanner generatedFavoriteRecipeScanner = new GeneratedFavoriteRecipeScanner(
+			recipeManager,
+			focusFactory,
+			ingredientManager
+		);
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
+			new FavoriteTreeBuilder(favoriteRecipes, favoriteTreeRecipeResolver),
+			favoriteTreeRecipeResolver::resolveLayout,
+			bookmarkList::addRecipeLayoutProjectionBookmarkGroup,
+			() -> generatedFavoriteRecipeScanner.rebuild(favoriteRecipes)
+		);
 
 		UserInputRouter userInputRouter = new UserInputRouter(
 			"JEIGlobal",
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
 			ingredientListOverlay.createInputHandler(),
 			bookmarkOverlay.createInputHandler(),
+			new BookmarkInputHandler(
+				recipeFocusSource,
+				bookmarkList,
+				bookmarkOverlay,
+				ingredientManager,
+				serverConnection,
+				bookmarkAutoCraftingRunner,
+				clientCraftingGridClickRunner,
+				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.getFavoriteTreeDepth()),
+				favoriteRecipes::getFavorite
+			),
 			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, toggleState, serverConnection),
-			new BookmarkInputHandler(recipeFocusSource, bookmarkList, bookmarkOverlay),
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);

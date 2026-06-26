@@ -1,31 +1,51 @@
 package mezz.jei.gui.bookmarks;
 
-import com.mojang.serialization.Codec;
-import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.IFocus;
+import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
+import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
+import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.overlay.IIngredientGridSource;
+import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
+import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import net.minecraft.core.RegistryAccess;
-import org.jetbrains.annotations.Nullable;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class BookmarkList implements IIngredientGridSource {
 	private final List<IBookmark> bookmarksList = new LinkedList<>();
 	private final Set<IBookmark> bookmarksSet = new HashSet<>();
+	private final BookmarkGroupManager<IBookmark> bookmarkGroups = new BookmarkGroupManager<>();
 
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
@@ -34,10 +54,8 @@ public class BookmarkList implements IIngredientGridSource {
 	private final IBookmarkConfig bookmarkConfig;
 	private final IClientConfig clientConfig;
 	private final IGuiHelper guiHelper;
-	private final ICodecHelper codecHelper;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
-	private final BookmarkFactory bookmarkFactory;
-	private final Codec<IBookmark> bookmarkCodec;
+	private long changeVersion;
 
 	public BookmarkList(
 		IRecipeManager recipeManager,
@@ -46,10 +64,7 @@ public class BookmarkList implements IIngredientGridSource {
 		RegistryAccess registryAccess,
 		IBookmarkConfig bookmarkConfig,
 		IClientConfig clientConfig,
-		IGuiHelper guiHelper,
-		ICodecHelper codecHelper,
-		BookmarkFactory bookmarkFactory,
-		Codec<IBookmark> bookmarkCodec
+		IGuiHelper guiHelper
 	) {
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
@@ -58,9 +73,6 @@ public class BookmarkList implements IIngredientGridSource {
 		this.bookmarkConfig = bookmarkConfig;
 		this.clientConfig = clientConfig;
 		this.guiHelper = guiHelper;
-		this.codecHelper = codecHelper;
-		this.bookmarkFactory = bookmarkFactory;
-		this.bookmarkCodec = bookmarkCodec;
 	}
 
 	public boolean add(IBookmark value) {
@@ -68,7 +80,7 @@ public class BookmarkList implements IIngredientGridSource {
 			return false;
 		}
 		notifyListenersOfChange();
-		bookmarkConfig.saveBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, codecHelper, bookmarksList, bookmarkCodec);
+		saveBookmarks();
 		return true;
 	}
 
@@ -90,9 +102,37 @@ public class BookmarkList implements IIngredientGridSource {
 
 		bookmarksList.remove(newBookmark);
 		bookmarksList.add(newIndex, newBookmark);
+		bookmarkGroups.moveItemToGroup(newBookmark, bookmarkGroups.getGroupId(previousBookmark));
 
 		notifyListenersOfChange();
-		bookmarkConfig.saveBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, codecHelper, bookmarksList, bookmarkCodec);
+		saveBookmarks();
+	}
+
+	void moveBookmarks(List<IBookmark> bookmarks, IBookmark targetBookmark, String targetGroupId, int offset) {
+		List<IBookmark> movingBookmarks = bookmarks.stream()
+			.filter(bookmarksSet::contains)
+			.distinct()
+			.toList();
+		if (movingBookmarks.isEmpty() ||
+			movingBookmarks.contains(targetBookmark) ||
+			!bookmarksSet.contains(targetBookmark)) {
+			return;
+		}
+
+		bookmarksList.removeAll(movingBookmarks);
+		int targetIndex = bookmarksList.indexOf(targetBookmark);
+		if (targetIndex < 0) {
+			bookmarksList.addAll(movingBookmarks);
+		} else {
+			int insertionIndex = Math.max(0, Math.min(bookmarksList.size(), targetIndex + offset));
+			bookmarksList.addAll(insertionIndex, movingBookmarks);
+		}
+		for (IBookmark bookmark : movingBookmarks) {
+			bookmarkGroups.moveItemToGroup(bookmark, targetGroupId);
+		}
+
+		notifyListenersOfChange();
+		saveBookmarks();
 	}
 
 	public boolean contains(IBookmark value) {
@@ -102,13 +142,104 @@ public class BookmarkList implements IIngredientGridSource {
 	public <T> boolean onElementBookmarked(IElement<T> element, UserInput input, BookmarkOverlay bookmarkOverlay) {
 		if (bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
 			return element.getBookmark()
-				.map(this::remove)
+				.map(this::removeBookmarkFromOverlay)
 				.orElse(false);
 		}
 
+		if (InputModifiers.hasShift(input)) {
+			BookmarkHotkeyAction action = InputModifiers.hasControl(input) ?
+				BookmarkHotkeyAction.ADD_RECIPE_BOOKMARK_WITH_COUNT :
+				BookmarkHotkeyAction.ADD_RECIPE_BOOKMARK;
+			return onElementBookmarked(element, action);
+		}
+
+		BookmarkHotkeyAction action = InputModifiers.hasControl(input) ?
+			BookmarkHotkeyAction.ADD_BOOKMARK_WITH_COUNT :
+			BookmarkHotkeyAction.ADD_BOOKMARK;
+		return onElementBookmarked(element, action);
+	}
+
+	private boolean removeBookmarkFromOverlay(IBookmark bookmark) {
+		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+		if (metadata.recipeUid() != null && metadata.type() != BookmarkItemType.ITEM) {
+			return removeRecipeBookmark(bookmark, false);
+		}
+		return remove(bookmark);
+	}
+
+	public <T> boolean onElementBookmarked(IElement<T> element, BookmarkHotkeyAction action) {
+		return switch (action) {
+			case ADD_BOOKMARK -> addIngredientBookmark(element, false);
+			case ADD_BOOKMARK_WITH_COUNT -> addIngredientBookmark(element, true);
+			case ADD_RECIPE_BOOKMARK -> addRecipeBookmarkForElement(element, false);
+			case ADD_RECIPE_BOOKMARK_WITH_COUNT -> addRecipeBookmarkForElement(element, true);
+			case REMOVE_ITEM_BOOKMARK -> element.getBookmark()
+				.map(this::remove)
+				.orElse(false);
+			case REMOVE_RECIPE_BOOKMARK -> element.getBookmark()
+				.map(bookmark -> removeRecipeBookmark(bookmark, false))
+				.orElse(false);
+			default -> false;
+		};
+	}
+
+	private <T> boolean addIngredientBookmark(IElement<T> element, boolean preserveAmount) {
 		ITypedIngredient<T> ingredient = element.getTypedIngredient();
-		IBookmark bookmark = bookmarkFactory.create(ingredient);
+		return addIngredientBookmark(ingredient, preserveAmount);
+	}
+
+	public <T> boolean addIngredientBookmark(ITypedIngredient<T> ingredient, boolean preserveAmount) {
+		if (ingredientManager == null) {
+			return false;
+		}
+		IBookmark bookmark = preserveAmount ?
+			IngredientBookmark.createPreservingAmount(ingredient, ingredientManager) :
+			IngredientBookmark.create(ingredient, ingredientManager);
 		return add(bookmark);
+	}
+
+	public <T> boolean addRecipeBookmarkForElement(IElement<T> element) {
+		return addRecipeBookmarkForElement(element, false);
+	}
+
+	public <T> boolean addRecipeBookmarkForElement(IElement<T> element, boolean preserveAmount) {
+		if (recipeManager == null || focusFactory == null || ingredientManager == null) {
+			return false;
+		}
+
+		ITypedIngredient<T> ingredient = element.getTypedIngredient();
+		IFocus<T> focus = focusFactory.createFocus(RecipeIngredientRole.OUTPUT, ingredient);
+		List<IFocus<?>> focuses = List.of(focus);
+		List<IRecipeCategory<?>> recipeCategories = recipeManager.createRecipeCategoryLookup()
+			.limitFocus(focuses)
+			.get()
+			.toList();
+
+		for (IRecipeCategory<?> recipeCategory : recipeCategories) {
+			if (addFirstRecipeBookmarks(recipeCategory, focuses, preserveAmount)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private boolean addFirstRecipeBookmarks(IRecipeCategory recipeCategory, List<IFocus<?>> focuses, boolean preserveAmount) {
+		RecipeType recipeType = recipeCategory.getRecipeType();
+		Optional<?> recipe = recipeManager.createRecipeLookup(recipeType)
+			.limitFocus(focuses)
+			.get()
+			.findFirst();
+		if (recipe.isEmpty()) {
+			return false;
+		}
+
+		IFocusGroup focusGroup = focusFactory.createFocusGroup(focuses);
+		Optional<IRecipeLayoutDrawable> recipeLayout = recipeManager.createRecipeLayoutDrawable(recipeCategory, recipe.get(), focusGroup)
+			.map(layout -> (IRecipeLayoutDrawable) layout);
+		return recipeLayout
+			.map(layout -> addRecipeBookmarks(layout, preserveAmount))
+			.orElse(false);
 	}
 
 	public void toggleBookmark(IBookmark bookmark) {
@@ -118,67 +249,1150 @@ public class BookmarkList implements IIngredientGridSource {
 		add(bookmark);
 	}
 
+	public boolean toggleRecipeBookmark(IRecipeLayoutDrawable<?> recipeLayout, boolean preserveAmount) {
+		if (ingredientManager == null) {
+			return false;
+		}
+		Optional<RecipeBookmarkEntry> entry = createPrimaryRecipeBookmarkEntry(recipeLayout, preserveAmount);
+		if (entry.isEmpty()) {
+			return false;
+		}
+
+		IBookmark bookmark = entry.get().bookmark();
+		if (remove(bookmark)) {
+			return true;
+		}
+
+		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		if (addToListWithoutNotifying(bookmark, addToFront)) {
+			bookmarkGroups.setItemMetadata(bookmark, entry.get().metadata());
+			notifyListenersOfChange();
+			saveBookmarks();
+			return true;
+		}
+		return false;
+	}
+
 	public boolean remove(IBookmark ingredient) {
 		if (!bookmarksSet.remove(ingredient)) {
 			return false;
 		}
-		bookmarksList.remove(ingredient);
+		removeBookmarkWithoutNotifying(ingredient);
 
 		notifyListenersOfChange();
-		bookmarkConfig.saveBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, codecHelper, bookmarksList, bookmarkCodec);
+		saveBookmarks();
+		return true;
+	}
+
+	public boolean removeRecipeBookmark(IBookmark bookmark) {
+		return removeRecipeBookmark(bookmark, true);
+	}
+
+	public boolean removeRecipeBookmark(IBookmark bookmark, boolean removeFullRecipe) {
+		if (!bookmarksSet.contains(bookmark)) {
+			return false;
+		}
+		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
+		ResourceLocation recipeUid = targetMetadata.recipeUid();
+		if (recipeUid == null || targetMetadata.type() == BookmarkItemType.ITEM) {
+			return remove(bookmark);
+		}
+		String groupId = targetMetadata.groupId();
+		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
+		if (group.filter(BookmarkGroup::craftingMode).map(BookmarkGroup::collapsed).orElse(false)) {
+			if (!removeFullRecipe) {
+				return true;
+			}
+			return removeGroup(groupId);
+		}
+		if (group.filter(BookmarkGroup::craftingMode).isPresent()) {
+			Set<ResourceLocation> relatedRecipes = getRelatedRecipeIds(groupId, recipeUid);
+			if (!relatedRecipes.isEmpty()) {
+				if (!removeFullRecipe) {
+					return true;
+				}
+				return removeRecipes(groupId, relatedRecipes);
+			}
+		}
+		if (!removeFullRecipe &&
+			targetMetadata.type() == BookmarkItemType.RESULT &&
+			isLastResultForRecipe(bookmark, targetMetadata)) {
+			removeFullRecipe = true;
+		}
+		if (!removeFullRecipe) {
+			removeBookmarkWithoutNotifying(bookmark);
+			normalizeIncompleteRecipes(groupId);
+			notifyListenersOfChange();
+			saveBookmarks();
+			return true;
+		}
+		return removeRecipes(groupId, Set.of(recipeUid));
+	}
+
+	private boolean removeRecipes(String groupId, Set<ResourceLocation> recipeUids) {
+		List<IBookmark> removedBookmarks = bookmarksList.stream()
+			.filter(candidate -> {
+				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
+				return groupId.equals(metadata.groupId()) && recipeUids.contains(metadata.recipeUid());
+			})
+			.toList();
+		if (removedBookmarks.isEmpty()) {
+			return false;
+		}
+		for (IBookmark removedBookmark : removedBookmarks) {
+			removeBookmarkWithoutNotifying(removedBookmark);
+		}
+
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	private Set<ResourceLocation> getRelatedRecipeIds(String groupId, ResourceLocation recipeUid) {
+		return bookmarkGroups.getRecipeChainDetails(groupId)
+			.map(details -> {
+				Set<ResourceLocation> directRelations = details.recipeRelations().get(recipeUid);
+				if (directRelations != null && !directRelations.isEmpty()) {
+					return directRelations;
+				}
+				return details.recipeRelations().values().stream()
+					.filter(relations -> relations.contains(recipeUid))
+					.findFirst()
+					.orElse(Set.of());
+			})
+			.orElse(Set.of());
+	}
+
+	private boolean isLastResultForRecipe(IBookmark targetBookmark, BookmarkItemMetadata targetMetadata) {
+		return bookmarksList.stream()
+			.filter(candidate -> candidate != targetBookmark)
+			.map(bookmarkGroups::getItemMetadata)
+			.noneMatch(metadata ->
+				metadata.type() == BookmarkItemType.RESULT &&
+				metadata.equalsRecipe(targetMetadata)
+			);
+	}
+
+	private void normalizeIncompleteRecipes(String groupId) {
+		Map<ResourceLocation, Integer> recipeStates = new HashMap<>();
+		for (IBookmark bookmark : bookmarksList) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (!groupId.equals(metadata.groupId()) || recipeUid == null || metadata.type() == BookmarkItemType.ITEM) {
+				continue;
+			}
+			int bit = metadata.type() == BookmarkItemType.INGREDIENT ? 1 : 2;
+			recipeStates.merge(recipeUid, bit, (first, second) -> first | second);
+		}
+		for (IBookmark bookmark : bookmarksList) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (!groupId.equals(metadata.groupId()) || recipeUid == null || metadata.type() == BookmarkItemType.ITEM) {
+				continue;
+			}
+			if (recipeStates.getOrDefault(recipeUid, 0) != 3) {
+				bookmarkGroups.setItemMetadata(bookmark, demoteToItem(metadata));
+			}
+		}
+	}
+
+	private void removeBookmarkWithoutNotifying(IBookmark bookmark) {
+		bookmarksSet.remove(bookmark);
+		bookmarksList.remove(bookmark);
+		bookmarkGroups.removeItem(bookmark);
+	}
+
+	private static BookmarkItemMetadata demoteToItem(BookmarkItemMetadata metadata) {
+		return new BookmarkItemMetadata(
+			metadata.groupId(),
+			BookmarkItemType.ITEM,
+			metadata.multiplier(),
+			metadata.factor(),
+			metadata.chance(),
+			null,
+			null,
+			metadata.permutations()
+		);
+	}
+
+	public boolean addToListWithoutNotifying(IBookmark value, boolean addToFront) {
+		if (contains(value)) {
+			return false;
+		}
+		if (addToFront) {
+			bookmarksList.add(0, value);
+			bookmarksSet.add(value);
+		} else {
+			bookmarksList.add(value);
+			bookmarksSet.add(value);
+		}
+		bookmarkGroups.addItem(value, addToFront);
+		bookmarkGroups.setItemMetadata(value, createDefaultMetadata(value, BookmarkGroupManager.DEFAULT_GROUP_ID));
 		return true;
 	}
 
 	public void setFromConfigFile(List<IBookmark> bookmarks) {
 		bookmarksList.clear();
 		bookmarksSet.clear();
-
+		bookmarkGroups.clear();
 		for (IBookmark bookmark : bookmarks) {
-			if (bookmarksSet.add(bookmark)) {
-				bookmarksList.add(bookmark);
-			}
+			addToListWithoutNotifying(bookmark, false);
 		}
-
 		notifyListenersOfChange();
 	}
 
-	private boolean addToListWithoutNotifying(IBookmark value, boolean addToFront) {
-		if (contains(value)) {
+	public boolean addRecipeBookmarks(IRecipeLayoutDrawable<?> recipeLayout, boolean preserveAmount) {
+		List<RecipeBookmarkEntry> recipeBookmarks = createRecipeBookmarkEntries(recipeLayout, preserveAmount);
+		if (recipeBookmarks.isEmpty()) {
 			return false;
 		}
-		if (addToFront) {
-			bookmarksList.addFirst(value);
-			bookmarksSet.add(value);
-		} else {
-			bookmarksList.add(value);
-			bookmarksSet.add(value);
-		}
+		addRecipeBookmarkEntries(recipeBookmarks);
 		return true;
+	}
+
+	public Optional<String> addRecipeLayoutBookmarkGroup(
+		String title,
+		List<IRecipeLayoutDrawable<?>> recipeLayouts,
+		boolean preserveAmount
+	) {
+		List<RecipeBookmarkEntry> recipeBookmarks = new ArrayList<>();
+		for (IRecipeLayoutDrawable<?> recipeLayout : recipeLayouts) {
+			recipeBookmarks.addAll(createRecipeBookmarkEntries(recipeLayout, preserveAmount));
+		}
+		if (recipeBookmarks.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(addRecipeBookmarkEntryGroup(title, recipeBookmarks));
+	}
+
+	public Optional<String> addRecipeLayoutBookmarkGroup(List<IRecipeLayoutDrawable<?>> recipeLayouts, boolean preserveAmount) {
+		if (recipeLayouts.isEmpty()) {
+			return Optional.empty();
+		}
+		String title = getRecipeBookmarkGroupTitle(recipeLayouts.get(0).getRecipeSlotsView());
+		return addRecipeLayoutBookmarkGroup(title, recipeLayouts, preserveAmount);
+	}
+
+	public Optional<String> addRecipeLayoutProjectionBookmarkGroup(
+		List<FavoriteTreeBookmarkWriter.RecipeLayoutProjection> recipeLayouts,
+		boolean preserveAmount
+	) {
+		if (recipeLayouts.isEmpty()) {
+			return Optional.empty();
+		}
+		String title = getRecipeBookmarkGroupTitle(recipeLayouts.get(0));
+		return addRecipeLayoutProjectionBookmarkGroup(title, recipeLayouts, preserveAmount);
+	}
+
+	private Optional<String> addRecipeLayoutProjectionBookmarkGroup(
+		String title,
+		List<FavoriteTreeBookmarkWriter.RecipeLayoutProjection> recipeLayouts,
+		boolean preserveAmount
+	) {
+		List<RecipeBookmarkEntry> recipeBookmarks = new ArrayList<>();
+		for (FavoriteTreeBookmarkWriter.RecipeLayoutProjection recipeLayout : recipeLayouts) {
+			recipeBookmarks.addAll(createRecipeBookmarkEntries(recipeLayout, preserveAmount));
+		}
+		if (recipeBookmarks.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(addRecipeBookmarkEntryGroup(title, recipeBookmarks));
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	public Optional<IRecipeLayoutDrawable<?>> createRecipeLayoutDrawable(String groupId, ResourceLocation recipeUid) {
+		if (recipeManager == null || focusFactory == null) {
+			return Optional.empty();
+		}
+		for (IBookmark bookmark : bookmarksList) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			if (!groupId.equals(metadata.groupId()) || !recipeUid.equals(metadata.recipeUid())) {
+				continue;
+			}
+			if (bookmark instanceof RecipeBookmark recipeBookmark) {
+				return recipeManager.createRecipeLayoutDrawable(
+						recipeBookmark.getRecipeCategory(),
+						recipeBookmark.getRecipe(),
+						focusFactory.getEmptyFocusGroup()
+					)
+					.map(layout -> (IRecipeLayoutDrawable<?>) layout);
+			}
+		}
+		return Optional.empty();
+	}
+
+	public void addRecipeBookmarks(List<IBookmark> recipeBookmarks) {
+		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		for (IBookmark recipeBookmark : recipeBookmarks) {
+			addToListWithoutNotifying(recipeBookmark, addToFront);
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	private void addRecipeBookmarkEntries(List<RecipeBookmarkEntry> recipeBookmarks) {
+		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		for (RecipeBookmarkEntry recipeBookmark : recipeBookmarks) {
+			if (addToListWithoutNotifying(recipeBookmark.bookmark(), addToFront)) {
+				bookmarkGroups.setItemMetadata(recipeBookmark.bookmark(), recipeBookmark.metadata());
+			}
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	public String addRecipeBookmarkGroup(String title, List<IBookmark> recipeBookmarks) {
+		if (recipeBookmarks.isEmpty()) {
+			return BookmarkGroupManager.DEFAULT_GROUP_ID;
+		}
+
+		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		List<IBookmark> addedOrExistingBookmarks = new ArrayList<>();
+		for (IBookmark recipeBookmark : recipeBookmarks) {
+			IBookmark bookmark = addOrGetWithoutNotifying(recipeBookmark, addToFront);
+			if (!addedOrExistingBookmarks.contains(bookmark)) {
+				addedOrExistingBookmarks.add(bookmark);
+			}
+		}
+
+		String groupId = bookmarkGroups.createGroup(title);
+		for (IBookmark bookmark : addedOrExistingBookmarks) {
+			bookmarkGroups.moveItemToGroup(bookmark, groupId);
+		}
+		bookmarksList.removeAll(addedOrExistingBookmarks);
+		if (addToFront) {
+			bookmarksList.addAll(0, addedOrExistingBookmarks);
+		} else {
+			bookmarksList.addAll(addedOrExistingBookmarks);
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return groupId;
+	}
+
+	private String addRecipeBookmarkEntryGroup(String title, List<RecipeBookmarkEntry> recipeBookmarks) {
+		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		List<RecipeBookmarkEntry> addedOrExistingBookmarks = new ArrayList<>();
+		for (RecipeBookmarkEntry recipeBookmark : recipeBookmarks) {
+			IBookmark bookmark = addOrGetWithoutNotifying(recipeBookmark.bookmark(), addToFront);
+			if (addedOrExistingBookmarks.stream().noneMatch(entry -> entry.bookmark().equals(bookmark))) {
+				addedOrExistingBookmarks.add(new RecipeBookmarkEntry(bookmark, recipeBookmark.metadata()));
+			}
+		}
+
+		String groupId = bookmarkGroups.createGroup(title);
+		for (RecipeBookmarkEntry recipeBookmark : addedOrExistingBookmarks) {
+			IBookmark bookmark = recipeBookmark.bookmark();
+			bookmarkGroups.moveItemToGroup(bookmark, groupId);
+			bookmarkGroups.setItemMetadata(bookmark, recipeBookmark.metadata().withGroupId(groupId));
+		}
+		bookmarksList.removeAll(addedOrExistingBookmarks.stream()
+			.map(RecipeBookmarkEntry::bookmark)
+			.toList());
+		List<IBookmark> orderedBookmarks = addedOrExistingBookmarks.stream()
+			.map(RecipeBookmarkEntry::bookmark)
+			.toList();
+		if (addToFront) {
+			bookmarksList.addAll(0, orderedBookmarks);
+		} else {
+			bookmarksList.addAll(orderedBookmarks);
+		}
+		bookmarkGroups.setCraftingMode(groupId, true);
+		bookmarkGroups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
+		notifyListenersOfChange();
+		saveBookmarks();
+		return groupId;
+	}
+
+	private IBookmark addOrGetWithoutNotifying(IBookmark bookmark, boolean addToFront) {
+		int index = bookmarksList.indexOf(bookmark);
+		if (index >= 0) {
+			return bookmarksList.get(index);
+		}
+		addToListWithoutNotifying(bookmark, addToFront);
+		return bookmark;
+	}
+
+	private List<RecipeBookmarkEntry> createRecipeBookmarkEntries(IRecipeLayoutDrawable<?> recipeLayout, boolean preserveAmount) {
+		List<RecipeBookmarkEntry> bookmarks = new ArrayList<>();
+		addSlotBookmarks(bookmarks, recipeLayout, RecipeIngredientRole.OUTPUT, preserveAmount);
+		addSlotBookmarks(bookmarks, recipeLayout, RecipeIngredientRole.INPUT, preserveAmount);
+		return bookmarks;
+	}
+
+	private List<RecipeBookmarkEntry> createRecipeBookmarkEntries(
+		FavoriteTreeBookmarkWriter.RecipeLayoutProjection projection,
+		boolean preserveAmount
+	) {
+		IRecipeLayoutDrawable<?> recipeLayout = projection.layout();
+		List<RecipeBookmarkEntry> bookmarks = new ArrayList<>();
+		addSlotBookmarks(bookmarks, recipeLayout, RecipeIngredientRole.OUTPUT, preserveAmount);
+		addSlotBookmarks(bookmarks, recipeLayout, RecipeIngredientRole.INPUT, preserveAmount, projection);
+		return bookmarks;
+	}
+
+	private <R> Optional<RecipeBookmarkEntry> createPrimaryRecipeBookmarkEntry(IRecipeLayoutDrawable<R> recipeLayout, boolean preserveAmount) {
+		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
+		Optional<RecipeBookmarkEntry> output = createFirstSlotBookmark(recipeLayout, recipeSlotsView, RecipeIngredientRole.OUTPUT, preserveAmount);
+		if (output.isPresent()) {
+			return output;
+		}
+		return createFirstSlotBookmark(recipeLayout, recipeSlotsView, RecipeIngredientRole.INPUT, preserveAmount);
+	}
+
+	private <R> Optional<RecipeBookmarkEntry> createFirstSlotBookmark(
+		IRecipeLayoutDrawable<R> recipeLayout,
+		IRecipeSlotsView recipeSlotsView,
+		RecipeIngredientRole role,
+		boolean preserveAmount
+	) {
+		List<IRecipeSlotView> roleSlots = recipeSlotsView.getSlotViews(role);
+		for (IRecipeSlotView slotView : roleSlots) {
+			Optional<ITypedIngredient<?>> ingredient = slotView.getAllIngredients().findFirst();
+			if (ingredient.isPresent()) {
+				return Optional.of(createRecipeBookmark(recipeLayout, slotView, roleSlots, ingredient.get(), role, preserveAmount));
+			}
+		}
+		return Optional.empty();
+	}
+
+	private <R> void addSlotBookmarks(List<RecipeBookmarkEntry> bookmarks, IRecipeLayoutDrawable<R> recipeLayout, RecipeIngredientRole role, boolean preserveAmount) {
+		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
+		List<IRecipeSlotView> roleSlots = recipeSlotsView.getSlotViews(role);
+		for (IRecipeSlotView slotView : roleSlots) {
+			slotView.getAllIngredients()
+				.findFirst()
+				.map(ingredient -> createRecipeBookmark(recipeLayout, slotView, roleSlots, ingredient, role, preserveAmount))
+				.ifPresent(entry -> {
+					if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
+						bookmarks.add(entry);
+					}
+				});
+		}
+	}
+
+	private <R> void addSlotBookmarks(
+		List<RecipeBookmarkEntry> bookmarks,
+		IRecipeLayoutDrawable<R> recipeLayout,
+		RecipeIngredientRole role,
+		boolean preserveAmount,
+		FavoriteTreeBookmarkWriter.RecipeLayoutProjection projection
+	) {
+		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
+		List<IRecipeSlotView> roleSlots = recipeSlotsView.getSlotViews(role);
+		for (int i = 0; i < roleSlots.size(); i++) {
+			IRecipeSlotView slotView = roleSlots.get(i);
+			if (role == RecipeIngredientRole.OUTPUT && projection.selectedOutputKey().isPresent()) {
+				slotView.getAllIngredients()
+					.filter(ingredient -> projection.selectedOutputKey().get().equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
+					.findFirst()
+					.map(selected -> createRecipeBookmark(recipeLayout, slotView, roleSlots, selected, role, preserveAmount))
+					.ifPresent(entry -> {
+						if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
+							bookmarks.add(entry);
+						}
+					});
+				continue;
+			}
+			Optional<ITypedIngredient<?>> ingredient = getSelectedIngredient(role, slotView, projection, i)
+				.or(() -> slotView.getAllIngredients().findFirst());
+			ingredient
+				.map(selected -> createRecipeBookmark(recipeLayout, slotView, roleSlots, selected, role, preserveAmount))
+				.ifPresent(entry -> {
+					if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
+						bookmarks.add(entry);
+					}
+				});
+		}
+	}
+
+	private Optional<ITypedIngredient<?>> getSelectedIngredient(
+		RecipeIngredientRole role,
+		IRecipeSlotView slotView,
+		FavoriteTreeBookmarkWriter.RecipeLayoutProjection projection,
+		int slotIndex
+	) {
+		if (role != RecipeIngredientRole.INPUT || ingredientManager == null) {
+			return Optional.empty();
+		}
+		Optional<BookmarkIngredientKey> selectedKey = projection.selectedInputKey(slotIndex);
+		if (selectedKey.isEmpty()) {
+			return Optional.empty();
+		}
+		return slotView.getAllIngredients()
+			.filter(ingredient -> selectedKey.get().equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
+			.findFirst();
+	}
+
+	private <R, T> RecipeBookmarkEntry createRecipeBookmark(
+		IRecipeLayoutDrawable<R> recipeLayout,
+		IRecipeSlotView slotView,
+		List<IRecipeSlotView> roleSlots,
+		ITypedIngredient<T> ingredient,
+		RecipeIngredientRole role,
+		boolean preserveAmount
+	) {
+		IRecipeCategory<R> recipeCategory = recipeLayout.getRecipeCategory();
+		R recipe = recipeLayout.getRecipe();
+		ITypedIngredient<T> bookmarkIngredient = preserveAmount ? ingredient : ingredientManager.normalizeTypedIngredient(ingredient);
+		ResourceLocation recipeUid = recipeCategory.getRegistryName(recipe);
+		if (recipeUid == null) {
+			IBookmark bookmark = preserveAmount ?
+				IngredientBookmark.createPreservingAmount(ingredient, ingredientManager) :
+				IngredientBookmark.create(ingredient, ingredientManager);
+			return new RecipeBookmarkEntry(bookmark, BookmarkItemMetadata.defaultForGroup(BookmarkGroupManager.DEFAULT_GROUP_ID));
+		}
+		IBookmark bookmark = new RecipeBookmark<>(recipeCategory, recipe, recipeUid, bookmarkIngredient, role);
+		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForRecipeSlot(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			recipeCategory,
+			recipeUid,
+			role,
+			slotView,
+			roleSlots,
+			ingredient,
+			ingredientManager
+		);
+		return new RecipeBookmarkEntry(bookmark, metadata);
+	}
+
+	private String getRecipeBookmarkGroupTitle(IRecipeSlotsView recipeSlotsView) {
+		return findFirstIngredient(recipeSlotsView, RecipeIngredientRole.OUTPUT)
+			.or(() -> findFirstIngredient(recipeSlotsView, RecipeIngredientRole.INPUT))
+			.map(this::getIngredientDisplayName)
+			.orElse("Recipe");
+	}
+
+	private String getRecipeBookmarkGroupTitle(FavoriteTreeBookmarkWriter.RecipeLayoutProjection projection) {
+		IRecipeSlotsView recipeSlotsView = projection.layout().getRecipeSlotsView();
+		return findSelectedOutputIngredient(recipeSlotsView, projection.selectedOutputKey())
+			.or(() -> findFirstIngredient(recipeSlotsView, RecipeIngredientRole.OUTPUT))
+			.or(() -> findFirstIngredient(recipeSlotsView, RecipeIngredientRole.INPUT))
+			.map(this::getIngredientDisplayName)
+			.orElse("Recipe");
+	}
+
+	private Optional<ITypedIngredient<?>> findSelectedOutputIngredient(
+		IRecipeSlotsView recipeSlotsView,
+		Optional<BookmarkIngredientKey> selectedOutputKey
+	) {
+		if (selectedOutputKey.isEmpty() || ingredientManager == null) {
+			return Optional.empty();
+		}
+		return recipeSlotsView.getSlotViews(RecipeIngredientRole.OUTPUT).stream()
+			.map(slot -> slot.getAllIngredients()
+				.filter(ingredient -> selectedOutputKey.get().equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
+				.findFirst())
+			.flatMap(Optional::stream)
+			.findFirst();
+	}
+
+	private Optional<ITypedIngredient<?>> findFirstIngredient(IRecipeSlotsView recipeSlotsView, RecipeIngredientRole role) {
+		return recipeSlotsView.getSlotViews(role).stream()
+			.map(slot -> slot.getAllIngredients().findFirst())
+			.flatMap(Optional::stream)
+			.findFirst();
+	}
+
+	private <T> String getIngredientDisplayName(ITypedIngredient<T> ingredient) {
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(ingredient.getType());
+		return ingredientHelper.getDisplayName(ingredient.getIngredient());
 	}
 
 	@Override
 	public List<IElement<?>> getElements() {
-		return bookmarksList.stream()
-			.<IElement<?>>map(IBookmark::getElement)
+		return getDisplayEntries().stream()
+			.map(this::createDisplayElement)
 			.toList();
 	}
 
-	@Nullable
-	public <R> RecipeBookmark<R,?> getMatchingBookmark(RecipeType<R> recipeType, R recipe) {
+	@Override
+	public List<IElement<?>> getElements(int columns) {
+		if (columns <= 0) {
+			return getElements();
+		}
+		List<BookmarkDisplaySlot<IBookmark>> displaySlots = getDisplaySlots(columns);
+		if (displaySlots.isEmpty()) {
+			return List.of();
+		}
+		Map<Integer, BookmarkDisplaySlot<IBookmark>> slotByIndex = new HashMap<>();
+		int maxSlotIndex = 0;
+		for (BookmarkDisplaySlot<IBookmark> displaySlot : displaySlots) {
+			slotByIndex.put(displaySlot.slotIndex(), displaySlot);
+			maxSlotIndex = Math.max(maxSlotIndex, displaySlot.slotIndex());
+		}
+		List<IElement<?>> elements = new ArrayList<>(maxSlotIndex + 1);
+		for (int slotIndex = 0; slotIndex <= maxSlotIndex; slotIndex++) {
+			BookmarkDisplaySlot<IBookmark> displaySlot = slotByIndex.get(slotIndex);
+			if (displaySlot == null) {
+				elements.add(LayoutPlaceholderElement.INSTANCE);
+			} else {
+				elements.add(createDisplayElement(displaySlot.entry()));
+			}
+		}
+		return List.copyOf(elements);
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private IElement<?> createDisplayElement(BookmarkDisplayEntry<IBookmark> entry) {
+		IElement<?> element = entry.item().getElement();
+		if (entry.recipeChainItem().isEmpty() && entry.metadata().recipeUid() == null) {
+			return element;
+		}
+		return new ProjectedBookmarkElement((IElement) element, entry);
+	}
+
+	public List<BookmarkDisplayEntry<IBookmark>> getDisplayEntries() {
+		return bookmarkGroups.getDisplayEntries(bookmarksList);
+	}
+
+	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots() {
+		return bookmarkGroups.getDisplaySlots(bookmarksList);
+	}
+
+	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots(int columns) {
+		return bookmarkGroups.getDisplaySlots(bookmarksList, columns);
+	}
+
+	public Optional<BookmarkDisplayEntry<IBookmark>> getDisplayEntry(IBookmark bookmark) {
+		return getDisplayEntries().stream()
+			.filter(entry -> entry.item().equals(bookmark))
+			.findFirst();
+	}
+
+	public List<IBookmark> getBookmarks() {
+		return List.copyOf(bookmarksList);
+	}
+
+	public List<BookmarkGroup> getBookmarkGroups() {
+		return bookmarkGroups.getGroups();
+	}
+
+	public Optional<RecipeChainDetails> getRecipeChainDetails(String groupId) {
+		return bookmarkGroups.getRecipeChainDetails(groupId);
+	}
+
+	public List<RecipeChainInput> getRecipeChainInputs(String groupId) {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		for (RecipeChainInput input : bookmarkGroups.getRecipeChainInputs(bookmarksList, groupId)) {
+			IBookmark bookmark = bookmarksList.get(input.index());
+			BookmarkItemMetadata metadata = hydrateRecipeChainMetadata(bookmark, input.metadata());
+			inputs.add(new RecipeChainInput(input.index(), metadata, getSelectedKey(bookmark, metadata).orElse(null)));
+		}
+		return List.copyOf(inputs);
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private BookmarkItemMetadata hydrateRecipeChainMetadata(IBookmark bookmark, BookmarkItemMetadata metadata) {
+		if (
+			recipeManager == null ||
+				focusFactory == null ||
+				ingredientManager == null ||
+				metadata.recipeUid() == null ||
+				metadata.type() == BookmarkItemType.ITEM ||
+				!(bookmark instanceof RecipeBookmark recipeBookmark)
+		) {
+			return metadata;
+		}
+		Optional<IRecipeLayoutDrawable<?>> layout = recipeManager.createRecipeLayoutDrawable(
+				recipeBookmark.getRecipeCategory(),
+				recipeBookmark.getRecipe(),
+				focusFactory.getEmptyFocusGroup()
+			)
+			.map(recipeLayout -> (IRecipeLayoutDrawable<?>) recipeLayout);
+		if (layout.isEmpty()) {
+			return metadata;
+		}
+		Set<BookmarkIngredientKey> hydratedPermutations = hydratePermutations(bookmark, metadata, layout.get());
+		if (hydratedPermutations.equals(metadata.permutations())) {
+			return metadata;
+		}
+		return new BookmarkItemMetadata(
+			metadata.groupId(),
+			metadata.type(),
+			metadata.multiplier(),
+			metadata.factor(),
+			metadata.chance(),
+			metadata.recipeTypeUid(),
+			metadata.recipeUid(),
+			hydratedPermutations,
+			metadata.containerItem(),
+			metadata.containerItemCraftingUses(),
+			metadata.brokenContainerItem()
+		);
+	}
+
+	private Set<BookmarkIngredientKey> hydratePermutations(IBookmark bookmark, BookmarkItemMetadata metadata, IRecipeLayoutDrawable<?> layout) {
+		RecipeIngredientRole role = switch (metadata.type()) {
+			case INGREDIENT -> RecipeIngredientRole.INPUT;
+			case RESULT -> RecipeIngredientRole.OUTPUT;
+			case ITEM -> null;
+		};
+		if (role == null) {
+			return metadata.permutations();
+		}
+
+		Set<BookmarkIngredientKey> seedKeys = new LinkedHashSet<>(metadata.permutations());
+		if (seedKeys.isEmpty()) {
+			ITypedIngredient<?> currentIngredient = bookmark.getElement().getTypedIngredient();
+			if (currentIngredient == null || ingredientManager == null) {
+				return metadata.permutations();
+			}
+			seedKeys.add(BookmarkItemMetadataFactory.createPermutationKey(currentIngredient, ingredientManager));
+		}
+
+		Set<BookmarkIngredientKey> hydrated = new LinkedHashSet<>(seedKeys);
+		List<IRecipeSlotView> slots = layout.getRecipeSlotsView().getSlotViews(role);
+		for (IRecipeSlotView slot : slots) {
+			Set<BookmarkIngredientKey> slotKeys = slot.getAllIngredients()
+				.map(ingredient -> BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager))
+				.collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+			if (slotKeys.stream().anyMatch(seedKeys::contains)) {
+				hydrated.addAll(slotKeys);
+			}
+		}
+		return Set.copyOf(hydrated);
+	}
+
+	private Optional<BookmarkIngredientKey> getSelectedKey(IBookmark bookmark, BookmarkItemMetadata metadata) {
+		ITypedIngredient<?> currentIngredient = bookmark.getElement().getTypedIngredient();
+		if (currentIngredient == null || ingredientManager == null) {
+			return Optional.empty();
+		}
+		BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(currentIngredient, ingredientManager);
+		if (metadata.permutations().contains(key)) {
+			return Optional.of(key);
+		}
+		return Optional.empty();
+	}
+
+	public Set<ResourceLocation> getCollapsedRecipeIds(String groupId) {
+		return bookmarkGroups.getCollapsedRecipeIds(groupId);
+	}
+
+	public Optional<RecipeChainItem> getRecipeChainItem(IBookmark bookmark) {
+		int index = bookmarksList.indexOf(bookmark);
+		if (index < 0) {
+			return Optional.empty();
+		}
+		String groupId = bookmarkGroups.getGroupId(bookmark);
+		return bookmarkGroups.getRecipeChainDetails(groupId)
+			.map(RecipeChainDetails::calculatedItems)
+			.map(items -> items.get(index));
+	}
+
+	public boolean isGroupCraftingMode(String groupId) {
+		return bookmarkGroups.isCraftingMode(groupId);
+	}
+
+	public String createGroup(String title) {
+		String groupId = bookmarkGroups.createGroup(title);
+		notifyListenersOfChange();
+		saveBookmarks();
+		return groupId;
+	}
+
+	public String createGroupForBookmarks(String title, List<IBookmark> bookmarks) {
+		String groupId = bookmarkGroups.createGroup(title);
+		for (IBookmark bookmark : bookmarks) {
+			if (bookmarksSet.contains(bookmark)) {
+				bookmarkGroups.moveItemToGroup(bookmark, groupId);
+			}
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return groupId;
+	}
+
+	public void moveBookmarkToGroup(IBookmark bookmark, String groupId) {
+		if (bookmarksSet.contains(bookmark)) {
+			bookmarkGroups.moveItemToGroup(bookmark, groupId);
+			notifyListenersOfChange();
+			saveBookmarks();
+		}
+	}
+
+	public boolean moveBookmarksToGroup(List<IBookmark> bookmarks, String groupId) {
+		List<IBookmark> movingBookmarks = bookmarks.stream()
+			.filter(bookmarksSet::contains)
+			.distinct()
+			.toList();
+		if (movingBookmarks.isEmpty()) {
+			return false;
+		}
+		for (IBookmark bookmark : movingBookmarks) {
+			bookmarkGroups.moveItemToGroup(bookmark, groupId);
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public void addGroupFromConfig(BookmarkGroup group) {
+		bookmarkGroups.addGroup(group);
+	}
+
+	public void moveBookmarkToGroupFromConfig(IBookmark bookmark, String groupId) {
+		moveBookmarkMetadataFromConfig(bookmark, BookmarkItemMetadata.defaultForGroup(groupId));
+	}
+
+	public void moveBookmarkMetadataFromConfig(IBookmark bookmark, BookmarkItemMetadata metadata) {
+		if (bookmarksSet.contains(bookmark)) {
+			bookmarkGroups.setItemMetadata(bookmark, metadata);
+		}
+	}
+
+	public String getBookmarkGroupId(IBookmark bookmark) {
+		return bookmarkGroups.getGroupId(bookmark);
+	}
+
+	public BookmarkItemMetadata getBookmarkMetadata(IBookmark bookmark) {
+		return bookmarkGroups.getItemMetadata(bookmark);
+	}
+
+	public void setBookmarkMetadata(IBookmark bookmark, BookmarkItemMetadata metadata) {
+		if (bookmarksSet.contains(bookmark)) {
+			bookmarkGroups.setItemMetadata(bookmark, metadata);
+			notifyListenersOfChange();
+			saveBookmarks();
+		}
+	}
+
+	public boolean shiftBookmarkAmount(IBookmark bookmark, long shift) {
+		if (!bookmarksSet.contains(bookmark) || shift == 0) {
+			return false;
+		}
+		String groupId = bookmarkGroups.getGroupId(bookmark);
+		boolean groupCollapsed = getBookmarkGroups().stream()
+			.filter(group -> group.id().equals(groupId))
+			.findFirst()
+			.map(BookmarkGroup::collapsed)
+			.orElse(false);
+		if (groupCollapsed && !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+			return shiftGroupAmount(groupId, shift);
+		}
+
+		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
+		ResourceLocation recipeUid = targetMetadata.recipeUid();
+		boolean changed = false;
+		if (recipeUid != null && targetMetadata.type() != BookmarkItemType.ITEM) {
+			long multiplier = getShiftedRecipeMultiplier(groupId, recipeUid, shift);
+			for (IBookmark candidate : bookmarksList) {
+				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
+				if (groupId.equals(metadata.groupId()) &&
+					recipeUid.equals(metadata.recipeUid()) &&
+					metadata.type() != BookmarkItemType.ITEM &&
+					metadata.multiplier() != multiplier) {
+					bookmarkGroups.setItemMetadata(candidate, metadata.withMultiplier(multiplier));
+					changed = true;
+				}
+			}
+		} else {
+			long multiplier = shiftMultiplier(targetMetadata.multiplier(), shift, 0);
+			if (targetMetadata.multiplier() != multiplier) {
+				bookmarkGroups.setItemMetadata(bookmark, targetMetadata.withMultiplier(multiplier));
+				changed = true;
+			}
+		}
+		if (changed) {
+			notifyListenersOfChange();
+			saveBookmarks();
+		}
+		return changed;
+	}
+
+	public boolean shiftGroupAmount(String groupId, long shift) {
+		if (shift == 0) {
+			return false;
+		}
+		Optional<RecipeChainDetails> chainDetails = bookmarkGroups.getRecipeChainDetails(groupId);
+		if (chainDetails.isPresent()) {
+			return shiftCraftingGroupAmount(groupId, shift, chainDetails.get());
+		}
+		boolean changed = false;
 		for (IBookmark bookmark : bookmarksList) {
-			if (bookmark instanceof RecipeBookmark<?,?> recipeBookmark) {
-				if (recipeBookmark.isRecipe(recipeType, recipe)) {
-					@SuppressWarnings("unchecked")
-					RecipeBookmark<R, ?> castBookmark = (RecipeBookmark<R, ?>) recipeBookmark;
-					return castBookmark;
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			if (groupId.equals(metadata.groupId()) && metadata.factor() > 0) {
+				long multiplier = shiftMultiplier(metadata.multiplier(), shift, 0);
+				if (metadata.multiplier() != multiplier) {
+					bookmarkGroups.setItemMetadata(bookmark, metadata.withMultiplier(multiplier));
+					changed = true;
 				}
 			}
 		}
-		return null;
+		if (changed) {
+			notifyListenersOfChange();
+			saveBookmarks();
+		}
+		return changed;
+	}
+
+	private boolean shiftCraftingGroupAmount(String groupId, long shift, RecipeChainDetails chainDetails) {
+		Map<ResourceLocation, Long> recipeMultipliers = new HashMap<>();
+		List<IBookmark> shiftedBookmarks = new ArrayList<>();
+		for (IBookmark bookmark : bookmarksList) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (groupId.equals(metadata.groupId()) &&
+				recipeUid != null &&
+				metadata.type() != BookmarkItemType.ITEM &&
+				metadata.factor() > 0 &&
+				chainDetails.outputRecipes().contains(recipeUid)) {
+				long minMultiplier = chainDetails.middleRecipes().contains(recipeUid) ? 1 : 0;
+				long multiplier = shiftMultiplier(Math.max(minMultiplier, metadata.multiplier()), shift, minMultiplier);
+				recipeMultipliers.merge(recipeUid, multiplier, Math::min);
+				shiftedBookmarks.add(bookmark);
+			}
+		}
+		boolean changed = false;
+		for (IBookmark bookmark : shiftedBookmarks) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			Long multiplier = recipeMultipliers.get(metadata.recipeUid());
+			if (multiplier != null && metadata.multiplier() != multiplier) {
+				bookmarkGroups.setItemMetadata(bookmark, metadata.withMultiplier(multiplier));
+				changed = true;
+			}
+		}
+		if (changed) {
+			notifyListenersOfChange();
+			saveBookmarks();
+		}
+		return changed;
+	}
+
+	public boolean cycleBookmarkPermutation(IBookmark bookmark, long shift) {
+		if (!bookmarksSet.contains(bookmark) || shift == 0 || ingredientManager == null) {
+			return false;
+		}
+		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+		List<BookmarkIngredientKey> permutations = new ArrayList<>(metadata.permutations());
+		if (permutations.size() <= 1) {
+			return false;
+		}
+		ITypedIngredient<?> currentIngredient = bookmark.getElement().getTypedIngredient();
+		if (currentIngredient == null) {
+			return false;
+		}
+		BookmarkIngredientKey currentKey = BookmarkItemMetadataFactory.createPermutationKey(currentIngredient, ingredientManager);
+		int currentIndex = permutations.indexOf(currentKey);
+		if (currentIndex < 0) {
+			currentIndex = 0;
+		}
+		int nextIndex = Math.floorMod(currentIndex - (int) Math.signum(shift), permutations.size());
+		Optional<ITypedIngredient<?>> nextIngredient = resolvePermutation(permutations.get(nextIndex));
+		if (nextIngredient.isEmpty()) {
+			return false;
+		}
+		IBookmark replacement = createPermutationBookmark(bookmark, nextIngredient.get());
+		return replaceBookmark(bookmark, replacement, metadata);
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private Optional<ITypedIngredient<?>> resolvePermutation(BookmarkIngredientKey key) {
+		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
+			.flatMap(type -> resolvePermutation((IIngredientType) type, key.ingredientUid()))
+			.map(typedIngredient -> (ITypedIngredient<?>) typedIngredient);
+	}
+
+	private <T> Optional<ITypedIngredient<T>> resolvePermutation(IIngredientType<T> type, String ingredientUid) {
+		return ingredientManager.getTypedIngredientByUid(type, ingredientUid);
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private IBookmark createPermutationBookmark(IBookmark bookmark, ITypedIngredient<?> typedIngredient) {
+		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
+			return new RecipeBookmark(
+				recipeBookmark.getRecipeCategory(),
+				recipeBookmark.getRecipe(),
+				recipeBookmark.getRecipeUid(),
+				typedIngredient,
+				recipeBookmark.getDisplayRole()
+			);
+		}
+		return createIngredientBookmark((ITypedIngredient) typedIngredient);
+	}
+
+	private <T> IngredientBookmark<T> createIngredientBookmark(ITypedIngredient<T> typedIngredient) {
+		return IngredientBookmark.createPreservingAmount(typedIngredient, ingredientManager);
+	}
+
+	private boolean replaceBookmark(IBookmark bookmark, IBookmark replacement, BookmarkItemMetadata metadata) {
+		int index = bookmarksList.indexOf(bookmark);
+		if (index < 0) {
+			return false;
+		}
+		bookmarksSet.remove(bookmark);
+		if (!bookmarksSet.add(replacement)) {
+			bookmarksSet.add(bookmark);
+			return false;
+		}
+		bookmarksList.set(index, replacement);
+		bookmarkGroups.removeItem(bookmark);
+		bookmarkGroups.setItemMetadata(replacement, metadata);
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	private long getShiftedRecipeMultiplier(String groupId, ResourceLocation recipeUid, long shift) {
+		boolean recipeInMiddle = bookmarkGroups.getRecipeChainDetails(groupId)
+			.map(details -> details.middleRecipes().contains(recipeUid))
+			.orElse(false);
+		long minMultiplier = recipeInMiddle ? 1 : 0;
+		long multiplier = Long.MAX_VALUE;
+		for (IBookmark bookmark : bookmarksList) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			if (groupId.equals(metadata.groupId()) &&
+				recipeUid.equals(metadata.recipeUid()) &&
+				metadata.type() != BookmarkItemType.ITEM &&
+				metadata.factor() > 0) {
+				long currentMultiplier = Math.max(minMultiplier, metadata.multiplier());
+				multiplier = Math.min(multiplier, shiftMultiplier(currentMultiplier, shift, minMultiplier));
+			}
+		}
+		return multiplier == Long.MAX_VALUE ? 0 : multiplier;
+	}
+
+	private static long shiftMultiplier(long multiplier, long shift, long minMultiplier) {
+		if (shift > 0 && multiplier > Integer.MAX_VALUE - shift) {
+			return Integer.MAX_VALUE;
+		}
+		return Math.min(Integer.MAX_VALUE, Math.max(minMultiplier, multiplier + shift));
+	}
+
+	public void setGroupCollapsed(String groupId, boolean collapsed) {
+		bookmarkGroups.setCollapsed(groupId, collapsed);
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	public void setGroupCraftingMode(String groupId, boolean craftingMode) {
+		bookmarkGroups.setCraftingMode(groupId, craftingMode);
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	public void setGroupViewMode(String groupId, BookmarkViewMode viewMode) {
+		bookmarkGroups.setViewMode(groupId, viewMode);
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	public void setGroupCollapsedRecipeIds(String groupId, Set<ResourceLocation> collapsedRecipeIds) {
+		bookmarkGroups.setCollapsedRecipeIds(groupId, collapsedRecipeIds);
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	public boolean toggleGroupCollapsedRecipeId(String groupId, ResourceLocation recipeUid) {
+		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
+		if (group.isEmpty()) {
+			return false;
+		}
+		Set<ResourceLocation> collapsedRecipeIds = new HashSet<>(group.get().collapsedRecipeIds());
+		if (!collapsedRecipeIds.add(recipeUid)) {
+			collapsedRecipeIds.remove(recipeUid);
+		}
+		bookmarkGroups.setCollapsedRecipeIds(groupId, collapsedRecipeIds);
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public boolean toggleGroupCollapsed(String groupId) {
+		if (!bookmarkGroups.toggleCollapsed(groupId)) {
+			return false;
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public boolean toggleGroupViewMode(String groupId) {
+		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
+		if (group.isEmpty()) {
+			return false;
+		}
+		BookmarkViewMode nextMode = group.get().viewMode() == BookmarkViewMode.DEFAULT ?
+			BookmarkViewMode.TODO_LIST :
+			BookmarkViewMode.DEFAULT;
+		bookmarkGroups.setViewMode(groupId, nextMode);
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public boolean removeGroup(String groupId) {
+		List<IBookmark> removedBookmarks = bookmarksList.stream()
+			.filter(bookmark -> groupId.equals(bookmarkGroups.getGroupId(bookmark)))
+			.toList();
+		if (!bookmarkGroups.removeGroup(groupId)) {
+			return false;
+		}
+		for (IBookmark bookmark : removedBookmarks) {
+			removeBookmarkWithoutNotifying(bookmark);
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public boolean moveGroupToBookmark(String groupId, IBookmark targetBookmark) {
+		return moveGroupToBookmark(groupId, targetBookmark, 0);
+	}
+
+	public boolean moveGroupToEnd(String groupId) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+			return false;
+		}
+
+		List<IBookmark> groupBookmarks = bookmarksList.stream()
+			.filter(bookmark -> groupId.equals(bookmarkGroups.getGroupId(bookmark)))
+			.toList();
+		if (groupBookmarks.isEmpty()) {
+			return false;
+		}
+
+		bookmarksList.removeAll(groupBookmarks);
+		bookmarksList.addAll(groupBookmarks);
+
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public boolean moveGroupToBookmark(String groupId, IBookmark targetBookmark, int offset) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) || !bookmarksSet.contains(targetBookmark)) {
+			return false;
+		}
+
+		List<IBookmark> groupBookmarks = bookmarksList.stream()
+			.filter(bookmark -> groupId.equals(bookmarkGroups.getGroupId(bookmark)))
+			.toList();
+		if (groupBookmarks.isEmpty() || groupBookmarks.contains(targetBookmark)) {
+			return false;
+		}
+
+		bookmarksList.removeAll(groupBookmarks);
+		int targetIndex = bookmarksList.indexOf(targetBookmark);
+		if (targetIndex < 0) {
+			bookmarksList.addAll(groupBookmarks);
+		} else {
+			int insertionIndex = Math.max(0, Math.min(bookmarksList.size(), targetIndex + offset));
+			bookmarksList.addAll(insertionIndex, groupBookmarks);
+		}
+
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
 	}
 
 	public boolean isEmpty() {
 		return bookmarksSet.isEmpty();
+	}
+
+	public long getChangeVersion() {
+		return changeVersion;
 	}
 
 	@Override
@@ -186,9 +1400,27 @@ public class BookmarkList implements IIngredientGridSource {
 		listeners.add(listener);
 	}
 
-	private void notifyListenersOfChange() {
+	public void notifyListenersOfChange() {
+		changeVersion++;
+		bookmarkGroups.refreshRecipeChainDetails(bookmarksList);
 		for (SourceListChangedListener listener : listeners) {
 			listener.onSourceListChanged();
 		}
+	}
+
+	private void saveBookmarks() {
+		if (bookmarkConfig != null) {
+			bookmarkConfig.saveBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, this);
+		}
+	}
+
+	private static BookmarkItemMetadata createDefaultMetadata(IBookmark bookmark, String groupId) {
+		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
+			return recipeBookmark.createDefaultMetadata(groupId);
+		}
+		return BookmarkItemMetadata.defaultForGroup(groupId);
+	}
+
+	private record RecipeBookmarkEntry(IBookmark bookmark, BookmarkItemMetadata metadata) {
 	}
 }
