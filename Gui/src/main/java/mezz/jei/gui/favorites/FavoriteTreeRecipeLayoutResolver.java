@@ -11,11 +11,14 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
 import mezz.jei.gui.input.FocusedRecipe;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuilder.RecipeResolver {
 	private final IRecipeManager recipeManager;
@@ -57,17 +60,29 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 			.map(layout -> (IRecipeLayoutDrawable<?>) layout);
 	}
 
-	private List<FavoriteTreeBuilder.ResolvedInput> resolveInputs(IRecipeLayoutDrawable<?> layout) {
-		return layout.getRecipeSlotsView()
-			.getSlotViews(RecipeIngredientRole.INPUT)
+	List<FavoriteTreeBuilder.ResolvedInput> resolveInputs(IRecipeLayoutDrawable<?> layout) {
+		List<IRecipeSlotView> inputSlots = layout.getRecipeSlotsView()
+			.getSlotViews(RecipeIngredientRole.INPUT);
+		Set<BookmarkIngredientKey> nonConsumableInputs = GtmVirtualCircuitCompat
+			.projectVirtualInputs(layout.getRecipe(), ingredientManager)
+			.inputs()
 			.stream()
-			.map(this::resolveInput)
+			.map(GtmVirtualCircuitCompat.VirtualInput::ingredient)
+			.map(this::createKey)
+			.collect(Collectors.toUnmodifiableSet());
+		return inputSlots.stream()
+			.map(slot -> resolveInput(slot, nonConsumableInputs))
 			.flatMap(Optional::stream)
 			.toList();
 	}
 
-	private Optional<FavoriteTreeBuilder.ResolvedInput> resolveInput(IRecipeSlotView slot) {
-		List<ITypedIngredient<?>> ingredients = slot.getAllIngredients().toList();
+	private Optional<FavoriteTreeBuilder.ResolvedInput> resolveInput(
+		IRecipeSlotView slot,
+		Set<BookmarkIngredientKey> nonConsumableInputs
+	) {
+		List<ITypedIngredient<?>> ingredients = slot.getAllIngredients()
+			.filter(ingredient -> !nonConsumableInputs.contains(createKey(ingredient)))
+			.toList();
 		if (ingredients.isEmpty()) {
 			return Optional.empty();
 		}

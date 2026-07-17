@@ -20,6 +20,7 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
@@ -28,11 +29,11 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyMouseButton;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkMoveSelection;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
+import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
@@ -57,6 +58,8 @@ import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.input.handlers.NullDragHandler;
 import mezz.jei.gui.input.handlers.ProxyDragHandler;
 import mezz.jei.gui.input.handlers.ProxyInputHandler;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.overlay.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.IngredientListSlot;
 import mezz.jei.gui.overlay.ScreenPropertiesCache;
@@ -67,6 +70,7 @@ import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -312,15 +316,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, mouseExclusionArea);
 			this.lookupHistoryOverlay.updateLayout();
 		});
-		int legacySize = contents.size();
 		this.contents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
-		boolean resetToFirstPage = legacySize != contents.size();
-		this.contents.updateLayout(resetToFirstPage);
+		this.contents.updateLayout(false);
 
-		int legacyFavoriteSize = favoriteContents.size();
 		this.favoriteContents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
-		boolean resetFavoriteToFirstPage = legacyFavoriteSize != favoriteContents.size();
-		this.favoriteContents.updateLayout(resetFavoriteToFirstPage);
+		this.favoriteContents.updateLayout(false);
 
 		if (contents.hasRoom()) {
 			ImmutableRect2i contentsArea = this.contents.getBackgroundArea();
@@ -446,7 +446,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 
 	private boolean drawGroupHotkeyTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (getDefaultGroupControlArea().contains(mouseX, mouseY)) {
-			clearRecipeChainHoverTooltip();
 			JeiTooltip tooltip = new JeiTooltip();
 			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, keyBindings, Screen.hasAltDown());
 			tooltip.draw(guiGraphics, mouseX, mouseY);
@@ -455,21 +454,25 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 
 		Optional<GroupPanelSlot> slot = getGroupPanelSlotUnderMouse(mouseX, mouseY);
 		if (slot.isEmpty()) {
-			clearRecipeChainHoverTooltip();
 			return false;
 		}
 
 		String groupId = slot.get().groupId();
 		boolean grouped = !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId);
 		boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
-		if (!craftingMode) {
-			clearRecipeChainHoverTooltip();
-		}
 		JeiTooltip tooltip = new JeiTooltip();
 		addRecipeChainTooltip(tooltip, groupId);
-		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, keyBindings, Screen.hasAltDown(), grouped, craftingMode);
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, keyBindings, Screen.hasAltDown(), grouped, craftingMode, canEncodeAe2Patterns());
 		tooltip.draw(guiGraphics, mouseX, mouseY);
 		return true;
+	}
+
+	private static boolean canEncodeAe2Patterns() {
+		if (!(Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> containerScreen)) {
+			return false;
+		}
+		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
+		return bridge.isAvailable() && bridge.isPatternEncodingTerminal(containerScreen.getMenu());
 	}
 
 	private boolean drawFavoriteRecipeRowHotkeyTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -499,24 +502,42 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			hoverTooltip == null ||
 				!hoverTooltip.matches(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown)
 		) {
-			RecipeChainTooltipModel model = RecipeChainTooltipModel.create(
-				bookmarkList.getRecipeChainInputs(groupId),
-				bookmarkList.getCollapsedRecipeIds(groupId),
-				shiftDown ? getRecipeChainTooltipInventoryInputs(groupId) : List.of(),
+			RecipeChainTooltipModel model;
+			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients = bookmarkList.getRecipeChainTooltipIngredients(groupId);
+			Optional<RecipeChainDetails> baseDetails = bookmarkList.getRecipeChainDetails(groupId);
+			if (baseDetails.isPresent()) {
+				model = RecipeChainTooltipModel.create(
+					bookmarkList.getRecipeChainTooltipInputs(groupId),
+					baseDetails.get(),
+					bookmarkList.getCollapsedRecipeIds(groupId),
+					shiftDown ? getRecipeChainTooltipInventoryInputs(groupId) : List.of(),
+					shiftDown,
+					controlDown
+				);
+			} else {
+				model = RecipeChainTooltipModel.create(
+					bookmarkList.getRecipeChainInputs(groupId),
+					bookmarkList.getCollapsedRecipeIds(groupId),
+					shiftDown ? getRecipeChainTooltipInventoryInputs(groupId) : List.of(),
+					shiftDown,
+					controlDown
+				);
+			}
+			hoverTooltip = RecipeChainHoverTooltip.create(
+				groupId,
+				bookmarkVersion,
+				shiftVersion,
 				shiftDown,
-				controlDown
+				controlDown,
+				model,
+				resolvedIngredients
 			);
-			hoverTooltip = RecipeChainHoverTooltip.create(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown, model);
 			recipeChainHoverTooltip = hoverTooltip;
 		}
 		for (RecipeChainTooltipSection section : hoverTooltip.sections()) {
 			tooltip.add(Component.translatable(getRecipeChainTooltipLabel(section.type())).withStyle(getRecipeChainTooltipColor(section.type())));
 			tooltip.add(section.component());
 		}
-	}
-
-	private void clearRecipeChainHoverTooltip() {
-		recipeChainHoverTooltip = null;
 	}
 
 	private long updateRecipeChainTooltipShiftVersion(boolean shiftDown) {
@@ -978,7 +999,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	}
 
 	private static @Nullable ResourceLocation getRecipeKey(BookmarkDisplayEntry<IBookmark> entry) {
-		if (entry.metadata().type() == BookmarkItemType.ITEM) {
+		if (!entry.metadata().type().isRecipeAssociated()) {
 			return null;
 		}
 		return entry.displayRecipeUid()
@@ -986,7 +1007,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	}
 
 	private static @Nullable ResourceLocation getRecipeKey(BookmarkItemMetadata metadata) {
-		if (metadata.type() == BookmarkItemType.ITEM) {
+		if (!metadata.type().isRecipeAssociated()) {
 			return null;
 		}
 		return metadata.recipeUid();
@@ -1049,10 +1070,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			long shiftVersion,
 			boolean shiftDown,
 			boolean controlDown,
-			RecipeChainTooltipModel model
+			RecipeChainTooltipModel model,
+			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients
 		) {
 			List<RecipeChainTooltipSection> sections = model.sections().stream()
-				.map(RecipeChainTooltipSection::create)
+				.map(section -> RecipeChainTooltipSection.create(section, resolvedIngredients))
 				.flatMap(Optional::stream)
 				.toList();
 			return new RecipeChainHoverTooltip(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown, sections);
@@ -1077,8 +1099,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		RecipeChainTooltipSectionType type,
 		RecipeChainPreviewTooltipComponent component
 	) {
-		public static Optional<RecipeChainTooltipSection> create(RecipeChainTooltipModel.Section section) {
-			RecipeChainPreviewTooltipComponent component = new RecipeChainPreviewTooltipComponent(section.items());
+		public static Optional<RecipeChainTooltipSection> create(
+			RecipeChainTooltipModel.Section section,
+			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients
+		) {
+			RecipeChainPreviewTooltipComponent component = new RecipeChainPreviewTooltipComponent(section.items(), resolvedIngredients);
 			if (component.isEmpty()) {
 				return Optional.empty();
 			}
@@ -1394,6 +1419,13 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		}
 		return getGroupIdUnderMouseGroupPanel(mouseX, mouseY)
 			.or(() -> getGroupIdUnderMouse(mouseX, mouseY));
+	}
+
+	public Optional<String> getPatternEncodeGroupIdUnderMouse(double mouseX, double mouseY) {
+		if (getDefaultGroupControlArea().contains(mouseX, mouseY)) {
+			return Optional.of(BookmarkGroupManager.DEFAULT_GROUP_ID);
+		}
+		return getGroupIdUnderMouseGroupPanel(mouseX, mouseY);
 	}
 
 	public boolean removeGroupUnderMouseGroupPanel(UserInput input) {
@@ -1978,7 +2010,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				}
 				BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
 				ResourceLocation recipeUid = metadata.recipeUid();
-				if (recipeUid != null && metadata.type() != BookmarkItemType.ITEM) {
+				if (recipeUid != null && metadata.type().isRecipeAssociated()) {
 					recipeIdsByGroup.computeIfAbsent(metadata.groupId(), groupId -> new HashSet<>())
 						.add(recipeUid);
 				}

@@ -7,6 +7,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
+import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +42,26 @@ public class BookmarkChainSlotVisualsTest {
 			.flatMap(BookmarkSlotVisuals::amountText);
 
 		Assertions.assertEquals(Optional.of("4"), amountText);
+	}
+
+	@Test
+	public void catalystBookmarkShowsYellowCatalystMarker() {
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.CATALYST,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			ResourceLocation.fromNamespaceAndPath("test", "category"),
+			ResourceLocation.fromNamespaceAndPath("test", "recipe"),
+			Set.of()
+		);
+
+		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(entry(metadata)).orElseThrow();
+
+		Assertions.assertEquals(Optional.of("C"), visuals.recipeMarkerText());
+		Assertions.assertEquals(0xFFFFFF55, visuals.recipeMarkerTextColor().orElseThrow());
+		Assertions.assertTrue(visuals.backgroundColor().isEmpty());
 	}
 
 	private static BookmarkDisplayEntry<Object> entry(BookmarkItemMetadata metadata) {

@@ -25,7 +25,7 @@ public class PacketCraftingGridCraft extends PlayToServerPacket<PacketCraftingGr
 		p -> p.requestId,
 		ByteBufCodecs.VAR_INT,
 		p -> p.multiplier,
-		ItemStack.STREAM_CODEC.apply(ByteBufCodecs.list(MAX_TARGET_STACKS)),
+		ItemStack.OPTIONAL_STREAM_CODEC.apply(ByteBufCodecs.list(MAX_TARGET_STACKS)),
 		p -> p.targetStacks,
 		PacketCraftingGridCraft::new
 	);

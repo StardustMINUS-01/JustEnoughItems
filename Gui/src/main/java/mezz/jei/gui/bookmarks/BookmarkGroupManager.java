@@ -157,6 +157,14 @@ public class BookmarkGroupManager<T> {
 		return createRecipeChainInputs(group, orderedItems);
 	}
 
+	public List<RecipeChainInput> getGroupRecipeInputs(List<T> orderedItems, String groupId) {
+		BookmarkGroup group = groups.get(groupId);
+		if (group == null) {
+			return List.of();
+		}
+		return createRecipeChainInputs(group, orderedItems);
+	}
+
 	public Set<ResourceLocation> getCollapsedRecipeIds(String groupId) {
 		BookmarkGroup group = groups.get(groupId);
 		if (group == null || !group.craftingMode()) {

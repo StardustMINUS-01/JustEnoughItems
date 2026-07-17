@@ -88,7 +88,17 @@ public class GuiEventHandler {
 	}
 
 	public void onDrawBackgroundPost(Screen screen, GuiGraphics guiGraphics) {
+		updateOverlayScreenProperties(screen);
 		Minecraft minecraft = Minecraft.getInstance();
+		double mouseX = MouseUtil.getX();
+		double mouseY = MouseUtil.getY();
+		float partialTicks = getPartialTicks(minecraft);
+		ingredientListOverlay.drawScreen(minecraft, guiGraphics, (int) mouseX, (int) mouseY, partialTicks);
+		bookmarkOverlay.drawScreen(minecraft, guiGraphics, (int) mouseX, (int) mouseY, partialTicks);
+		drawnOnBackground = true;
+	}
+
+	private void updateOverlayScreenProperties(Screen screen) {
 		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
 			.map(ImmutableRect2i::new)
 			.collect(Collectors.toUnmodifiableSet());
@@ -101,13 +111,6 @@ public class GuiEventHandler {
 				.updateScreen(screen)
 				.updateExclusionAreas(guiExclusionAreas)
 				.update();
-
-		drawnOnBackground = true;
-		double mouseX = MouseUtil.getX();
-		double mouseY = MouseUtil.getY();
-		float partialTicks = getPartialTicks(minecraft);
-		ingredientListOverlay.drawScreen(minecraft, guiGraphics, (int) mouseX, (int) mouseY, partialTicks);
-		bookmarkOverlay.drawScreen(minecraft, guiGraphics, (int) mouseX, (int) mouseY, partialTicks);
 	}
 
 	/**
@@ -122,6 +125,14 @@ public class GuiEventHandler {
 		{
 			IPlatformScreenHelper screenHelper = Services.PLATFORM.getScreenHelper();
 			poseStack.translate(-screenHelper.getGuiLeft(screen), -screenHelper.getGuiTop(screen), 0);
+			if (!drawnOnBackground) {
+				updateOverlayScreenProperties(screen);
+				Minecraft minecraft = Minecraft.getInstance();
+				float partialTicks = getPartialTicks(minecraft);
+				ingredientListOverlay.drawScreen(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+				bookmarkOverlay.drawScreen(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+				drawnOnBackground = true;
+			}
 			bookmarkOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 			ingredientListOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
@@ -131,17 +142,7 @@ public class GuiEventHandler {
 	public void onDrawScreenPost(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		Minecraft minecraft = Minecraft.getInstance();
 
-		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
-			.map(ImmutableRect2i::new)
-			.collect(Collectors.toUnmodifiableSet());
-		ingredientListOverlay.getScreenPropertiesUpdater()
-			.updateScreen(screen)
-			.updateExclusionAreas(guiExclusionAreas)
-			.update();
-		bookmarkOverlay.getScreenPropertiesUpdater()
-			.updateScreen(screen)
-			.updateExclusionAreas(guiExclusionAreas)
-			.update();
+		updateOverlayScreenProperties(screen);
 
 		if (!drawnOnBackground) {
 			if (screen instanceof AbstractContainerScreen) {

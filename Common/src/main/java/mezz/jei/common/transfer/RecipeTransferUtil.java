@@ -40,11 +40,19 @@ public final class RecipeTransferUtil {
 	}
 
 	public static Optional<IRecipeTransferError> getTransferRecipeError(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player) {
-		return transferRecipe(recipeTransferManager, container, recipeLayout, player, false, false);
+		return getTransferRecipeError(recipeTransferManager, container, recipeLayout, recipeLayout.getRecipeSlotsView(), player);
+	}
+
+	public static Optional<IRecipeTransferError> getTransferRecipeError(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, IRecipeSlotsView recipeSlotsView, Player player) {
+		return transferRecipe(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, false, false);
 	}
 
 	public static boolean transferRecipe(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player, boolean maxTransfer) {
-		return transferRecipe(recipeTransferManager, container, recipeLayout, player, maxTransfer, true)
+		return transferRecipe(recipeTransferManager, container, recipeLayout, recipeLayout.getRecipeSlotsView(), player, maxTransfer);
+	}
+
+	public static boolean transferRecipe(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, IRecipeSlotsView recipeSlotsView, Player player, boolean maxTransfer) {
+		return transferRecipe(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, maxTransfer, true)
 			.map(error -> error.getType().allowsTransfer)
 			.orElse(true);
 	}
@@ -53,6 +61,7 @@ public final class RecipeTransferUtil {
 		IRecipeTransferManager recipeTransferManager,
 		C container,
 		IRecipeLayoutDrawable<R> recipeLayout,
+		IRecipeSlotsView recipeSlotsView,
 		Player player,
 		boolean maxTransfer,
 		boolean doTransfer
@@ -68,8 +77,6 @@ public final class RecipeTransferUtil {
 		}
 
 		IRecipeTransferHandler<C, R> transferHandler = recipeTransferHandler.get();
-		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
-
 		try {
 			IRecipeTransferError transferError = transferHandler.transferRecipe(container, recipeLayout.getRecipe(), recipeSlotsView, player, maxTransfer, doTransfer);
 			return Optional.ofNullable(transferError);

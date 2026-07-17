@@ -3,7 +3,6 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.common.config.BookmarkRecipeMarkerMode;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
@@ -77,19 +76,20 @@ public final class BookmarkChainSlotVisuals {
 		}
 
 		BookmarkItemMetadata metadata = entry.metadata();
-		if (metadata.type() == BookmarkItemType.INGREDIENT && metadata.recipeUid() != null && displayMode != BookmarkSlotDisplayMode.DEFAULT) {
+		if ((metadata.type().isGraphInput() && displayMode != BookmarkSlotDisplayMode.DEFAULT || metadata.type().isCatalyst()) && metadata.recipeUid() != null) {
+			Optional<String> recipeMarkerText = getRecipeMarkerText(metadata, recipeMarkerMode);
 			return Optional.of(new BookmarkSlotVisuals(
-				OptionalInt.of(INGREDIENT_COLOR),
+				displayMode == BookmarkSlotDisplayMode.DEFAULT ? OptionalInt.empty() : OptionalInt.of(INGREDIENT_COLOR),
 				OptionalInt.empty(),
 				formatPositiveAmount(metadata, metadata.amount()),
 				getAmountTextColor(metadata),
 				Optional.empty(),
 				OptionalInt.empty(),
-				Optional.empty(),
-				OptionalInt.empty()
+				recipeMarkerText,
+				getRecipeMarkerTextColor(recipeMarkerText)
 			));
 		}
-		if (metadata.type() != BookmarkItemType.INGREDIENT && metadata.recipeUid() != null) {
+		if (!metadata.type().isGraphInput() && metadata.recipeUid() != null) {
 			Optional<String> multiplierText = getMultiplierText(entry, null, displayMode);
 			Optional<String> recipeMarkerText = getRecipeMarkerText(metadata, recipeMarkerMode);
 			return Optional.of(new BookmarkSlotVisuals(
@@ -180,7 +180,7 @@ public final class BookmarkChainSlotVisuals {
 	) {
 		if (recipeMarkerMode == BookmarkRecipeMarkerMode.BACKGROUND &&
 			displayMode == BookmarkSlotDisplayMode.DEFAULT &&
-			entry.metadata().type() != BookmarkItemType.INGREDIENT &&
+			!entry.metadata().type().isGraphInput() &&
 			entry.metadata().recipeUid() != null &&
 			!markerHovered) {
 			if (item != null && item.type() == RecipeChainItemType.REMAINDER && item.shiftAmount() > 0) {
@@ -200,14 +200,14 @@ public final class BookmarkChainSlotVisuals {
 	}
 
 	private static Optional<String> getMultiplierText(BookmarkDisplayEntry<?> entry, RecipeChainItem item, BookmarkSlotDisplayMode displayMode) {
-		if (entry.metadata().type() == BookmarkItemType.INGREDIENT) {
+		if (entry.metadata().type().isGraphInput()) {
 			return Optional.empty();
 		}
 		long multiplier = item == null ? entry.metadata().multiplier() : item.realMultiplier();
 		if (displayMode == BookmarkSlotDisplayMode.SHIFT && item != null) {
 			multiplier = item.calculatedMultiplier();
 		}
-		if (displayMode != BookmarkSlotDisplayMode.DEFAULT && entry.metadata().type() != BookmarkItemType.INGREDIENT && entry.metadata().recipeUid() != null) {
+		if (displayMode != BookmarkSlotDisplayMode.DEFAULT && !entry.metadata().type().isGraphInput() && entry.metadata().recipeUid() != null) {
 			return Optional.of("x" + formatAmount(Math.max(0, multiplier)));
 		}
 		if (item != null && item.type() != RecipeChainItemType.INGREDIENT && item.realMultiplier() != item.calculatedMultiplier()) {
@@ -236,8 +236,11 @@ public final class BookmarkChainSlotVisuals {
 	}
 
 	private static Optional<String> getRecipeMarkerText(BookmarkItemMetadata metadata, BookmarkRecipeMarkerMode recipeMarkerMode) {
+		if (metadata.type().isCatalyst()) {
+			return Optional.of("C");
+		}
 		if (recipeMarkerMode == BookmarkRecipeMarkerMode.TEXT &&
-			metadata.type() != BookmarkItemType.INGREDIENT &&
+			!metadata.type().isGraphInput() &&
 			metadata.recipeUid() != null) {
 			return Optional.of("R");
 		}
@@ -245,6 +248,9 @@ public final class BookmarkChainSlotVisuals {
 	}
 
 	private static OptionalInt getRecipeMarkerTextColor(Optional<String> recipeMarkerText) {
+		if (recipeMarkerText.filter("C"::equals).isPresent()) {
+			return OptionalInt.of(0xFFFFFF55);
+		}
 		if (recipeMarkerText.isPresent()) {
 			return OptionalInt.of(RECIPE_MARKER_TEXT_COLOR);
 		}

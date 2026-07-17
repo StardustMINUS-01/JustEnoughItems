@@ -1,8 +1,10 @@
 package mezz.jei.gui.input.handlers;
 
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.recipe.IFocusFactory;
+import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -11,11 +13,16 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
+import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
+import mezz.jei.gui.recipes.RecipeGuiLayouts;
+import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.FocusUtil;
 import mezz.jei.gui.util.GiveAmount;
@@ -23,6 +30,10 @@ import mezz.jei.common.util.JeiClientSoundUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -30,18 +41,22 @@ import java.util.Optional;
 
 public class FocusInputHandler implements IUserInputHandler {
 	private final CombinedRecipeFocusSource focusSource;
-	private final IRecipesGui recipesGui;
+	private final RecipesGui recipesGui;
 	private final FocusUtil focusUtil;
 	private final IIngredientManager ingredientManager;
+	private final IRecipeManager recipeManager;
+	private final IFocusFactory focusFactory;
 	private final IClientToggleState toggleState;
 	private final CommandUtil commandUtil;
 
 	public FocusInputHandler(
 		CombinedRecipeFocusSource focusSource,
-		IRecipesGui recipesGui,
+		RecipesGui recipesGui,
 		FocusUtil focusUtil,
 		IClientConfig clientConfig,
 		IIngredientManager ingredientManager,
+		IRecipeManager recipeManager,
+		IFocusFactory focusFactory,
 		IClientToggleState toggleState,
 		IConnectionToServer serverConnection
 	) {
@@ -49,6 +64,8 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.recipesGui = recipesGui;
 		this.focusUtil = focusUtil;
 		this.ingredientManager = ingredientManager;
+		this.recipeManager = recipeManager;
+		this.focusFactory = focusFactory;
 		this.toggleState = toggleState;
 		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
 	}
@@ -58,6 +75,16 @@ public class FocusInputHandler implements IUserInputHandler {
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
+		}
+
+		Optional<IUserInputHandler> handledRecipeId = handleOutputRecipeIdShortcut(input, keyBindings);
+		if (handledRecipeId.isPresent()) {
+			return handledRecipeId;
+		}
+
+		Optional<IUserInputHandler> handledPatternEncode = handleSingleRecipePatternEncode(input, keyBindings);
+		if (handledPatternEncode.isPresent()) {
+			return handledPatternEncode;
 		}
 
 		Optional<IUserInputHandler> handledIngredientShortcut = handleIngredientShortcut(input, keyBindings);
@@ -92,6 +119,68 @@ public class FocusInputHandler implements IUserInputHandler {
 		}
 
 		return Optional.empty();
+	}
+
+	private Optional<IUserInputHandler> handleOutputRecipeIdShortcut(UserInput input, IInternalKeyMappings keyBindings) {
+		if (!input.is(keyBindings.getCopyRecipeId())) {
+			return Optional.empty();
+		}
+
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.filter(clicked -> clicked.getElement().isVisible())
+			.findFirst()
+			.flatMap(clicked -> {
+				IRecipeLayoutDrawable<?> recipeLayout = recipesGui.isOpen()
+					? recipesGui.getRecipeLayoutUnderMouse(input.getMouseX(), input.getMouseY())
+						.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::layout)
+						.orElse(null)
+					: null;
+				List<String> recipeIds = RecipeIdClipboardHandler.getRecipeIdsForCopy(
+					recipeLayout,
+					clicked.getTypedIngredient(),
+					recipeManager,
+					focusFactory
+				);
+				if (recipeIds.isEmpty()) {
+					if (!input.isSimulate()) {
+						displayCopyRecipeIdFailure();
+					}
+					return Optional.empty();
+				}
+				if (!input.isSimulate()) {
+					copyRecipeIdsToClipboard(recipeIds);
+				}
+				IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
+				return Optional.of(handler);
+			});
+	}
+
+	private Optional<IUserInputHandler> handleSingleRecipePatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
+		if (!input.is(keyBindings.getEncodeRecipeChainPatterns())) {
+			return Optional.empty();
+		}
+		AbstractContainerMenu menu = recipesGui.getParentContainerMenu();
+		if (menu == null) {
+			return Optional.empty();
+		}
+		Optional<RecipeGuiLayouts.RecipeLayoutUnderMouse> recipeUnderMouse = recipesGui.getRecipeLayoutUnderMouse(input.getMouseX(), input.getMouseY());
+		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handleSingleRecipe(
+			input,
+			keyBindings.getEncodeRecipeChainPatterns(),
+			menu,
+			Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge(),
+			recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::layout),
+			recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::slotUnderMouse)
+				.map(mezz.jei.api.gui.inputs.RecipeSlotUnderMouse::slot),
+			ingredientManager,
+			this::displayClientMessage
+		);
+		return result
+			.filter(RecipeChainPatternEncodeController.HandleResult::handled)
+			.map(ignored -> new SameElementInputHandler(this, (mouseX, mouseY) -> recipeUnderMouse
+				.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::slotUnderMouse)
+				.map(slotUnderMouse -> slotUnderMouse.isMouseOver(mouseX, mouseY))
+				.orElse(false)));
 	}
 
 	private Optional<IUserInputHandler> handleIngredientShortcut(UserInput input, IInternalKeyMappings keyBindings) {
@@ -138,6 +227,32 @@ public class FocusInputHandler implements IUserInputHandler {
 		};
 		minecraft.keyboardHandler.setClipboard(text);
 		JeiClientSoundUtil.playClickSound();
+	}
+
+	private static void copyRecipeIdsToClipboard(List<String> recipeIds) {
+		Minecraft minecraft = Minecraft.getInstance();
+		String text = RecipeIdClipboardHandler.toClipboardText(recipeIds);
+		minecraft.keyboardHandler.setClipboard(text);
+		MutableComponent message = Component.translatable("jei.message.copy.recipe.id.success", Component.literal(text));
+		LocalPlayer player = minecraft.player;
+		if (player != null) {
+			player.displayClientMessage(message, false);
+		}
+		JeiClientSoundUtil.playClickSound();
+	}
+
+	private static void displayCopyRecipeIdFailure() {
+		LocalPlayer player = Minecraft.getInstance().player;
+		if (player != null) {
+			player.displayClientMessage(Component.translatable("jei.message.copy.recipe.id.failure"), false);
+		}
+	}
+
+	private void displayClientMessage(Component message) {
+		LocalPlayer player = Minecraft.getInstance().player;
+		if (player != null) {
+			player.displayClientMessage(message, false);
+		}
 	}
 
 	private Optional<IUserInputHandler> handleClick(UserInput input, IInternalKeyMappings keyBindings) {

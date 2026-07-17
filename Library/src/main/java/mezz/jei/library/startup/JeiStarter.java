@@ -86,6 +86,7 @@ public final class JeiStarter {
 		this.jeiClientConfigs = new JeiClientConfigs(configDir.resolve("jei-client.ini"));
 		jeiClientConfigs.register(fileWatcher, configManager);
 		Internal.setJeiClientConfigs(jeiClientConfigs);
+		Internal.setFileWatcher(fileWatcher);
 
 		fileWatcher.start();
 

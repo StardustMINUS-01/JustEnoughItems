@@ -45,7 +45,10 @@ public final class BookmarkPullPlanner {
 		Map<BookmarkIngredientKey, Long> amounts = new LinkedHashMap<>();
 		for (RecipeChainInput input : inputs) {
 			BookmarkItemMetadata metadata = input.metadata();
-			if (metadata.recipeUid() != null && metadata.type() != BookmarkItemType.ITEM) {
+			if (metadata.type().isCatalyst()) {
+				continue;
+			}
+			if (metadata.recipeUid() != null && metadata.type().isRecipeAssociated()) {
 				continue;
 			}
 			primaryKey(metadata, key -> {
@@ -72,7 +75,10 @@ public final class BookmarkPullPlanner {
 			.orElse(-1) + 1;
 		for (RecipeChainInput input : inputs) {
 			BookmarkItemMetadata metadata = input.metadata();
-			if (metadata.recipeUid() == null || metadata.type() == BookmarkItemType.ITEM) {
+			if (metadata.type().isCatalyst()) {
+				continue;
+			}
+			if (metadata.recipeUid() == null || !metadata.type().isRecipeAssociated()) {
 				final int sourceIndex = input.index();
 				primaryKey(metadata, key -> {
 					long playerAmount = shift ? playerInventory.getOrDefault(key, 0L) : 0L;

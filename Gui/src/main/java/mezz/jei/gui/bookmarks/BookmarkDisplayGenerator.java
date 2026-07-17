@@ -5,7 +5,6 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,27 +32,46 @@ public final class BookmarkDisplayGenerator {
 		int columns
 	) {
 		List<BookmarkDisplaySlot<T>> displaySlots = new ArrayList<>();
-		Set<String> collapsedGroupsShown = new HashSet<>();
 		for (int sourceIndex = 0; sourceIndex < orderedItems.size(); sourceIndex++) {
 			T item = orderedItems.get(sourceIndex);
 			BookmarkItemMetadata metadata = metadataGetter.apply(item);
 			String groupId = metadata.groupId();
 			BookmarkGroup group = groups.get(groupId);
 			if (group != null && group.craftingMode()) {
-				if (group.collapsed() && !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) && collapsedGroupsShown.contains(groupId)) {
+				RecipeChainDetails details = recipeChainDetails.get(group.id());
+				if (isHiddenCollapsedCraftingItem(group, groupId, metadata, details, sourceIndex)) {
 					continue;
 				}
-				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, recipeChainDetails.get(group.id()), columns);
-				if (!displaySlots.isEmpty() && displaySlots.get(displaySlots.size() - 1).entry().sourceIndex() == sourceIndex) {
-					collapsedGroupsShown.add(groupId);
-				}
+				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, columns);
 			} else if (group == null || !group.collapsed() || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns);
-			} else if (collapsedGroupsShown.add(groupId)) {
+			} else if (isCollapsedGroupResult(metadata, recipeChainDetails.get(group.id()), sourceIndex)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns);
 			}
 		}
 		return List.copyOf(displaySlots);
+	}
+
+	private static boolean isHiddenCollapsedCraftingItem(
+		BookmarkGroup group,
+		String groupId,
+		BookmarkItemMetadata metadata,
+		RecipeChainDetails details,
+		int sourceIndex
+	) {
+		return group.collapsed() &&
+			!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) &&
+			!metadata.type().isGraphOutput();
+	}
+
+	private static boolean isCollapsedGroupResult(
+		BookmarkItemMetadata metadata,
+		RecipeChainDetails details,
+		int sourceIndex
+	) {
+		return !metadata.type().isGraphInput() &&
+			!metadata.type().isCatalyst() &&
+			(details == null || details.calculatedItems().containsKey(sourceIndex));
 	}
 
 	private static <T> void addCraftingDisplaySlot(
@@ -68,12 +86,19 @@ public final class BookmarkDisplayGenerator {
 		if (details == null) {
 			return;
 		}
+		if (metadata.type().isCatalyst() && isOwnCollapsedRecipeInput(group, metadata)) {
+			return;
+		}
 		RecipeChainItem chainItem = details.calculatedItems().get(sourceIndex);
 		if (chainItem == null) {
+			if (metadata.type().isCatalyst()) {
+				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns);
+				return;
+			}
 			addCollapsedRecipeShadowSlot(displaySlots, item, sourceIndex, metadata, group, details, columns);
 			return;
 		}
-		if (group.viewMode() == BookmarkViewMode.DEFAULT && metadata.type() == BookmarkItemType.INGREDIENT) {
+		if (group.viewMode() == BookmarkViewMode.DEFAULT && metadata.type().isGraphInput()) {
 			return;
 		}
 		BookmarkDisplayEntry<T> entry = createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem);
@@ -93,7 +118,7 @@ public final class BookmarkDisplayGenerator {
 		int columns
 	) {
 		Optional<ResourceLocation> displayRecipeUid = getDisplayRecipeUid(group, details, metadata.recipeUid());
-		boolean ownCollapsedRecipeIngredient = metadata.type() == BookmarkItemType.INGREDIENT &&
+		boolean ownCollapsedRecipeIngredient = metadata.type().isGraphInput() &&
 			metadata.recipeUid() != null &&
 			group.collapsedRecipeIds().contains(metadata.recipeUid());
 		if (displayRecipeUid.isEmpty() || displayRecipeUid.equals(Optional.ofNullable(metadata.recipeUid())) && !ownCollapsedRecipeIngredient) {
@@ -113,10 +138,15 @@ public final class BookmarkDisplayGenerator {
 	}
 
 	private static boolean isHiddenCollapsedIntermediateResult(BookmarkDisplayEntry<?> entry) {
-		return entry.metadata().type() == BookmarkItemType.RESULT &&
+		return entry.metadata().type().isGraphOutput() &&
 			entry.displayRecipeUid().isPresent() &&
 			entry.metadata().recipeUid() != null &&
 			!entry.displayRecipeUid().get().equals(entry.metadata().recipeUid());
+	}
+
+	private static boolean isOwnCollapsedRecipeInput(BookmarkGroup group, BookmarkItemMetadata metadata) {
+		ResourceLocation recipeUid = metadata.recipeUid();
+		return recipeUid != null && group.collapsedRecipeIds().contains(recipeUid);
 	}
 
 	private static <T> void addDisplaySlot(List<BookmarkDisplaySlot<T>> displaySlots, BookmarkDisplayEntry<T> entry, boolean shadow, int columns) {
@@ -163,22 +193,22 @@ public final class BookmarkDisplayGenerator {
 		BookmarkItemMetadata previousMetadata = previous.metadata();
 		return metadata.recipeUid() == null ||
 			!previousMetadata.groupId().equals(metadata.groupId()) ||
-			metadata.type() != BookmarkItemType.INGREDIENT ||
+			!metadata.type().isGraphInput() ||
 			!metadata.recipeUid().equals(previousMetadata.recipeUid());
 	}
 
 	private static boolean continuesTodoListRecipe(BookmarkDisplayEntry<?> previous, BookmarkDisplayEntry<?> entry) {
 		BookmarkItemMetadata metadata = entry.metadata();
 		BookmarkItemMetadata previousMetadata = previous.metadata();
-		return metadata.type() != BookmarkItemType.ITEM &&
-			previousMetadata.type() != BookmarkItemType.ITEM &&
+		return metadata.type().isRecipeAssociated() &&
+			previousMetadata.type().isRecipeAssociated() &&
 			previousMetadata.groupId().equals(metadata.groupId()) &&
 			metadata.recipeUid() != null &&
 			metadata.recipeUid().equals(previousMetadata.recipeUid());
 	}
 
 	private static <T> boolean isFirstOutput(List<BookmarkDisplaySlot<T>> displaySlots, BookmarkDisplayEntry<T> entry) {
-		if (entry.metadata().type() != BookmarkItemType.RESULT) {
+		if (!entry.metadata().type().isGraphOutput()) {
 			return false;
 		}
 		if (displaySlots.isEmpty()) {

@@ -9,14 +9,13 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
+import mezz.jei.common.bookmarks.VanillaCraftingGridSlots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.inventory.CraftingMenu;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -29,28 +28,24 @@ import java.util.Optional;
  */
 final class ClientCraftingGridClickEnvironment implements ClientCraftingGridClickTask.Environment {
 	private static final int RESULT_SLOT = 0;
-	private static final int VANILLA_CRAFTING_FIRST_SLOT = 1;
-	private static final int PLAYER_INVENTORY_CRAFTING_SLOT_COUNT = 4;
-	private static final int CRAFTING_TABLE_SLOT_COUNT = 9;
-
 	private final Minecraft minecraft;
 	private final AbstractContainerMenu menu;
 	private final int containerId;
-	private final int craftingSlotCount;
+	private final List<Slot> craftingSlots;
 
-	private ClientCraftingGridClickEnvironment(Minecraft minecraft, AbstractContainerMenu menu, int craftingSlotCount) {
+	private ClientCraftingGridClickEnvironment(Minecraft minecraft, AbstractContainerMenu menu, List<Slot> craftingSlots) {
 		this.minecraft = minecraft;
 		this.menu = menu;
 		this.containerId = menu.containerId;
-		this.craftingSlotCount = craftingSlotCount;
+		this.craftingSlots = List.copyOf(craftingSlots);
 	}
 
 	static Optional<ClientCraftingGridClickEnvironment> create(AbstractContainerMenu menu) {
-		int craftingSlotCount = getCraftingSlotCount(menu);
-		if (craftingSlotCount <= 0 || menu.slots.size() <= RESULT_SLOT || menu.slots.size() < VANILLA_CRAFTING_FIRST_SLOT + craftingSlotCount) {
+		List<Slot> craftingSlots = VanillaCraftingGridSlots.getCraftingSlots(menu);
+		if (craftingSlots.isEmpty() || menu.slots.size() <= RESULT_SLOT) {
 			return Optional.empty();
 		}
-		return Optional.of(new ClientCraftingGridClickEnvironment(Minecraft.getInstance(), menu, craftingSlotCount));
+		return Optional.of(new ClientCraftingGridClickEnvironment(Minecraft.getInstance(), menu, craftingSlots));
 	}
 
 	@Override
@@ -60,17 +55,17 @@ final class ClientCraftingGridClickEnvironment implements ClientCraftingGridClic
 			minecraft.gameMode != null &&
 			player.containerMenu == menu &&
 			menu.containerId == containerId &&
-			getCraftingSlotCount(menu) == craftingSlotCount;
+			VanillaCraftingGridSlots.getCraftingSlots(menu).equals(craftingSlots);
 	}
 
 	@Override
 	public int craftingSlotCount() {
-		return craftingSlotCount;
+		return craftingSlots.size();
 	}
 
 	@Override
 	public ItemStack getCraftingStack(int slotIndex) {
-		return menu.getSlot(toCraftingMenuSlot(slotIndex)).getItem().copy();
+		return craftingSlots.get(slotIndex).getItem().copy();
 	}
 
 	@Override
@@ -80,15 +75,14 @@ final class ClientCraftingGridClickEnvironment implements ClientCraftingGridClic
 
 	@Override
 	public boolean clearCraftingSlot(int slotIndex) {
-		int menuSlot = toCraftingMenuSlot(slotIndex);
-		Slot slot = menu.getSlot(menuSlot);
+		Slot slot = craftingSlots.get(slotIndex);
 		if (!slot.hasItem()) {
 			return true;
 		}
 		if (!canClickSlot(slot)) {
 			return false;
 		}
-		click(menuSlot, 0, ClickType.QUICK_MOVE);
+		click(menu.slots.indexOf(slot), 0, ClickType.QUICK_MOVE);
 		return true;
 	}
 
@@ -97,8 +91,8 @@ final class ClientCraftingGridClickEnvironment implements ClientCraftingGridClic
 		if (targetStack.isEmpty() || !carriedStackEmpty()) {
 			return false;
 		}
-		int targetMenuSlot = toCraftingMenuSlot(slotIndex);
-		Slot targetSlot = menu.getSlot(targetMenuSlot);
+		Slot targetSlot = craftingSlots.get(slotIndex);
+		int targetMenuSlot = menu.slots.indexOf(targetSlot);
 		if (!targetSlot.mayPlace(targetStack)) {
 			return false;
 		}
@@ -167,17 +161,4 @@ final class ClientCraftingGridClickEnvironment implements ClientCraftingGridClic
 		}
 	}
 
-	private static int getCraftingSlotCount(AbstractContainerMenu menu) {
-		if (menu instanceof InventoryMenu) {
-			return PLAYER_INVENTORY_CRAFTING_SLOT_COUNT;
-		}
-		if (menu instanceof CraftingMenu) {
-			return CRAFTING_TABLE_SLOT_COUNT;
-		}
-		return 0;
-	}
-
-	private static int toCraftingMenuSlot(int slotIndex) {
-		return VANILLA_CRAFTING_FIRST_SLOT + slotIndex;
-	}
 }

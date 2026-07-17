@@ -20,6 +20,16 @@ public final class BookmarkHotkeyTooltipUtil {
 	}
 
 	public static void addIngredientHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown, boolean canAutoCraft) {
+		addIngredientHotkeys(tooltip, keyBindings, altDown, canAutoCraft, false);
+	}
+
+	public static void addIngredientHotkeys(
+		ITooltipBuilder tooltip,
+		IInternalKeyMappings keyBindings,
+		boolean altDown,
+		boolean canAutoCraft,
+		boolean canEncodeAe2Pattern
+	) {
 		if (!addSeparatedAltHotkeySection(tooltip, altDown)) {
 			return;
 		}
@@ -33,6 +43,10 @@ public final class BookmarkHotkeyTooltipUtil {
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientName().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_name");
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientTags().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_tags");
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientId().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_id");
+		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyRecipeId().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_recipe_id");
+		if (canEncodeAe2Pattern) {
+			HotkeyTooltipLine.add(tooltip, keyBindings.getEncodeRecipeChainPatterns().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.encode_ae2_pattern");
+		}
 		if (canAutoCraft) {
 			Component favoriteRecipeKey = keyBindings.getFavoriteRecipe().getTranslatedKeyMessage();
 			HotkeyTooltipLine.add(tooltip, favoriteRecipeKey, "jei.tooltip.bookmarks.hotkeys.favorite_recipe");
@@ -54,6 +68,17 @@ public final class BookmarkHotkeyTooltipUtil {
 	}
 
 	public static void addGroupHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown, boolean grouped, boolean craftingMode) {
+		addGroupHotkeys(tooltip, keyBindings, altDown, grouped, craftingMode, false);
+	}
+
+	public static void addGroupHotkeys(
+		ITooltipBuilder tooltip,
+		IInternalKeyMappings keyBindings,
+		boolean altDown,
+		boolean grouped,
+		boolean craftingMode,
+		boolean canEncodeAe2Patterns
+	) {
 		tooltip.add(Component.translatable("jei.tooltip.bookmarks.group").withStyle(ChatFormatting.GREEN));
 		if (!addAltHotkeySection(tooltip, altDown)) {
 			return;
@@ -62,6 +87,9 @@ public final class BookmarkHotkeyTooltipUtil {
 		addPullHotkeys(tooltip, keyBindings);
 		if (craftingMode) {
 			addCraftItemsHotkeys(tooltip, keyBindings, "jei.tooltip.bookmarks.group.hotkeys");
+		}
+		if (canEncodeAe2Patterns) {
+			HotkeyTooltipLine.add(tooltip, keyBindings.getEncodeRecipeChainPatterns().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.group.hotkeys.encode_ae2_patterns");
 		}
 		if (grouped) {
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), "jei.tooltip.bookmarks.group.hotkeys.crafting");

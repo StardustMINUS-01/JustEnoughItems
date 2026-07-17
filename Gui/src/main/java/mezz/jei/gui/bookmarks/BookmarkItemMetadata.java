@@ -83,6 +83,14 @@ public record BookmarkItemMetadata(
 		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
 	}
 
+	public BookmarkItemMetadata withPermutations(Set<BookmarkIngredientKey> permutations) {
+		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
+	}
+
+	public BookmarkItemMetadata withType(BookmarkItemType type) {
+		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
+	}
+
 	public boolean containsItems(BookmarkItemMetadata item) {
 		return permutations.stream().anyMatch(item.permutations()::contains);
 	}
@@ -98,9 +106,10 @@ public record BookmarkItemMetadata(
 	}
 
 	public long amount(long multiplier) {
-		long amount = saturatedMultiply(Math.max(0, factor), Math.max(0, multiplier));
+		long effectiveMultiplier = type.scalesWithMultiplier() ? multiplier : 1;
+		long amount = saturatedMultiply(Math.max(0, factor), Math.max(0, effectiveMultiplier));
 		if (chance > 0 && chance != CHANCE_FULL) {
-			if (type == BookmarkItemType.INGREDIENT) {
+			if (type.isGraphInput()) {
 				return saturatedDivideRoundUp(saturatedMultiply(amount, chance), CHANCE_FULL);
 			}
 			return saturatedMultiply(amount, chance) / CHANCE_FULL;

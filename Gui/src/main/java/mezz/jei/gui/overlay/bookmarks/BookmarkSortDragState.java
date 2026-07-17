@@ -3,13 +3,13 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkMoveSelection;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
@@ -459,13 +459,13 @@ public final class BookmarkSortDragState {
 			return false;
 		}
 		BookmarkItemMetadata sourceMetadata = bookmarkList.getBookmarkMetadata(sourceBookmark);
-		return sourceMetadata.recipeUid() != null && sourceMetadata.type() != BookmarkItemType.RESULT;
+		return sourceMetadata.recipeUid() != null && !sourceMetadata.type().isGraphOutput();
 	}
 
 	private static boolean canSortOverConcreteTarget(BookmarkList bookmarkList, IBookmark sourceBookmark, IBookmark targetBookmark) {
 		BookmarkItemMetadata sourceMetadata = bookmarkList.getBookmarkMetadata(sourceBookmark);
 		BookmarkItemMetadata targetMetadata = bookmarkList.getBookmarkMetadata(targetBookmark);
-		if (sourceMetadata.type() == BookmarkItemType.INGREDIENT && targetMetadata.type() == BookmarkItemType.RESULT) {
+		if (sourceMetadata.type().recipeRole() == RecipeIngredientRole.INPUT && targetMetadata.type().isGraphOutput()) {
 			return false;
 		}
 		return canSortOverTarget(bookmarkList, sourceBookmark, targetBookmark);
@@ -483,7 +483,7 @@ public final class BookmarkSortDragState {
 
 	private static boolean canSortOverTarget(BookmarkList bookmarkList, IBookmark sourceBookmark, IBookmark targetBookmark) {
 		BookmarkItemMetadata sourceMetadata = bookmarkList.getBookmarkMetadata(sourceBookmark);
-		if (sourceMetadata.type() == BookmarkItemType.RESULT || sourceMetadata.recipeUid() == null) {
+		if (sourceMetadata.type().isGraphOutput() || sourceMetadata.recipeUid() == null) {
 			return true;
 		}
 		boolean todoGroup = bookmarkList.getBookmarkGroups().stream()
@@ -584,7 +584,7 @@ public final class BookmarkSortDragState {
 			}
 			BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (recipeUid != null && metadata.type() != BookmarkItemType.ITEM) {
+			if (recipeUid != null && metadata.type().isRecipeAssociated()) {
 				recipeIdsByGroup.computeIfAbsent(metadata.groupId(), groupId -> new HashSet<>())
 					.add(recipeUid);
 			}

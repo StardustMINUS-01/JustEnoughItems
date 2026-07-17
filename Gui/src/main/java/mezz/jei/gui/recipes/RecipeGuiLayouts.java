@@ -153,6 +153,9 @@ public class RecipeGuiLayouts {
 	}
 
 	public void setRecipeLayoutsWithButtons(List<RecipeLayoutWithButtons<?>> recipeLayoutsWithButtons) {
+		if (!this.recipeLayoutsWithButtons.equals(recipeLayoutsWithButtons)) {
+			recipeLayoutsWithButtons.forEach(layout -> layout.inputSlotSelectionState().clear(layout.recipeLayout()));
+		}
 		this.recipeLayoutsWithButtons.clear();
 		this.recipeLayoutsWithButtons.addAll(recipeLayoutsWithButtons);
 		this.cachedInputHandler = null;
@@ -184,6 +187,21 @@ public class RecipeGuiLayouts {
 			.filter(recipeLayout -> hasDisplayedSlotUnderMouse(recipeLayout, mouseX, mouseY))
 			.findFirst()
 			.flatMap(RecipeGuiLayouts::getFocusedRecipeCandidate);
+	}
+
+	public Optional<RecipeLayoutUnderMouse> getRecipeLayoutUnderMouse(double mouseX, double mouseY) {
+		for (RecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
+			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.recipeLayout();
+			if (!recipeLayout.isMouseOver(mouseX, mouseY)) {
+				continue;
+			}
+			Optional<RecipeSlotUnderMouse> slotUnderMouse = recipeLayout.getSlotUnderMouse(mouseX, mouseY)
+				.filter(slot -> slot.slot().getDisplayedIngredient().isPresent());
+			if (slotUnderMouse.isPresent()) {
+				return Optional.of(new RecipeLayoutUnderMouse(recipeLayout, slotUnderMouse.get()));
+			}
+		}
+		return Optional.empty();
 	}
 
 	private static boolean isOutputSlotUnderMouse(IRecipeLayoutDrawable<?> recipeLayout, double mouseX, double mouseY) {
@@ -299,5 +317,8 @@ public class RecipeGuiLayouts {
 		}
 		RecipeLayoutWithButtons<?> first = this.recipeLayoutsWithButtons.get(0);
 		return first.totalWidth();
+	}
+
+	public record RecipeLayoutUnderMouse(IRecipeLayoutDrawable<?> layout, RecipeSlotUnderMouse slotUnderMouse) {
 	}
 }

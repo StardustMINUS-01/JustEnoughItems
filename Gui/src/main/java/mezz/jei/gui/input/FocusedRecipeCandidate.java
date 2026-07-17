@@ -1,7 +1,7 @@
 package mezz.jei.gui.input;
 
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Optional;
@@ -19,7 +19,7 @@ public record FocusedRecipeCandidate(
 	}
 
 	public static Optional<FocusedRecipeCandidate> fromBookmarkMetadata(BookmarkItemMetadata metadata) {
-		if (metadata.type() == BookmarkItemType.ITEM) {
+		if (!metadata.type().isRecipeAssociated()) {
 			return Optional.empty();
 		}
 		ResourceLocation recipeTypeUid = metadata.recipeTypeUid();
@@ -28,7 +28,7 @@ public record FocusedRecipeCandidate(
 			return Optional.empty();
 		}
 		FocusedRecipe recipe = new FocusedRecipe(recipeTypeUid, recipeUid);
-		if (metadata.type() == BookmarkItemType.INGREDIENT) {
+		if (metadata.type().recipeRole() == RecipeIngredientRole.INPUT) {
 			return Optional.of(ingredientBookmark(recipe));
 		}
 		return Optional.of(recipe(recipe));

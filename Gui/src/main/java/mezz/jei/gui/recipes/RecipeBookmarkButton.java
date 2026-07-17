@@ -20,12 +20,14 @@ public class RecipeBookmarkButton extends GuiIconToggleButton {
 	private final @Nullable RecipeBookmark<?, ?> recipeBookmark;
 	private final @Nullable RecipeBookmark<?, ?> recipeBookmarkPreservingAmount;
 	private final Runnable showBookmarkPanel;
+	private final InputSlotSelectionState inputSlotSelectionState;
 
 	public static RecipeBookmarkButton create(
 		IRecipeLayoutDrawable<?> recipeLayout,
 		IIngredientManager ingredientManager,
 		BookmarkList bookmarks,
-		Runnable showBookmarkPanel
+		Runnable showBookmarkPanel,
+		InputSlotSelectionState inputSlotSelectionState
 	) {
 		RecipeBookmark<?, ?> recipeBookmark = RecipeBookmark.create(recipeLayout, ingredientManager);
 		RecipeBookmark<?, ?> recipeBookmarkPreservingAmount = RecipeBookmark.create(recipeLayout, ingredientManager, true);
@@ -43,7 +45,8 @@ public class RecipeBookmarkButton extends GuiIconToggleButton {
 			recipeLayout,
 			recipeBookmark,
 			recipeBookmarkPreservingAmount,
-			showBookmarkPanel
+			showBookmarkPanel,
+			inputSlotSelectionState
 		);
 		recipeBookmarkButton.updateBounds(area);
 		return recipeBookmarkButton;
@@ -55,7 +58,8 @@ public class RecipeBookmarkButton extends GuiIconToggleButton {
 		IRecipeLayoutDrawable<?> recipeLayout,
 		@Nullable RecipeBookmark<?, ?> recipeBookmark,
 		@Nullable RecipeBookmark<?, ?> recipeBookmarkPreservingAmount,
-		Runnable showBookmarkPanel
+		Runnable showBookmarkPanel,
+		InputSlotSelectionState inputSlotSelectionState
 	) {
 		super(icon, icon);
 
@@ -64,6 +68,7 @@ public class RecipeBookmarkButton extends GuiIconToggleButton {
 		this.recipeBookmark = recipeBookmark;
 		this.recipeBookmarkPreservingAmount = recipeBookmarkPreservingAmount;
 		this.showBookmarkPanel = showBookmarkPanel;
+		this.inputSlotSelectionState = inputSlotSelectionState;
 
 		if (recipeBookmark == null) {
 			button.active = false;
@@ -110,7 +115,7 @@ public class RecipeBookmarkButton extends GuiIconToggleButton {
 
 	public boolean addRecipeBookmarkGroup(UserInput input, boolean preserveAmount) {
 		if (!input.isSimulate()) {
-			boolean added = bookmarks.addRecipeBookmarks(recipeLayout, preserveAmount);
+			boolean added = bookmarks.addRecipeBookmarks(recipeLayout, preserveAmount, inputSlotSelectionState.selectedKeys());
 			if (added) {
 				showBookmarkPanel.run();
 			}

@@ -17,6 +17,7 @@ import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class RecipeChainPreviewTooltipComponent implements ClientTooltipComponent, TooltipComponent {
@@ -28,9 +29,16 @@ public class RecipeChainPreviewTooltipComponent implements ClientTooltipComponen
 	private final List<RenderElement<?>> ingredients;
 
 	public RecipeChainPreviewTooltipComponent(List<RecipeChainTooltipModel.Item> items) {
+		this(items, Map.of());
+	}
+
+	public RecipeChainPreviewTooltipComponent(
+		List<RecipeChainTooltipModel.Item> items,
+		Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients
+	) {
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		this.ingredients = items.stream()
-			.map(item -> RenderElement.create(item, ingredientManager))
+			.map(item -> RenderElement.create(item, ingredientManager, resolvedIngredients))
 			.flatMap(Optional::stream)
 			.toList();
 	}
@@ -71,10 +79,16 @@ public class RecipeChainPreviewTooltipComponent implements ClientTooltipComponen
 		Optional<String> amountText
 	) {
 		@SuppressWarnings({"unchecked", "rawtypes"})
-		public static Optional<RenderElement<?>> create(RecipeChainTooltipModel.Item item, IIngredientManager ingredientManager) {
+		public static Optional<RenderElement<?>> create(
+			RecipeChainTooltipModel.Item item,
+			IIngredientManager ingredientManager,
+			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients
+		) {
 			BookmarkIngredientKey key = item.key();
-			return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
+			Optional<ITypedIngredient<?>> resolved = Optional.ofNullable(resolvedIngredients.get(key));
+			return resolved.or(() -> ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
 				.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
+			)
 				.map(typedIngredient -> create(item, (ITypedIngredient) typedIngredient, ingredientManager));
 		}
 

@@ -22,12 +22,17 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngredient> {
 	private static final Codec<Long> POSITIVE_LONG = Codec.LONG.validate((integer) -> {
@@ -104,6 +109,18 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 	@Override
 	public long getAmount(IJeiFluidIngredient ingredient) {
 		return ingredient.getAmount();
+	}
+
+	@Override
+	public ResourceLocation getFluidId(IJeiFluidIngredient ingredient) {
+		return BuiltInRegistries.FLUID.getKey(ingredient.getFluidVariant().getFluid());
+	}
+
+	@Override
+	public Set<ResourceLocation> getFluidTags(IJeiFluidIngredient ingredient) {
+		return ingredient.getFluidVariant().getFluid().builtInRegistryHolder().tags()
+			.map(TagKey::location)
+			.collect(Collectors.toUnmodifiableSet());
 	}
 
 	@Override

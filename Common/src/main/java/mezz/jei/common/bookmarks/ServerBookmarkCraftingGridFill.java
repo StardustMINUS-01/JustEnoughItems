@@ -12,8 +12,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.CraftingMenu;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -26,9 +24,6 @@ import java.util.stream.Collectors;
  * Server-side equivalent of the vanilla crafting-grid part of GTNH NEI's DefaultOverlayHandler.
  */
 public final class ServerBookmarkCraftingGridFill {
-	private static final int VANILLA_CRAFTING_FIRST_SLOT = 1;
-	private static final int PLAYER_INVENTORY_CRAFTING_SLOT_COUNT = 4;
-	private static final int CRAFTING_TABLE_SLOT_COUNT = 9;
 	private static final int MAX_MULTIPLIER = 64;
 
 	private ServerBookmarkCraftingGridFill() {
@@ -50,7 +45,7 @@ public final class ServerBookmarkCraftingGridFill {
 			return 0;
 		}
 
-		List<Slot> craftingSlots = getCraftingSlots(menu);
+		List<Slot> craftingSlots = VanillaCraftingGridSlots.getCraftingSlots(menu);
 		if (craftingSlots.isEmpty()) {
 			return 0;
 		}
@@ -79,23 +74,6 @@ public final class ServerBookmarkCraftingGridFill {
 		playerInventory.setChanged();
 		menu.broadcastChanges();
 		return filled;
-	}
-
-	static List<Slot> getCraftingSlots(AbstractContainerMenu menu) {
-		if (menu instanceof InventoryMenu) {
-			return getSlots(menu, VANILLA_CRAFTING_FIRST_SLOT, PLAYER_INVENTORY_CRAFTING_SLOT_COUNT);
-		}
-		if (menu instanceof CraftingMenu) {
-			return getSlots(menu, VANILLA_CRAFTING_FIRST_SLOT, CRAFTING_TABLE_SLOT_COUNT);
-		}
-		return List.of();
-	}
-
-	private static List<Slot> getSlots(AbstractContainerMenu menu, int firstSlot, int slotCount) {
-		if (firstSlot < 0 || firstSlot >= menu.slots.size()) {
-			return List.of();
-		}
-		return menu.slots.subList(firstSlot, Math.min(menu.slots.size(), firstSlot + slotCount));
 	}
 
 	static List<Slot> getPlayerSlots(AbstractContainerMenu menu, Container playerInventory) {
@@ -165,7 +143,7 @@ public final class ServerBookmarkCraftingGridFill {
 			if (recipeStack.isEmpty()) {
 				continue;
 			}
-			int available = countAvailable(playerSlots, recipeStack);
+			int available = countAvailable(playerSlots, craftingSlots, recipeStack);
 			int requiredPerCraft = countRequiredPerCraft(recipeStacks, recipeStack);
 			int stackLimit = Math.min(recipeStack.getMaxStackSize(), minTargetSlotLimit(craftingSlots, recipeStacks, recipeStack));
 			int slotCapacity = stackLimit / recipeStack.getCount();
@@ -175,9 +153,15 @@ public final class ServerBookmarkCraftingGridFill {
 		return craftCount;
 	}
 
-	private static int countAvailable(List<Slot> playerSlots, ItemStack target) {
+	private static int countAvailable(List<Slot> playerSlots, List<Slot> craftingSlots, ItemStack target) {
 		int count = 0;
 		for (Slot slot : playerSlots) {
+			ItemStack stack = slot.getItem();
+			if (!stack.isEmpty() && CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
+				count += stack.getCount();
+			}
+		}
+		for (Slot slot : craftingSlots) {
 			ItemStack stack = slot.getItem();
 			if (!stack.isEmpty() && CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
 				count += stack.getCount();

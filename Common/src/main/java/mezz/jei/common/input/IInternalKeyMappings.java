@@ -27,6 +27,7 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getBookmarkPullItems();
 	IJeiKeyMapping getOverlayRecipe();
 	IJeiKeyMapping getCraftItems();
+	IJeiKeyMapping getEncodeRecipeChainPatterns();
 	IJeiKeyMapping getToggleBookmarkOverlay();
 
 	@Override

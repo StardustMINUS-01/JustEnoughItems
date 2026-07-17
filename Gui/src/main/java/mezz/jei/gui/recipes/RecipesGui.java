@@ -418,6 +418,13 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		return Optional.empty();
 	}
 
+	public Optional<RecipeGuiLayouts.RecipeLayoutUnderMouse> getRecipeLayoutUnderMouse(double mouseX, double mouseY) {
+		if (isOpen()) {
+			return layouts.getRecipeLayoutUnderMouse(mouseX, mouseY);
+		}
+		return Optional.empty();
+	}
+
 	@Override
 	public Stream<IDraggableIngredientInternal<?>> getDraggableIngredientUnderMouse(double mouseX, double mouseY) {
 		return Stream.empty();
@@ -592,9 +599,11 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	private <T> RecipeLayoutWithButtons<T> createRecipeLayoutWithButtons(IRecipeLayoutDrawable<T> recipeLayoutDrawable) {
+		InputSlotSelectionState inputSlotSelectionState = new InputSlotSelectionState(ingredientManager);
 		RecipeTransferButton transferButton = RecipeTransferButton.create(
 			recipeLayoutDrawable,
-			this::onClose
+			this::onClose,
+			inputSlotSelectionState
 		);
 
 		RecipeFavoriteButton favoriteButton = RecipeFavoriteButton.create(
@@ -606,17 +615,19 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			favoriteRecipes,
 			favoriteRecipeConfig,
 			showBookmarkPanel,
-			showFavoritePanel
+			showFavoritePanel,
+			inputSlotSelectionState
 		);
 
 		RecipeBookmarkButton bookmarkButton = RecipeBookmarkButton.create(
 			recipeLayoutDrawable,
 			ingredientManager,
 			bookmarks,
-			showBookmarkPanel
+			showBookmarkPanel,
+			inputSlotSelectionState
 		);
 
-		return new RecipeLayoutWithButtons<>(recipeLayoutDrawable, transferButton, favoriteButton, bookmarkButton, clientFallbackStarter);
+		return new RecipeLayoutWithButtons<>(recipeLayoutDrawable, transferButton, favoriteButton, bookmarkButton, clientFallbackStarter, inputSlotSelectionState);
 	}
 
 	@Nullable

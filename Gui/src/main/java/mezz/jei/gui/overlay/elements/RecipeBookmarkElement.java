@@ -24,6 +24,7 @@ import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.BookmarkTooltipFeature;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -393,11 +394,8 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			var poseStack = guiGraphics.pose();
 			poseStack.pushPose();
 			{
-				// this z level seems to be the sweet spot so that
-				// 2D icons draw above the items, and
-				// 3D icons draw still draw under tooltips.
 				Offset offset = getTopRightOffset(getWidth(), SCALE);
-				poseStack.translate(offset.x() + xOffset, offset.y() + yOffset, 200);
+				poseStack.translate(offset.x() + xOffset, offset.y() + yOffset, GuiRenderLayers.OVERLAY_DECORATION_Z);
 				poseStack.scale(SCALE, SCALE, SCALE);
 				icon.draw(guiGraphics);
 			}

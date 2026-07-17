@@ -8,6 +8,7 @@ import java.nio.file.Path;
 public record GuiConfigData(
 	IBookmarkConfig bookmarkConfig,
 	FavoriteRecipeConfig favoriteRecipeConfig,
+	RecipePreferenceConfig recipePreferenceConfig,
 	ILookupHistoryConfig lookupHistoryConfig,
 	ModNameSortingConfig modNameSortingConfig,
 	IngredientTypeSortingConfig ingredientTypeSortingConfig
@@ -17,6 +18,7 @@ public record GuiConfigData(
 
 		IBookmarkConfig bookmarkConfig = new BookmarkConfig(configDir);
 		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(configDir);
+		RecipePreferenceConfig recipePreferenceConfig = new RecipePreferenceConfig(configDir);
 		ILookupHistoryConfig lookupHistoryConfig = new LookupHistoryJsonConfig(configDir);
 		ModNameSortingConfig ingredientModNameSortingConfig = new ModNameSortingConfig(configDir.resolve("ingredient-list-mod-sort-order.ini"));
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = new IngredientTypeSortingConfig(configDir.resolve("ingredient-list-type-sort-order.ini"));
@@ -24,6 +26,7 @@ public record GuiConfigData(
 		return new GuiConfigData(
 			bookmarkConfig,
 			favoriteRecipeConfig,
+			recipePreferenceConfig,
 			lookupHistoryConfig,
 			ingredientModNameSortingConfig,
 			ingredientTypeSortingConfig

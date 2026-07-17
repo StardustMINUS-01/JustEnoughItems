@@ -36,6 +36,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping bookmarkPullItems;
 	private final IJeiKeyMapping overlayRecipe;
 	private final IJeiKeyMapping craftItems;
+	private final IJeiKeyMapping encodeRecipeChainPatterns;
 	private final IJeiKeyMapping toggleBookmarkOverlay;
 	private final IJeiKeyMapping transferRecipeBookmark;
 	private final IJeiKeyMapping maxTransferRecipeBookmark;
@@ -154,6 +155,12 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		craftItems = mouseHover.createMapping("key.jei.craftItems")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.buildKeyboardKey(GLFW.GLFW_KEY_C)
+			.register(registerMethod);
+
+		encodeRecipeChainPatterns = mouseHover.createMapping("key.jei.encodeRecipeChainPatterns")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_Q)
 			.register(registerMethod);
 
 		showRecipe1 = mouseHover.createMapping("key.jei.showRecipe")
@@ -310,7 +317,8 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		// Dev Tools
 		copyRecipeId = devTools.createMapping("key.jei.copy.recipe.id")
 			.setContext(JeiKeyConflictContext.GUI)
-			.buildUnbound()
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_T)
 			.register(registerMethod);
 
 		showRecipe = new JeiMultiKeyMapping(showRecipe1, showRecipe2);
@@ -432,6 +440,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getCraftItems() {
 		return craftItems;
+	}
+
+	@Override
+	public IJeiKeyMapping getEncodeRecipeChainPatterns() {
+		return encodeRecipeChainPatterns;
 	}
 
 	@Override

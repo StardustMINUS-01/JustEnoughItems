@@ -189,6 +189,10 @@ public class BookmarkConfig implements IBookmarkConfig {
 						LOGGER.error("Failed to load unknown bookmark type:\n{}", line);
 					}
 					if (bookmark != null){
+						if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark &&
+							!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(pendingMetadata.groupId())) {
+							bookmark = recipeBookmark.withEqualityScope(pendingMetadata.groupId());
+						}
 						bookmarkList.addToListWithoutNotifying(bookmark, false);
 						bookmarkList.moveBookmarkMetadataFromConfig(bookmark, pendingMetadata);
 						pendingMetadata = BookmarkItemMetadata.defaultForGroup(BookmarkGroupManager.DEFAULT_GROUP_ID);

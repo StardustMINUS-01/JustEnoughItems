@@ -23,6 +23,8 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	private final ResourceLocation recipeUid;
 	private final ITypedIngredient<I> recipeOutput;
 	private final RecipeIngredientRole displayRole;
+	@Nullable
+	private final Object equalityScope;
 	private boolean visible = true;
 
 	@Nullable
@@ -90,12 +92,24 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		ITypedIngredient<I> recipeOutput,
 		RecipeIngredientRole displayRole
 	) {
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, null);
+	}
+
+	public RecipeBookmark(
+		IRecipeCategory<R> recipeCategory,
+		R recipe,
+		ResourceLocation recipeUid,
+		ITypedIngredient<I> recipeOutput,
+		RecipeIngredientRole displayRole,
+		@Nullable Object equalityScope
+	) {
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
 		this.recipeOutput = recipeOutput;
 		this.element = new RecipeBookmarkElement<>(this);
 		this.displayRole = displayRole;
+		this.equalityScope = equalityScope;
 	}
 
 	public RecipeBookmark(
@@ -149,11 +163,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	}
 
 	public BookmarkItemMetadata createDefaultMetadata(String groupId) {
-		BookmarkItemType type = switch (displayRole) {
-			case INPUT -> BookmarkItemType.INGREDIENT;
-			case OUTPUT -> BookmarkItemType.RESULT;
-			default -> BookmarkItemType.ITEM;
-		};
+		BookmarkItemType type = BookmarkItemType.fromRecipeRole(displayRole);
 		return new BookmarkItemMetadata(
 			groupId,
 			type,
@@ -175,18 +185,23 @@ public class RecipeBookmark<R, I> implements IBookmark {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(recipeUid, displayRole, recipeOutput.getType(), getIngredientHash(recipeOutput.getIngredient()));
+		return Objects.hash(equalityScope, recipeUid, displayRole, recipeOutput.getType(), getIngredientHash(recipeOutput.getIngredient()));
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof RecipeBookmark<?, ?> recipeBookmark) {
-			return recipeBookmark.recipeUid.equals(recipeUid) &&
+			return Objects.equals(recipeBookmark.equalityScope, equalityScope) &&
+				recipeBookmark.recipeUid.equals(recipeUid) &&
 				recipeBookmark.displayRole == displayRole &&
 				recipeBookmark.recipeOutput.getType().equals(recipeOutput.getType()) &&
 				ingredientsEqual(recipeBookmark.recipeOutput.getIngredient(), recipeOutput.getIngredient());
 		}
 		return false;
+	}
+
+	public RecipeBookmark<R, I> withEqualityScope(@Nullable Object equalityScope) {
+		return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope);
 	}
 
 	private static boolean ingredientsEqual(Object first, Object second) {

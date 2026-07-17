@@ -2,7 +2,6 @@ package mezz.jei.gui.bookmarks.hotkeys;
 
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
@@ -37,7 +36,7 @@ public record BookmarkAutoCraftingPlan(
 
 	public static Optional<BookmarkAutoCraftingPlan> fromBookmarkInput(RecipeChainInput input) {
 		BookmarkItemMetadata metadata = input.metadata();
-		if (metadata.type() != BookmarkItemType.RESULT) {
+		if (!metadata.type().isGraphOutput()) {
 			return Optional.empty();
 		}
 		if (metadata.recipeTypeUid() == null || metadata.recipeUid() == null) {

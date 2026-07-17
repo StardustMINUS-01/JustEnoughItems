@@ -26,7 +26,8 @@ import org.jetbrains.annotations.Nullable;
 public class RecipeTransferButton extends GuiIconToggleButton {
 	public static RecipeTransferButton create(
 		IRecipeLayoutDrawable<?> recipeLayout,
-		Runnable onClose
+		Runnable onClose,
+		InputSlotSelectionState inputSlotSelectionState
 	) {
 		Rect2i buttonArea = recipeLayout.getRecipeTransferButtonArea();
 		Rect2i layoutArea = recipeLayout.getRect();
@@ -35,22 +36,24 @@ public class RecipeTransferButton extends GuiIconToggleButton {
 
 		Textures textures = Internal.getTextures();
 		IDrawable icon = textures.getRecipeTransfer();
-		RecipeTransferButton transferButton = new RecipeTransferButton(icon, recipeLayout, onClose);
+		RecipeTransferButton transferButton = new RecipeTransferButton(icon, recipeLayout, onClose, inputSlotSelectionState);
 		transferButton.updateBounds(buttonArea);
 		return transferButton;
 	}
 
 	private final IRecipeLayoutDrawable<?> recipeLayout;
 	private final Runnable onClose;
+	private final InputSlotSelectionState inputSlotSelectionState;
 	private @Nullable IRecipeTransferError recipeTransferError;
 	private @Nullable AbstractContainerMenu parentContainer;
 	private @Nullable Player player;
 	private boolean initialized = false;
 
-	private RecipeTransferButton(IDrawable icon, IRecipeLayoutDrawable<?> recipeLayout, Runnable onClose) {
+	private RecipeTransferButton(IDrawable icon, IRecipeLayoutDrawable<?> recipeLayout, Runnable onClose, InputSlotSelectionState inputSlotSelectionState) {
 		super(icon, icon);
 		this.recipeLayout = recipeLayout;
 		this.onClose = onClose;
+		this.inputSlotSelectionState = inputSlotSelectionState;
 	}
 
 	public void update(@Nullable AbstractContainerMenu parentContainer, @Nullable Player player) {
@@ -60,7 +63,7 @@ public class RecipeTransferButton extends GuiIconToggleButton {
 
 		if (parentContainer != null && player != null) {
 			IRecipeTransferManager recipeTransferManager = Internal.getJeiRuntime().getRecipeTransferManager();
-			this.recipeTransferError = RecipeTransferUtil.getTransferRecipeError(recipeTransferManager, parentContainer, recipeLayout, player)
+			this.recipeTransferError = RecipeTransferUtil.getTransferRecipeError(recipeTransferManager, parentContainer, recipeLayout, inputSlotSelectionState.createTransferSlotsView(recipeLayout), player)
 				.orElse(null);
 		} else {
 			this.recipeTransferError = RecipeTransferErrorInternal.INSTANCE;
@@ -82,7 +85,7 @@ public class RecipeTransferButton extends GuiIconToggleButton {
 		if (!input.isSimulate()) {
 			IRecipeTransferManager recipeTransferManager = Internal.getJeiRuntime().getRecipeTransferManager();
 			boolean maxTransfer = Screen.hasShiftDown();
-			if (parentContainer != null && player != null && RecipeTransferUtil.transferRecipe(recipeTransferManager, parentContainer, recipeLayout, player, maxTransfer)) {
+			if (parentContainer != null && player != null && RecipeTransferUtil.transferRecipe(recipeTransferManager, parentContainer, recipeLayout, inputSlotSelectionState.createTransferSlotsView(recipeLayout), player, maxTransfer)) {
 				onClose.run();
 			}
 		}

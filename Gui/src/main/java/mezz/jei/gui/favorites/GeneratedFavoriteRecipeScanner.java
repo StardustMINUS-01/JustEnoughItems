@@ -10,16 +10,18 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
 import mezz.jei.gui.input.FocusedRecipe;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 public final class GeneratedFavoriteRecipeScanner {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -27,7 +29,6 @@ public final class GeneratedFavoriteRecipeScanner {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
-
 	public GeneratedFavoriteRecipeScanner(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
@@ -38,24 +39,44 @@ public final class GeneratedFavoriteRecipeScanner {
 		this.ingredientManager = ingredientManager;
 	}
 
-	public void rebuild(FavoriteRecipeStore store) {
+	public void rebuild(FavoriteRecipeStore store, RecipePreferenceRules recipePreferenceRules) {
 		store.clearGeneratedFavorites();
-		Map<BookmarkIngredientKey, Set<FocusedRecipe>> recipesByOutput = new LinkedHashMap<>();
+		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput = new LinkedHashMap<>();
 		recipeManager.createRecipeCategoryLookup()
 			.get()
 			.forEach(category -> collectCategoryRecipes(category, recipesByOutput));
 
-		recipesByOutput.forEach((target, recipes) -> {
-			if (recipes.size() == 1) {
-				store.setGeneratedFavorite(target, recipes.iterator().next());
-			}
-		});
+		recipesByOutput.forEach((target, candidates) ->
+			resolveGeneratedFavorite(candidates.targetInfo(), candidates.recipes(), recipePreferenceRules)
+				.ifPresent(recipe -> store.setGeneratedFavorite(target, recipe)));
+	}
+
+	public static Optional<FocusedRecipe> resolveGeneratedFavorite(
+		RecipePreferenceIngredientInfo target,
+		List<RecipePreferenceCandidate> recipes,
+		RecipePreferenceRules recipePreferenceRules
+	) {
+		if (recipes.size() == 1) {
+			return Optional.of(recipes.getFirst().recipe());
+		}
+		return recipePreferenceRules.resolvePreferredRecipe(target, recipes);
+	}
+
+	public static Optional<FocusedRecipe> resolveGeneratedFavorite(
+		Optional<RecipePreferenceIngredientInfo> target,
+		List<RecipePreferenceCandidate> recipes,
+		RecipePreferenceRules recipePreferenceRules
+	) {
+		if (recipes.size() == 1) {
+			return Optional.of(recipes.getFirst().recipe());
+		}
+		return target.flatMap(targetInfo -> recipePreferenceRules.resolvePreferredRecipe(targetInfo, recipes));
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private void collectCategoryRecipes(
 		IRecipeCategory<?> recipeCategory,
-		Map<BookmarkIngredientKey, Set<FocusedRecipe>> recipesByOutput
+		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput
 	) {
 		IRecipeCategory rawCategory = recipeCategory;
 		recipeManager.createRecipeLookup(rawCategory.getRecipeType())
@@ -67,7 +88,7 @@ public final class GeneratedFavoriteRecipeScanner {
 	private void collectRecipeOutputs(
 		IRecipeCategory recipeCategory,
 		Object recipe,
-		Map<BookmarkIngredientKey, Set<FocusedRecipe>> recipesByOutput
+		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput
 	) {
 		ResourceLocation recipeUid = recipeCategory.getRegistryName(recipe);
 		if (recipeUid == null) {
@@ -90,25 +111,57 @@ public final class GeneratedFavoriteRecipeScanner {
 		}
 
 		FocusedRecipe focusedRecipe = new FocusedRecipe(recipeCategory.getRecipeType().getUid(), recipeUid);
+		List<RecipePreferenceIngredientInfo> inputs = layout.get()
+			.getRecipeSlotsView()
+			.getSlotViews(RecipeIngredientRole.INPUT)
+			.stream()
+			.flatMap(slot -> slot.getAllIngredients())
+			.map(RecipePreferenceIngredientInfo::fromIngredient)
+			.flatMap(Optional::stream)
+			.toList();
 		layout.get()
 			.getRecipeSlotsView()
 			.getSlotViews(RecipeIngredientRole.OUTPUT)
-			.forEach(slot -> collectSlotOutputs(slot, focusedRecipe, recipesByOutput));
+			.forEach(slot -> collectSlotOutputs(slot, focusedRecipe, inputs, recipesByOutput));
 	}
 
 	private void collectSlotOutputs(
 		IRecipeSlotView slot,
 		FocusedRecipe focusedRecipe,
-		Map<BookmarkIngredientKey, Set<FocusedRecipe>> recipesByOutput
+		List<RecipePreferenceIngredientInfo> inputs,
+		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput
 	) {
 		slot.getAllIngredients()
-			.map(this::createKey)
-			.forEach(target -> recipesByOutput
-				.computeIfAbsent(target, ignored -> new LinkedHashSet<>())
-				.add(focusedRecipe));
+			.forEach(ingredient -> {
+				BookmarkIngredientKey target = createKey(ingredient);
+				recipesByOutput
+					.computeIfAbsent(target, ignored -> new OutputRecipeCandidates(RecipePreferenceIngredientInfo.fromIngredient(ingredient)))
+					.add(focusedRecipe, inputs);
+			});
 	}
 
 	private BookmarkIngredientKey createKey(ITypedIngredient<?> ingredient) {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
+	}
+
+	private static final class OutputRecipeCandidates {
+		private final Optional<RecipePreferenceIngredientInfo> targetInfo;
+		private final Map<FocusedRecipe, RecipePreferenceCandidate> recipes = new LinkedHashMap<>();
+
+		private OutputRecipeCandidates(Optional<RecipePreferenceIngredientInfo> targetInfo) {
+			this.targetInfo = targetInfo;
+		}
+
+		private Optional<RecipePreferenceIngredientInfo> targetInfo() {
+			return targetInfo;
+		}
+
+		private List<RecipePreferenceCandidate> recipes() {
+			return List.copyOf(recipes.values());
+		}
+
+		private void add(FocusedRecipe recipe, List<RecipePreferenceIngredientInfo> inputs) {
+			recipes.putIfAbsent(recipe, new RecipePreferenceCandidate(recipe, inputs));
+		}
 	}
 }

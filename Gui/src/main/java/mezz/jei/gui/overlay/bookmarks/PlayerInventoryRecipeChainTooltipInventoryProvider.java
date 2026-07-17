@@ -3,23 +3,20 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipInventoryProvider;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlay;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 public class PlayerInventoryRecipeChainTooltipInventoryProvider implements RecipeChainTooltipInventoryProvider {
 	private final Minecraft minecraft;
@@ -35,51 +32,56 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 		if (minecraft.player == null) {
 			return List.of();
 		}
-		Inventory inventory = minecraft.player.getInventory();
-		Map<BookmarkIngredientKey, Long> amounts = new LinkedHashMap<>();
-		for (ItemStack stack : inventory.items) {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		int index = firstSyntheticIndex;
+		for (ItemStack stack : getAvailableStacks()) {
 			if (stack.isEmpty()) {
 				continue;
 			}
-			createKey(stack).ifPresent(key -> amounts.merge(key, (long) stack.getCount(), PlayerInventoryRecipeChainTooltipInventoryProvider::saturatedAdd));
-		}
-		List<RecipeChainInput> inputs = new ArrayList<>();
-		int index = firstSyntheticIndex;
-		for (Map.Entry<BookmarkIngredientKey, Long> entry : amounts.entrySet()) {
-			inputs.add(new RecipeChainInput(index--, createMetadata(groupId, entry.getKey(), entry.getValue()), entry.getKey()));
+			int currentIndex = index;
+			createTypedIngredient(stack).ifPresent(ingredient -> {
+				BookmarkIngredientKey key = createKey(ingredient);
+				inputs.add(new RecipeChainInput(
+					currentIndex,
+					BookmarkItemMetadataFactory.createForCraftingAvailable(groupId, ingredient, stack.getCount(), ingredientManager),
+					key
+				));
+			});
+			index--;
 		}
 		return List.copyOf(inputs);
 	}
 
-	private Optional<BookmarkIngredientKey> createKey(ItemStack stack) {
+	public List<ItemStack> getAvailableStacks() {
+		if (minecraft.player == null) {
+			return List.of();
+		}
+		return getAvailableStacks(minecraft.player.getInventory(), minecraft.player.containerMenu);
+	}
+
+	public static List<ItemStack> getAvailableStacks(Inventory inventory, AbstractContainerMenu menu) {
+		List<ItemStack> stacks = new ArrayList<>();
+		for (ItemStack stack : inventory.items) {
+			if (!stack.isEmpty()) {
+				stacks.add(stack.copy());
+			}
+		}
+		for (BookmarkGhostOverlay.TargetSlot targetSlot : BookmarkGhostOverlayTargetSlots.fromMenu(menu)) {
+			ItemStack stack = targetSlot.currentStack();
+			if (!stack.isEmpty()) {
+				stacks.add(stack.copy());
+			}
+		}
+		return List.copyOf(stacks);
+	}
+
+	private Optional<ITypedIngredient<ItemStack>> createTypedIngredient(ItemStack stack) {
 		ItemStack normalized = stack.copy();
 		normalized.setCount(1);
-		return ingredientManager.createTypedIngredient(VanillaTypes.ITEM_STACK, normalized)
-			.map(this::createKey);
+		return ingredientManager.createTypedIngredient(VanillaTypes.ITEM_STACK, normalized);
 	}
 
 	private BookmarkIngredientKey createKey(ITypedIngredient<ItemStack> ingredient) {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
-	}
-
-	private static BookmarkItemMetadata createMetadata(String groupId, BookmarkIngredientKey key, long amount) {
-		return new BookmarkItemMetadata(
-			groupId == null ? BookmarkGroupManager.DEFAULT_GROUP_ID : groupId,
-			BookmarkItemType.ITEM,
-			1,
-			amount,
-			BookmarkItemMetadata.CHANCE_FULL,
-			null,
-			null,
-			Set.of(key)
-		);
-	}
-
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
 	}
 }

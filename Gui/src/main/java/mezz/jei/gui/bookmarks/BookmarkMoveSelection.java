@@ -25,7 +25,7 @@ public record BookmarkMoveSelection(
 	public static BookmarkMoveSelection create(BookmarkList bookmarkList, IBookmark draggedBookmark) {
 		BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(draggedBookmark);
 		Optional<ResourceLocation> recipeUid = Optional.ofNullable(metadata.recipeUid());
-		if (metadata.type() != BookmarkItemType.RESULT ||
+		if (!metadata.type().isGraphOutput() ||
 			recipeUid.isEmpty() ||
 			!canMoveRecipe(bookmarkList, metadata.groupId())) {
 			return new BookmarkMoveSelection(List.of(draggedBookmark), false);
@@ -36,7 +36,7 @@ public record BookmarkMoveSelection(
 			.filter(bookmark -> {
 				BookmarkItemMetadata bookmarkMetadata = bookmarkList.getBookmarkMetadata(bookmark);
 				return metadata.groupId().equals(bookmarkMetadata.groupId()) &&
-					bookmarkMetadata.type() != BookmarkItemType.ITEM &&
+					bookmarkMetadata.type().isRecipeAssociated() &&
 					recipeIds.contains(bookmarkMetadata.recipeUid());
 			})
 			.toList();
@@ -99,7 +99,7 @@ public record BookmarkMoveSelection(
 		BookmarkItemMetadata targetMetadata = bookmarkList.getBookmarkMetadata(targetBookmark);
 		ResourceLocation targetRecipeUid = targetMetadata.recipeUid();
 		if (targetRecipeUid == null ||
-			targetMetadata.type() == BookmarkItemType.ITEM ||
+			!targetMetadata.type().isRecipeAssociated() ||
 			recipeIds.contains(targetRecipeUid) ||
 			!targetGroupId.equals(targetMetadata.groupId())) {
 			return new MoveTarget(targetBookmark, offset);
@@ -109,7 +109,7 @@ public record BookmarkMoveSelection(
 			.filter(bookmark -> {
 				BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
 				return targetGroupId.equals(metadata.groupId()) &&
-					metadata.type() != BookmarkItemType.ITEM &&
+					metadata.type().isRecipeAssociated() &&
 					targetRecipeUid.equals(metadata.recipeUid());
 			})
 			.toList();

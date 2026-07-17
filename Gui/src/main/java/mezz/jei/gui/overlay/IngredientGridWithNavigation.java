@@ -54,7 +54,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 	private static final int BORDER_PADDING = 5;
 	private static final int INNER_PADDING = 2;
 
-	private int firstItemIndex = 0;
+	private int pageNumber = 0;
 	private final IngredientGridPaged pageDelegate;
 	private final PageNavigation navigation;
 	private final IIngredientGridConfig gridConfig;
@@ -119,14 +119,35 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 
 	public void updateLayout(boolean resetToFirstPage) {
 		if (resetToFirstPage) {
-			firstItemIndex = 0;
+			pageNumber = 0;
 		}
 		List<IElement<?>> ingredientList = getPageElements();
-		if (firstItemIndex >= ingredientList.size()) {
-			firstItemIndex = 0;
-		}
+		int firstItemIndex = getFirstItemIndexForPage(pageNumber, ingredientList.size(), ingredientGrid.size());
+		pageNumber = getPageNumber(firstItemIndex, ingredientGrid.size());
 		this.ingredientGrid.set(firstItemIndex, ingredientList);
 		this.navigation.updatePageNumber();
+	}
+
+	public static int getFirstItemIndexForPage(int pageNumber, int itemCount, int itemsPerPage) {
+		if (itemCount <= 0 || itemsPerPage <= 0) {
+			return 0;
+		}
+		int clampedPageNumber = Math.max(0, Math.min(pageNumber, getPageCount(itemCount, itemsPerPage) - 1));
+		return clampedPageNumber * itemsPerPage;
+	}
+
+	private static int getPageCount(int itemCount, int itemsPerPage) {
+		if (itemsPerPage <= 0) {
+			return 1;
+		}
+		return Math.max(1, MathUtil.divideCeil(itemCount, itemsPerPage));
+	}
+
+	private static int getPageNumber(int firstItemIndex, int itemsPerPage) {
+		if (itemsPerPage <= 0) {
+			return 0;
+		}
+		return firstItemIndex / itemsPerPage;
 	}
 
 	private static ImmutableRect2i avoidExclusionAreas(
@@ -376,19 +397,12 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 			if (getPageCount() <= 1) {
 				return false;
 			}
-			final int itemsCount = getPageElements().size();
-			if (itemsCount > 0) {
-				firstItemIndex += ingredientGrid.size();
-				if (firstItemIndex >= itemsCount) {
-					firstItemIndex = 0;
-				}
-				updateLayout(false);
-				return true;
-			} else {
-				firstItemIndex = 0;
-				updateLayout(false);
-				return false;
+			pageNumber++;
+			if (pageNumber >= getPageCount()) {
+				pageNumber = 0;
 			}
+			updateLayout(false);
+			return true;
 		}
 
 		@Override
@@ -397,25 +411,9 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 				return false;
 			}
 
-			final int itemsPerPage = ingredientGrid.size();
-			if (itemsPerPage == 0) {
-				firstItemIndex = 0;
-				updateLayout(false);
-				return false;
-			}
-			final int itemsCount = getPageElements().size();
-
-			int pageNum = firstItemIndex / itemsPerPage;
-			if (pageNum == 0) {
-				pageNum = itemsCount / itemsPerPage;
-			} else {
-				pageNum--;
-			}
-
-			firstItemIndex = itemsPerPage * pageNum;
-			if (firstItemIndex > 0 && firstItemIndex == itemsCount) {
-				pageNum--;
-				firstItemIndex = itemsPerPage * pageNum;
+			pageNumber--;
+			if (pageNumber < 0) {
+				pageNumber = getPageCount() - 1;
 			}
 			updateLayout(false);
 			return true;
@@ -435,23 +433,12 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 
 		@Override
 		public int getPageCount() {
-			final int itemCount = getPageElements().size();
-			final int stacksPerPage = ingredientGrid.size();
-			if (stacksPerPage == 0) {
-				return 1;
-			}
-			int pageCount = MathUtil.divideCeil(itemCount, stacksPerPage);
-			pageCount = Math.max(1, pageCount);
-			return pageCount;
+			return IngredientGridWithNavigation.getPageCount(getPageElements().size(), ingredientGrid.size());
 		}
 
 		@Override
 		public int getPageNumber() {
-			final int stacksPerPage = ingredientGrid.size();
-			if (stacksPerPage == 0) {
-				return 0;
-			}
-			return firstItemIndex / stacksPerPage;
+			return pageNumber;
 		}
 	}
 

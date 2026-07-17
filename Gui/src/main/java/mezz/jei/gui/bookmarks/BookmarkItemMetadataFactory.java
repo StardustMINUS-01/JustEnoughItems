@@ -23,13 +23,12 @@ public final class BookmarkItemMetadataFactory {
 		String groupId,
 		IRecipeCategory<R> recipeCategory,
 		ResourceLocation recipeUid,
-		RecipeIngredientRole role,
+		BookmarkItemType type,
 		IRecipeSlotView sourceSlot,
 		List<IRecipeSlotView> roleSlots,
 		ITypedIngredient<T> selectedIngredient,
 		IIngredientManager ingredientManager
 	) {
-		BookmarkItemType type = toBookmarkItemType(role);
 		Set<BookmarkIngredientKey> permutations = createPermutations(type, sourceSlot, selectedIngredient, ingredientManager);
 		long factor = getMatchedFactor(selectedIngredient, roleSlots, ingredientManager);
 		ContainerItemInfo containerItem = createContainerItemInfo(type, selectedIngredient, ingredientManager);
@@ -57,12 +56,49 @@ public final class BookmarkItemMetadataFactory {
 		}
 	}
 
-	private static BookmarkItemType toBookmarkItemType(RecipeIngredientRole role) {
-		return switch (role) {
-			case INPUT -> BookmarkItemType.INGREDIENT;
-			case OUTPUT -> BookmarkItemType.RESULT;
-			default -> BookmarkItemType.ITEM;
-		};
+	public static <T> BookmarkItemMetadata createForSyntheticRecipeInput(
+		String groupId,
+		ResourceLocation recipeTypeUid,
+		ResourceLocation recipeUid,
+		BookmarkItemType type,
+		ITypedIngredient<T> selectedIngredient,
+		IIngredientManager ingredientManager,
+		long factor
+	) {
+		BookmarkIngredientKey key = createPermutationKey(selectedIngredient, ingredientManager);
+		return new BookmarkItemMetadata(
+			groupId,
+			type,
+			1,
+			Math.max(0, factor),
+			BookmarkItemMetadata.CHANCE_FULL,
+			recipeTypeUid,
+			recipeUid,
+			Set.of(key)
+		);
+	}
+
+	public static <T> BookmarkItemMetadata createForCraftingAvailable(
+		String groupId,
+		ITypedIngredient<T> ingredient,
+		long amount,
+		IIngredientManager ingredientManager
+	) {
+		BookmarkIngredientKey key = createPermutationKey(ingredient, ingredientManager);
+		ContainerItemInfo containerItem = createContainerItemInfo(BookmarkItemType.INGREDIENT, ingredient, ingredientManager);
+		return new BookmarkItemMetadata(
+			groupId,
+			BookmarkItemType.ITEM,
+			1,
+			Math.max(0, amount),
+			BookmarkItemMetadata.CHANCE_FULL,
+			null,
+			null,
+			Set.of(key),
+			containerItem.key(),
+			containerItem.craftingUses(),
+			containerItem.brokenKey()
+		);
 	}
 
 	private static <T> Set<BookmarkIngredientKey> createPermutations(
@@ -71,7 +107,7 @@ public final class BookmarkItemMetadataFactory {
 		ITypedIngredient<T> selectedIngredient,
 		IIngredientManager ingredientManager
 	) {
-		if (type != BookmarkItemType.INGREDIENT) {
+		if (type.recipeRole() != RecipeIngredientRole.INPUT) {
 			return Set.of(createPermutationKey(selectedIngredient, ingredientManager));
 		}
 
@@ -108,7 +144,7 @@ public final class BookmarkItemMetadataFactory {
 		ITypedIngredient<T> ingredient,
 		IIngredientManager ingredientManager
 	) {
-		if (type != BookmarkItemType.INGREDIENT) {
+		if (type.recipeRole() != RecipeIngredientRole.INPUT) {
 			return ContainerItemInfo.EMPTY;
 		}
 		T containerItem = getCraftingRemainingItem(ingredient.getIngredient());
@@ -140,7 +176,7 @@ public final class BookmarkItemMetadataFactory {
 		Object ingredient,
 		BookmarkIngredientKey containerItem
 	) {
-		if (type != BookmarkItemType.INGREDIENT || containerItem == null) {
+		if (type.recipeRole() != RecipeIngredientRole.INPUT || containerItem == null) {
 			return 1;
 		}
 		int damagePerCraft = getToolDamagePerCraft(ingredient);

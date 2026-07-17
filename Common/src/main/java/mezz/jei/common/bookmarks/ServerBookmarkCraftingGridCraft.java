@@ -52,7 +52,7 @@ public final class ServerBookmarkCraftingGridCraft {
 			);
 			return 0;
 		}
-		if (ServerBookmarkCraftingGridFill.getCraftingSlots(menu).isEmpty() || menu.slots.size() <= RESULT_SLOT) {
+		if (VanillaCraftingGridSlots.getCraftingSlots(menu).isEmpty() || menu.slots.size() <= RESULT_SLOT) {
 			LOGGER.debug("Server crafting grid craft rejected for menu {}: no crafting slots, containerId={}, targetStacks={}",
 				menu.getClass().getName(),
 				containerId,

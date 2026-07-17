@@ -4,7 +4,6 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -85,8 +84,8 @@ public final class BookmarkPanelLayout {
 				continue;
 			}
 			BookmarkItemMetadata metadata = displaySlot.entry().metadata();
-			Object recipeKey = metadata.type() == BookmarkItemType.ITEM ? null :
-				displaySlot.entry().displayRecipeUid().orElse(metadata.recipeUid());
+			Object recipeKey = metadata.type().isRecipeAssociated() ?
+				displaySlot.entry().displayRecipeUid().orElse(metadata.recipeUid()) : null;
 			panelSlots.add(new PanelSlot<>(
 				displaySlot.entry().item(),
 				metadata.groupId(),

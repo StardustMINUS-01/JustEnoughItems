@@ -18,6 +18,7 @@ import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
+import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.platform.IPlatformRenderHelper;
@@ -208,7 +209,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 
 		addTagNameTooltip(tooltip, ingredientManager, typedIngredient);
 		addIngredientsToTooltip(tooltip, typedIngredient);
-		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, Internal.getKeyMappings(), Screen.hasAltDown(), role == RecipeIngredientRole.OUTPUT);
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, Internal.getKeyMappings(), Screen.hasAltDown(), role == RecipeIngredientRole.OUTPUT, true);
 	}
 
 	private <T> List<Component> legacyGetTooltip(ITypedIngredient<T> typedIngredient) {
@@ -224,7 +225,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 		for (IRecipeSlotRichTooltipCallback tooltipCallback : this.tooltipCallbacks) {
 			tooltipCallback.onRichTooltip(this, tooltip);
 		}
-		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, Internal.getKeyMappings(), Screen.hasAltDown(), role == RecipeIngredientRole.OUTPUT);
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, Internal.getKeyMappings(), Screen.hasAltDown(), role == RecipeIngredientRole.OUTPUT, true);
 		return tooltip.toLegacyToComponents();
 	}
 
@@ -307,7 +308,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 			var poseStack = guiGraphics.pose();
 			poseStack.pushPose();
 			{
-				poseStack.translate(0, 0, 200);
+				poseStack.translate(0, 0, GuiRenderLayers.OVERLAY_DECORATION_Z);
 				overlay.draw(guiGraphics, x, y);
 			}
 			poseStack.popPose();

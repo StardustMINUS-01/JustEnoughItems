@@ -28,8 +28,23 @@ public record RecipeChainTooltipModel(
 		boolean shiftDown,
 		boolean controlDown
 	) {
-		List<RecipeChainInput> adjustedRecipeInputs = shiftDown && !controlDown ?
-			expandOutputRecipeMultipliers(recipeInputs, collapsedRecipes, inventoryInputs) :
+		RecipeChainDetails baseDetails = RecipeChainMath.refresh(recipeInputs, collapsedRecipes);
+		return create(recipeInputs, baseDetails, collapsedRecipes, inventoryInputs, shiftDown, controlDown);
+	}
+
+	public static RecipeChainTooltipModel create(
+		List<RecipeChainInput> recipeInputs,
+		RecipeChainDetails baseDetails,
+		Set<ResourceLocation> collapsedRecipes,
+		List<RecipeChainInput> inventoryInputs,
+		boolean shiftDown,
+		boolean controlDown
+	) {
+		if (!shiftDown) {
+			return create(recipeInputs, baseDetails);
+		}
+		List<RecipeChainInput> adjustedRecipeInputs = !controlDown ?
+			expandOutputRecipeMultipliers(recipeInputs, baseDetails, inventoryInputs) :
 			recipeInputs;
 		List<RecipeChainInput> calculationInputs = new ArrayList<>(adjustedRecipeInputs);
 		if (shiftDown) {
@@ -39,26 +54,28 @@ public record RecipeChainTooltipModel(
 		RecipeChainDetails details = RecipeChainMath.refresh(calculationInputs, collapsedRecipes);
 		List<Section> sections = new ArrayList<>();
 		addSection(sections, RecipeChainTooltipSectionType.OUTPUT, collectOutputs(adjustedRecipeInputs, details));
-		if (shiftDown) {
-			addSection(sections, RecipeChainTooltipSectionType.MISSING, collectMissing(calculationInputs, details));
-			addSection(sections, RecipeChainTooltipSectionType.NEEDED, collectNeeded(calculationInputs, details));
-			addSection(sections, RecipeChainTooltipSectionType.AVAILABLE, collectAvailable(calculationInputs, details));
-			addSection(sections, RecipeChainTooltipSectionType.REMAINDER, collectRemainders(calculationInputs, details));
-		} else {
-			addSection(sections, RecipeChainTooltipSectionType.INPUT, collectMissing(calculationInputs, details));
-		}
+		addSection(sections, RecipeChainTooltipSectionType.MISSING, collectMissing(calculationInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.NEEDED, collectNeeded(calculationInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.AVAILABLE, collectAvailable(calculationInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.REMAINDER, collectRemainders(calculationInputs, details));
+		return new RecipeChainTooltipModel(sections);
+	}
+
+	public static RecipeChainTooltipModel create(List<RecipeChainInput> recipeInputs, RecipeChainDetails details) {
+		List<Section> sections = new ArrayList<>();
+		addSection(sections, RecipeChainTooltipSectionType.OUTPUT, collectOutputs(recipeInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.INPUT, collectMissing(recipeInputs, details));
 		return new RecipeChainTooltipModel(sections);
 	}
 
 	private static List<RecipeChainInput> expandOutputRecipeMultipliers(
 		List<RecipeChainInput> recipeInputs,
-		Set<ResourceLocation> collapsedRecipes,
+		RecipeChainDetails originalDetails,
 		List<RecipeChainInput> inventoryInputs
 	) {
 		if (inventoryInputs.isEmpty()) {
 			return recipeInputs;
 		}
-		RecipeChainDetails originalDetails = RecipeChainMath.refresh(recipeInputs, collapsedRecipes);
 		if (originalDetails.outputRecipes().isEmpty()) {
 			return recipeInputs;
 		}
@@ -69,7 +86,7 @@ public record RecipeChainTooltipModel(
 			BookmarkItemMetadata metadata = input.metadata();
 			ResourceLocation recipeUid = metadata.recipeUid();
 			if (
-				metadata.type() != BookmarkItemType.RESULT ||
+				!metadata.type().isGraphOutput() ||
 					recipeUid == null ||
 					metadata.emptyFactor() ||
 					!originalDetails.outputRecipes().contains(recipeUid)
@@ -87,7 +104,7 @@ public record RecipeChainTooltipModel(
 				expandedMultiplier = Math.max(currentMultiplier, metadata.multiplierFromAmount(targetAmount));
 			}
 			if (expandedMultiplier > currentMultiplier) {
-				adjusted.add(new RecipeChainInput(input.index(), metadata.withMultiplier(expandedMultiplier), input.selectedKey()));
+				adjusted.add(new RecipeChainInput(input.index(), metadata.withMultiplier(expandedMultiplier), input.selectedKey(), input.selectedIngredient()));
 				changed = true;
 			} else {
 				adjusted.add(input);
@@ -146,7 +163,7 @@ public record RecipeChainTooltipModel(
 			RecipeChainItem item = details.calculatedItems().get(input.index());
 			if (
 				item != null &&
-					input.metadata().type() == BookmarkItemType.RESULT &&
+					input.metadata().type().isGraphOutput() &&
 					item.type() == RecipeChainItemType.REMAINDER &&
 					item.requiredAmount() > 0
 			) {

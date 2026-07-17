@@ -27,7 +27,7 @@ public class BookmarkGroupManagerTest {
 	}
 
 	@Test
-	public void collapsedGroupKeepsOneRepresentativeVisible() {
+	public void collapsedGroupKeepsEveryNonIngredientVisible() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
 
@@ -38,7 +38,7 @@ public class BookmarkGroupManagerTest {
 		groups.moveItemToGroup("plate", groupId);
 		groups.setCollapsed(groupId, true);
 
-		Assertions.assertEquals(List.of("iron", "gear"), groups.getVisibleItems(List.of("iron", "gear", "plate")));
+		Assertions.assertEquals(List.of("iron", "gear", "plate"), groups.getVisibleItems(List.of("iron", "gear", "plate")));
 		Assertions.assertEquals(groupId, groups.getGroupId("gear"));
 	}
 
@@ -114,6 +114,23 @@ public class BookmarkGroupManagerTest {
 		groups.refreshRecipeChainDetails(List.of("plate"));
 
 		Assertions.assertTrue(groups.getRecipeChainDetails(groupId).isEmpty());
+	}
+
+	@Test
+	public void nonCraftingGroupExposesRecipeInputsForBatchEncoding() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		String groupId = groups.createGroup("Machines");
+		groups.addItem("plate", false);
+		groups.addItem("ingot", false);
+		groups.setItemMetadata("plate", metadata(groupId, BookmarkItemType.RESULT, "test:plate", "plate", 1, 1));
+		groups.setItemMetadata("ingot", metadata(groupId, BookmarkItemType.INGREDIENT, "test:plate", "ingot", 1, 1));
+
+		Assertions.assertEquals(
+			List.of(0, 1),
+			groups.getGroupRecipeInputs(List.of("plate", "ingot"), groupId).stream()
+				.map(input -> input.index())
+				.toList()
+		);
 	}
 
 	private static BookmarkItemMetadata metadata(

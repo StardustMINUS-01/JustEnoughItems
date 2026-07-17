@@ -38,12 +38,15 @@ import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
 import mezz.jei.gui.config.ModNameSortingConfig;
+import mezz.jei.gui.config.RecipePreferenceConfig;
+import mezz.jei.gui.config.RecipePreferenceRulesReloadController;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
 import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
 import mezz.jei.gui.favorites.GeneratedFavoriteRecipeScanner;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.filter.FilterTextSource;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.ingredients.IListElement;
@@ -124,7 +127,9 @@ public class JeiGuiStarter {
 		IClientToggleState toggleState = Internal.getClientToggleState();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
 		FavoriteRecipeConfig favoriteRecipeConfig = configData.favoriteRecipeConfig();
+		RecipePreferenceConfig recipePreferenceConfig = configData.recipePreferenceConfig();
 		ILookupHistoryConfig lookupHistoryConfig = configData.lookupHistoryConfig();
+		RecipePreferenceRules recipePreferenceRules = recipePreferenceConfig.loadRules();
 
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
@@ -186,10 +191,19 @@ public class JeiGuiStarter {
 		);
 		registration.setIngredientListOverlay(ingredientListOverlay);
 
-		BookmarkList bookmarkList = new BookmarkList(recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkConfig, clientConfig, guiHelper);
-		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
 		FavoriteRecipeStore favoriteRecipes = favoriteRecipeConfig.loadFavorites();
 		favoriteRecipes.addSourceListChangedListener(() -> favoriteRecipeConfig.saveFavorites(favoriteRecipes));
+		BookmarkList bookmarkList = new BookmarkList(
+			recipeManager,
+			focusFactory,
+			ingredientManager,
+			registryAccess,
+			bookmarkConfig,
+			clientConfig,
+			guiHelper,
+			favoriteRecipes::getFavorite
+		);
+		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
 
 		BookmarkOverlay bookmarkOverlay = OverlayHelper.createBookmarkOverlay(
 			ingredientManager,
@@ -261,11 +275,20 @@ public class JeiGuiStarter {
 			focusFactory,
 			ingredientManager
 		);
+		generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, recipePreferenceRules);
+		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
+			recipePreferenceConfig::loadRules,
+			minecraft::execute,
+			rules -> generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, rules)
+		);
+		Internal.getFileWatcher().addCallback(
+			recipePreferenceConfig.getPath(),
+			recipePreferenceRulesReloadController::onConfigFileChanged
+		);
 		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
 			new FavoriteTreeBuilder(favoriteRecipes, favoriteTreeRecipeResolver),
 			favoriteTreeRecipeResolver::resolveLayout,
-			bookmarkList::addRecipeLayoutProjectionBookmarkGroup,
-			() -> generatedFavoriteRecipeScanner.rebuild(favoriteRecipes)
+			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
 		);
 
 		UserInputRouter userInputRouter = new UserInputRouter(
@@ -284,7 +307,7 @@ public class JeiGuiStarter {
 				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.getFavoriteTreeDepth()),
 				favoriteRecipes::getFavorite
 			),
-			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, toggleState, serverConnection),
+			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection),
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);

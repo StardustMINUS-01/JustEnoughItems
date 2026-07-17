@@ -10,7 +10,6 @@ package mezz.jei.gui.bookmarks.hotkeys;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PlayToServerPacket;
@@ -253,6 +252,8 @@ public final class BookmarkAutoCraftingBridge {
 		private boolean waitingForClientFallback;
 		private boolean waitingForInventorySync;
 		private List<RecipeChainInput> dispatchedInventorySnapshot = List.of();
+		private List<RecipeChainInput> craftAllExpansionInventorySnapshot = List.of();
+		private boolean craftAllExpansionInventoryCaptured;
 		private ResourceLocation dispatchedRecipeUid;
 		private int acknowledgedCraftedCount;
 		private int waitTicks;
@@ -378,7 +379,11 @@ public final class BookmarkAutoCraftingBridge {
 			int requestId = nextRequestId++;
 			dispatchedInventorySnapshot = List.copyOf(inventorySupplier.get());
 			if (craftAll) {
-				math.expandRootDemandForCraftAll(dispatchedInventorySnapshot);
+				if (!craftAllExpansionInventoryCaptured) {
+					craftAllExpansionInventorySnapshot = dispatchedInventorySnapshot;
+					craftAllExpansionInventoryCaptured = true;
+				}
+				math.expandRootDemandForCraftAll(craftAllExpansionInventorySnapshot);
 			}
 			dispatchedRecipeUid = null;
 			acknowledgedCraftedCount = 0;
@@ -448,7 +453,7 @@ public final class BookmarkAutoCraftingBridge {
 			long amount = 0;
 			for (RecipeChainInput input : chainInputs) {
 				BookmarkItemMetadata metadata = input.metadata();
-				if (metadata.type() == BookmarkItemType.RESULT && recipeUid.equals(metadata.recipeUid())) {
+				if (metadata.type().isGraphOutput() && recipeUid.equals(metadata.recipeUid())) {
 					amount = saturatedAdd(amount, metadata.amount(craftedCount));
 				}
 			}
@@ -473,7 +478,7 @@ public final class BookmarkAutoCraftingBridge {
 			List<BookmarkItemMetadata> results = new ArrayList<>();
 			for (RecipeChainInput input : chainInputs) {
 				BookmarkItemMetadata metadata = input.metadata();
-				if (metadata.type() == BookmarkItemType.RESULT && recipeUid.equals(metadata.recipeUid())) {
+				if (metadata.type().isGraphOutput() && recipeUid.equals(metadata.recipeUid())) {
 					results.add(metadata);
 				}
 			}

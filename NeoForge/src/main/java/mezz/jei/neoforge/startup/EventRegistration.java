@@ -8,6 +8,7 @@ import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ContainerScreenEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
@@ -38,6 +39,10 @@ public class EventRegistration {
 			if (handler.onKeyboardKeyPressedPost(screen, input)) {
 				event.setCanceled(true);
 			}
+		});
+		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> {
+			UserInput input = ForgeUserInput.fromEvent(event);
+			handler.onKeyboardKeyReleased(input);
 		});
 
 		subscriptions.register(ScreenEvent.CharacterTyped.Pre.class, event -> {
@@ -87,6 +92,7 @@ public class EventRegistration {
 
 	@SuppressWarnings("removal")
 	public static void registerGuiHandler(RuntimeEventSubscriptions subscriptions, GuiEventHandler guiEventHandler) {
+		subscriptions.register(ClientTickEvent.Post.class, event -> guiEventHandler.onClientTick());
 		subscriptions.register(ScreenEvent.Init.Post.class, event -> {
 			Screen screen = event.getScreen();
 			guiEventHandler.onGuiInit(screen);
@@ -124,11 +130,39 @@ public class EventRegistration {
 	}
 
 	@SuppressWarnings("removal")
+	public static List<Class<?>> getGuiEventTypes() {
+		return List.of(
+			ClientTickEvent.Post.class,
+			ContainerScreenEvent.Render.Foreground.class,
+			ScreenEvent.BackgroundRendered.class,
+			ScreenEvent.Render.Post.class,
+			ScreenEvent.RenderInventoryMobEffects.class,
+			ScreenEvent.Init.Post.class,
+			ScreenEvent.Opening.class
+		);
+	}
+
+	@SuppressWarnings("removal")
 	public static List<Class<?>> getGuiRenderEventTypes() {
 		return List.of(
 			ContainerScreenEvent.Render.Foreground.class,
 			ScreenEvent.BackgroundRendered.class,
 			ScreenEvent.Render.Post.class
+		);
+	}
+
+	@SuppressWarnings("removal")
+	public static List<Class<?>> getClientInputEventTypes() {
+		return List.of(
+			ScreenEvent.Init.Post.class,
+			ScreenEvent.KeyPressed.Pre.class,
+			ScreenEvent.KeyPressed.Post.class,
+			ScreenEvent.KeyReleased.Pre.class,
+			ScreenEvent.CharacterTyped.Pre.class,
+			ScreenEvent.CharacterTyped.Post.class,
+			ScreenEvent.MouseButtonPressed.Pre.class,
+			ScreenEvent.MouseButtonReleased.Pre.class,
+			ScreenEvent.MouseScrolled.Pre.class
 		);
 	}
 }

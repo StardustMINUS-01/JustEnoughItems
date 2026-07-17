@@ -1,6 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -9,6 +10,7 @@ import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
@@ -27,6 +29,9 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingBridge;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
+import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -41,6 +46,7 @@ import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -93,6 +99,10 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (isBookmarkPullInput(input, keyBindings.getBookmarkPullItems())) {
 			return handleBookmarkPull(input);
 		}
+		Optional<IUserInputHandler> patternEncodeHandler = handleRecipeChainPatternEncode(input, keyBindings);
+		if (patternEncodeHandler.isPresent()) {
+			return patternEncodeHandler;
+		}
 		if (isFavoriteActionInput(input, keyBindings)) {
 			Optional<IUserInputHandler> favoriteHandler = handleFavoriteRecipe(input, keyBindings);
 			if (favoriteHandler.isPresent()) {
@@ -124,10 +134,10 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 
-		RecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
+		PlayerInventoryRecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
 		String hoveredGroupId = groupId.get();
 		AbstractContainerMenu menu = containerScreen.getMenu();
-		boolean craftAll = (input.getModifiers() & GLFW.GLFW_MOD_CONTROL) == 0;
+		boolean craftAll = isCraftAllModifier(input.getModifiers());
 		boolean handled;
 		if (input.isSimulate()) {
 			handled = BookmarkAutoCraftingBridge.activate(
@@ -136,7 +146,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				targetSlotCount,
 				menu.containerId,
 				() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-				BookmarkAutoCraftingActivator::getPlayerInventoryStacks,
+				inventoryProvider::getAvailableStacks,
 				recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
 				serverConnection::sendPacketToServer,
 				true,
@@ -150,7 +160,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 					targetSlotCount,
 					menu.containerId,
 					() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-					BookmarkAutoCraftingActivator::getPlayerInventoryStacks,
+					inventoryProvider::getAvailableStacks,
 					recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
 					serverConnection::sendPacketToServer,
 					() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
@@ -166,7 +176,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 						targetSlotCount,
 						menu,
 						() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-						BookmarkAutoCraftingActivator::getPlayerInventoryStacks,
+						inventoryProvider::getAvailableStacks,
 						recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
 						clientCraftingGridClickRunner,
 						clientCraftingGridClickRunner::consumeLastResult,
@@ -194,6 +204,105 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		RecipeChainTooltipInventoryProvider inventoryProvider
 	) {
 		return List.copyOf(inventoryProvider.getInventoryInputs(groupId, -1));
+	}
+
+	private Optional<IUserInputHandler> handleRecipeChainPatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
+			return Optional.empty();
+		}
+		Optional<String> groupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
+		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
+		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handle(
+			input,
+			keyBindings.getEncodeRecipeChainPatterns(),
+			containerScreen.getMenu(),
+			groupId,
+			groupId.filter(bookmarkList::isGroupCraftingMode).isPresent(),
+			true,
+			bridge,
+			() -> bookmarkList.getGroupRecipeInputs(groupId.get()),
+			() -> bookmarkList.getCollapsedRecipeIds(groupId.get()),
+			recipeUid -> bookmarkList.createRecipeLayoutDrawable(groupId.get(), recipeUid),
+			ingredientManager,
+			message -> minecraft.player.displayClientMessage(message, false)
+		);
+		if (result.isEmpty()) {
+			return handleSingleBookmarkPatternEncode(input, keyBindings, containerScreen.getMenu(), bridge);
+		}
+		if (!input.isSimulate() && result.get().sent()) {
+			JeiClientSoundUtil.playClickSound();
+		}
+		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
+	}
+
+	private Optional<IUserInputHandler> handleSingleBookmarkPatternEncode(
+		UserInput input,
+		IInternalKeyMappings keyBindings,
+		AbstractContainerMenu menu,
+		Ae2RecipeChainPatternEncodingBridge bridge
+	) {
+		if (!input.is(keyBindings.getEncodeRecipeChainPatterns()) || !bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
+			return Optional.empty();
+		}
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.filter(clicked -> clicked.getElement().isVisible())
+			.findFirst()
+			.flatMap(clicked -> {
+				Optional<IRecipeLayoutDrawable<?>> layout = resolveSingleBookmarkPatternLayout(clicked.getElement(), clicked.getTypedIngredient());
+				if (layout.isEmpty() && bridge.isAvailable() && bridge.isPatternEncodingTerminal(menu)) {
+					if (!input.isSimulate()) {
+						Minecraft minecraft = Minecraft.getInstance();
+						if (minecraft.player != null) {
+							minecraft.player.displayClientMessage(Component.translatable("jei.message.ae2.pattern_encoding.no_recipe_request"), false);
+						}
+					}
+					return Optional.of(new SameElementInputHandler(this, clicked::isMouseOver));
+				}
+				Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handleSingleRecipe(
+					input,
+					keyBindings.getEncodeRecipeChainPatterns(),
+					menu,
+					bridge,
+					layout,
+					Optional.empty(),
+					() -> clicked.getElement().getBookmark()
+						.map(bookmarkList::getRecipeInputs)
+						.orElseGet(List::of),
+					ingredientManager,
+					message -> {
+						Minecraft minecraft = Minecraft.getInstance();
+						if (minecraft.player != null) {
+							minecraft.player.displayClientMessage(message, false);
+						}
+					}
+				);
+				return result
+					.filter(RecipeChainPatternEncodeController.HandleResult::handled)
+					.map(handleResult -> {
+						if (!input.isSimulate() && handleResult.sent()) {
+							JeiClientSoundUtil.playClickSound();
+						}
+						return new SameElementInputHandler(this, clicked::isMouseOver);
+					});
+			});
+	}
+
+	private Optional<IRecipeLayoutDrawable<?>> resolveSingleBookmarkPatternLayout(IElement<?> element, ITypedIngredient<?> ingredient) {
+		return element.getBookmark()
+			.flatMap(bookmark -> {
+				if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
+					return bookmarkList.createRecipeLayoutDrawable(recipeBookmark);
+				}
+				if (bookmark instanceof IngredientBookmark<?>) {
+					return bookmarkList.createUniqueRecipeLayoutDrawable(ingredient);
+				}
+				return Optional.empty();
+			});
+	}
+
+	public static boolean isCraftAllModifier(int modifiers) {
+		return (modifiers & GLFW.GLFW_MOD_CONTROL) == 0;
 	}
 
 	public static boolean isBookmarkInput(UserInput input, IJeiKeyMapping bookmarkKey) {

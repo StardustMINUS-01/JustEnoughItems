@@ -9,6 +9,7 @@ import mezz.jei.api.ingredients.rendering.BatchRenderElement;
 import mezz.jei.api.runtime.IEditModeConfig;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
+import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.SafeIngredientUtil;
@@ -259,7 +260,7 @@ public class IngredientListRenderer {
 
 	private static void drawScaledText(GuiGraphics guiGraphics, Font font, String text, int x, int y, int color) {
 		guiGraphics.pose().pushPose();
-		guiGraphics.pose().translate(x, y, 300);
+		guiGraphics.pose().translate(x, y, GuiRenderLayers.OVERLAY_DECORATION_Z);
 		guiGraphics.pose().scale(BOOKMARK_SLOT_TEXT_SCALE, BOOKMARK_SLOT_TEXT_SCALE, 1);
 		guiGraphics.drawString(font, text, 0, 0, color, true);
 		guiGraphics.pose().popPose();

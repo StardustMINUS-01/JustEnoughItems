@@ -12,6 +12,8 @@ import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -109,6 +111,56 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
+	public void catalystInputDoesNotBecomeAConsumedMaterialRequirement() {
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
+			input(1, ingredient(PLATE_RECIPE, key("mold"), 1).withType(BookmarkItemType.CATALYST))
+		), Set.of());
+
+		Assertions.assertFalse(details.missedItems().containsKey(key("mold")));
+		Assertions.assertFalse(details.calculatedItems().containsKey(1));
+	}
+
+	@Test
+	public void extraOutputFromTargetRecipeIsRemainderNotAnotherTarget() {
+		ResourceLocation crushingRecipe = ResourceLocation.fromNamespaceAndPath("test", "crushing");
+
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(crushingRecipe, key("dust"), 1, 1)),
+			input(1, result(crushingRecipe, key("tiny_dust"), 1, 1)),
+			input(2, ingredient(crushingRecipe, key("ore"), 1))
+		), Set.of());
+
+		Assertions.assertEquals(Set.of(crushingRecipe), details.outputRecipes());
+		Assertions.assertEquals(RecipeChainItemType.RESULT, details.calculatedItems().get(0).type());
+		Assertions.assertEquals(RecipeChainItemType.REMAINDER, details.calculatedItems().get(1).type());
+		Assertions.assertEquals(1, details.calculatedItems().get(1).providedAmount());
+		Assertions.assertEquals(1, details.calculatedItems().get(2).requiredAmount());
+	}
+
+	@Test
+	public void extraOutputCanSatisfyLaterRecipeIngredientWithoutBecomingTarget() {
+		ResourceLocation crushingRecipe = ResourceLocation.fromNamespaceAndPath("test", "crushing");
+		ResourceLocation alloyRecipe = ResourceLocation.fromNamespaceAndPath("test", "alloy");
+
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(crushingRecipe, key("dust"), 1, 1)),
+			input(1, result(crushingRecipe, key("tiny_dust"), 1, 1)),
+			input(2, ingredient(crushingRecipe, key("ore"), 1)),
+			input(3, result(alloyRecipe, key("alloy"), 1, 1)),
+			input(4, ingredient(alloyRecipe, key("tiny_dust"), 1))
+		), Set.of());
+
+		Assertions.assertEquals(Set.of(alloyRecipe), details.outputRecipes());
+		Assertions.assertEquals(Set.of(crushingRecipe), details.middleRecipes());
+		Assertions.assertEquals(RecipeChainItemType.REMAINDER, details.calculatedItems().get(0).type());
+		Assertions.assertEquals(RecipeChainItemType.REMAINDER, details.calculatedItems().get(1).type());
+		Assertions.assertEquals(0, details.calculatedItems().get(1).providedAmount());
+		Assertions.assertEquals(0, details.calculatedItems().get(4).requiredAmount());
+		Assertions.assertEquals(1, details.calculatedItems().get(2).requiredAmount());
+	}
+
+	@Test
 	public void intermediateRecipeCanKeepIndependentRequestedOutput() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(PLATE_RECIPE, key("plate"), 1, 2)),
@@ -138,6 +190,23 @@ public class RecipeChainMathTest {
 		Assertions.assertEquals(6, details.calculatedItems().get(1).requiredAmount());
 		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, details.calculatedItems().get(1).type());
 		Assertions.assertEquals(2, details.calculatedItems().get(0).calculatedMultiplier());
+	}
+
+	@Test
+	public void independentRecipesRemainIndependentOutputs() {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		Set<ResourceLocation> recipeUids = new LinkedHashSet<>();
+		for (int index = 0; index < 96; index++) {
+			ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "independent_" + index);
+			recipeUids.add(recipeUid);
+			inputs.add(input(index * 2, result(recipeUid, key("result_" + index), 1, 1)));
+			inputs.add(input(index * 2 + 1, ingredient(recipeUid, key("input_" + index), 1)));
+		}
+
+		RecipeChainDetails details = RecipeChainMath.refresh(inputs, Set.of());
+
+		Assertions.assertEquals(recipeUids, details.outputRecipes());
+		Assertions.assertEquals(Set.of(), details.middleRecipes());
 	}
 
 	@Test

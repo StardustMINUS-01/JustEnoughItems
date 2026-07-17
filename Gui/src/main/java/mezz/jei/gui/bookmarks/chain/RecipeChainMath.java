@@ -16,7 +16,6 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -32,8 +31,11 @@ public final class RecipeChainMath {
 	private final List<RecipeChainInput> recipeIngredients = new ArrayList<>();
 	private final List<RecipeChainInput> recipeResults = new ArrayList<>();
 	private final Set<ResourceLocation> collapsedRecipes;
+	private RecipeChainGraph graph;
+	private RecipeChainPlan plan;
 
 	private final Map<ResourceLocation, Long> outputRecipes = new LinkedHashMap<>();
+	private final Map<ResourceLocation, RecipeChainInput> outputTargets = new LinkedHashMap<>();
 	private final Map<RecipeChainInput, RecipeChainInput> preferredItems = new LinkedHashMap<>();
 	private final Map<RecipeChainInput, Long> requiredAmount = new HashMap<>();
 	private final Map<RecipeChainInput, Long> workingMultipliers = new HashMap<>();
@@ -44,23 +46,25 @@ public final class RecipeChainMath {
 
 	private RecipeChainMath(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes) {
 		this.collapsedRecipes = Set.copyOf(collapsedRecipes);
-		Map<ResourceLocation, Long> requestedMultipliers = new LinkedHashMap<>();
 		for (RecipeChainInput input : inputs) {
 			BookmarkItemMetadata metadata = input.metadata();
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (recipeUid == null || metadata.type() == BookmarkItemType.ITEM) {
+			BookmarkItemType type = metadata.type();
+			if (recipeUid == null || !type.isRecipeAssociated()) {
 				initialItems.add(input);
-			} else if (metadata.type() == BookmarkItemType.INGREDIENT) {
+			} else if (type.isGraphInput()) {
 				recipeIngredients.add(input);
 				workingMultipliers.put(input, 0L);
-			} else {
+			} else if (type.isGraphOutput()) {
 				recipeResults.add(input);
 				workingMultipliers.put(input, 0L);
-				requestedMultipliers.merge(recipeUid, Math.max(0, metadata.multiplier()), Math::max);
+				outputTargets.putIfAbsent(recipeUid, input);
 			}
 		}
-
-		selectOutputRecipes(requestedMultipliers);
+		rebuildPlan();
+		outputTargets.clear();
+		outputTargets.putAll(plan.outputTargets());
+		outputRecipes.putAll(plan.outputRecipes());
 	}
 
 	public static RecipeChainDetails refresh(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes) {
@@ -80,7 +84,7 @@ public final class RecipeChainMath {
 		for (RecipeChainInput result : recipeResults) {
 			BookmarkItemMetadata metadata = result.metadata();
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (recipeUid != null && outputRecipes.containsKey(recipeUid)) {
+			if (recipeUid != null && outputRecipes.containsKey(recipeUid) && isOutputTarget(result)) {
 				long multiplier = outputRecipes.get(recipeUid);
 				rootIngredients.add(new RecipeChainInput(
 					nextSyntheticIndex--,
@@ -101,6 +105,7 @@ public final class RecipeChainMath {
 
 		outputRecipes.clear();
 		outputRecipes.put(ROOT_RECIPE_UID, 1L);
+		outputTargets.clear();
 		recipeResults.removeIf(result -> ROOT_RECIPE_UID.equals(result.metadata().recipeUid()));
 		RecipeChainInput rootResult = new RecipeChainInput(
 			nextSyntheticIndex--,
@@ -117,6 +122,8 @@ public final class RecipeChainMath {
 		);
 		recipeResults.add(rootResult);
 		recipeIngredients.addAll(rootIngredients);
+		rebuildPlan();
+		outputTargets.putAll(plan.outputTargets());
 		return ROOT_RECIPE_UID;
 	}
 
@@ -165,6 +172,7 @@ public final class RecipeChainMath {
 				));
 			}
 		}
+		rebuildPlan();
 	}
 
 	public boolean hasMasterRoot() {
@@ -188,150 +196,13 @@ public final class RecipeChainMath {
 		return Map.copyOf(preferredItems);
 	}
 
-	private void selectOutputRecipes(Map<ResourceLocation, Long> requestedMultipliers) {
-		for (Map.Entry<ResourceLocation, Long> entry : requestedMultipliers.entrySet()) {
-			if (entry.getValue() > 1 || collapsedRecipes.contains(entry.getKey())) {
-				collectPreferredItems(entry.getKey(), preferredItems, new HashSet<>());
-				removeLoop(entry.getKey(), preferredItems, new HashSet<>());
-				outputRecipes.put(entry.getKey(), entry.getValue());
-			}
-		}
-
-		while (true) {
-			Map<RecipeChainInput, RecipeChainInput> bestReferences = Map.of();
-			ResourceLocation bestRecipeUid = null;
-			long bestMultiplier = 0;
-			int bestDepth = 0;
-
-			for (Map.Entry<ResourceLocation, Long> entry : requestedMultipliers.entrySet()) {
-				ResourceLocation recipeUid = entry.getKey();
-				if (!outputRecipes.containsKey(recipeUid) && preferredItems.values().stream()
-					.noneMatch(result -> recipeUid.equals(result.metadata().recipeUid()))) {
-					Map<RecipeChainInput, RecipeChainInput> references = new LinkedHashMap<>(preferredItems);
-					collectPreferredItems(recipeUid, references, new HashSet<>());
-					removeLoop(recipeUid, references, new HashSet<>());
-					int depth = getMaxDepth(recipeUid, references);
-					if (bestDepth < depth || bestDepth == depth && entry.getValue() > bestMultiplier) {
-						bestReferences = references;
-						bestRecipeUid = recipeUid;
-						bestMultiplier = entry.getValue();
-						bestDepth = depth;
-					}
-				}
-			}
-
-			if (bestReferences.isEmpty() || bestRecipeUid == null) {
-				break;
-			}
-			preferredItems.putAll(bestReferences);
-			outputRecipes.put(bestRecipeUid, requestedMultipliers.get(bestRecipeUid));
-		}
-
-		for (Map.Entry<ResourceLocation, Long> entry : requestedMultipliers.entrySet()) {
-			ResourceLocation recipeUid = entry.getKey();
-			boolean outputRecipe = outputRecipes.containsKey(recipeUid);
-			boolean recipeInMiddle = preferredItems.values().stream()
-				.anyMatch(result -> recipeUid.equals(result.metadata().recipeUid()));
-			if (!outputRecipe && !recipeInMiddle) {
-				outputRecipes.put(recipeUid, entry.getValue());
-			} else if (outputRecipe && recipeInMiddle) {
-				outputRecipes.put(recipeUid, Math.max(0, entry.getValue() - 1));
-			}
-		}
-	}
-
-	private void collectPreferredItems(
-		ResourceLocation recipeUid,
-		Map<RecipeChainInput, RecipeChainInput> preferredItems,
-		Set<ResourceLocation> visited
-	) {
-		visited.add(recipeUid);
-		for (RecipeChainInput ingredient : recipeIngredients) {
-			BookmarkItemMetadata ingredientMetadata = ingredient.metadata();
-			if (ingredientMetadata.emptyFactor() ||
-				!recipeUid.equals(ingredientMetadata.recipeUid()) ||
-				preferredItems.containsKey(ingredient)) {
-				continue;
-			}
-
-			RecipeChainInput preferred = findPreferredResult(ingredient, visited);
-			if (preferred != null) {
-				preferredItems.put(ingredient, preferred);
-				ResourceLocation preferredRecipe = preferred.metadata().recipeUid();
-				if (preferredRecipe != null) {
-					collectPreferredItems(preferredRecipe, preferredItems, visited);
-				}
-			}
-		}
-		visited.remove(recipeUid);
-	}
-
-	private RecipeChainInput findPreferredResult(RecipeChainInput ingredient, Set<ResourceLocation> visited) {
-		RecipeChainInput exact = null;
-		RecipeChainInput fallback = null;
-		for (RecipeChainInput result : recipeResults) {
-			BookmarkItemMetadata resultMetadata = result.metadata();
-			ResourceLocation recipeUid = resultMetadata.recipeUid();
-			if (resultMetadata.emptyFactor() ||
-				recipeUid == null ||
-				visited.contains(recipeUid) ||
-				!ingredient.metadata().isSatisfiedBy(resultMetadata)) {
-				continue;
-			}
-			if (samePermutationSet(resultMetadata, ingredient.metadata())) {
-				if (exact == null || resultMetadata.amount(1) > exact.metadata().amount(1)) {
-					exact = result;
-				}
-			} else if (fallback == null || resultMetadata.amount(1) > fallback.metadata().amount(1)) {
-				fallback = result;
-			}
-		}
-		return exact == null ? fallback : exact;
-	}
-
-	private int getMaxDepth(ResourceLocation recipeUid, Map<RecipeChainInput, RecipeChainInput> preferredItems) {
-		int maxDepth = 0;
-		for (RecipeChainInput ingredient : preferredItems.keySet()) {
-			if (!ingredient.metadata().emptyFactor() && recipeUid.equals(ingredient.metadata().recipeUid())) {
-				RecipeChainInput preferred = preferredItems.get(ingredient);
-				ResourceLocation preferredRecipe = preferred.metadata().recipeUid();
-				if (preferredRecipe != null) {
-					maxDepth = Math.max(maxDepth, getMaxDepth(preferredRecipe, preferredItems) + 1);
-				}
-			}
-		}
-		return maxDepth;
-	}
-
-	private void removeLoop(
-		ResourceLocation recipeUid,
-		Map<RecipeChainInput, RecipeChainInput> preferredItems,
-		Set<ResourceLocation> visited
-	) {
-		visited.add(recipeUid);
-		for (RecipeChainInput ingredient : recipeIngredients) {
-			if (!ingredient.metadata().emptyFactor() &&
-				recipeUid.equals(ingredient.metadata().recipeUid()) &&
-				preferredItems.containsKey(ingredient)) {
-				RecipeChainInput preferred = preferredItems.get(ingredient);
-				ResourceLocation preferredRecipe = preferred.metadata().recipeUid();
-				if (visited.contains(preferredRecipe)) {
-					preferredItems.remove(ingredient);
-				} else if (preferredRecipe != null) {
-					removeLoop(preferredRecipe, preferredItems, visited);
-				}
-			}
-		}
-		visited.remove(recipeUid);
-	}
-
 	private RecipeChainDetails refresh() {
 		resetCalculation();
 		for (Map.Entry<ResourceLocation, Long> outputRecipe : outputRecipes.entrySet()) {
 			ResourceLocation recipeUid = outputRecipe.getKey();
 			long multiplier = outputRecipe.getValue();
-			for (RecipeChainInput result : recipeResults) {
-				if (!result.metadata().emptyFactor() && result.metadata().equalsRecipe(recipeUid, result.metadata().groupId())) {
+			for (RecipeChainInput result : graph.resultsFor(recipeUid)) {
+				if (!result.metadata().emptyFactor() && isOutputTarget(result) && result.metadata().equalsRecipe(recipeUid, result.metadata().groupId())) {
 					long resultAmount = result.metadata().amount(multiplier);
 					preferredItems.put(result, result);
 					calculateSuitableRecipe(result, resultAmount, new ArrayList<>());
@@ -343,8 +214,8 @@ public final class RecipeChainMath {
 		for (Map.Entry<ResourceLocation, Long> outputRecipe : outputRecipes.entrySet()) {
 			ResourceLocation recipeUid = outputRecipe.getKey();
 			long multiplier = outputRecipe.getValue();
-			for (RecipeChainInput result : recipeResults) {
-				if (!result.metadata().emptyFactor() && result.metadata().equalsRecipe(recipeUid, result.metadata().groupId())) {
+			for (RecipeChainInput result : graph.resultsFor(recipeUid)) {
+				if (!result.metadata().emptyFactor() && isOutputTarget(result) && result.metadata().equalsRecipe(recipeUid, result.metadata().groupId())) {
 					requiredAmount.computeIfPresent(result, (ignored, amount) -> amount - result.metadata().amount(multiplier));
 				}
 			}
@@ -367,10 +238,15 @@ public final class RecipeChainMath {
 			workingMultipliers.put(result, 0L);
 		}
 
-		for (ResourceLocation recipeUid : outputRecipes.keySet()) {
-			collectPreferredItems(recipeUid, preferredItems, new HashSet<>());
-			removeLoop(recipeUid, preferredItems, new HashSet<>());
-		}
+		preferredItems.putAll(plan.preferredResults());
+	}
+
+	private void rebuildPlan() {
+		List<RecipeChainInput> graphInputs = new ArrayList<>(recipeIngredients.size() + recipeResults.size());
+		graphInputs.addAll(recipeIngredients);
+		graphInputs.addAll(recipeResults);
+		this.plan = RecipeChainPlan.compile(graphInputs, collapsedRecipes);
+		this.graph = plan.graph();
 	}
 
 	private void calculateSuitableRecipe(RecipeChainInput ingredient, long amount, List<ResourceLocation> visited) {
@@ -417,8 +293,8 @@ public final class RecipeChainMath {
 	}
 
 	private void prepareIngredients(ResourceLocation recipeUid, long multiplier, List<ResourceLocation> visited) {
-		for (RecipeChainInput ingredient : recipeIngredients) {
-			if (!ingredient.metadata().emptyFactor() && recipeUid.equals(ingredient.metadata().recipeUid())) {
+		for (RecipeChainInput ingredient : graph.ingredientsFor(recipeUid)) {
+			if (!ingredient.metadata().emptyFactor()) {
 				calculateSuitableRecipe(ingredient, ingredient.metadata().amount(multiplier), visited);
 			}
 		}
@@ -563,15 +439,11 @@ public final class RecipeChainMath {
 	}
 
 	private void addShift(ResourceLocation recipeUid, long shift) {
-		for (RecipeChainInput ingredient : recipeIngredients) {
-			if (recipeUid.equals(ingredient.metadata().recipeUid())) {
-				workingMultipliers.merge(ingredient, shift, RecipeChainMath::saturatedAdd);
-			}
+		for (RecipeChainInput ingredient : graph.ingredientsFor(recipeUid)) {
+			workingMultipliers.merge(ingredient, shift, RecipeChainMath::saturatedAdd);
 		}
-		for (RecipeChainInput result : recipeResults) {
-			if (recipeUid.equals(result.metadata().recipeUid())) {
-				workingMultipliers.merge(result, shift, RecipeChainMath::saturatedAdd);
-			}
+		for (RecipeChainInput result : graph.resultsFor(recipeUid)) {
+			workingMultipliers.merge(result, shift, RecipeChainMath::saturatedAdd);
 		}
 	}
 
@@ -608,7 +480,7 @@ public final class RecipeChainMath {
 			long required = requiredAmount.getOrDefault(result, 0L);
 			long calculatedAmount = metadata.amount(calculatedMultiplier);
 			long shiftAmount = Math.max(0, calculatedAmount - required);
-			RecipeChainItemType type = recipeUid != null && outputRecipes.containsKey(recipeUid) ?
+			RecipeChainItemType type = recipeUid != null && outputRecipes.containsKey(recipeUid) && isOutputTarget(result) ?
 				RecipeChainItemType.RESULT :
 				RecipeChainItemType.REMAINDER;
 			if (shiftAmount > 0 && type == RecipeChainItemType.REMAINDER) {
@@ -691,13 +563,11 @@ public final class RecipeChainMath {
 	}
 
 	private Set<ResourceLocation> getRecipeRelations(ResourceLocation recipeUid, Set<ResourceLocation> recipes) {
-		for (RecipeChainInput ingredient : recipeIngredients) {
-			if (recipeUid.equals(ingredient.metadata().recipeUid())) {
-				RecipeChainInput preferred = preferredItems.get(ingredient);
-				ResourceLocation preferredRecipe = preferred == null ? null : preferred.metadata().recipeUid();
-				if (preferredRecipe != null && recipes.add(preferredRecipe)) {
-					getRecipeRelations(preferredRecipe, recipes);
-				}
+		for (RecipeChainInput ingredient : graph.ingredientsFor(recipeUid)) {
+			RecipeChainInput preferred = preferredItems.get(ingredient);
+			ResourceLocation preferredRecipe = preferred == null ? null : preferred.metadata().recipeUid();
+			if (preferredRecipe != null && recipes.add(preferredRecipe)) {
+				getRecipeRelations(preferredRecipe, recipes);
 			}
 		}
 		return recipes;
@@ -711,13 +581,8 @@ public final class RecipeChainMath {
 		Map<ResourceLocation, Set<ResourceLocation>> recipeRelations = createRecipeRelations();
 		for (ResourceLocation collapsedRecipe : collapsedRecipes) {
 			Set<ResourceLocation> relations = recipeRelations.getOrDefault(collapsedRecipe, Set.of(collapsedRecipe));
-			for (RecipeChainInput input : recipeIngredients) {
-				if (relations.contains(input.metadata().recipeUid())) {
-					itemToRecipe.put(input.index(), collapsedRecipe);
-				}
-			}
-			for (RecipeChainInput input : recipeResults) {
-				if (relations.contains(input.metadata().recipeUid())) {
+			for (ResourceLocation recipeUid : relations) {
+				for (RecipeChainInput input : graph.itemsFor(recipeUid)) {
 					itemToRecipe.put(input.index(), collapsedRecipe);
 				}
 			}
@@ -733,8 +598,9 @@ public final class RecipeChainMath {
 		return metadata.multiplier();
 	}
 
-	private static boolean samePermutationSet(BookmarkItemMetadata first, BookmarkItemMetadata second) {
-		return first.permutations().equals(second.permutations());
+	private boolean isOutputTarget(RecipeChainInput result) {
+		ResourceLocation recipeUid = result.metadata().recipeUid();
+		return recipeUid != null && outputTargets.get(recipeUid) == result;
 	}
 
 	private static long saturatedAdd(long first, long second) {
