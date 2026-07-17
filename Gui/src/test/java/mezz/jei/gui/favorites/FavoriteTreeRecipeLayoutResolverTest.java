@@ -13,6 +13,7 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeLookup;
 import mezz.jei.api.recipe.IRecipeManager;
@@ -112,11 +113,40 @@ public class FavoriteTreeRecipeLayoutResolverTest {
 			new Class<?>[]{IFocusFactory.class},
 			(proxy, method, args) -> {
 				if ("getEmptyFocusGroup".equals(method.getName())) {
-					return null;
+					return emptyFocusGroup();
 				}
 				throw new UnsupportedOperationException(method.getName());
 			}
 		);
+	}
+
+	private static IFocusGroup emptyFocusGroup() {
+		return new IFocusGroup() {
+			@Override
+			public boolean isEmpty() {
+				return true;
+			}
+
+			@Override
+			public List<IFocus<?>> getAllFocuses() {
+				return List.of();
+			}
+
+			@Override
+			public Stream<IFocus<?>> getFocuses(RecipeIngredientRole role) {
+				return Stream.empty();
+			}
+
+			@Override
+			public <T> Stream<IFocus<T>> getFocuses(IIngredientType<T> ingredientType) {
+				return Stream.empty();
+			}
+
+			@Override
+			public <T> Stream<IFocus<T>> getFocuses(IIngredientType<T> ingredientType, RecipeIngredientRole role) {
+				return Stream.empty();
+			}
+		};
 	}
 
 	private static TestRecipeLayout layout(

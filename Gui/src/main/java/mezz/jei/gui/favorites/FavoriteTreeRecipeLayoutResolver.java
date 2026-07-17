@@ -5,34 +5,32 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuilder.RecipeResolver {
-	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
+	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 
 	public FavoriteTreeRecipeLayoutResolver(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
 		IIngredientManager ingredientManager
 	) {
-		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
 		this.ingredientManager = ingredientManager;
+		this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 	}
 
 	@Override
@@ -41,23 +39,8 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 			.map(layout -> new FavoriteTreeBuilder.ResolvedRecipe(recipe, resolveInputs(layout)));
 	}
 
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	public Optional<IRecipeLayoutDrawable<?>> resolveLayout(FocusedRecipe focusedRecipe) {
-		Optional<RecipeType<?>> recipeType = recipeManager.getRecipeType(focusedRecipe.recipeTypeUid());
-		if (recipeType.isEmpty()) {
-			return Optional.empty();
-		}
-		IRecipeCategory recipeCategory = recipeManager.getRecipeCategory((RecipeType) recipeType.get());
-		return recipeManager.createRecipeLookup(recipeCategory.getRecipeType())
-			.get()
-			.filter(candidate -> Objects.equals(recipeCategory.getRegistryName(candidate), focusedRecipe.recipeUid()))
-			.findFirst()
-			.flatMap(candidate -> recipeManager.createRecipeLayoutDrawable(
-				recipeCategory,
-				candidate,
-				focusFactory.getEmptyFocusGroup()
-			))
-			.map(layout -> (IRecipeLayoutDrawable<?>) layout);
+		return focusedRecipeLayoutResolver.resolve(focusedRecipe, focusFactory.getEmptyFocusGroup());
 	}
 
 	List<FavoriteTreeBuilder.ResolvedInput> resolveInputs(IRecipeLayoutDrawable<?> layout) {

@@ -24,6 +24,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
@@ -88,6 +89,22 @@ public class BookmarkListPatternEncodeLookupTest {
 		Assertions.assertEquals(1, bookmarks.getBookmarks().size());
 		BookmarkItemMetadata metadata = bookmarks.getBookmarkMetadata(bookmarks.getBookmarks().getFirst());
 		Assertions.assertEquals(ResourceLocation.fromNamespaceAndPath("test", "second_recipe"), metadata.recipeUid());
+	}
+
+	@Test
+	public void focusedRecipeLayoutLookupMatchesOnlyTheRequestedRecipeUid() {
+		FocusedRecipeLayoutResolver resolver = new FocusedRecipeLayoutResolver(recipeManager(List.of("first_recipe", "second_recipe")));
+
+		Optional<IRecipeLayoutDrawable<?>> layout = resolver.resolve(focusedRecipe("second_recipe"), focusFactory().getEmptyFocusGroup());
+
+		Assertions.assertEquals("second_recipe", layout.orElseThrow().getRecipe());
+	}
+
+	@Test
+	public void focusedRecipeLayoutLookupReturnsEmptyForUnknownRecipeUid() {
+		FocusedRecipeLayoutResolver resolver = new FocusedRecipeLayoutResolver(recipeManager(List.of("first_recipe")));
+
+		Assertions.assertTrue(resolver.resolve(focusedRecipe("missing_recipe"), focusFactory().getEmptyFocusGroup()).isEmpty());
 	}
 
 	private static BookmarkList bookmarkList(List<String> recipes) {

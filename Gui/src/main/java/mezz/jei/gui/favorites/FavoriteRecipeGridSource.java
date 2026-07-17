@@ -8,8 +8,6 @@ import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
@@ -18,13 +16,13 @@ import mezz.jei.gui.overlay.IIngredientGridSource;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
+import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -389,12 +387,12 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	}
 
 	private static class LayoutRecipeInputsResolver implements RecipeInputsResolver {
-		private final IRecipeManager recipeManager;
 		private final IFocusFactory focusFactory;
+		private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 
 		private LayoutRecipeInputsResolver(IRecipeManager recipeManager, IFocusFactory focusFactory) {
-			this.recipeManager = recipeManager;
 			this.focusFactory = focusFactory;
+			this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 		}
 
 		@Override
@@ -407,25 +405,9 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 				.orElse(new ResolvedRecipeIngredients(Optional.empty(), List.of()));
 		}
 
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		private Optional<IRecipeLayoutDrawable<?>> createRecipeLayout(FocusedRecipe focusedRecipe, ITypedIngredient<?> target) {
-			Optional<RecipeType<?>> recipeType = recipeManager.getRecipeType(focusedRecipe.recipeTypeUid());
-			if (recipeType.isEmpty()) {
-				return Optional.empty();
-			}
-			IRecipeCategory recipeCategory = recipeManager.getRecipeCategory((RecipeType) recipeType.get());
 			List<IFocus<?>> focuses = List.of(focusFactory.createFocus(RecipeIngredientRole.OUTPUT, target));
-			return recipeManager.createRecipeLookup(recipeCategory.getRecipeType())
-				.limitFocus(focuses)
-				.get()
-				.filter(candidate -> Objects.equals(recipeCategory.getRegistryName(candidate), focusedRecipe.recipeUid()))
-				.findFirst()
-				.flatMap(candidate -> recipeManager.createRecipeLayoutDrawable(
-					recipeCategory,
-					candidate,
-					focusFactory.createFocusGroup(focuses)
-				))
-				.map(layout -> (IRecipeLayoutDrawable<?>) layout);
+			return focusedRecipeLayoutResolver.resolve(focusedRecipe, focusFactory.createFocusGroup(focuses));
 		}
 	}
 }

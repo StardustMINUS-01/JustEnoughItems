@@ -26,6 +26,7 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
 import mezz.jei.gui.overlay.IIngredientGridSource;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
@@ -59,6 +60,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private final IBookmarkConfig bookmarkConfig;
 	private final IClientConfig clientConfig;
 	private final IGuiHelper guiHelper;
+	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private long changeVersion;
@@ -101,6 +103,7 @@ public class BookmarkList implements IIngredientGridSource {
 		this.bookmarkConfig = bookmarkConfig;
 		this.clientConfig = clientConfig;
 		this.guiHelper = guiHelper;
+		this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 		this.preferredRecipeLookup = preferredRecipeLookup;
 	}
 
@@ -265,23 +268,11 @@ public class BookmarkList implements IIngredientGridSource {
 			.orElse(false);
 	}
 
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	private Optional<IRecipeLayoutDrawable<?>> createRecipeLayoutDrawable(FocusedRecipe focusedRecipe, List<IFocus<?>> focuses) {
-		return recipeManager.getRecipeType(focusedRecipe.recipeTypeUid())
-			.flatMap(recipeType -> {
-				IRecipeCategory recipeCategory = recipeManager.getRecipeCategory(recipeType);
-				Optional<?> recipe = recipeManager.createRecipeLookup(recipeType)
-					.limitFocus(focuses)
-					.get()
-					.filter(candidate -> focusedRecipe.recipeUid().equals(recipeCategory.getRegistryName(candidate)))
-					.findFirst();
-				if (recipe.isEmpty()) {
-					return Optional.empty();
-				}
-				IFocusGroup focusGroup = focusFactory.createFocusGroup(focuses);
-				return recipeManager.createRecipeLayoutDrawable(recipeCategory, recipe.get(), focusGroup)
-					.map(layout -> (IRecipeLayoutDrawable<?>) layout);
-			});
+		if (focusFactory == null) {
+			return Optional.empty();
+		}
+		return focusedRecipeLayoutResolver.resolve(focusedRecipe, focusFactory.createFocusGroup(focuses));
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
