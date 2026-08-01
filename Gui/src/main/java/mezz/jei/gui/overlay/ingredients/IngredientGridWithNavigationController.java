@@ -84,9 +84,21 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		if (usesScrollbar()) {
 			this.scrollController.updateLayoutKeepingScrollAnchorVisible(pageAnchorElement);
 		} else {
-			List<IElement<?>> ingredientList = ingredientSource.getElements();
+			List<IElement<?>> ingredientList = getElementsForLayout();
 			int firstItemIndex = this.pageState.updateKeepingPageAnchorVisible(pageAnchorElement, ingredientList, ingredientGrid.size());
 			this.ingredientGrid.set(firstItemIndex, ingredientList);
+		}
+		this.onLayoutChanged.run();
+	}
+
+	public void updateLayoutKeepingPageNumber() {
+		if (usesScrollbar()) {
+			this.scrollController.updateLayoutKeepingScrollAnchorVisible(this.scrollController.getScrollAnchorElement());
+		} else {
+			List<IElement<?>> ingredientList = getElementsForLayout();
+			int firstItemIndex = this.pageState.updateForPageNumber(this.pageState.getPageNumber(), ingredientList.size(), ingredientGrid.size());
+			this.ingredientGrid.set(firstItemIndex, ingredientList);
+			rememberFirstVisibleElementAsPageAnchor();
 		}
 		this.onLayoutChanged.run();
 	}
@@ -113,12 +125,16 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		if (usesScrollbar()) {
 			this.scrollController.updateLayoutStartingAt(firstItemIndex);
 		} else {
-			List<IElement<?>> ingredientList = ingredientSource.getElements();
+			List<IElement<?>> ingredientList = getElementsForLayout();
 			int renderFirstItemIndex = this.pageState.updateForPageNavigation(firstItemIndex, ingredientList.size(), ingredientGrid.size());
 			this.ingredientGrid.set(renderFirstItemIndex, ingredientList);
 			rememberFirstVisibleElementAsPageAnchor();
 		}
 		this.onLayoutChanged.run();
+	}
+
+	private List<IElement<?>> getElementsForLayout() {
+		return ingredientSource.getElements(this.ingredientGrid.getUsableColumnCount());
 	}
 
 	private void rememberFirstVisibleElementAsPageAnchor() {
@@ -136,7 +152,7 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		if (getPageCount() <= 1) {
 			return false;
 		}
-		final int itemsCount = ingredientSource.getElements().size();
+		final int itemsCount = getElementsForLayout().size();
 		if (itemsCount > 0) {
 			int nextFirstItemIndex = pageState.getFirstItemIndex() + ingredientGrid.size();
 			if (nextFirstItemIndex >= itemsCount) {
@@ -165,7 +181,7 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 			updateLayoutStartingAt(0);
 			return false;
 		}
-		final int itemsCount = ingredientSource.getElements().size();
+		final int itemsCount = getElementsForLayout().size();
 
 		int pageNum = pageState.getFirstItemIndex() / itemsPerPage;
 		if (pageNum == 0) {
@@ -204,7 +220,7 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		if (usesScrollbar()) {
 			return this.scrollController.getHiddenScrollRows() + 1;
 		}
-		return IngredientGridPageState.getPageCount(ingredientSource.getElements().size(), ingredientGrid.size());
+		return IngredientGridPageState.getPageCount(getElementsForLayout().size(), ingredientGrid.size());
 	}
 
 	@Override
@@ -212,7 +228,7 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		if (usesScrollbar()) {
 			return this.scrollController.getFirstVisibleScrollRow();
 		}
-		return IngredientGridPageState.getPageNumberForFirstItemIndex(pageState.getFirstItemIndex(), ingredientGrid.size(), ingredientSource.getElements().size());
+		return this.pageState.getPageNumber();
 	}
 
 	@Override

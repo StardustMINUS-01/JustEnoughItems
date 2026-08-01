@@ -593,6 +593,11 @@ public class IngredientGridWithNavigationControllerTest {
 		}
 
 		@Override
+		public int getUsableColumnCount() {
+			return columns;
+		}
+
+		@Override
 		public int getRowCount() {
 			return rows;
 		}

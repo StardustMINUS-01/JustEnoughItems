@@ -125,9 +125,8 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 
 	private void updateLayoutIfDirty() {
 		if (this.layoutDirty && this.availableArea != null) {
-			IElement<?> pageAnchorElement = getPageAnchorElement();
 			updateBounds(this.availableArea, this.guiExclusionAreas, this.mouseExclusionPoint);
-			this.controller.updateLayoutKeepingPageAnchorVisible(pageAnchorElement);
+			this.controller.updateLayoutKeepingPageNumber();
 		}
 	}
 
@@ -146,7 +145,7 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		if (resetToFirstPage) {
 			updateLayoutToFirstPage();
 		} else {
-			updateLayoutKeepingPageAnchorVisible(null);
+			this.controller.updateLayoutKeepingPageNumber();
 		}
 	}
 
@@ -400,7 +399,8 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		this.ingredientGrid.setSlotVisualsResolver(slotVisualsResolver);
 	}
 
-	public int getColumnCount() {
-		return this.ingredientGrid.getColumnCount();
+	public int getUsableColumnCount() {
+		updateLayoutIfDirty();
+		return this.ingredientGrid.getUsableColumnCount();
 	}
 }

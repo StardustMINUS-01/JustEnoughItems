@@ -108,8 +108,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		Optional<ImmutableRect2i> historyArea,
 		OptionalInt contentsBottomLimit
 	) {}
-	private static final int LOOKUP_HISTORY_BOTTOM_PADDING = BORDER_MARGIN;
-	private static final int LOOKUP_HISTORY_PADDING_EXTRA = LOOKUP_HISTORY_BOTTOM_PADDING - INNER_PADDING;
 
 	// input
 	private final BookmarkDragManager bookmarkDragManager;
@@ -402,18 +400,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		}
 		int screenHeight = guiProperties.getScreenHeight();
 		return new ImmutableRect2i(0, 0, width, screenHeight);
-	}
-
-	private static ImmutableRect2i cropBottomTo(ImmutableRect2i area, int bottomY) {
-		int cropAmount = getBottom(area) - bottomY;
-		if (cropAmount <= 0) {
-			return area;
-		}
-		return area.cropBottom(cropAmount);
-	}
-
-	private static int getBottom(ImmutableRect2i area) {
-		return area.y() + area.height();
 	}
 
 	public void drawScreen(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
@@ -980,7 +966,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		IPaged pageDelegate = this.contents.getPageDelegate();
 		PanelSnapshotKey key = new PanelSnapshotKey(
 			bookmarkList.getChangeVersion(),
-			this.contents.getColumnCount(),
+			this.contents.getUsableColumnCount(),
 			pageDelegate.getPageNumber(),
 			this.contents.size(),
 			pageAreas,
@@ -998,7 +984,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		List<ImmutableRect2i> pageAreas,
 		PanelSnapshotKey key
 	) {
-		List<BookmarkDisplaySlot<IBookmark>> displaySlots = this.bookmarkList.getDisplaySlots(this.contents.getColumnCount());
+		List<BookmarkDisplaySlot<IBookmark>> displaySlots = this.bookmarkList.getDisplaySlots(this.contents.getUsableColumnCount());
 		int firstDisplaySlotIndex = key.pageNumber() * key.pageSize();
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots = BookmarkPanelLayout.createPagePanelSlots(
 			displaySlots,

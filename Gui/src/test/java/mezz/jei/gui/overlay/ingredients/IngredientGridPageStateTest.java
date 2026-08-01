@@ -4,8 +4,10 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
+import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static mezz.jei.gui.overlay.ingredients.IngredientGridPageState.findIndexOfIngredientElement;
@@ -13,8 +15,10 @@ import static mezz.jei.gui.overlay.ingredients.IngredientGridPageState.getFirstI
 import static mezz.jei.gui.overlay.ingredients.IngredientGridPageState.getPageCount;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridPageState.getPageNumberForFirstItemIndex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IngredientGridPageStateTest {
 	private static final int MISSING_ANCHOR = -1;
@@ -94,6 +98,90 @@ public class IngredientGridPageStateTest {
 
 		// Assertions: no slot capacity means there is no meaningful non-zero page start.
 		assertEquals(0, firstItemIndex);
+	}
+
+	@Test
+	public void updateForPageNumberKeepsPageClampedToValidRange() {
+		// Setup: the bookmark overlay keeps the current page number when bounds change,
+		// matching the legacy fork behavior instead of relying on an element anchor.
+		IngredientGridPageState pageState = new IngredientGridPageState();
+
+		// Assertions: the requested page is preserved, clamped to the last page when the
+		// list shrank, and normalized to the first page for negative or invalid states.
+		assertEquals(0, pageState.updateForPageNumber(0, 23, 10));
+		assertEquals(0, pageState.getPageNumber());
+		assertEquals(10, pageState.updateForPageNumber(1, 23, 10));
+		assertEquals(1, pageState.getPageNumber());
+		assertEquals(20, pageState.updateForPageNumber(5, 23, 10));
+		assertEquals(2, pageState.getPageNumber());
+		assertEquals(0, pageState.updateForPageNumber(-1, 23, 10));
+		assertEquals(0, pageState.getPageNumber());
+		assertEquals(0, pageState.updateForPageNumber(1, 0, 10));
+		assertEquals(0, pageState.getPageNumber());
+		assertEquals(0, pageState.updateForPageNumber(1, 23, 0));
+		assertEquals(0, pageState.getPageNumber());
+	}
+
+	@Test
+	public void updateForPageNumberPreservesPageOnTransientEmptyFrames() {
+		// Setup: the player is on page 3 (zero-based 2) when a screen transition frame
+		// temporarily reports an empty list or zero grid capacity.
+		IngredientGridPageState pageState = new IngredientGridPageState();
+		pageState.updateForPageNumber(2, 30, 10);
+		assertEquals(2, pageState.getPageNumber());
+		assertEquals(20, pageState.getFirstItemIndex());
+
+		// Operation + assertions: transient empty/zero-capacity frames clear the item
+		// offset but must not wipe the persistent page ordinal.
+		assertEquals(0, pageState.updateForPageNumber(2, 0, 10));
+		assertEquals(2, pageState.getPageNumber());
+		assertEquals(0, pageState.updateForPageNumber(2, 30, 0));
+		assertEquals(2, pageState.getPageNumber());
+
+		// Back to a real layout, the preserved page is restored.
+		assertEquals(20, pageState.updateForPageNumber(2, 30, 10));
+		assertEquals(2, pageState.getPageNumber());
+	}
+
+	@Test
+	public void pageNumberSurvivesPageSizeChanges() {
+		// Setup: 30 items. Screen A fits 10 per page, screen B only fits 8.
+		IngredientGridPageState pageState = new IngredientGridPageState();
+		int itemCount = 30;
+
+		// Operation: the user is on page 2 (zero-based 1) on screen A.
+		pageState.updateForPageNavigation(10, itemCount, 10);
+		assertEquals(1, pageState.getPageNumber());
+		assertEquals(10, pageState.getFirstItemIndex());
+
+		// Switch to screen B: keep the page ordinal, capacity shrinks to 8.
+		pageState.updateForPageNumber(pageState.getPageNumber(), itemCount, 8);
+		assertEquals(1, pageState.getPageNumber());
+		assertEquals(8, pageState.getFirstItemIndex());
+
+		// Switch back to screen A: capacity 10 again, the page ordinal must not drift.
+		pageState.updateForPageNumber(pageState.getPageNumber(), itemCount, 10);
+		assertEquals(1, pageState.getPageNumber());
+		assertEquals(10, pageState.getFirstItemIndex());
+	}
+
+	@Test
+	public void updateKeepingPageAnchorVisibleSyncsPageNumber() {
+		// Setup: the page is preserved by an element anchor after bounds change.
+		IngredientGridPageState pageState = new IngredientGridPageState();
+		IElement<?> anchor = new IngredientElement<>(new TestTypedIngredient<>(OBJECT_TYPE, new Object()));
+		List<IElement<?>> elements = new ArrayList<>();
+		for (int i = 0; i < 15; i++) {
+			elements.add(new IngredientElement<>(new TestTypedIngredient<>(OBJECT_TYPE, new Object())));
+		}
+		elements.add(anchor);
+
+		// Operation: keep the anchor's page visible with 10 slots per page.
+		pageState.updateKeepingPageAnchorVisible(anchor, elements, 10);
+
+		// Assertions: the anchor is on page 2 (zero-based 1), and the stored page number matches.
+		assertEquals(10, pageState.getFirstItemIndex());
+		assertEquals(1, pageState.getPageNumber());
 	}
 
 	@Test
@@ -262,6 +350,50 @@ public class IngredientGridPageStateTest {
 
 		// Assertions: object identity is the strongest match and preserves the anchor index.
 		assertEquals(1, index);
+	}
+
+	@Test
+	public void findIndexOfIngredientElementSkipsLayoutPlaceholders() {
+		// Setup: the bookmark chain layout inserts placeholders before the remembered anchor element.
+		IElement<?> anchor = new IngredientElement<>(new TestTypedIngredient<>(OBJECT_TYPE, new Object()));
+		List<IElement<?>> elements = List.of(
+			LayoutPlaceholderElement.INSTANCE,
+			anchor
+		);
+
+		// Operation: find where the remembered element appears in the placeholder-inclusive list.
+		int index = findIndexOfIngredientElement(anchor, elements);
+
+		// Assertions: placeholders are skipped without inspecting their (nonexistent) ingredients.
+		assertEquals(1, index);
+	}
+
+	@Test
+	public void findIndexOfIngredientElementDoesNotMatchPlaceholder() {
+		// Setup: the list contains a placeholder but not the remembered anchor.
+		IElement<?> anchor = new IngredientElement<>(new TestTypedIngredient<>(OBJECT_TYPE, new Object()));
+		List<IElement<?>> elements = List.of(
+			new IngredientElement<>(new TestTypedIngredient<>(OBJECT_TYPE, new Object())),
+			LayoutPlaceholderElement.INSTANCE
+		);
+
+		// Operation: search for the remembered anchor.
+		int index = findIndexOfIngredientElement(anchor, elements);
+
+		// Assertions: the placeholder is never treated as a match.
+		assertEquals(-1, index);
+	}
+
+	@Test
+	public void isSameIngredientElementReturnsFalseForPlaceholders() {
+		// Setup: a placeholder and a real ingredient element are compared during anchor lookup.
+		IElement<?> anchor = new IngredientElement<>(new TestTypedIngredient<>(OBJECT_TYPE, new Object()));
+
+		// Assertions: placeholders never match a real element in either argument order,
+		// while the singleton placeholder still matches itself by identity.
+		assertFalse(IngredientGridPageState.isSameIngredientElement(LayoutPlaceholderElement.INSTANCE, anchor));
+		assertFalse(IngredientGridPageState.isSameIngredientElement(anchor, LayoutPlaceholderElement.INSTANCE));
+		assertTrue(IngredientGridPageState.isSameIngredientElement(LayoutPlaceholderElement.INSTANCE, LayoutPlaceholderElement.INSTANCE));
 	}
 
 	@Test

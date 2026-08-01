@@ -14,6 +14,11 @@ final class IngredientGridPageState {
 	 */
 	private int firstItemIndex = 0;
 	/**
+	 * The zero-based page number currently being rendered. Unlike {@link #firstItemIndex},
+	 * this is a stable ordinal that survives page size changes, matching the legacy fork behavior.
+	 */
+	private int pageNumber = 0;
+	/**
 	 * An explicit element to keep visible when the ingredient list or grid bounds change.
 	 * When this is missing or stale, the caller should fall back to the first visible element.
 	 */
@@ -24,15 +29,34 @@ final class IngredientGridPageState {
 		return firstItemIndex;
 	}
 
+	public int getPageNumber() {
+		return pageNumber;
+	}
+
 	public int updateForPageNavigation(int firstItemIndex, int itemCount, int itemsPerPage) {
 		this.pageAnchorElement = null;
 		this.firstItemIndex = getFirstItemIndexForValidPage(firstItemIndex, itemCount, itemsPerPage);
+		this.pageNumber = pageNumberForFirstItemIndex(this.firstItemIndex, itemsPerPage);
+		return this.firstItemIndex;
+	}
+
+	public int updateForPageNumber(int pageNumber, int itemCount, int itemsPerPage) {
+		this.pageAnchorElement = null;
+		if (itemCount <= 0 || itemsPerPage <= 0) {
+			// Transient empty or zero-capacity frames (for example during screen transitions)
+			// must not wipe the persistent page ordinal chosen by the player.
+			this.firstItemIndex = 0;
+			return this.firstItemIndex;
+		}
+		this.firstItemIndex = getFirstItemIndexForValidPage(pageNumber * itemsPerPage, itemCount, itemsPerPage);
+		this.pageNumber = pageNumberForFirstItemIndex(this.firstItemIndex, itemsPerPage);
 		return this.firstItemIndex;
 	}
 
 	public int updateKeepingPageAnchorVisible(@Nullable IElement<?> pageAnchorElement, List<IElement<?>> ingredientList, int itemsPerPage) {
 		int anchorIndex = findIndexOfIngredientElement(pageAnchorElement, ingredientList);
 		this.firstItemIndex = getFirstItemIndexForValidPage(anchorIndex, ingredientList.size(), itemsPerPage);
+		this.pageNumber = pageNumberForFirstItemIndex(this.firstItemIndex, itemsPerPage);
 		return this.firstItemIndex;
 	}
 
@@ -55,7 +79,11 @@ final class IngredientGridPageState {
 			return -1;
 		}
 		for (int i = 0; i < ingredientList.size(); i++) {
-			if (isSameIngredientElement(ingredientList.get(i), element)) {
+			IElement<?> candidate = ingredientList.get(i);
+			if (candidate.isLayoutPlaceholder()) {
+				continue;
+			}
+			if (isSameIngredientElement(candidate, element)) {
 				return i;
 			}
 		}
@@ -80,6 +108,9 @@ final class IngredientGridPageState {
 		if (first == second) {
 			return true;
 		}
+		if (first.isLayoutPlaceholder() || second.isLayoutPlaceholder()) {
+			return false;
+		}
 
 		ITypedIngredient<?> firstIngredient = first.getTypedIngredient();
 		ITypedIngredient<?> secondIngredient = second.getTypedIngredient();
@@ -103,5 +134,12 @@ final class IngredientGridPageState {
 			return 0;
 		}
 		return firstIndex / itemsPerPage;
+	}
+
+	private static int pageNumberForFirstItemIndex(int firstItemIndex, int itemsPerPage) {
+		if (itemsPerPage <= 0) {
+			return 0;
+		}
+		return firstItemIndex / itemsPerPage;
 	}
 }
