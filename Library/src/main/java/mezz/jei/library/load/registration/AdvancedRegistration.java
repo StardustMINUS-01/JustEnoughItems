@@ -11,7 +11,7 @@ import mezz.jei.api.recipe.category.extensions.IRecipeCategoryDecorator;
 import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.runtime.IJeiFeatures;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.core.collect.ListMultiMap;
+import mezz.jei.common.collect.ListMultiMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Unmodifiable;
@@ -73,6 +73,8 @@ public class AdvancedRegistration implements IAdvancedRegistration {
 	}
 
 	@Override
+	@Deprecated(forRemoval = true, since = "19.42.0")
+	@SuppressWarnings("removal")
 	public IJeiFeatures getJeiFeatures() {
 		return jeiFeatures;
 	}

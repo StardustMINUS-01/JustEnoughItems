@@ -2,11 +2,9 @@ package mezz.jei.forge.platform;
 
 import com.mojang.serialization.Codec;
 import mezz.jei.api.forge.ForgeTypes;
-import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
-import mezz.jei.library.render.FluidTankRenderer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
@@ -16,6 +14,7 @@ import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
@@ -27,6 +26,8 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	@Override
@@ -35,20 +36,34 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	}
 
 	@Override
-	public IIngredientRenderer<FluidStack> createRenderer(long capacity, boolean showCapacity, int width, int height) {
-		return new FluidTankRenderer<>(this, capacity, showCapacity, width, height);
-	}
-
-	@Override
 	public int getColorTint(FluidStack ingredient) {
 		Fluid fluid = ingredient.getFluid();
 		IClientFluidTypeExtensions renderProperties = IClientFluidTypeExtensions.of(fluid);
-		return renderProperties.getTintColor(ingredient);
+		return normalizeColor(renderProperties.getTintColor(ingredient));
+	}
+
+	private static int normalizeColor(int color) {
+		if ((color & 0xFF000000) == 0) {
+			return color | 0xFF000000;
+		}
+		return color;
 	}
 
 	@Override
 	public long getAmount(FluidStack ingredient) {
 		return ingredient.getAmount();
+	}
+
+	@Override
+	public ResourceLocation getFluidId(FluidStack ingredient) {
+		return ForgeRegistries.FLUIDS.getKey(ingredient.getFluid());
+	}
+
+	@Override
+	public Set<ResourceLocation> getFluidTags(FluidStack ingredient) {
+		return ingredient.getFluid().builtInRegistryHolder().tags()
+			.map(TagKey::location)
+			.collect(Collectors.toUnmodifiableSet());
 	}
 
 	@Override

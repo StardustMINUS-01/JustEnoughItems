@@ -1,12 +1,14 @@
 package mezz.jei.gui.input.handlers;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class CombinedInputHandler implements IUserInputHandler {
@@ -39,10 +41,17 @@ public class CombinedInputHandler implements IUserInputHandler {
 	 * 2. every mouse handler that never got a chance to handleClick because something else handled it first.
 	 */
 	private Optional<IUserInputHandler> handleClickInternal(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		return handleClickInternal(this.inputHandlers, inputHandler -> inputHandler.handleUserInput(screen, input, keyBindings));
+	}
+
+	static Optional<IUserInputHandler> handleClickInternal(
+		List<IUserInputHandler> inputHandlers,
+		Function<IUserInputHandler, Optional<IUserInputHandler>> handleInput
+	) {
 		Optional<IUserInputHandler> firstHandled = Optional.empty();
-		for (IUserInputHandler inputHandler : this.inputHandlers) {
+		for (IUserInputHandler inputHandler : inputHandlers) {
 			if (firstHandled.isEmpty()) {
-				firstHandled = inputHandler.handleUserInput(screen, input, keyBindings);
+				firstHandled = handleInput.apply(inputHandler);
 				if (firstHandled.isEmpty()) {
 					inputHandler.unfocus();
 				}
@@ -64,6 +73,13 @@ public class CombinedInputHandler implements IUserInputHandler {
 	public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		return inputHandlers.stream()
 			.flatMap(inputHandler -> inputHandler.handleMouseScrolled(mouseX, mouseY, scrollDeltaX, scrollDeltaY).stream())
+			.findFirst();
+	}
+
+	@Override
+	public Optional<IUserInputHandler> handleMouseDragged(double mouseX, double mouseY, InputConstants.Key mouseKey, double dragX, double dragY) {
+		return inputHandlers.stream()
+			.flatMap(inputHandler -> inputHandler.handleMouseDragged(mouseX, mouseY, mouseKey, dragX, dragY).stream())
 			.findFirst();
 	}
 

@@ -39,7 +39,9 @@ public class EventRegistration {
 		);
 		JeiCharTypedEvents.BEFORE_CHAR_TYPED.register(this::beforeCharTyped);
 		ScreenEvents.AFTER_INIT.register(this::afterInit);
+		JeiScreenEvents.DRAW_BACKGROUND.register(this::drawBackground);
 		JeiScreenEvents.DRAW_FOREGROUND.register(this::drawForeground);
+		JeiScreenEvents.ALLOW_MOUSE_DRAG.register(this::allowMouseDrag);
 	}
 
 	private void registerScreenEvents(Screen screen) {
@@ -51,7 +53,7 @@ public class EventRegistration {
 		ScreenMouseEvents.allowMouseClick(screen).register(this::allowMouseClick);
 		ScreenMouseEvents.allowMouseRelease(screen).register(this::allowMouseRelease);
 		ScreenMouseEvents.allowMouseScroll(screen).register(this::allowMouseScroll);
-		ScreenEvents.afterRender(screen).register(this::afterRender);
+		ScreenEvents.afterTick(screen).register(this::afterTick);
 	}
 
 	private boolean allowMouseClick(Screen screen, double mouseX, double mouseY, int button) {
@@ -87,9 +89,16 @@ public class EventRegistration {
 		return !clientInputHandler.onGuiMouseScroll(mouseX, mouseY, horizontalAmount, verticalAmount);
 	}
 
-	private void afterRender(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY, float tickDelta) {
+	private boolean allowMouseDrag(Screen screen, double mouseX, double mouseY, int button, double dragX, double dragY) {
+		if (clientInputHandler == null) {
+			return true;
+		}
+		return !clientInputHandler.onGuiMouseDragged(screen, mouseX, mouseY, button, dragX, dragY);
+	}
+
+	private void afterTick(Screen screen) {
 		if (guiEventHandler != null) {
-			guiEventHandler.onDrawScreenPost(screen, guiGraphics, mouseX, mouseY);
+			guiEventHandler.onClientTick();
 		}
 	}
 
@@ -107,9 +116,15 @@ public class EventRegistration {
 		}
 	}
 
+	private void drawBackground(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		if (guiEventHandler != null) {
+			guiEventHandler.drawForScreen(screen, guiGraphics, mouseX, mouseY);
+		}
+	}
+
 	private void drawForeground(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (guiEventHandler != null) {
-			guiEventHandler.onDrawForeground(screen, guiGraphics, mouseX, mouseY);
+			guiEventHandler.drawForContainerScreen(screen, guiGraphics, mouseX, mouseY);
 		}
 	}
 

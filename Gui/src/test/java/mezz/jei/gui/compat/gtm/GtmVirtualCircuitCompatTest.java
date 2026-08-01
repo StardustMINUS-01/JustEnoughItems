@@ -6,13 +6,22 @@ import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
 class GtmVirtualCircuitCompatTest {
+	@BeforeAll
+	static void bootStrap() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
+
 	@Test
 	void resolvesCircuitAndFluidNonConsumablesThroughOnePath() {
 		var circuit = IntCircuitBehaviour.stack(7);

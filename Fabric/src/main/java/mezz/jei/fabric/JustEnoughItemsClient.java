@@ -1,10 +1,12 @@
 package mezz.jei.fabric;
 
 import mezz.jei.common.Internal;
-import mezz.jei.common.gui.textures.JeiSpriteUploader;
+import mezz.jei.common.gui.textures.JeiGuiSpriteManager;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.MinecraftLocaleSupplier;
 import mezz.jei.common.util.Translator;
+import mezz.jei.fabric.chat.JeiChatEventHandler;
+import mezz.jei.fabric.chat.JeiInternalShowCommand;
 import mezz.jei.fabric.events.JeiIdentifiableResourceReloadListener;
 import mezz.jei.fabric.events.JeiLifecycleEvents;
 import mezz.jei.fabric.plugins.fabric.FabricGuiPlugin;
@@ -22,10 +24,13 @@ public class JustEnoughItemsClient implements ClientModInitializer {
 		Translator.setLocaleSupplier(new MinecraftLocaleSupplier());
 		ClientLifecycleHandler clientLifecycleHandler = new ClientLifecycleHandler();
 
+		JeiChatEventHandler.register();
+		JeiInternalShowCommand.register();
+
 		JeiLifecycleEvents.REGISTER_RESOURCE_RELOAD_LISTENER.register((resourceManager, textureManager) -> {
 			Textures textures = Internal.getTextures();
-			JeiSpriteUploader spriteUploader = textures.getSpriteUploader();
-			resourceManager.registerReloadListener(new JeiIdentifiableResourceReloadListener("sprite_uploader", spriteUploader));
+			JeiGuiSpriteManager guiSpriteManager = textures.getGuiSpriteManager();
+			resourceManager.registerReloadListener(new JeiIdentifiableResourceReloadListener("gui_sprite_manager", guiSpriteManager));
 
 			ClientLifecycleEvents.CLIENT_STARTED.register(event -> {
 				clientLifecycleHandler.registerEvents();
@@ -36,6 +41,7 @@ public class JustEnoughItemsClient implements ClientModInitializer {
 				ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
 					.registerReloadListener(new JeiIdentifiableResourceReloadListener("resources_reload", createReloadListener()));
 			});
+			ClientLifecycleEvents.CLIENT_STOPPING.register(event -> Internal.onClientStopping());
 		});
 	}
 

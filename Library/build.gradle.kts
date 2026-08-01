@@ -15,6 +15,7 @@ val minecraftVersion: String by extra
 val neoformTimestamp: String by extra
 val modId: String by extra
 val modJavaVersion: String by extra
+val neoformVersionAndTimestamp = "$minecraftVersion-$neoformTimestamp"
 
 val baseArchivesName = "${modId}-${minecraftVersion}-lib"
 base {
@@ -22,7 +23,6 @@ base {
 }
 
 val dependencyProjects: List<Project> = listOf(
-    project(":Core"),
     project(":Common"),
     project(":CommonApi"),
 )
@@ -32,7 +32,8 @@ dependencyProjects.forEach {
 }
 
 neoForge {
-    neoFormVersion = "$minecraftVersion-$neoformTimestamp"
+    neoFormVersion = neoformVersionAndTimestamp
+    addModdingDependenciesTo(sourceSets.test.get())
 }
 
 sourceSets {
@@ -53,17 +54,16 @@ dependencies {
     }
     testImplementation(
         group = "org.junit.jupiter",
-        name = "junit-jupiter-api",
+        name = "junit-jupiter",
         version = jUnitVersion
     )
     testRuntimeOnly(
-        group = "org.junit.jupiter",
-        name = "junit-jupiter-engine",
-        version = jUnitVersion
+        group = "org.junit.platform",
+        name = "junit-platform-launcher"
     )
 }
 
-tasks.named<Test>("test") {
+tasks.test {
     useJUnitPlatform()
     include("mezz/jei/test/**")
     exclude("mezz/jei/test/lib/**")

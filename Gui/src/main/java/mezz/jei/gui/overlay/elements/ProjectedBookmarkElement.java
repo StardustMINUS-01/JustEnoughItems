@@ -14,7 +14,7 @@ import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.IngredientGridTooltipHelper;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.util.FocusUtil;
 import org.jetbrains.annotations.Nullable;
@@ -69,6 +69,11 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	@Override
 	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 		return delegate.handleClick(input, keyBindings);
+	}
+
+	@Override
+	public void tick() {
+		delegate.tick();
 	}
 
 	static <T> ITypedIngredient<T> createTooltipIngredient(

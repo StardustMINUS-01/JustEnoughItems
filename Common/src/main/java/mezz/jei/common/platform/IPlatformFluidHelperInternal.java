@@ -2,7 +2,6 @@ package mezz.jei.common.platform;
 
 import com.mojang.serialization.Codec;
 import mezz.jei.api.helpers.IPlatformFluidHelper;
-import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.component.DataComponentPatch;
@@ -15,8 +14,6 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface IPlatformFluidHelperInternal<T> extends IPlatformFluidHelper<T> {
-
-	IIngredientRenderer<T> createRenderer(long capacity, boolean showCapacity, int width, int height);
 
 	Optional<TextureAtlasSprite> getStillFluidSprite(T ingredient);
 

@@ -7,8 +7,12 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IEditModeConfig;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IIngredientVisibility;
+import mezz.jei.api.search.ISearchStorageBuilder;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
+import mezz.jei.common.search.GeneralizedSuffixTreeSearchStorage;
+import mezz.jei.common.search.SearchStorageBuilderAdapter;
 import mezz.jei.gui.filter.FilterTextSource;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.ingredients.IListElementInfo;
@@ -89,11 +93,17 @@ public class IngredientFilterTest {
 			clientConfig,
 			ingredientFilterConfig,
 			ingredientManager,
-			Comparator.comparingInt(Object::hashCode),
+			ingredients -> Comparator.comparingInt(Object::hashCode),
 			baseList,
 			modIdHelper,
 			ingredientVisibility,
 			colorHelper,
+			new ISearchStorageBuilderFactory() {
+				@Override
+				public <T> ISearchStorageBuilder<T> create() {
+					return new SearchStorageBuilderAdapter<>(new GeneralizedSuffixTreeSearchStorage<>());
+				}
+			},
 			toggleState
 		);
 

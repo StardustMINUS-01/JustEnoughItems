@@ -25,12 +25,13 @@ import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.core.util.LoggedTimer;
+import mezz.jei.common.util.LoggedTimer;
 import mezz.jei.gui.bookmarks.BookmarkCodec;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
-import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
@@ -60,6 +61,7 @@ import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.GuiContainerWrapper;
 import mezz.jei.gui.input.ICharTypedHandler;
 import mezz.jei.gui.input.handlers.BookmarkInputHandler;
+import mezz.jei.gui.input.handlers.ChatLinkInputHandler;
 import mezz.jei.gui.input.handlers.DragRouter;
 import mezz.jei.gui.input.handlers.EditInputHandler;
 import mezz.jei.gui.input.handlers.FocusInputHandler;
@@ -79,6 +81,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 public class JeiGuiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -96,6 +99,7 @@ public class JeiGuiStarter {
 		IRecipeManager recipeManager = registration.getRecipeManager();
 		IIngredientManager ingredientManager = registration.getIngredientManager();
 		IEditModeConfig editModeConfig = registration.getEditModeConfig();
+		ISearchStorageBuilderFactory searchStorageBuilderFactory = registration.getSearchStorageBuilderFactory();
 
 		IJeiHelpers jeiHelpers = registration.getJeiHelpers();
 		IIngredientVisibility ingredientVisibility = jeiHelpers.getIngredientVisibility();
@@ -111,9 +115,6 @@ public class JeiGuiStarter {
 		ErrorUtil.checkNotNull(level, "minecraft.level");
 
 		RegistryAccess registryAccess = level.registryAccess();
-		BookmarkFactory bookmarkFactory = new BookmarkFactory(codecHelper, registryAccess, ingredientManager);
-		Codec<IBookmark> bookmarkCodec = BookmarkCodec.create(codecHelper, ingredientManager, recipeManager, bookmarkFactory)
-			.codec();
 
 		timer.start("Building ingredient list");
 		List<IListElementInfo<?>> ingredientList = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
@@ -137,24 +138,26 @@ public class JeiGuiStarter {
 		IIngredientGridConfig bookmarkListConfig = jeiClientConfigs.getBookmarkListConfig();
 		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
 
-		Comparator<IListElement<?>> ingredientComparator = IngredientSorter.sortIngredients(
-			clientConfig,
-			modNameSortingConfig,
-			ingredientTypeSortingConfig,
-			ingredientManager,
-			ingredientList
-		);
+		Function<List<IListElementInfo<?>>, Comparator<IListElement<?>>> sortIndexUpdater =
+			ingredients -> IngredientSorter.sortIngredients(
+				clientConfig,
+				modNameSortingConfig,
+				ingredientTypeSortingConfig,
+				ingredientManager,
+				ingredients
+			);
 
 		IngredientFilter ingredientFilter = new IngredientFilter(
 			filterTextSource,
 			clientConfig,
 			ingredientFilterConfig,
 			ingredientManager,
-			ingredientComparator,
+			sortIndexUpdater,
 			ingredientList,
 			modIdHelper,
 			ingredientVisibility,
 			colorHelper,
+			searchStorageBuilderFactory,
 			toggleState
 		);
 		ingredientManager.registerIngredientListener(ingredientFilter);
@@ -164,12 +167,15 @@ public class JeiGuiStarter {
 		IIngredientFilter ingredientFilterApi = new IngredientFilterApi(ingredientFilter, filterTextSource);
 		registration.setIngredientFilter(ingredientFilterApi);
 
+		BookmarkFactory bookmarkFactory = new BookmarkFactory(codecHelper, registryAccess, ingredientManager);
+		Codec<IBookmark> bookmarkCodec = BookmarkCodec.create(codecHelper, ingredientManager, recipeManager, bookmarkFactory).codec();
+
 		LookupHistory lookupHistory = new LookupHistory(
 			recipeManager,
 			ingredientManager,
 			registryAccess,
 			codecHelper,
-			clientConfig::getMaxLookupHistoryIngredients,
+			clientConfig.maxLookupHistoryIngredients(),
 			lookupHistoryConfig,
 			bookmarkCodec
 		);
@@ -238,15 +244,16 @@ public class JeiGuiStarter {
 
 		RecipesGui recipesGui = new RecipesGui(
 			recipeManager,
-			recipeTransferManager,
 			ingredientManager,
+			recipeTransferManager,
 			keyMappings,
 			focusFactory,
 			bookmarkList,
-			favoriteRecipes,
-			favoriteRecipeConfig,
 			lookupHistory,
 			guiHelper,
+			bookmarkFactory,
+			favoriteRecipes,
+			favoriteRecipeConfig,
 			clientCraftingGridClickRunner,
 			bookmarkOverlay::showBookmarkPanel,
 			bookmarkOverlay::showFavoritePanel
@@ -304,8 +311,10 @@ public class JeiGuiStarter {
 				serverConnection,
 				bookmarkAutoCraftingRunner,
 				clientCraftingGridClickRunner,
-				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.getFavoriteTreeDepth()),
-				favoriteRecipes::getFavorite
+				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.favoriteTreeDepth().getValue()),
+				favoriteRecipes::getFavorite,
+				clientConfig,
+				recipesGui
 			),
 			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection),
 			new GlobalInputHandler(toggleState),
@@ -318,6 +327,7 @@ public class JeiGuiStarter {
 		);
 		ClientInputHandler clientInputHandler = new ClientInputHandler(
 			charTypedHandlers,
+			new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList),
 			userInputRouter,
 			dragRouter,
 			keyMappings,

@@ -10,7 +10,7 @@ import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
 import mezz.jei.common.config.IIngredientGridConfig;
-import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
+import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
@@ -21,10 +21,10 @@ import mezz.jei.gui.favorites.FavoriteRecipeGridSource;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.filter.IFilterTextSource;
-import mezz.jei.gui.overlay.IIngredientGridSource;
-import mezz.jei.gui.overlay.IngredientGrid;
-import mezz.jei.gui.overlay.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
+import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
+import mezz.jei.gui.overlay.ingredients.IngredientGrid;
+import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
@@ -45,8 +45,9 @@ public final class OverlayHelper {
 		IIngredientGridSource ingredientFilter,
 		IIngredientManager ingredientManager,
 		IIngredientGridConfig ingredientGridConfig,
-		DrawableNineSliceTexture background,
-		DrawableNineSliceTexture slotBackground,
+		ScalableDrawable background,
+		ScalableDrawable slotBackground,
+		ScalableDrawable exclusionAreaShadow,
 		IInternalKeyMappings keyMappings,
 		IIngredientFilterConfig ingredientFilterConfig,
 		IClientConfig clientConfig,
@@ -78,6 +79,7 @@ public final class OverlayHelper {
 			ingredientGridConfig,
 			background,
 			slotBackground,
+			exclusionAreaShadow,
 			screenHelper,
 			ingredientManager
 		);
@@ -105,6 +107,7 @@ public final class OverlayHelper {
 			ingredientGridConfig,
 			textures.getIngredientListBackground(),
 			textures.getIngredientListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			keyMappings,
 			ingredientFilterConfig,
 			clientConfig,
@@ -121,6 +124,9 @@ public final class OverlayHelper {
 			keyMappings,
 			ingredientGridConfig,
 			ingredientFilterConfig,
+			textures.getIngredientListBackground(),
+			textures.getIngredientListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			clientConfig,
 			HistoryDisplaySide.RIGHT,
 			toggleState,
@@ -135,6 +141,7 @@ public final class OverlayHelper {
 			screenHelper,
 			ingredientListGridNavigation,
 			lookupHistoryOverlay,
+			ingredientGridConfig,
 			clientConfig,
 			toggleState,
 			keyMappings
@@ -165,6 +172,7 @@ public final class OverlayHelper {
 			bookmarkListConfig,
 			textures.getBookmarkListBackground(),
 			textures.getBookmarkListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			keyMappings,
 			ingredientFilterConfig,
 			clientConfig,
@@ -183,7 +191,7 @@ public final class OverlayHelper {
 					getHoveredBookmarkDisplayEntry(bookmarkList, element),
 					element.rowIndex(),
 					element.hoveredRowIndex(),
-					clientConfig.getBookmarkRecipeMarkerMode()
+					clientConfig.bookmarkRecipeMarkerMode().getValue()
 				)))
 		);
 
@@ -202,6 +210,7 @@ public final class OverlayHelper {
 			bookmarkListConfig,
 			textures.getBookmarkListBackground(),
 			textures.getBookmarkListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			keyMappings,
 			ingredientFilterConfig,
 			clientConfig,
@@ -224,6 +233,9 @@ public final class OverlayHelper {
 			keyMappings,
 			bookmarkListConfig,
 			ingredientFilterConfig,
+			textures.getBookmarkListBackground(),
+			textures.getBookmarkListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			clientConfig,
 			HistoryDisplaySide.LEFT,
 			toggleState,
@@ -241,6 +253,7 @@ public final class OverlayHelper {
 			lookupHistoryOverlay,
 			toggleState,
 			clientConfig,
+			bookmarkListConfig,
 			screenHelper,
 			keyMappings
 		);

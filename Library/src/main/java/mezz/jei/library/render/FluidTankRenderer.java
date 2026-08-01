@@ -1,26 +1,24 @@
 package mezz.jei.library.render;
 
 import com.google.common.base.Preconditions;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import mezz.jei.api.gui.drawable.TilingDirection;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
+import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.common.util.MathUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.metadata.gui.GuiSpriteScaling;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import org.joml.Matrix4f;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -28,14 +26,15 @@ import java.util.List;
 
 public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 	private static final NumberFormat nf = NumberFormat.getIntegerInstance();
-	private static final int TEXTURE_SIZE = 16;
 	private static final int MIN_FLUID_HEIGHT = 1; // ensure tiny amounts of fluid are still visible
 
 	private final IPlatformFluidHelperInternal<T> fluidHelper;
+	private final IIngredientTypeWithSubtypes<Fluid, T> type;
 	private final long capacity;
 	private final TooltipMode tooltipMode;
 	private final int width;
 	private final int height;
+	private final TilingDirection tilingDirection;
 
 	enum TooltipMode {
 		SHOW_AMOUNT,
@@ -44,22 +43,50 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 	}
 
 	public FluidTankRenderer(IPlatformFluidHelperInternal<T> fluidHelper) {
-		this(fluidHelper, fluidHelper.bucketVolume(), TooltipMode.ITEM_LIST, 16, 16);
+		this(fluidHelper, fluidHelper.getFluidIngredientType(), fluidHelper.bucketVolume(), TooltipMode.ITEM_LIST, 16, 16, TilingDirection.UP_RIGHT);
 	}
 
-	public FluidTankRenderer(IPlatformFluidHelperInternal<T> fluidHelper, long capacity, boolean showCapacity, int width, int height) {
-		this(fluidHelper, capacity, showCapacity ? TooltipMode.SHOW_AMOUNT_AND_CAPACITY : TooltipMode.SHOW_AMOUNT, width, height);
+	public FluidTankRenderer(
+		IPlatformFluidHelperInternal<T> fluidHelper,
+		IIngredientTypeWithSubtypes<Fluid, T> type,
+		long capacity,
+		boolean showCapacity,
+		int width,
+		int height,
+		TilingDirection tilingDirection
+	) {
+		this(
+			fluidHelper,
+			type,
+			capacity,
+			showCapacity ? TooltipMode.SHOW_AMOUNT_AND_CAPACITY : TooltipMode.SHOW_AMOUNT,
+			width,
+			height,
+			tilingDirection
+		);
 	}
 
-	private FluidTankRenderer(IPlatformFluidHelperInternal<T> fluidHelper, long capacity, TooltipMode tooltipMode, int width, int height) {
+	private FluidTankRenderer(
+		IPlatformFluidHelperInternal<T> fluidHelper,
+		IIngredientTypeWithSubtypes<Fluid, T> type,
+		long capacity,
+		TooltipMode tooltipMode,
+		int width,
+		int height,
+		TilingDirection tilingDirection
+	) {
 		Preconditions.checkArgument(capacity > 0, "capacity must be > 0");
 		Preconditions.checkArgument(width > 0, "width must be > 0");
 		Preconditions.checkArgument(height > 0, "height must be > 0");
+		Preconditions.checkNotNull(type, "type");
+		Preconditions.checkNotNull(tilingDirection, "tilingDirection");
 		this.fluidHelper = fluidHelper;
+		this.type = type;
 		this.capacity = capacity;
 		this.tooltipMode = tooltipMode;
 		this.width = width;
 		this.height = height;
+		this.tilingDirection = tilingDirection;
 	}
 
 	@Override
@@ -69,100 +96,99 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, T ingredient, int posX, int posY) {
-		RenderSystem.enableBlend();
-
-		drawFluid(guiGraphics, width, height, ingredient, posX, posY);
-
-		RenderSystem.setShaderColor(1, 1, 1, 1);
-
-		RenderSystem.disableBlend();
-	}
-
-	private void drawFluid(GuiGraphics guiGraphics, final int width, final int height, T fluidStack, int posX, int posY) {
-		IIngredientTypeWithSubtypes<Fluid, T> type = fluidHelper.getFluidIngredientType();
-		Fluid fluid = type.getBase(fluidStack);
+		Fluid fluid = type.getBase(ingredient);
 		if (fluid.isSame(Fluids.EMPTY)) {
 			return;
 		}
 
-		fluidHelper.getStillFluidSprite(fluidStack)
+		fluidHelper.getStillFluidSprite(ingredient)
 			.ifPresent(fluidStillSprite -> {
-				int fluidColor = fluidHelper.getColorTint(fluidStack);
+				int fluidColor = fluidHelper.getColorTint(ingredient);
 
-				long amount = fluidHelper.getAmount(fluidStack);
-				long scaledAmount = (amount * height) / capacity;
-				if (amount > 0 && scaledAmount < MIN_FLUID_HEIGHT) {
-					scaledAmount = MIN_FLUID_HEIGHT;
+				long amount = fluidHelper.getAmount(ingredient);
+				if (amount > 0) {
+					long longScaledAmount = (amount * height) / capacity;
+					int scaledAmount = Math.clamp(longScaledAmount, MIN_FLUID_HEIGHT, height);
+					drawTiledSprite(
+						guiGraphics,
+						width,
+						height,
+						fluidColor,
+						scaledAmount,
+						fluidStillSprite,
+						tilingDirection,
+						posX,
+						posY
+					);
 				}
-				if (scaledAmount > height) {
-					scaledAmount = height;
-				}
-
-				drawTiledSprite(guiGraphics, width, height, fluidColor, scaledAmount, fluidStillSprite, posX, posY);
 			});
 	}
 
-	private static void drawTiledSprite(GuiGraphics guiGraphics, final int tiledWidth, final int tiledHeight, int color, long scaledAmount, TextureAtlasSprite sprite, int posX, int posY) {
-		RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
-		Matrix4f matrix = guiGraphics.pose().last().pose();
-		setGLColorFromInt(color);
+	private static void drawTiledSprite(
+		GuiGraphics guiGraphics,
+		final int tiledWidth,
+		final int tiledHeight,
+		int color,
+		int scaledAmount,
+		TextureAtlasSprite sprite,
+		TilingDirection tilingDirection,
+		int posX,
+		int posY
+	) {
+		SpriteContents spriteContents = sprite.contents();
+		int spriteWidth = spriteContents.width();
+		int spriteHeight = spriteContents.height();
+		GuiSpriteScaling.Tile tileScaling = new GuiSpriteScaling.Tile(spriteWidth, spriteHeight);
 
-		final int xTileCount = tiledWidth / TEXTURE_SIZE;
-		final int xRemainder = tiledWidth - (xTileCount * TEXTURE_SIZE);
-		final long yTileCount = scaledAmount / TEXTURE_SIZE;
-		final long yRemainder = scaledAmount - (yTileCount * TEXTURE_SIZE);
+		posY = posY + tiledHeight - scaledAmount;
+		int xShift = getXShift(tilingDirection, tiledWidth, spriteWidth);
+		int yShift = getYShift(tilingDirection, scaledAmount, spriteHeight);
 
-		final int yStart = tiledHeight + posY;
-
-		for (int xTile = 0; xTile <= xTileCount; xTile++) {
-			for (int yTile = 0; yTile <= yTileCount; yTile++) {
-				int width = (xTile == xTileCount) ? xRemainder : TEXTURE_SIZE;
-				long height = (yTile == yTileCount) ? yRemainder : TEXTURE_SIZE;
-				int x = posX + (xTile * TEXTURE_SIZE);
-				int y = yStart - ((yTile + 1) * TEXTURE_SIZE);
-				if (width > 0 && height > 0) {
-					long maskTop = TEXTURE_SIZE - height;
-					int maskRight = TEXTURE_SIZE - width;
-
-					drawTextureWithMasking(matrix, x, y, sprite, maskTop, maskRight, 100);
-				}
-			}
+		ImmutableRect2i scissorRect = new ImmutableRect2i(posX, posY, tiledWidth, scaledAmount);
+		ScreenRectangle scissorArea = MathUtil.transform(scissorRect, guiGraphics.pose().last().pose());
+		guiGraphics.enableScissor(scissorArea.left(), scissorArea.top(), scissorArea.right(), scissorArea.bottom());
+		try {
+			ScalableDrawable.blitTiledSpriteWithColor(
+				guiGraphics,
+				sprite,
+				tileScaling,
+				posX - xShift,
+				posY - yShift,
+				tiledWidth + xShift,
+				scaledAmount + yShift,
+				color
+			);
+		} finally {
+			guiGraphics.disableScissor();
 		}
 	}
 
-	private static void setGLColorFromInt(int color) {
-		float red = (color >> 16 & 0xFF) / 255.0F;
-		float green = (color >> 8 & 0xFF) / 255.0F;
-		float blue = (color & 0xFF) / 255.0F;
-		float alpha = ((color >> 24) & 0xFF) / 255F;
-
-		RenderSystem.setShaderColor(red, green, blue, alpha);
+	private static int getXShift(TilingDirection tilingDirection, int desiredWidth, int spriteWidth) {
+		return switch (tilingDirection) {
+			case DOWN_RIGHT, UP_RIGHT -> 0;
+			case DOWN_LEFT, UP_LEFT -> getShift(desiredWidth, spriteWidth);
+		};
 	}
 
-	private static void drawTextureWithMasking(Matrix4f matrix, float xCoord, float yCoord, TextureAtlasSprite textureSprite, long maskTop, long maskRight, float zLevel) {
-		float uMin = textureSprite.getU0();
-		float uMax = textureSprite.getU1();
-		float vMin = textureSprite.getV0();
-		float vMax = textureSprite.getV1();
-		uMax = uMax - (maskRight / 16F * (uMax - uMin));
-		vMax = vMax - (maskTop / 16F * (vMax - vMin));
+	private static int getYShift(TilingDirection tilingDirection, int desiredHeight, int spriteHeight) {
+		return switch (tilingDirection) {
+			case DOWN_RIGHT, DOWN_LEFT -> 0;
+			case UP_RIGHT, UP_LEFT -> getShift(desiredHeight, spriteHeight);
+		};
+	}
 
-		RenderSystem.setShader(GameRenderer::getPositionTexShader);
-
-		Tesselator tesselator = Tesselator.getInstance();
-		BufferBuilder bufferBuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-		bufferBuilder.addVertex(matrix, xCoord, yCoord + 16, zLevel).setUv(uMin, vMax);
-		bufferBuilder.addVertex(matrix, xCoord + 16 - maskRight, yCoord + 16, zLevel).setUv(uMax, vMax);
-		bufferBuilder.addVertex(matrix, xCoord + 16 - maskRight, yCoord + maskTop, zLevel).setUv(uMax, vMin);
-		bufferBuilder.addVertex(matrix, xCoord, yCoord + maskTop, zLevel).setUv(uMin, vMin);
-		BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+	private static int getShift(int desired, int sprite) {
+		int remainder = desired % sprite;
+		if (remainder == 0) {
+			return 0;
+		}
+		return sprite - remainder;
 	}
 
 	@Override
 	public List<Component> getTooltip(T fluidStack, TooltipFlag tooltipFlag) {
 		List<Component> tooltip = new ArrayList<>();
 
-		IIngredientTypeWithSubtypes<Fluid, T> type = fluidHelper.getFluidIngredientType();
 		Fluid fluidType = type.getBase(fluidStack);
 		if (fluidType.isSame(Fluids.EMPTY)) {
 			return tooltip;

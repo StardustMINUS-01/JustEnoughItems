@@ -1,6 +1,6 @@
 package mezz.jei.gui.input.focus;
 
-import mezz.jei.core.util.ReflectionUtil;
+import mezz.jei.common.util.ReflectionUtil;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
@@ -22,6 +22,7 @@ public class ScreenFocusHandler implements IFocusHandler {
 			storedInScreenFocus = focused;
 		} else {
 			EditBox editBox = reflectionUtil.getFieldWithClass(screen, EditBox.class)
+				.filter(EditBox::isFocused)
 				.findFirst()
 				.orElse(null);
 			if (editBox != null) {

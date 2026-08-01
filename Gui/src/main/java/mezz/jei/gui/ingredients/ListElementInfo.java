@@ -1,11 +1,13 @@
 package mezz.jei.gui.ingredients;
 
+import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IModIdHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IIngredientFilterConfig;
+import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.util.StringUtil;
 import mezz.jei.common.util.Translator;
@@ -23,18 +25,22 @@ import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class ListElementInfo<V> implements IListElementInfo<V> {
 	private static final Logger LOGGER = LogManager.getLogger();
+	private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
+	private static final Pattern MOD_NAME_SEPARATOR_PATTERN = Pattern.compile("(?=[A-Z_-])|\\s+");
 	private static int elementCount = 0;
 
 	private final IListElement<V> element;
+	private final IModIdHelper modIdHelper;
 	private final List<String> names;
 	private final List<String> modIds;
 	private final List<String> modNames;
@@ -66,6 +72,7 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 
 	protected ListElementInfo(IListElement<V> element, IIngredientManager ingredientManager, IModIdHelper modIdHelper) {
 		this.element = element;
+		this.modIdHelper = modIdHelper;
 		ITypedIngredient<V> value = element.getTypedIngredient();
 		V ingredient = value.getIngredient();
 		IIngredientHelper<V> ingredientHelper = ingredientManager.getIngredientHelper(value.getType());
@@ -108,13 +115,35 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 	}
 
 	@Override
-	public List<String> getModNames() {
-		return modNames;
-	}
+	public Collection<String> getModNames(IIngredientFilterConfig config) {
+		Set<String> modNames = new HashSet<>(this.modNames);
 
-	@Override
-	public List<String> getModIds() {
-		return modIds;
+		if (config.searchModIds().getValue()) {
+			modNames.addAll(this.modIds);
+		}
+
+		if (config.searchModAliases().getValue()) {
+			for (String modId : this.modIds) {
+				Set<String> modAliases = modIdHelper.getModAliases(modId);
+				modNames.addAll(modAliases);
+			}
+		}
+
+		if (config.searchShortModNames().getValue()) {
+			for (String modName : this.modNames) {
+				List<String> shortModNames = getShortModNames(modName);
+				modNames.addAll(shortModNames);
+			}
+		}
+
+		Set<String> sanitizedModNames = new HashSet<>();
+		for (String modName : modNames) {
+			modName = modName.toLowerCase(Locale.ROOT);
+			modName = WHITESPACE_PATTERN.matcher(modName).replaceAll("");
+			sanitizedModNames.add(modName);
+		}
+
+		return sanitizedModNames;
 	}
 
 	@Override
@@ -122,10 +151,12 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 	public final Set<String> getTooltipStrings(IIngredientFilterConfig config, IIngredientManager ingredientManager) {
 		ITypedIngredient<V> value = element.getTypedIngredient();
 		IIngredientRenderer<V> ingredientRenderer = ingredientManager.getIngredientRenderer(value.getType());
-		TooltipFlag.Default tooltipFlag = config.getSearchAdvancedTooltips() ? TooltipFlag.Default.ADVANCED : TooltipFlag.Default.NORMAL;
+		TooltipFlag.Default tooltipFlag = config.searchAdvancedTooltips().getValue() ? TooltipFlag.Default.ADVANCED : TooltipFlag.Default.NORMAL;
 		tooltipFlag = tooltipFlag.asCreative();
 
-		List<Component> tooltip = SafeIngredientUtil.getPlainTooltipForSearch(ingredientManager, ingredientRenderer, value, tooltipFlag);
+		TooltipFlag searchTooltipFlag = Services.PLATFORM.getInputHelper()
+			.getSearchTooltipFlag(tooltipFlag);
+		List<Component> tooltip = SafeIngredientUtil.getPlainTooltipForSearch(ingredientManager, ingredientRenderer, value, searchTooltipFlag);
 		Set<String> strings = getStrings(tooltip);
 
 		strings.remove(this.names.getFirst());
@@ -144,10 +175,42 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 			string = Translator.toLowercaseWithLocale(string);
 			// Split tooltip strings into words to keep them from being too long.
 			// Longer strings are more expensive for the suffix tree to handle.
-			String[] strings = string.split(" ");
-			Collections.addAll(result, strings);
+			addSplitStrings(result, string);
 		}
 		return result;
+	}
+
+	private static void addSplitStrings(Set<String> result, String string) {
+		string = string.trim();
+		if (string.isEmpty()) {
+			return;
+		}
+		String[] strings = WHITESPACE_PATTERN.split(string);
+		for (String splitString : strings) {
+			if (!splitString.isEmpty()) {
+				result.add(splitString);
+			}
+		}
+	}
+
+	private static List<String> getShortModNames(String modName) {
+		String[] words = MOD_NAME_SEPARATOR_PATTERN.split(modName);
+		if (words.length <= 1) {
+			return List.of();
+		}
+		return List.of(
+			combineFirstLetters(words, 1),
+			combineFirstLetters(words, 2)
+		);
+	}
+
+	private static String combineFirstLetters(String[] words, final int count) {
+		StringBuilder sb = new StringBuilder();
+		for (String word : words) {
+			int end = Math.min(count, word.length());
+			sb.append(word, 0, end);
+		}
+		return sb.toString();
 	}
 
 	@Override
@@ -175,6 +238,16 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 	}
 
 	@Override
+	public @Unmodifiable Collection<String> getColorNames(IIngredientManager ingredientManager, IColorHelper colorHelper) {
+		Iterable<Integer> colors = getColors(ingredientManager);
+		return StreamSupport.stream(colors.spliterator(), false)
+			.map(colorHelper::getClosestColorName)
+			.map(Translator::toLowercaseWithLocale)
+			.distinct()
+			.toList();
+	}
+
+	@Override
 	public @Unmodifiable Collection<String> getCreativeTabsStrings(IIngredientManager ingredientManager) {
 		ItemStack itemStack = element.getTypedIngredient().getItemStack().orElse(ItemStack.EMPTY);
 		if (itemStack.isEmpty()) {
@@ -189,7 +262,7 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 				String name = itemGroup.getDisplayName().getString();
 				name = StringUtil.removeChatFormatting(name);
 				name = Translator.toLowercaseWithLocale(name);
-				Collections.addAll(creativeTabStrings, name.split(" "));
+				addSplitStrings(creativeTabStrings, name);
 			}
 		}
 		return creativeTabStrings;

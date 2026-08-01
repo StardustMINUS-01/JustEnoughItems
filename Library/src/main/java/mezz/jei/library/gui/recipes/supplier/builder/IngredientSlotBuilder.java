@@ -2,6 +2,7 @@ package mezz.jei.library.gui.recipes.supplier.builder;
 
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
+import mezz.jei.api.gui.drawable.TilingDirection;
 import mezz.jei.api.gui.ingredient.IRecipeSlotRichTooltipCallback;
 import mezz.jei.api.gui.placement.HorizontalAlignment;
 import mezz.jei.api.gui.placement.VerticalAlignment;
@@ -12,6 +13,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeSlotBuilder;
 import mezz.jei.library.ingredients.SimpleIngredientAcceptor;
 import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import org.jetbrains.annotations.Nullable;
 
@@ -78,6 +80,12 @@ public class IngredientSlotBuilder implements IRecipeSlotBuilder {
 	}
 
 	@Override
+	public IRecipeSlotBuilder addItemStacks(List<ItemStack> itemStacks) {
+		this.ingredients.addItemStacks(itemStacks);
+		return this;
+	}
+
+	@Override
 	public IRecipeSlotBuilder setStandardSlotBackground() {
 		return this;
 	}
@@ -99,6 +107,11 @@ public class IngredientSlotBuilder implements IRecipeSlotBuilder {
 
 	@Override
 	public IRecipeSlotBuilder setFluidRenderer(long capacity, boolean showCapacity, int width, int height) {
+		return this;
+	}
+
+	@Override
+	public IRecipeSlotBuilder setFluidRenderer(long capacity, boolean showCapacity, int width, int height, TilingDirection tilingDirection) {
 		return this;
 	}
 

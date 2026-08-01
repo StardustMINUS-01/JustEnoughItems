@@ -20,10 +20,13 @@ import mezz.jei.library.startup.JeiStarter;
 import mezz.jei.library.startup.StartData;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RecipesUpdatedEvent;
+import net.minecraftforge.event.GameShuttingDownEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -34,6 +37,7 @@ import java.util.function.Supplier;
 
 public class JustEnoughItemsClient {
 	private final PermanentEventSubscriptions subscriptions;
+	private final JeiStarter jeiStarter;
 
 	public JustEnoughItemsClient(
 		NetworkHandler networkHandler,
@@ -49,15 +53,17 @@ public class JustEnoughItemsClient {
 			serverConnection
 		);
 
-		JeiStarter jeiStarter = new JeiStarter(startData);
+		this.jeiStarter = new JeiStarter(startData);
 
-		StartEventObserver startEventObserver = new StartEventObserver(jeiStarter::start, jeiStarter::stop);
+		StartEventObserver startEventObserver = new StartEventObserver(this.jeiStarter::start, this.jeiStarter::stop);
 		startEventObserver.register(subscriptions);
 	}
 
 	public void register() {
 		subscriptions.register(RegisterClientReloadListenersEvent.class, this::onRegisterReloadListenerEvent);
 		subscriptions.register(RegisterClientTooltipComponentFactoriesEvent.class, this::onRegisterClientTooltipEvent);
+		subscriptions.register(RecipesUpdatedEvent.class, this::onRecipesUpdatedEvent);
+		subscriptions.register(GameShuttingDownEvent.class, e -> onGameShuttingDown());
 		subscriptions.register(RegisterKeyMappingsEvent.class, e -> {
 			InternalKeyMappings keyMappings = new InternalKeyMappings(e::register);
 			Internal.setKeyMappings(keyMappings);
@@ -71,9 +77,21 @@ public class JustEnoughItemsClient {
 		RecipeSerializers.register(jeiShaped);
 	}
 
+	private void onGameShuttingDown() {
+		jeiStarter.stop();
+		Internal.onClientStopping();
+	}
+
+	private void onRecipesUpdatedEvent(RecipesUpdatedEvent event) {
+		List<RecipeHolder<?>> recipes = List.copyOf(event.getRecipeManager().getRecipes());
+		if (!recipes.isEmpty()) {
+			Internal.setClientSyncedRecipes(recipes);
+		}
+	}
+
 	private void onRegisterReloadListenerEvent(RegisterClientReloadListenersEvent event) {
 		Textures textures = Internal.getTextures();
-		event.registerReloadListener(textures.getSpriteUploader());
+		event.registerReloadListener(textures.getGuiSpriteManager());
 		event.registerReloadListener(createReloadListener());
 	}
 

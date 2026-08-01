@@ -62,10 +62,10 @@ public class DragRouter {
 	}
 
 	public void cancelDrag() {
-		if (this.dragStartedCallback != null) {
-			this.dragStartedCallback.handleDragCanceled();
-			this.dragStartedCallback = null;
+		for (IDragHandler handler : this.handlers) {
+			handler.handleDragCanceled();
 		}
 		this.pendingDragStartInput = null;
+		this.dragStartedCallback = null;
 	}
 }

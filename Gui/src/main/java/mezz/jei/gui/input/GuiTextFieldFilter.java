@@ -2,36 +2,36 @@ package mezz.jei.gui.input;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.common.Internal;
-import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
+import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.core.util.TextHistory;
+import mezz.jei.common.util.TextHistory;
 import mezz.jei.gui.input.focus.ScreenFocusHandler;
 import mezz.jei.gui.input.handlers.TextFieldInputHandler;
+import mezz.jei.gui.overlay.ISearchField;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
-public class GuiTextFieldFilter extends EditBox {
+public class GuiTextFieldFilter extends EditBox implements ISearchField {
 	private static final int maxSearchLength = 128;
 	private static final TextHistory history = new TextHistory();
 	private final BooleanSupplier filterEmpty;
 
 	private ImmutableRect2i area;
-	private final DrawableNineSliceTexture background;
+	private final ScalableDrawable background;
 	private ImmutableRect2i backgroundBounds;
 
 	private @Nullable ScreenFocusHandler screenUnfocusHandler;
 
 	public GuiTextFieldFilter(BooleanSupplier filterEmpty) {
-		// TODO narrator string
-		super(Minecraft.getInstance().font, 0, 0, 0, 0, CommonComponents.EMPTY);
+		super(Minecraft.getInstance().font, 0, 0, 0, 0, Component.translatable("gui.jei.search"));
 		this.filterEmpty = filterEmpty;
 
 		setMaxLength(maxSearchLength);
@@ -42,6 +42,7 @@ public class GuiTextFieldFilter extends EditBox {
 		setBordered(false);
 	}
 
+	@Override
 	public void updateBounds(ImmutableRect2i area) {
 		this.backgroundBounds = area;
 		setX(area.getX() + 4);
@@ -103,10 +104,18 @@ public class GuiTextFieldFilter extends EditBox {
 
 	@Override
 	public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		drawBackground(guiGraphics);
+		drawForeground(guiGraphics, mouseX, mouseY, partialTicks);
+	}
+
+	public void drawBackground(GuiGraphics guiGraphics) {
 		if (this.isVisible()) {
 			RenderSystem.setShaderColor(1, 1, 1, 1);
 			background.draw(guiGraphics, this.backgroundBounds);
 		}
+	}
+
+	public void drawForeground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		super.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
 	}
 }

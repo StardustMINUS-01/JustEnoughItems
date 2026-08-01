@@ -2,20 +2,14 @@ package mezz.jei.forge.platform;
 
 import mezz.jei.common.platform.IPlatformItemStackHelper;
 import mezz.jei.common.util.ErrorUtil;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.core.Holder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraftforge.common.ForgeHooks;
-import net.minecraftforge.event.ForgeEventFactory;
-import net.minecraftforge.event.entity.player.ItemTooltipEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 public class ItemStackHelper implements IPlatformItemStackHelper {
@@ -48,16 +42,8 @@ public class ItemStackHelper implements IPlatformItemStackHelper {
 	}
 
 	@Override
-	public List<Component> getTestTooltip(@Nullable Player player, ItemStack itemStack) {
-		try {
-			List<Component> tooltip = new ArrayList<>();
-			tooltip.add(Component.literal("JEI Tooltip Testing for mod name formatting"));
-			@SuppressWarnings("UnstableApiUsage")
-			ItemTooltipEvent tooltipEvent = ForgeEventFactory.onItemTooltip(itemStack, player, tooltip, TooltipFlag.Default.NORMAL);
-			return tooltipEvent.getToolTip();
-		} catch (LinkageError | RuntimeException e) {
-			LOGGER.error("Error while Testing for mod name formatting", e);
-		}
-		return List.of();
+	@SuppressWarnings("deprecation")
+	public boolean canEnchant(Holder<Enchantment> enchantment, ItemStack ingredient) {
+		return enchantment.value().canEnchant(ingredient);
 	}
 }

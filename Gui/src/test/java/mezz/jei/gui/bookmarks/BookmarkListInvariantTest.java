@@ -9,7 +9,7 @@ import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.IngredientGridTooltipHelper;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.resources.ResourceLocation;
@@ -132,6 +132,10 @@ public class BookmarkListInvariantTest {
 		@Override
 		public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 			return false;
+		}
+
+		@Override
+		public void tick() {
 		}
 	}
 }

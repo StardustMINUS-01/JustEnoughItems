@@ -10,7 +10,7 @@ import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.IngredientGridTooltipHelper;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.util.FocusUtil;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,6 +41,8 @@ public interface IElement<T> {
 	default boolean isLayoutPlaceholder() {
 		return false;
 	}
+
+	void tick();
 
 	default boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 		return false;

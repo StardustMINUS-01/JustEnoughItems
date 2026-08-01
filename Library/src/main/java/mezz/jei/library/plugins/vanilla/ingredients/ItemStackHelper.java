@@ -42,10 +42,8 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 	public ItemStackHelper(StackHelper stackHelper, IColorHelper colorHelper) {
 		this.stackHelper = stackHelper;
 		this.colorHelper = colorHelper;
-		//noinspection deprecation
-		this.itemHiddenFromRecipeViewers = new TagKey<>(Registries.ITEM, Tags.HIDDEN_FROM_RECIPE_VIEWERS);
-		//noinspection deprecation
-		this.blockHiddenFromRecipeViewers = new TagKey<>(Registries.BLOCK, Tags.HIDDEN_FROM_RECIPE_VIEWERS);
+		this.itemHiddenFromRecipeViewers = TagKey.create(Registries.ITEM, Tags.HIDDEN_FROM_RECIPE_VIEWERS);
+		this.blockHiddenFromRecipeViewers = TagKey.create(Registries.BLOCK, Tags.HIDDEN_FROM_RECIPE_VIEWERS);
 	}
 
 	@Override
@@ -204,7 +202,7 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 		if (ingredient.getItem() instanceof BlockItem blockItem) {
 			IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 			IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-			if (clientConfig.isLookupBlockTagsEnabled()) {
+			if (clientConfig.lookupBlockTagsEnabled().getValue()) {
 				Stream<ResourceLocation> blockTagStream = blockItem.getBlock()
 					.defaultBlockState()
 					.getTags()
@@ -235,7 +233,7 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 		if (itemHolder.value() instanceof BlockItem blockItem) {
 			IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 			IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-			if (clientConfig.isLookupBlockTagsEnabled()) {
+			if (clientConfig.lookupBlockTagsEnabled().getValue()) {
 				Block block = blockItem.getBlock();
 				@SuppressWarnings("deprecation")
 				Holder.Reference<Block> blockHolder = block.builtInRegistryHolder();

@@ -3,14 +3,16 @@ package mezz.jei.gui.recipes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.RecipeLayoutDrawableErrored;
-import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
+import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -18,7 +20,7 @@ public final class RecipeLayoutWithButtonsErrored<R> implements IRecipeLayoutWit
 	private final RecipeLayoutDrawableErrored<R> errorLayout;
 
 	public RecipeLayoutWithButtonsErrored(IRecipeLayoutDrawable<R> brokenRecipeLayout) {
-		DrawableNineSliceTexture recipeBackground = Internal.getTextures().getRecipeBackground();
+		ScalableDrawable recipeBackground = Internal.getTextures().getRecipeBackground();
 		this.errorLayout = new RecipeLayoutDrawableErrored<>(brokenRecipeLayout.getRecipeCategory(), brokenRecipeLayout.getRecipe(), recipeBackground, 4);
 		Rect2i rect = brokenRecipeLayout.getRect();
 		this.errorLayout.setPosition(rect.getX(), rect.getY());
@@ -64,6 +66,11 @@ public final class RecipeLayoutWithButtonsErrored<R> implements IRecipeLayoutWit
 	@Override
 	public IRecipeLayoutDrawable<R> getRecipeLayout() {
 		return errorLayout;
+	}
+
+	@Override
+	public @Nullable RecipeBookmark<?, ?> getRecipeBookmark() {
+		return null;
 	}
 
 	@Override

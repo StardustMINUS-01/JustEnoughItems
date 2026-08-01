@@ -1,7 +1,7 @@
 package mezz.jei.gui.favorites;
 
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.overlay.IIngredientGridSource;
+import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.input.FocusedRecipe;
 
 import java.util.ArrayList;

@@ -12,7 +12,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.overlay.IIngredientGridSource;
+import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;

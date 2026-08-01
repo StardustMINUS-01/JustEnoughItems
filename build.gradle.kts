@@ -1,6 +1,6 @@
 plugins {
     // https://plugins.gradle.org/plugin/com.diffplug.gradle.spotless
-	id("com.diffplug.spotless") version("7.0.4")
+	id("com.diffplug.spotless") version("8.8.0")
 
     // https://plugins.gradle.org/plugin/com.dorongold.task-tree
     id("com.dorongold.task-tree") version("4.0.0")
@@ -9,10 +9,12 @@ plugins {
     id("fabric-loom") version("1.11.0-alpha.26") apply(false)
 
     // https://projects.neoforged.net/neoforged/moddevgradle
-    id("net.neoforged.moddev") version("2.0.26-beta") apply(false)
+    id("net.neoforged.moddev") version("2.0.142") apply(false)
+
+    id("net.mezzdev.modshade") version("0.3.0") apply(false)
 
     // https://plugins.gradle.org/plugin/me.modmuss50.mod-publish-plugin
-    id("me.modmuss50.mod-publish-plugin") version("0.7.3") apply(false)
+    id("me.modmuss50.mod-publish-plugin") version("2.0.1") apply(false)
 
     // https://files.minecraftforge.net/net/minecraftforge/gradle/ForgeGradle/index.html
     id("net.minecraftforge.gradle") version("6.0.26") apply(false)
@@ -23,6 +25,7 @@ plugins {
 apply {
 	from("buildtools/ColoredOutput.gradle")
 }
+
 repositories {
     mavenCentral()
 }
@@ -58,9 +61,15 @@ spotless {
 		endWithNewline()
 		trimTrailingWhitespace()
 		removeUnusedImports()
-        indentWithTabs(4)
-        replaceRegex("class-level javadoc indentation fix", "^\\*", " *")
-        replaceRegex("method-level javadoc indentation fix", "\t\\*", "\t *")
+		forbidWildcardImports()
+		replaceRegex(
+			"single-line if block formatting",
+			"""(?m)^([ \t]*)if[ \t]*(\([^{}\r\n]+\))[ \t]*\{[ \t]*([^{}\r\n]+?)[ \t]*}${'$'}""",
+			"${'$'}1if ${'$'}2 {\n${'$'}1\t${'$'}3\n${'$'}1}"
+		)
+		leadingSpacesToTabs(4)
+		replaceRegex("class-level javadoc indentation fix", "^\\*", " *")
+		replaceRegex("method-level javadoc indentation fix", "\t\\*", "\t *")
 	}
 }
 
@@ -100,6 +109,8 @@ subprojects {
     }
 
     tasks.withType<ProcessResources> {
+        exclude("**/.DS_Store")
+
         val properties = mapOf(
             "curseHomepageUrl" to curseHomepageUrl,
             "fabricApiVersion" to fabricApiVersion,
@@ -133,3 +144,12 @@ subprojects {
         isReproducibleFileOrder = true
     }
 }
+
+subprojects {
+    tasks.withType<JavaCompile> {
+        options.isDeprecation = true
+        options.compilerArgs.add("-Xlint:unchecked")
+    }
+}
+
+apply(from = "gradle/api-compatibility.gradle.kts")

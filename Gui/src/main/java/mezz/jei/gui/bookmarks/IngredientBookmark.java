@@ -8,6 +8,8 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientBookmarkElement;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.Objects;
+
 public class IngredientBookmark<T> implements IBookmark {
 	private final IElement<T> element;
 	private final String uid;
@@ -71,7 +73,8 @@ public class IngredientBookmark<T> implements IBookmark {
 			if (typedIngredient.getIngredient() instanceof ItemStack stackA && ingredientBookmark.typedIngredient.getIngredient() instanceof ItemStack stackB) {
 				return ItemStack.matches(stackA, stackB);
 			}
-			return ingredientBookmark.uid.equals(uid);
+			return ingredientBookmark.uid.equals(uid) &&
+				ingredientBookmark.typedIngredient.getType().equals(typedIngredient.getType());
 		}
 		return false;
 	}

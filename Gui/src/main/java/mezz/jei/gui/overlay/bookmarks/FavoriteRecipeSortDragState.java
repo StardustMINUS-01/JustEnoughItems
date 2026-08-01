@@ -11,7 +11,7 @@ import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.overlay.IngredientGrid;
+import mezz.jei.gui.overlay.ingredients.IngredientGrid;
 import net.minecraft.client.gui.GuiGraphics;
 import org.jetbrains.annotations.Nullable;
 

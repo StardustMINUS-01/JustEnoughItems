@@ -1,4 +1,3 @@
-import me.modmuss50.mpp.PublishModTask
 import net.minecraftforge.gradle.common.tasks.DownloadMavenArtifact
 import net.minecraftforge.gradle.common.tasks.JarExec
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -12,6 +11,7 @@ plugins {
 	id("net.minecraftforge.gradle")
 	id("org.parchmentmc.librarian.forgegradle")
 	id("me.modmuss50.mod-publish-plugin")
+	id("net.mezzdev.modshade")
 }
 
 // gradle.properties
@@ -26,6 +26,8 @@ val modId: String by extra
 val modJavaVersion: String by extra
 val parchmentVersionForge: String by extra
 val modrinthId: String by extra
+val bakedSubstringIndexVersion: String by extra
+val suffixtreeVersion: String by extra
 
 // set by ORG_GRADLE_PROJECT_modrinthToken in Jenkinsfile
 val modrinthToken: String? by project
@@ -47,18 +49,18 @@ sourceSets {
 }
 
 val dependencyProjects: List<Project> = listOf(
-	project(":Core"),
 	project(":Common"),
 	project(":CommonApi"),
 	project(":Library"),
 	project(":Gui"),
 	project(":ForgeApi"),
 )
+val debugProject = project(":Debug")
 
 dependencyProjects.forEach {
 	project.evaluationDependsOn(it.path)
 }
-project.evaluationDependsOn(":Changelog")
+project.evaluationDependsOn(debugProject.path)
 
 java {
 	toolchain {
@@ -66,6 +68,31 @@ java {
 	}
 	withSourcesJar()
 }
+
+val changelogHtml = configurations.create("changelogHtml") {
+	isCanBeConsumed = false
+	isCanBeResolved = true
+	isVisible = false
+	attributes {
+		attribute(Usage.USAGE_ATTRIBUTE, objects.named<Usage>("changelogHtml"))
+	}
+}
+
+val changelogMarkdown = configurations.create("changelogMarkdown") {
+	isCanBeConsumed = false
+	isCanBeResolved = true
+	isVisible = false
+	attributes {
+		attribute(Usage.USAGE_ATTRIBUTE, objects.named<Usage>("changelogMarkdown"))
+	}
+}
+
+fun Configuration.singleFileContents(): Provider<String> =
+	incoming
+		.files
+		.elements
+		.map { elements -> elements.single() }
+		.map { it.asFile.readText() }
 
 // Hack fix: FG can't resolve deps like lwjgl-freetype-3.3.3-natives-macos-patch.jar without this
 repositories {
@@ -81,15 +108,20 @@ dependencies {
 	dependencyProjects.forEach {
 		compileOnly(it)
 	}
+	modShadeImplementation("net.mezzdev:baked-substring-index:${bakedSubstringIndexVersion}") {
+		isTransitive = false
+	}
+	modShadeImplementation("net.mezzdev:suffixtree:${suffixtreeVersion}") {
+		isTransitive = false
+	}
 	testImplementation(
 		group = "org.junit.jupiter",
-		name = "junit-jupiter-api",
+		name = "junit-jupiter",
 		version = jUnitVersion
 	)
 	testRuntimeOnly(
-		group = "org.junit.jupiter",
-		name = "junit-jupiter-engine",
-		version = jUnitVersion
+		group = "org.junit.platform",
+		name = "junit-platform-launcher"
 	)
 
 	// Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transitive dependencies request 6.0+
@@ -98,6 +130,8 @@ dependencies {
 			strictly("5.0.4")
 		}
 	}
+	changelogHtml(project(":Changelog"))
+	changelogMarkdown(project(":Changelog"))
 }
 
 minecraft {
@@ -118,6 +152,9 @@ minecraft {
 			mods {
 				create(modId) {
 					source(sourceSets.main.get())
+				}
+				create("${modId}debug") {
+					source(debugProject.sourceSets.main.get())
 				}
 			}
 		}
@@ -140,6 +177,9 @@ minecraft {
 			mods {
 				create(modId) {
 					source(sourceSets.main.get())
+				}
+				create("${modId}debug") {
+					source(debugProject.sourceSets.main.get())
 				}
 			}
 		}
@@ -173,9 +213,12 @@ val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
 	archiveClassifier.set("sources")
 }
 
+val shadedJar = modShade.shadeJar()
+val shadedSourcesJar = modShade.shadeSourcesJar()
+
 publishMods {
-	file.set(tasks.jar.get().archiveFile)
-	changelog.set(provider { file("../Changelog/changelog.md").readText() })
+	file.set(shadedJar.flatMap { it.archiveFile })
+	changelog.set(changelogMarkdown.singleFileContents())
 	type = BETA
 	modLoaders.add("forge")
 	displayName.set("${project.version} for Forge $minecraftVersion")
@@ -183,14 +226,18 @@ publishMods {
 
 	curseforge {
 		projectId = curseProjectId
+		projectSlug = curseHomepageUrl.substringAfterLast("/")
 		accessToken.set(curseforgeApikey ?: "0")
-		changelog.set(provider { file("../Changelog/changelog.html").readText() })
+		changelog.set(changelogHtml.singleFileContents())
 		changelogType = "html"
 		minecraftVersionRange {
 			start = minecraftVersionRangeStart
 			end = minecraftVersion
 		}
 		javaVersions.add(JavaVersion.toVersion(modJavaVersion))
+		client = true
+		server = true
+		dryRun = curseforgeApikey == null
 	}
 
 	modrinth {
@@ -200,13 +247,11 @@ publishMods {
 			start = minecraftVersionRangeStart
 			end = minecraftVersion
 		}
+		dryRun = modrinthToken == null
 	}
 }
-tasks.withType<PublishModTask> {
-	dependsOn(tasks.jar, ":Changelog:makeChangelog", ":Changelog:makeMarkdownChangelog")
-}
 
-tasks.named<Test>("test") {
+tasks.test {
 	useJUnitPlatform()
 	include("mezz/jei/test/**")
 	exclude("mezz/jei/test/lib/**")
@@ -217,17 +262,15 @@ tasks.named<Test>("test") {
 	}
 }
 
-artifacts {
-	archives(tasks.jar.get())
-	archives(sourcesJarTask.get())
+tasks.assemble {
+	dependsOn(sourcesJarTask)
 }
 
 publishing {
 	publications {
 		register<MavenPublication>("forgeJar") {
 			artifactId = baseArchivesName
-			artifact(tasks.jar.get())
-			artifact(sourcesJarTask.get())
+			from(components["modShade"])
 		}
 	}
 	repositories {

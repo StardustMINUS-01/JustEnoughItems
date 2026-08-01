@@ -16,7 +16,7 @@ public class LookupHistoryButton extends GuiIconToggleButton {
 	public static LookupHistoryButton create(IClientConfig clientConfig) {
 		Textures textures = Internal.getTextures();
 		IDrawableStatic offIcon = textures.getHistoryButtonDisabledIcon();
-		IDrawableStatic onIcon = textures.getHistoryButtonEnabledICon();
+		IDrawableStatic onIcon = textures.getHistoryButtonEnabledIcon();
 		return new LookupHistoryButton(offIcon, onIcon, clientConfig);
 	}
 
@@ -29,7 +29,7 @@ public class LookupHistoryButton extends GuiIconToggleButton {
 
 	@Override
 	protected void getTooltips(JeiTooltip tooltip) {
-		if (clientConfig.isLookupHistoryEnabled()) {
+		if (clientConfig.lookupHistoryEnabled().getValue()) {
 			tooltip.add(Component.translatable("jei.tooltip.lookupHistory.disable"));
 		} else {
 			tooltip.add(Component.translatable("jei.tooltip.lookupHistory.enable"));
@@ -43,13 +43,13 @@ public class LookupHistoryButton extends GuiIconToggleButton {
 
 	@Override
 	protected boolean isIconToggledOn() {
-		return clientConfig.isLookupHistoryEnabled();
+		return clientConfig.lookupHistoryEnabled().getValue();
 	}
 
 	@Override
 	protected boolean onMouseClicked(UserInput input) {
 		if (!input.isSimulate()) {
-			clientConfig.setLookupHistoryEnabled(!clientConfig.isLookupHistoryEnabled());
+			clientConfig.lookupHistoryEnabled().set(!clientConfig.lookupHistoryEnabled().getValue());
 		}
 		return true;
 	}

@@ -384,7 +384,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 	private Optional<String> saveFavoriteTree(Optional<BookmarkIngredientKey> selectedOutputKey) {
 		Optional<String> groupId = favoriteTreeBookmarkWriter.save(
 			focusedRecipe,
-			clientConfig.getFavoriteTreeDepth(),
+			clientConfig.favoriteTreeDepth().getValue(),
 			selectedOutputKey,
 			inputSlotSelectionState.selectedKeys()
 		);

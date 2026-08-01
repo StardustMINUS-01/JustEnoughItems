@@ -2,8 +2,11 @@ package mezz.jei.gui.input.handlers;
 
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.util.JeiClientSoundUtil;
@@ -44,6 +47,8 @@ import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventory
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
+import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
+import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -68,6 +73,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
 	private final Function<FocusedRecipe, Optional<String>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
+	private final IClientConfig clientConfig;
+	private final RecipesGui recipesGui;
 
 	public BookmarkInputHandler(
 		CombinedRecipeFocusSource focusSource,
@@ -78,7 +85,9 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		BookmarkAutoCraftingRunner autoCraftingRunner,
 		ClientCraftingGridClickRunner clientCraftingGridClickRunner,
 		Function<FocusedRecipe, Optional<String>> favoriteTreeSaver,
-		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup
+		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
+		IClientConfig clientConfig,
+		RecipesGui recipesGui
 	) {
 		this.focusSource = focusSource;
 		this.bookmarkList = bookmarkList;
@@ -89,6 +98,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.clientCraftingGridClickRunner = clientCraftingGridClickRunner;
 		this.favoriteTreeSaver = favoriteTreeSaver;
 		this.favoriteRecipeLookup = favoriteRecipeLookup;
+		this.clientConfig = clientConfig;
+		this.recipesGui = recipesGui;
 	}
 
 	@Override
@@ -373,6 +384,65 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	}
 
 	private Optional<IUserInputHandler> handleFavoriteRecipe(UserInput input, IInternalKeyMappings keyBindings) {
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.findFirst()
+			.flatMap(clicked -> {
+				Optional<Boolean> favoriteElementHandled = resolveFavoriteRecipeElementAction(clicked.getElement(), input, keyBindings)
+					.flatMap(action -> handleFavoriteRecipeAction(clicked.getElement(), input, keyBindings, action));
+				if (favoriteElementHandled.isPresent()) {
+					return Optional.of(new SameElementInputHandler(this, clicked::isMouseOver));
+				}
+
+				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
+					clicked.getElement(),
+					input,
+					keyBindings,
+					ingredient -> Optional.of(createKey(ingredient)),
+					favoriteRecipeLookup
+				)
+					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
+				return favoriteIngredientHandled
+					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
+			});
+	}
+
+	private Optional<IUserInputHandler> handleRecipeBookmark(UserInput input) {
+		double mouseX = input.getMouseX();
+		double mouseY = input.getMouseY();
+		Optional<IRecipeLayoutWithButtons<?>> layoutWithButtons = recipesGui.getRecipeLayoutUnderMouse(mouseX, mouseY);
+		if (layoutWithButtons.isEmpty()) {
+			return Optional.empty();
+		}
+
+		IRecipeLayoutWithButtons<?> recipeLayoutWithButtons = layoutWithButtons.get();
+		RecipeBookmark<?, ?> recipeBookmark = recipeLayoutWithButtons.getRecipeBookmark();
+		if (recipeBookmark == null) {
+			return Optional.empty();
+		}
+
+		IRecipeLayoutDrawable<?> layout = recipeLayoutWithButtons.getRecipeLayout();
+		Optional<RecipeSlotUnderMouse> slotUnderMouse = layout.getSlotUnderMouse(mouseX, mouseY);
+		if (!shouldBookmarkRecipe(slotUnderMouse, clientConfig.bookmarkOutputAsRecipe().getValue())) {
+			return Optional.empty();
+		}
+
+		if (!input.isSimulate()) {
+			bookmarkList.toggleBookmark(recipeBookmark);
+		}
+		return Optional.of(new SameElementInputHandler(this, layout::isMouseOver));
+	}
+
+	static boolean shouldBookmarkRecipe(Optional<RecipeSlotUnderMouse> slotUnderMouse, boolean bookmarkOutputAsRecipeEnabled) {
+		return slotUnderMouse
+			.map(slot -> shouldBookmarkRecipe(slot.slot().getRole(), bookmarkOutputAsRecipeEnabled))
+			.orElse(true);
+	}
+
+	static boolean shouldBookmarkRecipe(RecipeIngredientRole role, boolean bookmarkOutputAsRecipeEnabled) {
+		return role == RecipeIngredientRole.OUTPUT && bookmarkOutputAsRecipeEnabled;
+	}
+
+	private Optional<IUserInputHandler> handleIngredientBookmark(UserInput input, IInternalKeyMappings keyBindings) {
 		return focusSource.getIngredientUnderMouse(input, keyBindings)
 			.findFirst()
 			.flatMap(clicked -> {

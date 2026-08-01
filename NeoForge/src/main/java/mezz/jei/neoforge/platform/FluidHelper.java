@@ -1,13 +1,11 @@
 package mezz.jei.neoforge.platform;
 
 import com.mojang.serialization.Codec;
-import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.neoforge.NeoForgeTypes;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.util.RegistryUtil;
-import mezz.jei.library.render.FluidTankRenderer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
@@ -43,15 +41,17 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	}
 
 	@Override
-	public IIngredientRenderer<FluidStack> createRenderer(long capacity, boolean showCapacity, int width, int height) {
-		return new FluidTankRenderer<>(this, capacity, showCapacity, width, height);
-	}
-
-	@Override
 	public int getColorTint(FluidStack ingredient) {
 		Fluid fluid = ingredient.getFluid();
 		IClientFluidTypeExtensions renderProperties = IClientFluidTypeExtensions.of(fluid);
-		return renderProperties.getTintColor(ingredient);
+		return normalizeColor(renderProperties.getTintColor(ingredient));
+	}
+
+	private static int normalizeColor(int color) {
+		if ((color & 0xFF000000) == 0) {
+			return color | 0xFF000000;
+		}
+		return color;
 	}
 
 	@Override

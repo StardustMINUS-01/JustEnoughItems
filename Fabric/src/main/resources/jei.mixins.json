@@ -7,10 +7,13 @@
   ],
   "client": [
     "AbstractContainerScreenMixin",
-    "ClientPacketListenerMixin",
+    "ClientPacketListenerRecipeUpdateMixin",
+    "ContainerEventHandlerMixin",
     "EffectRenderingInventoryScreenMixin",
+    "GuiGraphicsMixin",
     "KeyboardHandlerMixin",
-    "MinecraftMixin"
+    "MinecraftMixin",
+    "ScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

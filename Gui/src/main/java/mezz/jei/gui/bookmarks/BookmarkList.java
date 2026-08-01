@@ -24,9 +24,9 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
-import mezz.jei.gui.overlay.IIngredientGridSource;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
@@ -107,7 +107,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public boolean add(IBookmark value) {
-		if (!addToListWithoutNotifying(value, clientConfig.isAddingBookmarksToFrontEnabled())) {
+		if (!addToListWithoutNotifying(value, clientConfig.addBookmarksToFrontEnabled().getValue())) {
 			return false;
 		}
 		notifyListenersOfChange();
@@ -293,6 +293,10 @@ public class BookmarkList implements IIngredientGridSource {
 			.orElse(false);
 	}
 
+	public <T> boolean addIngredientBookmark(ITypedIngredient<T> ingredient) {
+		return addIngredientBookmark(ingredient, false);
+	}
+
 	public void toggleBookmark(IBookmark bookmark) {
 		if (remove(bookmark)) {
 			return;
@@ -316,7 +320,7 @@ public class BookmarkList implements IIngredientGridSource {
 			return true;
 		}
 
-		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		boolean addToFront = clientConfig != null && clientConfig.addBookmarksToFrontEnabled().getValue();
 		if (addToListWithoutNotifying(bookmark, addToFront)) {
 			bookmarkGroups.setItemMetadata(bookmark, entry.get().metadata());
 			notifyListenersOfChange();
@@ -662,7 +666,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public void addRecipeBookmarks(List<IBookmark> recipeBookmarks) {
-		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		boolean addToFront = clientConfig != null && clientConfig.addBookmarksToFrontEnabled().getValue();
 		for (IBookmark recipeBookmark : recipeBookmarks) {
 			addToListWithoutNotifying(recipeBookmark, addToFront);
 		}
@@ -671,7 +675,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private void addRecipeBookmarkEntries(List<RecipeBookmarkEntry> recipeBookmarks) {
-		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		boolean addToFront = clientConfig != null && clientConfig.addBookmarksToFrontEnabled().getValue();
 		for (RecipeBookmarkEntry recipeBookmark : recipeBookmarks) {
 			addRecipeBookmarkEntryWithoutNotifying(recipeBookmark, addToFront);
 		}
@@ -788,7 +792,7 @@ public class BookmarkList implements IIngredientGridSource {
 			return BookmarkGroupManager.DEFAULT_GROUP_ID;
 		}
 
-		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		boolean addToFront = clientConfig != null && clientConfig.addBookmarksToFrontEnabled().getValue();
 		List<IBookmark> addedOrExistingBookmarks = new ArrayList<>();
 		for (IBookmark recipeBookmark : recipeBookmarks) {
 			IBookmark bookmark = addOrGetWithoutNotifying(recipeBookmark, addToFront);
@@ -813,7 +817,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private String addRecipeBookmarkEntryGroup(String title, List<RecipeBookmarkEntry> recipeBookmarks) {
-		boolean addToFront = clientConfig != null && clientConfig.isAddingBookmarksToFrontEnabled();
+		boolean addToFront = clientConfig != null && clientConfig.addBookmarksToFrontEnabled().getValue();
 		List<RecipeBookmarkEntry> addedOrExistingBookmarks = new ArrayList<>();
 		for (RecipeBookmarkEntry recipeBookmark : recipeBookmarks) {
 			IBookmark bookmark = addOrGetWithoutNotifying(recipeBookmark.bookmark(), addToFront);
@@ -1137,6 +1141,20 @@ public class BookmarkList implements IIngredientGridSource {
 
 	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots(int columns) {
 		return bookmarkGroups.getDisplaySlots(bookmarksList, columns);
+	}
+
+	public <R> RecipeBookmark<R, ?> getMatchingBookmark(RecipeType<R> recipeType, R recipe) {
+		for (IBookmark bookmark : bookmarksList) {
+			if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
+				if (recipeBookmark.getRecipeCategory().getRecipeType().equals(recipeType) &&
+					recipeBookmark.getRecipe().equals(recipe)) {
+					@SuppressWarnings("unchecked")
+					RecipeBookmark<R, ?> castBookmark = (RecipeBookmark<R, ?>) recipeBookmark;
+					return castBookmark;
+				}
+			}
+		}
+		return null;
 	}
 
 	public Optional<BookmarkDisplayEntry<IBookmark>> getDisplayEntry(IBookmark bookmark) {

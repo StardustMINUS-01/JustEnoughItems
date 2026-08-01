@@ -30,7 +30,7 @@ public class FocusUtil {
 		List<ITypedIngredient<?>> ingredients = new ArrayList<>();
 		ingredients.add(ingredient);
 
-		if (clientConfig.isLookupFluidContentsEnabled()) {
+		if (clientConfig.lookupFluidContentsEnabled().getValue()) {
 			IPlatformFluidHelperInternal<?> fluidHelper = Services.PLATFORM.getFluidHelper();
 			getContainedFluid(fluidHelper, ingredient)
 				.ifPresent(ingredients::add);
@@ -48,7 +48,7 @@ public class FocusUtil {
 		return fluidHelper.getContainedFluid(ingredient)
 			.flatMap(fluid -> {
 				IIngredientTypeWithSubtypes<Fluid, T> type = fluidHelper.getFluidIngredientType();
-				return ingredientManager.createTypedIngredient(type, fluid);
+				return ingredientManager.createTypedIngredient(type, fluid, false);
 			});
 	}
 }

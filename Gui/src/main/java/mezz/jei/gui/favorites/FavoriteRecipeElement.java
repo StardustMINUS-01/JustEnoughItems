@@ -18,7 +18,7 @@ import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.IngredientGridTooltipHelper;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.ChatFormatting;
@@ -228,6 +228,10 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 			favoriteRecipes.removeFavorite(recipe);
 		}
 		return true;
+	}
+
+	@Override
+	public void tick() {
 	}
 
 }

@@ -14,7 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class RecipeSortUtil {
-	private static final Comparator<RecipeLayoutWithButtons<?>> COMPARATOR = createComparator();
+	private static final Comparator<IRecipeLayoutWithButtons<?>> COMPARATOR = createComparator();
 
 	public static List<IRecipeCategory<?>> sortRecipeCategories(
 		List<IRecipeCategory<?>> recipeCategories,
@@ -42,15 +42,15 @@ public class RecipeSortUtil {
 			.toList();
 	}
 
-	public static Comparator<RecipeLayoutWithButtons<?>> getComparator() {
+	public static Comparator<IRecipeLayoutWithButtons<?>> getComparator() {
 		return COMPARATOR;
 	}
 
-	private static Comparator<RecipeLayoutWithButtons<?>> createComparator() {
+	private static Comparator<IRecipeLayoutWithButtons<?>> createComparator() {
 		return Comparator.comparingInt(r -> {
-			IRecipeLayoutDrawable<?> recipeLayout = r.recipeLayout();
+			IRecipeLayoutDrawable<?> recipeLayout = r.getRecipeLayout();
 
-			int missingCount = r.transferButton().getMissingCountHint();
+			int missingCount = r.getMissingCountHint();
 			if (missingCount == -1) {
 				return 0;
 			}

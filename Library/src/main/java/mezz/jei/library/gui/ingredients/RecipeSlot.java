@@ -237,7 +237,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 		}
 
 		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
-		if (clientConfig.isHideSingleIngredientTagsEnabled() && ingredients.size() == 1) {
+		if (clientConfig.hideSingleTagContentTooltipEnabled().getValue() && ingredients.size() == 1) {
 			return;
 		}
 
@@ -258,19 +258,28 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 
 	private <T> void addIngredientsToTooltip(ITooltipBuilder tooltip, ITypedIngredient<T> displayed) {
 		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
-		if (clientConfig.isTagContentTooltipEnabled()) {
+		if (clientConfig.tagContentTooltipEnabled().getValue()) {
 			IIngredientType<T> type = displayed.getType();
 
 			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
 			IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 			IIngredientRenderer<T> renderer = ingredientManager.getIngredientRenderer(type);
 
-			List<T> ingredients = getIngredients(type).toList();
+			List<T> ingredients = getVisibleIngredients(type);
 
 			if (ingredients.size() > 1) {
 				tooltip.add(new TagContentTooltipComponent<>(renderer, ingredients));
 			}
 		}
+	}
+
+	private <T> List<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
+		IIngredientVisibility ingredientVisibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
+		return getAllIngredients()
+			.filter(ingredientVisibility::isIngredientVisible)
+			.map(i -> i.getIngredient(ingredientType))
+			.flatMap(Optional::stream)
+			.toList();
 	}
 
 	@SuppressWarnings("removal")
@@ -288,8 +297,15 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 			});
 	}
 
+	@SuppressWarnings("removal")
 	@Override
+	@Deprecated(since = "19.34.0", forRemoval = true)
 	public void draw(GuiGraphics guiGraphics) {
+		draw(guiGraphics, false);
+	}
+
+	@Override
+	public void draw(GuiGraphics guiGraphics, boolean hovered) {
 		final int x = this.rect.getX();
 		final int y = this.rect.getY();
 
@@ -314,6 +330,10 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 			poseStack.popPose();
 		}
 
+		if (hovered) {
+			drawHighlight(guiGraphics, 0x80FFFFFF);
+		}
+
 		RenderSystem.disableBlend();
 	}
 
@@ -325,6 +345,8 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 	}
 
 	@Override
+	@SuppressWarnings("removal")
+	@Deprecated(since = "19.34.0", forRemoval = true)
 	public void drawHoverOverlays(GuiGraphics guiGraphics) {
 		drawHighlight(guiGraphics, 0x80FFFFFF);
 	}

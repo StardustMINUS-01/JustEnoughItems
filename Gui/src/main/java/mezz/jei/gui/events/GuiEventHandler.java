@@ -2,19 +2,16 @@ package mezz.jei.gui.events;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.handlers.IGuiClickableArea;
+import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.gui.JeiTooltip;
-import mezz.jei.common.platform.IPlatformScreenHelper;
-import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.RectDebugger;
-import mezz.jei.core.util.LimitedLogger;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayRenderer;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayState;
 import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
-import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import net.minecraft.client.DeltaTracker;
@@ -25,24 +22,17 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
-import java.time.Duration;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class GuiEventHandler {
-	private static final Logger LOGGER = LogManager.getLogger();
-	private static final LimitedLogger missingBackgroundLogger = new LimitedLogger(LOGGER, Duration.ofHours(1));
-
 	private final IngredientListOverlay ingredientListOverlay;
 	private final IScreenHelper screenHelper;
 	private final BookmarkOverlay bookmarkOverlay;
 	private final BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner;
 	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
-	private boolean drawnOnBackground = false;
 
 	public GuiEventHandler(
 		IScreenHelper screenHelper,
@@ -87,78 +77,77 @@ public class GuiEventHandler {
 			.update();
 	}
 
-	public void onDrawBackgroundPost(Screen screen, GuiGraphics guiGraphics) {
-		updateOverlayScreenProperties(screen);
-		Minecraft minecraft = Minecraft.getInstance();
-		double mouseX = MouseUtil.getX();
-		double mouseY = MouseUtil.getY();
-		float partialTicks = getPartialTicks(minecraft);
-		ingredientListOverlay.drawScreen(minecraft, guiGraphics, (int) mouseX, (int) mouseY, partialTicks);
-		bookmarkOverlay.drawScreen(minecraft, guiGraphics, (int) mouseX, (int) mouseY, partialTicks);
-		drawnOnBackground = true;
-	}
-
-	private void updateOverlayScreenProperties(Screen screen) {
-		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
-			.map(ImmutableRect2i::new)
-			.collect(Collectors.toUnmodifiableSet());
-
-		ingredientListOverlay.getScreenPropertiesUpdater()
-				.updateScreen(screen)
-				.updateExclusionAreas(guiExclusionAreas)
-				.update();
-		bookmarkOverlay.getScreenPropertiesUpdater()
-				.updateScreen(screen)
-				.updateExclusionAreas(guiExclusionAreas)
-				.update();
+	public void onClientTick() {
+		ingredientListOverlay.tick();
+		bookmarkOverlay.tick();
+		bookmarkAutoCraftingRunner.tick();
+		clientCraftingGridClickRunner.tick();
 	}
 
 	/**
-	 * Draws above most ContainerScreen elements, but below the tooltips.
+	 * Draws after the screen contents and before deferred tooltips are extracted.
 	 */
-	public void onDrawForeground(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	public void drawForContainerScreen(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
 		BookmarkGhostOverlayState.INSTANCE.getActive(screen.getMenu())
 			.ifPresent(overlay -> BookmarkGhostOverlayRenderer.render(guiGraphics, overlay));
+		drawOverlayForegrounds(guiGraphics, mouseX, mouseY, true);
+		drawPostForeground(screen, guiProperties, guiGraphics, mouseX, mouseY);
+	}
 
-		var poseStack = guiGraphics.pose();
-		poseStack.pushPose();
-		{
-			IPlatformScreenHelper screenHelper = Services.PLATFORM.getScreenHelper();
-			poseStack.translate(-screenHelper.getGuiLeft(screen), -screenHelper.getGuiTop(screen), 0);
-			if (!drawnOnBackground) {
-				updateOverlayScreenProperties(screen);
-				Minecraft minecraft = Minecraft.getInstance();
-				float partialTicks = getPartialTicks(minecraft);
-				ingredientListOverlay.drawScreen(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
-				bookmarkOverlay.drawScreen(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
-				drawnOnBackground = true;
-			}
+	public void drawForScreen(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
+		updateOverlayProperties(screen, guiProperties);
+
+		drawOverlayBackgrounds(guiGraphics);
+
+		if (screen instanceof AbstractContainerScreen<?>) {
+			return;
+		}
+
+		drawOverlayForegrounds(guiGraphics, mouseX, mouseY, false);
+		drawPostForeground(screen, guiProperties, guiGraphics, mouseX, mouseY);
+	}
+
+	private void updateOverlayProperties(Screen screen, @Nullable IGuiProperties guiProperties) {
+		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
+			.map(ImmutableRect2i::new)
+			.collect(Collectors.toUnmodifiableSet());
+		ingredientListOverlay.getScreenPropertiesUpdater()
+			.updateGuiProperties(guiProperties)
+			.updateExclusionAreas(guiExclusionAreas)
+			.update();
+		bookmarkOverlay.getScreenPropertiesUpdater()
+			.updateGuiProperties(guiProperties)
+			.updateExclusionAreas(guiExclusionAreas)
+			.update();
+	}
+
+	private void drawOverlayBackgrounds(GuiGraphics guiGraphics) {
+		ingredientListOverlay.drawBackground(guiGraphics);
+		bookmarkOverlay.drawBackground(guiGraphics);
+	}
+
+	private void drawOverlayForegrounds(GuiGraphics guiGraphics, int mouseX, int mouseY, boolean drawScreenForeground) {
+		Minecraft minecraft = Minecraft.getInstance();
+
+		DeltaTracker deltaTracker = minecraft.getTimer();
+		float partialTicks = deltaTracker.getGameTimeDeltaPartialTick(false);
+
+		if (drawScreenForeground) {
 			bookmarkOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 			ingredientListOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
-		poseStack.popPose();
+		ingredientListOverlay.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+		bookmarkOverlay.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 	}
 
-	public void onDrawScreenPost(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	private void drawPostForeground(Screen screen, @Nullable IGuiProperties guiProperties, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		Minecraft minecraft = Minecraft.getInstance();
 
-		updateOverlayScreenProperties(screen);
-
-		if (!drawnOnBackground) {
-			if (screen instanceof AbstractContainerScreen) {
-				String guiName = screen.getClass().getName();
-				missingBackgroundLogger.log(Level.WARN, guiName, "GUI did not draw the dark background layer behind itself, this may result in display issues: {}", guiName);
-			}
-			float partialTicks = getPartialTicks(minecraft);
-			ingredientListOverlay.drawScreen(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
-			bookmarkOverlay.drawScreen(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
-		}
-		drawnOnBackground = false;
-
-		if (screen instanceof AbstractContainerScreen<?> guiContainer) {
-			IPlatformScreenHelper screenHelper = Services.PLATFORM.getScreenHelper();
-			int guiLeft = screenHelper.getGuiLeft(guiContainer);
-			int guiTop = screenHelper.getGuiTop(guiContainer);
+		if (guiProperties != null && screen instanceof AbstractContainerScreen<?> guiContainer) {
+			int guiLeft = guiProperties.guiLeft();
+			int guiTop = guiProperties.guiTop();
 			this.screenHelper.getGuiClickableArea(guiContainer, mouseX - guiLeft, mouseY - guiTop)
 				.filter(IGuiClickableArea::isTooltipEnabled)
 				.findFirst()
@@ -176,57 +165,46 @@ public class GuiEventHandler {
 		bookmarkOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 
 		if (DebugConfig.isDebugGuisEnabled()) {
-			drawDebugInfoForScreen(screen, guiGraphics);
+			drawDebugInfoForScreen(screen, guiProperties, guiGraphics);
 		}
-	}
-
-	public void onClientTick() {
-		bookmarkAutoCraftingRunner.tick();
-		clientCraftingGridClickRunner.tick();
-	}
-
-	private static float getPartialTicks(Minecraft minecraft) {
-		DeltaTracker deltaTracker = minecraft.getTimer();
-		return deltaTracker.getGameTimeDeltaPartialTick(false);
 	}
 
 	public boolean renderCompactPotionIndicators() {
 		return ingredientListOverlay.isListDisplayed();
 	}
 
-	private void drawDebugInfoForScreen(Screen screen, GuiGraphics guiGraphics) {
+	private void drawDebugInfoForScreen(Screen screen, @Nullable IGuiProperties guiProperties, GuiGraphics guiGraphics) {
 		RectDebugger.INSTANCE.draw(guiGraphics);
 
-		screenHelper.getGuiProperties(screen)
-			.ifPresent(guiProperties -> {
-				Set<Rect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
-					.collect(Collectors.toUnmodifiableSet());
+		if (guiProperties != null) {
+			Set<Rect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
+				.collect(Collectors.toUnmodifiableSet());
 
-				RenderSystem.disableDepthTest();
+			RenderSystem.disableDepthTest();
 
-				// draw the gui exclusion areas
-				for (Rect2i area : guiExclusionAreas) {
-					guiGraphics.fill(
-						RenderType.gui(),
-						area.getX(),
-						area.getY(),
-						area.getX() + area.getWidth(),
-						area.getY() + area.getHeight(),
-						0x44FF0000
-					);
-				}
-
-				// draw the gui area
+			// draw the gui exclusion areas
+			for (Rect2i area : guiExclusionAreas) {
 				guiGraphics.fill(
 					RenderType.gui(),
-					guiProperties.getGuiLeft(),
-					guiProperties.getGuiTop(),
-					guiProperties.getGuiLeft() + guiProperties.getGuiXSize(),
-					guiProperties.getGuiTop() + guiProperties.getGuiYSize(),
-					0x22CCCC00
+					area.getX(),
+					area.getY(),
+					area.getX() + area.getWidth(),
+					area.getY() + area.getHeight(),
+					0x44FF0000
 				);
+			}
 
-				RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-			});
+			// draw the gui area
+			guiGraphics.fill(
+				RenderType.gui(),
+				guiProperties.guiLeft(),
+				guiProperties.guiTop(),
+				guiProperties.guiRight(),
+				guiProperties.guiBottom(),
+				0x22CCCC00
+			);
+
+			RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+		}
 	}
 }

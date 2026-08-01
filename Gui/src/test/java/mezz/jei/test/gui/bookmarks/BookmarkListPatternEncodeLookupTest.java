@@ -286,7 +286,7 @@ public class BookmarkListPatternEncodeLookupTest {
 			@Override
 			public void getTooltip(
 				mezz.jei.common.gui.JeiTooltip tooltip,
-				mezz.jei.gui.overlay.IngredientGridTooltipHelper tooltipHelper,
+				mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper tooltipHelper,
 				mezz.jei.api.ingredients.IIngredientRenderer<String> ingredientRenderer,
 				mezz.jei.api.ingredients.IIngredientHelper<String> ingredientHelper
 			) {
@@ -295,6 +295,10 @@ public class BookmarkListPatternEncodeLookupTest {
 			@Override
 			public boolean isVisible() {
 				return true;
+			}
+
+			@Override
+			public void tick() {
 			}
 		};
 	}
