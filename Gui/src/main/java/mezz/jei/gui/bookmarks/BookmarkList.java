@@ -33,7 +33,6 @@ import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;

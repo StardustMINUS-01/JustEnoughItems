@@ -3,7 +3,6 @@ package mezz.jei.test.bookmarks;
 import mezz.jei.common.bookmarks.BookmarkPullTarget;
 import mezz.jei.common.bookmarks.ServerBookmarkPullTransfer;
 import net.minecraft.SharedConstants;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
@@ -12,7 +11,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.server.Bootstrap;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
