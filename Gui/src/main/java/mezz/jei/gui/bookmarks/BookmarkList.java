@@ -153,18 +153,23 @@ public class BookmarkList implements IIngredientGridSource {
 			return;
 		}
 
+		Set<String> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
 		bookmarksList.removeAll(movingBookmarks);
 		int targetIndex = bookmarksList.indexOf(targetBookmark);
 		List<IBookmark> placedBookmarks = new ArrayList<>();
+		boolean changed = false;
 		for (IBookmark bookmark : movingBookmarks) {
+			String previousGroupId = bookmarkGroups.getGroupId(bookmark);
 			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetGroupId)) {
 				if (releaseBookmarkToDefault(bookmark)) {
 					placedBookmarks.add(bookmark);
 				}
+				changed = changed || !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(previousGroupId);
 			} else if (!isDuplicateInGroup(bookmark, targetGroupId)) {
 				bookmarkGroups.moveItemToGroup(bookmark, targetGroupId);
 				ensureRecipeBookmarkScope(bookmark);
 				placedBookmarks.add(bookmark);
+				changed = true;
 			}
 		}
 		if (targetIndex < 0) {
@@ -174,6 +179,9 @@ public class BookmarkList implements IIngredientGridSource {
 			bookmarksList.addAll(insertionIndex, placedBookmarks);
 		}
 		keepRecipeBlocksContiguous(targetGroupId);
+		if (changed) {
+			cleanupAfterGroupChange(sourceGroupIds);
+		}
 
 		notifyListenersOfChange();
 		saveBookmarks();
@@ -359,12 +367,6 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 		String groupId = targetMetadata.groupId();
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
-		if (group.filter(BookmarkGroup::craftingMode).map(BookmarkGroup::resultOnly).orElse(false)) {
-			if (!removeFullRecipe) {
-				return true;
-			}
-			return removeGroup(groupId);
-		}
 		if (group.filter(BookmarkGroup::craftingMode).isPresent()) {
 			Set<ResourceLocation> relatedRecipes = getRelatedRecipeIds(groupId, recipeUid);
 			if (!relatedRecipes.isEmpty()) {
@@ -383,6 +385,7 @@ public class BookmarkList implements IIngredientGridSource {
 			removeBookmarkWithoutNotifying(bookmark);
 			normalizeIncompleteRecipes(groupId);
 			removeEmptyGroupsWithoutNotifying();
+			pruneCollapsedRecipeIds(groupId);
 			notifyListenersOfChange();
 			saveBookmarks();
 			return true;
@@ -406,6 +409,7 @@ public class BookmarkList implements IIngredientGridSource {
 			removeBookmarkWithoutNotifying(removedBookmark);
 		}
 		removeEmptyGroupsWithoutNotifying();
+		pruneCollapsedRecipeIds(groupId);
 
 		notifyListenersOfChange();
 		saveBookmarks();
@@ -1367,11 +1371,23 @@ public class BookmarkList implements IIngredientGridSource {
 
 	public void moveBookmarkToGroup(IBookmark bookmark, String groupId) {
 		if (bookmarksSet.contains(bookmark)) {
+			Set<String> sourceGroupIds = collectSourceGroupIds(List.of(bookmark));
+			boolean changed = false;
 			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-				releaseBookmarkToDefault(bookmark);
+				String previousGroupId = bookmarkGroups.getGroupId(bookmark);
+				if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(previousGroupId)) {
+					releaseBookmarkToDefault(bookmark);
+					changed = true;
+				}
 			} else if (!isDuplicateInGroup(bookmark, groupId)) {
-				bookmarkGroups.moveItemToGroup(bookmark, groupId);
-				ensureRecipeBookmarkScope(bookmark);
+				if (!groupId.equals(bookmarkGroups.getGroupId(bookmark))) {
+					bookmarkGroups.moveItemToGroup(bookmark, groupId);
+					ensureRecipeBookmarkScope(bookmark);
+					changed = true;
+				}
+			}
+			if (changed) {
+				cleanupAfterGroupChange(sourceGroupIds);
 			}
 			notifyListenersOfChange();
 			saveBookmarks();
@@ -1386,6 +1402,7 @@ public class BookmarkList implements IIngredientGridSource {
 		if (movingBookmarks.isEmpty()) {
 			return false;
 		}
+		Set<String> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
 		boolean changed = false;
 		for (IBookmark bookmark : movingBookmarks) {
 			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
@@ -1399,6 +1416,7 @@ public class BookmarkList implements IIngredientGridSource {
 			}
 		}
 		if (changed) {
+			cleanupAfterGroupChange(sourceGroupIds);
 			notifyListenersOfChange();
 			saveBookmarks();
 		}
@@ -1434,6 +1452,77 @@ public class BookmarkList implements IIngredientGridSource {
 			ensureRecipeBookmarkScope(bookmark);
 			notifyListenersOfChange();
 			saveBookmarks();
+		}
+	}
+
+	/**
+	 * Expands the given bookmarks into their complete recipe blocks, so operations
+	 * can reach entries that are hidden from the visible layout (e.g. inputs of a
+	 * result-only group). Plain item bookmarks are kept as-is.
+	 */
+	public List<IBookmark> expandToRecipeBlocks(List<IBookmark> bookmarks) {
+		Set<IBookmark> expanded = new LinkedHashSet<>();
+		for (IBookmark bookmark : bookmarks) {
+			if (!bookmarksSet.contains(bookmark)) {
+				expanded.add(bookmark);
+				continue;
+			}
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (recipeUid == null || !metadata.type().isRecipeAssociated()) {
+				expanded.add(bookmark);
+				continue;
+			}
+			String groupId = metadata.groupId();
+			ResourceLocation recipeTypeUid = metadata.recipeTypeUid();
+			for (IBookmark candidate : bookmarksList) {
+				BookmarkItemMetadata candidateMetadata = bookmarkGroups.getItemMetadata(candidate);
+				if (groupId.equals(candidateMetadata.groupId()) &&
+					Objects.equals(recipeTypeUid, candidateMetadata.recipeTypeUid()) &&
+					recipeUid.equals(candidateMetadata.recipeUid())) {
+					expanded.add(candidate);
+				}
+			}
+		}
+		return List.copyOf(expanded);
+	}
+
+	private Set<String> collectSourceGroupIds(List<IBookmark> bookmarks) {
+		Set<String> sourceGroupIds = new HashSet<>();
+		for (IBookmark bookmark : bookmarks) {
+			String groupId = bookmarkGroups.getGroupId(bookmark);
+			if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+				sourceGroupIds.add(groupId);
+			}
+		}
+		return sourceGroupIds;
+	}
+
+	private void cleanupAfterGroupChange(Set<String> sourceGroupIds) {
+		for (String groupId : sourceGroupIds) {
+			normalizeIncompleteRecipes(groupId);
+			pruneCollapsedRecipeIds(groupId);
+		}
+		removeEmptyGroupsWithoutNotifying();
+	}
+
+	private void pruneCollapsedRecipeIds(String groupId) {
+		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
+		if (group.isEmpty() || group.get().collapsedRecipeIds().isEmpty()) {
+			return;
+		}
+		Set<ResourceLocation> remaining = new HashSet<>();
+		for (IBookmark bookmark : bookmarksList) {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (groupId.equals(metadata.groupId()) &&
+				recipeUid != null &&
+				group.get().collapsedRecipeIds().contains(recipeUid)) {
+				remaining.add(recipeUid);
+			}
+		}
+		if (!remaining.equals(group.get().collapsedRecipeIds())) {
+			bookmarkGroups.setCollapsedRecipeIds(groupId, remaining);
 		}
 	}
 

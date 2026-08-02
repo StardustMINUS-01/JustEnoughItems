@@ -31,19 +31,26 @@ public record BookmarkGroupingPlan(
 	}
 
 	public boolean apply(BookmarkList bookmarkList, String newGroupTitle) {
-		if (bookmarks.isEmpty()) {
+		List<IBookmark> expandedBookmarks = bookmarkList.expandToRecipeBlocks(bookmarks);
+		if (expandedBookmarks.isEmpty()) {
 			return false;
 		}
 		if (exclude) {
-			return bookmarkList.moveBookmarksToGroup(bookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID);
+			return bookmarkList.moveBookmarksToGroup(expandedBookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID);
 		}
 		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetGroupId)) {
-			bookmarkList.createGroupForBookmarks(newGroupTitle, bookmarks);
+			bookmarkList.createGroupForBookmarks(newGroupTitle, expandedBookmarks);
 			return true;
 		}
-		boolean changed = bookmarkList.moveBookmarksToGroup(bookmarks, targetGroupId);
+		boolean changed = bookmarkList.moveBookmarksToGroup(expandedBookmarks, targetGroupId);
 		if (!releasedBookmarks.isEmpty()) {
-			changed = bookmarkList.moveBookmarksToGroup(releasedBookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID) || changed;
+			Set<IBookmark> alreadyMoved = Set.copyOf(expandedBookmarks);
+			List<IBookmark> expandedReleasedBookmarks = bookmarkList.expandToRecipeBlocks(releasedBookmarks).stream()
+				.filter(bookmark -> !alreadyMoved.contains(bookmark))
+				.toList();
+			if (!expandedReleasedBookmarks.isEmpty()) {
+				changed = bookmarkList.moveBookmarksToGroup(expandedReleasedBookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID) || changed;
+			}
 		}
 		return changed;
 	}

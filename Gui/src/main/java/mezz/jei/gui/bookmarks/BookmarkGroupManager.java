@@ -112,7 +112,12 @@ public class BookmarkGroupManager<T> {
 				// A compact group converted into a recipe chain shows only its results.
 				resultOnly = true;
 			}
-			groups.put(groupId, group.withCraftingMode(craftingMode).withResultOnly(resultOnly));
+			BookmarkGroup updated = group.withCraftingMode(craftingMode).withResultOnly(resultOnly);
+			if (!craftingMode && !updated.collapsedRecipeIds().isEmpty()) {
+				// per-recipe collapse only applies to recipe chains
+				updated = updated.withCollapsedRecipeIds(Set.of());
+			}
+			groups.put(groupId, updated);
 			if (!craftingMode) {
 				recipeChainDetails.remove(groupId);
 			}
