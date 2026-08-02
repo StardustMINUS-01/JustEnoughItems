@@ -7,7 +7,6 @@ import com.google.gson.JsonElement;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import net.minecraft.resources.ResourceLocation;
@@ -29,9 +28,9 @@ public final class BookmarkGroupConfigSerializer {
 		JsonObject json = new JsonObject();
 		json.addProperty("id", group.id());
 		json.addProperty("title", group.title());
-		json.addProperty("viewMode", group.viewMode().name());
+		json.addProperty("newLine", group.newLine());
+		json.addProperty("resultOnly", group.resultOnly());
 		json.addProperty("crafting", group.craftingMode());
-		json.addProperty("collapsed", group.collapsed());
 		if (!group.collapsedRecipeIds().isEmpty()) {
 			JsonArray collapsedRecipes = new JsonArray();
 			group.collapsedRecipeIds().stream()
@@ -52,11 +51,9 @@ public final class BookmarkGroupConfigSerializer {
 			JsonObject json = JsonParser.parseString(line.substring(MARKER_GROUP.length())).getAsJsonObject();
 			String id = json.get("id").getAsString();
 			String title = json.get("title").getAsString();
-			BookmarkViewMode viewMode = json.has("viewMode") ?
-				BookmarkViewMode.valueOf(json.get("viewMode").getAsString()) :
-				BookmarkViewMode.DEFAULT;
+			boolean newLine = json.has("newLine") && json.get("newLine").getAsBoolean();
+			boolean resultOnly = json.has("resultOnly") && json.get("resultOnly").getAsBoolean();
 			boolean crafting = json.has("crafting") && json.get("crafting").getAsBoolean();
-			boolean collapsed = json.has("collapsed") && json.get("collapsed").getAsBoolean();
 			Set<ResourceLocation> collapsedRecipeIds = json.has("collapsedRecipes") ?
 				json.getAsJsonArray("collapsedRecipes")
 					.asList()
@@ -64,7 +61,7 @@ public final class BookmarkGroupConfigSerializer {
 					.map(element -> ResourceLocation.parse(element.getAsString()))
 					.collect(Collectors.toUnmodifiableSet()) :
 				Set.of();
-			return Optional.of(new BookmarkGroup(id, title, viewMode, crafting, collapsed, collapsedRecipeIds));
+			return Optional.of(new BookmarkGroup(id, title, newLine, resultOnly, crafting, collapsedRecipeIds));
 		} catch (RuntimeException ignored) {
 			return Optional.empty();
 		}

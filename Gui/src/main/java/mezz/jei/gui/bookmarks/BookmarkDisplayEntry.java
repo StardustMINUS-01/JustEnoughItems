@@ -9,14 +9,14 @@ public record BookmarkDisplayEntry<T>(
 	T item,
 	int sourceIndex,
 	BookmarkItemMetadata metadata,
-	BookmarkViewMode viewMode,
+	boolean newLine,
+	boolean resultOnly,
 	Optional<ResourceLocation> displayRecipeUid,
 	Optional<RecipeChainItem> recipeChainItem,
 	boolean outputRecipe,
 	boolean middleRecipe
 ) {
 	public BookmarkDisplayEntry {
-		viewMode = viewMode == null ? BookmarkViewMode.DEFAULT : viewMode;
 		displayRecipeUid = displayRecipeUid == null ? Optional.empty() : displayRecipeUid;
 		recipeChainItem = recipeChainItem == null ? Optional.empty() : recipeChainItem;
 	}

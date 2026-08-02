@@ -12,7 +12,6 @@ import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkMoveSelection;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.IBookmark;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
@@ -489,7 +488,7 @@ public final class BookmarkSortDragState {
 		boolean todoGroup = bookmarkList.getBookmarkGroups().stream()
 			.filter(group -> group.id().equals(sourceMetadata.groupId()))
 			.findFirst()
-			.map(group -> group.viewMode() == BookmarkViewMode.TODO_LIST)
+			.map(BookmarkGroup::newLine)
 			.orElse(false);
 		if (!todoGroup) {
 			return true;

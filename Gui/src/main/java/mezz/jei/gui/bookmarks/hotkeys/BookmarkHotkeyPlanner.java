@@ -80,8 +80,8 @@ public final class BookmarkHotkeyPlanner {
 		}
 		add(actions, BookmarkHotkeyAction.GROUP_EXCLUDE_DRAG, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_MOVE_DRAG, BookmarkHotkeySupport.SUPPORTED);
-		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE, BookmarkHotkeySupport.SUPPORTED);
-		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED, BookmarkHotkeySupport.SUPPORTED);
+		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_NEW_LINE, BookmarkHotkeySupport.SUPPORTED);
+		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_RESULT_ONLY, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_REMOVE, BookmarkHotkeySupport.SUPPORTED);
 		addPullActions(actions, context);
@@ -103,8 +103,8 @@ public final class BookmarkHotkeyPlanner {
 	}
 
 	private static void addDefaultGroupActions(List<BookmarkHotkeyAvailability> actions, BookmarkHotkeyContext context) {
-		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE, BookmarkHotkeySupport.SUPPORTED);
-		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED, BookmarkHotkeySupport.SUPPORTED);
+		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_NEW_LINE, BookmarkHotkeySupport.SUPPORTED);
+		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_RESULT_ONLY, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING, BookmarkHotkeySupport.SUPPORTED);
 		addPullActions(actions, context);
 		add(actions, BookmarkHotkeyAction.SHIFT_AMOUNT, BookmarkHotkeySupport.SUPPORTED);

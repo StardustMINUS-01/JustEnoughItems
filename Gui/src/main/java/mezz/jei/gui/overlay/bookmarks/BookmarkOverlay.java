@@ -1277,7 +1277,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				return Optional.empty();
 			}
 
-			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED) {
+			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_RESULT_ONLY) {
 				if (input.getInputType() == InputType.EXECUTE) {
 					if (applyGroupClickAction(slot.get().groupId(), action.get())) {
 						playClickSound();
@@ -1286,7 +1286,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				return Optional.of(this);
 			}
 
-			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE ||
+			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_NEW_LINE ||
 				action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING) {
 				if (input.getInputType() == InputType.SIMULATE) {
 					groupPanelDrag = new GroupPanelDrag(
@@ -1374,8 +1374,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 
 	private boolean applyGroupClickAction(String groupId, BookmarkHotkeyAction action) {
 		return switch (action) {
-			case GROUP_TOGGLE_COLLAPSED -> bookmarkList.toggleGroupCollapsed(groupId);
-			case GROUP_TOGGLE_VIEW_MODE -> bookmarkList.toggleGroupViewMode(groupId);
+			case GROUP_TOGGLE_RESULT_ONLY -> bookmarkList.toggleGroupResultOnly(groupId);
+			case GROUP_TOGGLE_NEW_LINE -> bookmarkList.toggleGroupNewLine(groupId);
 			case GROUP_TOGGLE_CRAFTING -> {
 				bookmarkList.setGroupCraftingMode(groupId, !bookmarkList.isGroupCraftingMode(groupId));
 				yield true;

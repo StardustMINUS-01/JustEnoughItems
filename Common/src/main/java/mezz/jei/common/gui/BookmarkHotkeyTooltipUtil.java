@@ -92,11 +92,14 @@ public final class BookmarkHotkeyTooltipUtil {
 			HotkeyTooltipLine.add(tooltip, keyBindings.getEncodeRecipeChainPatterns().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.group.hotkeys.encode_ae2_patterns");
 		}
 		if (grouped) {
-			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), "jei.tooltip.bookmarks.group.hotkeys.crafting");
+			String rightClickAction = craftingMode ?
+				"jei.tooltip.bookmarks.group.hotkeys.to_group" :
+				"jei.tooltip.bookmarks.group.hotkeys.to_recipe_chain";
+			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), rightClickAction);
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.left"), "jei.tooltip.bookmarks.group.hotkeys.mode");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right_drag"), "jei.tooltip.bookmarks.group.hotkeys.exclude");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.left_drag"), "jei.tooltip.bookmarks.group.hotkeys.include");
-			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.alt_left"), "jei.tooltip.bookmarks.group.hotkeys.collapse");
+			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.alt_left"), "jei.tooltip.bookmarks.group.hotkeys.result_only");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.ctrl_scroll"), "jei.tooltip.bookmarks.group.hotkeys.quantity");
 			HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("SHIFT + ", keyBindings.getBookmark().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.group.hotkeys.remove");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.ctrl_alt_scroll"), "jei.tooltip.bookmarks.group.hotkeys.quantity_step");
@@ -113,9 +116,9 @@ public final class BookmarkHotkeyTooltipUtil {
 		}
 
 		addPullHotkeys(tooltip, keyBindings);
-		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), "jei.tooltip.bookmarks.group.hotkeys.crafting");
+		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), "jei.tooltip.bookmarks.group.hotkeys.to_recipe_chain");
 		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.left"), "jei.tooltip.bookmarks.group.hotkeys.mode");
-		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.alt_left"), "jei.tooltip.bookmarks.group.hotkeys.collapse");
+		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.alt_left"), "jei.tooltip.bookmarks.group.hotkeys.result_only");
 		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.ctrl_scroll"), "jei.tooltip.bookmarks.group.hotkeys.quantity");
 		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.ctrl_alt_scroll"), "jei.tooltip.bookmarks.group.hotkeys.quantity_step");
 	}

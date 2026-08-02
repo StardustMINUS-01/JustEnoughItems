@@ -9,7 +9,6 @@ import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
@@ -102,7 +101,8 @@ public class ProjectedBookmarkElementTest {
 			new Object(),
 			0,
 			metadata,
-			BookmarkViewMode.DEFAULT,
+			false,
+			false,
 			Optional.of(RECIPE),
 			chainItem,
 			false,

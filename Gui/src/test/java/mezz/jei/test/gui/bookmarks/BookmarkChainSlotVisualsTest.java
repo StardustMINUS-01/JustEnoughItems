@@ -4,7 +4,6 @@ import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import net.minecraft.resources.ResourceLocation;
@@ -69,7 +68,8 @@ public class BookmarkChainSlotVisualsTest {
 			new Object(),
 			0,
 			metadata,
-			BookmarkViewMode.DEFAULT,
+			false,
+			false,
 			Optional.empty(),
 			Optional.empty(),
 			false,

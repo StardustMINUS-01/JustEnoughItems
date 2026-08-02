@@ -110,12 +110,12 @@ public final class BookmarkHotkeyRouter {
 	) {
 		if (altDown) {
 			return switch (mouseButton) {
-				case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED;
+				case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_RESULT_ONLY;
 				case RIGHT -> null;
 			};
 		}
 		return switch (mouseButton) {
-			case LEFT -> shiftDown ? BookmarkHotkeyAction.GROUP_MOVE_DRAG : BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE;
+			case LEFT -> shiftDown ? BookmarkHotkeyAction.GROUP_MOVE_DRAG : BookmarkHotkeyAction.GROUP_TOGGLE_NEW_LINE;
 			case RIGHT -> shiftDown ? null : BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING;
 		};
 	}
@@ -141,12 +141,12 @@ public final class BookmarkHotkeyRouter {
 		}
 		if (altDown) {
 			return switch (mouseButton) {
-				case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED;
+				case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_RESULT_ONLY;
 				case RIGHT -> null;
 			};
 		}
 		return switch (mouseButton) {
-			case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE;
+			case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_NEW_LINE;
 			case RIGHT -> BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING;
 		};
 	}

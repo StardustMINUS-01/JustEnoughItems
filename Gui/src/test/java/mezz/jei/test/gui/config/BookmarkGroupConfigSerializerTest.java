@@ -3,7 +3,9 @@ package mezz.jei.test.gui.config;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.config.BookmarkGroupConfigSerializer;
+import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -32,5 +34,26 @@ public class BookmarkGroupConfigSerializerTest {
 		Assertions.assertEquals(BookmarkItemType.CATALYST, decoded.type());
 		Assertions.assertEquals(BookmarkItemType.ITEM, legacy.type());
 		Assertions.assertFalse(serialized.contains("\"catalyst\""));
+	}
+
+	@Test
+	public void groupFlagsRoundTrip() {
+		BookmarkGroup group = new BookmarkGroup(
+			"group_1",
+			"Machines",
+			true,
+			true,
+			true,
+			Set.of(ResourceLocation.parse("test:plate"))
+		);
+
+		String serialized = BookmarkGroupConfigSerializer.serializeGroup(group);
+		BookmarkGroup decoded = BookmarkGroupConfigSerializer.deserializeGroup(serialized).orElseThrow();
+
+		Assertions.assertEquals(group, decoded);
+		Assertions.assertTrue(serialized.contains("\"newLine\":true"));
+		Assertions.assertTrue(serialized.contains("\"resultOnly\":true"));
+		Assertions.assertFalse(serialized.contains("viewMode"));
+		Assertions.assertFalse(serialized.contains("collapsed\""));
 	}
 }

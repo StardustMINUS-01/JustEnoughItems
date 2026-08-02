@@ -49,7 +49,7 @@ public class BookmarkListInvariantTest {
 		String groupId = "group_1";
 		TestBookmark bookmark = bookmark("plate");
 
-		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", false));
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines"));
 		bookmarks.addToListWithoutNotifying(bookmark, false);
 		bookmarks.moveBookmarkMetadataFromConfig(bookmark, BookmarkItemMetadata.defaultForGroup(groupId));
 

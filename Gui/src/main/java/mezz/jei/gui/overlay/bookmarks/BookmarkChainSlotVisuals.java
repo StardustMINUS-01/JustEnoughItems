@@ -3,7 +3,6 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.common.config.BookmarkRecipeMarkerMode;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 
@@ -134,7 +133,7 @@ public final class BookmarkChainSlotVisuals {
 		if (!Objects.equals(entry.metadata().groupId(), hovered.metadata().groupId())) {
 			return BookmarkSlotDisplayMode.DEFAULT;
 		}
-		if (entry.viewMode() == BookmarkViewMode.TODO_LIST && context.rowIndex() >= 0 && context.rowIndex() == context.hoveredRowIndex()) {
+		if (entry.newLine() && context.rowIndex() >= 0 && context.rowIndex() == context.hoveredRowIndex()) {
 			return requestedMode;
 		}
 		if (entry.sourceIndex() == hovered.sourceIndex() || sameRecipe(entry, hovered)) {

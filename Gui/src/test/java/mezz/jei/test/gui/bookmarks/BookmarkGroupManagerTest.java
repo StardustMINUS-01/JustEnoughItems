@@ -19,7 +19,7 @@ public class BookmarkGroupManagerTest {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 
 		Assertions.assertEquals(BookmarkGroupManager.DEFAULT_GROUP_ID, groups.getGroupId("iron"));
-		Assertions.assertEquals(List.of(new BookmarkGroup(BookmarkGroupManager.DEFAULT_GROUP_ID, "Bookmarks", false)), groups.getGroups());
+		Assertions.assertEquals(List.of(new BookmarkGroup(BookmarkGroupManager.DEFAULT_GROUP_ID, "Bookmarks")), groups.getGroups());
 		Assertions.assertEquals(BookmarkItemMetadata.defaultForGroup(BookmarkGroupManager.DEFAULT_GROUP_ID), groups.getItemMetadata("iron"));
 
 		Assertions.assertFalse(groups.removeGroup(BookmarkGroupManager.DEFAULT_GROUP_ID));
@@ -27,7 +27,7 @@ public class BookmarkGroupManagerTest {
 	}
 
 	@Test
-	public void collapsedGroupKeepsEveryNonIngredientVisible() {
+	public void resultOnlyGroupKeepsEveryNonIngredientVisible() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
 
@@ -36,10 +36,52 @@ public class BookmarkGroupManagerTest {
 		groups.addItem("plate", false);
 		groups.moveItemToGroup("gear", groupId);
 		groups.moveItemToGroup("plate", groupId);
-		groups.setCollapsed(groupId, true);
+		groups.setResultOnly(groupId, true);
 
 		Assertions.assertEquals(List.of("iron", "gear", "plate"), groups.getVisibleItems(List.of("iron", "gear", "plate")));
 		Assertions.assertEquals(groupId, groups.getGroupId("gear"));
+	}
+
+	@Test
+	public void compactGroupConvertedToChainForcesResultOnly() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		String groupId = groups.createGroup("Machines");
+
+		groups.setCraftingMode(groupId, true);
+
+		BookmarkGroup group = groups.getGroup(groupId).orElseThrow();
+		Assertions.assertTrue(group.craftingMode());
+		Assertions.assertFalse(group.newLine());
+		Assertions.assertTrue(group.resultOnly());
+	}
+
+	@Test
+	public void newLineGroupConvertedToChainKeepsResultOnly() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		String groupId = groups.createGroup("Machines");
+		groups.setNewLine(groupId, true);
+
+		groups.setCraftingMode(groupId, true);
+
+		BookmarkGroup group = groups.getGroup(groupId).orElseThrow();
+		Assertions.assertTrue(group.craftingMode());
+		Assertions.assertTrue(group.newLine());
+		Assertions.assertFalse(group.resultOnly());
+	}
+
+	@Test
+	public void chainConvertedToGroupKeepsDisplayFlags() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		String groupId = groups.createGroup("Machines");
+		groups.setNewLine(groupId, true);
+		groups.setCraftingMode(groupId, true);
+
+		groups.setCraftingMode(groupId, false);
+
+		BookmarkGroup group = groups.getGroup(groupId).orElseThrow();
+		Assertions.assertFalse(group.craftingMode());
+		Assertions.assertTrue(group.newLine());
+		Assertions.assertFalse(group.resultOnly());
 	}
 
 	@Test

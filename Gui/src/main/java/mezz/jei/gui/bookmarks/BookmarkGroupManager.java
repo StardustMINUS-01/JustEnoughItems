@@ -22,7 +22,7 @@ public class BookmarkGroupManager<T> {
 	private int nextGroupId = 1;
 
 	public BookmarkGroupManager() {
-		groups.put(DEFAULT_GROUP_ID, new BookmarkGroup(DEFAULT_GROUP_ID, "Bookmarks", false));
+		groups.put(DEFAULT_GROUP_ID, new BookmarkGroup(DEFAULT_GROUP_ID, "Bookmarks"));
 	}
 
 	public void clear() {
@@ -30,7 +30,7 @@ public class BookmarkGroupManager<T> {
 		itemMetadata.clear();
 		recipeChainDetails.clear();
 		nextGroupId = 1;
-		groups.put(DEFAULT_GROUP_ID, new BookmarkGroup(DEFAULT_GROUP_ID, "Bookmarks", false));
+		groups.put(DEFAULT_GROUP_ID, new BookmarkGroup(DEFAULT_GROUP_ID, "Bookmarks"));
 	}
 
 	public List<BookmarkGroup> getGroups() {
@@ -43,7 +43,7 @@ public class BookmarkGroupManager<T> {
 
 	public String createGroup(String title) {
 		String groupId = "group_" + nextGroupId++;
-		groups.put(groupId, new BookmarkGroup(groupId, title, false));
+		groups.put(groupId, new BookmarkGroup(groupId, title));
 		return groupId;
 	}
 
@@ -90,27 +90,32 @@ public class BookmarkGroupManager<T> {
 		itemMetadata.put(item, metadata.withGroupId(groupId));
 	}
 
-	public void setCollapsed(String groupId, boolean collapsed) {
+	public void setNewLine(String groupId, boolean newLine) {
 		BookmarkGroup group = groups.get(groupId);
 		if (group != null) {
-			groups.put(groupId, group.withCollapsed(collapsed));
+			groups.put(groupId, group.withNewLine(newLine));
+		}
+	}
+
+	public void setResultOnly(String groupId, boolean resultOnly) {
+		BookmarkGroup group = groups.get(groupId);
+		if (group != null) {
+			groups.put(groupId, group.withResultOnly(resultOnly));
 		}
 	}
 
 	public void setCraftingMode(String groupId, boolean craftingMode) {
 		BookmarkGroup group = groups.get(groupId);
 		if (group != null) {
-			groups.put(groupId, group.withCraftingMode(craftingMode));
+			boolean resultOnly = group.resultOnly();
+			if (craftingMode && !group.newLine()) {
+				// A compact group converted into a recipe chain shows only its results.
+				resultOnly = true;
+			}
+			groups.put(groupId, group.withCraftingMode(craftingMode).withResultOnly(resultOnly));
 			if (!craftingMode) {
 				recipeChainDetails.remove(groupId);
 			}
-		}
-	}
-
-	public void setViewMode(String groupId, BookmarkViewMode viewMode) {
-		BookmarkGroup group = groups.get(groupId);
-		if (group != null) {
-			groups.put(groupId, group.withViewMode(viewMode));
 		}
 	}
 
@@ -124,15 +129,6 @@ public class BookmarkGroupManager<T> {
 	public boolean isCraftingMode(String groupId) {
 		BookmarkGroup group = groups.get(groupId);
 		return group != null && group.craftingMode();
-	}
-
-	public boolean toggleCollapsed(String groupId) {
-		BookmarkGroup group = groups.get(groupId);
-		if (group == null) {
-			return false;
-		}
-		groups.put(groupId, group.withCollapsed(!group.collapsed()));
-		return true;
 	}
 
 	public boolean removeGroup(String groupId) {

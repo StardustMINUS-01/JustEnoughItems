@@ -7,32 +7,32 @@ import java.util.Set;
 public record BookmarkGroup(
 	String id,
 	String title,
-	BookmarkViewMode viewMode,
+	boolean newLine,
+	boolean resultOnly,
 	boolean craftingMode,
-	boolean collapsed,
 	Set<ResourceLocation> collapsedRecipeIds
 ) {
 	public BookmarkGroup {
 		collapsedRecipeIds = Set.copyOf(collapsedRecipeIds);
 	}
 
-	public BookmarkGroup(String id, String title, boolean collapsed) {
-		this(id, title, BookmarkViewMode.DEFAULT, false, collapsed, Set.of());
+	public BookmarkGroup(String id, String title) {
+		this(id, title, false, false, false, Set.of());
 	}
 
-	public BookmarkGroup withCollapsed(boolean collapsed) {
-		return new BookmarkGroup(id, title, viewMode, craftingMode, collapsed, collapsedRecipeIds);
+	public BookmarkGroup withNewLine(boolean newLine) {
+		return new BookmarkGroup(id, title, newLine, resultOnly, craftingMode, collapsedRecipeIds);
 	}
 
-	public BookmarkGroup withViewMode(BookmarkViewMode viewMode) {
-		return new BookmarkGroup(id, title, viewMode, craftingMode, collapsed, collapsedRecipeIds);
+	public BookmarkGroup withResultOnly(boolean resultOnly) {
+		return new BookmarkGroup(id, title, newLine, resultOnly, craftingMode, collapsedRecipeIds);
 	}
 
 	public BookmarkGroup withCraftingMode(boolean craftingMode) {
-		return new BookmarkGroup(id, title, viewMode, craftingMode, collapsed, collapsedRecipeIds);
+		return new BookmarkGroup(id, title, newLine, resultOnly, craftingMode, collapsedRecipeIds);
 	}
 
 	public BookmarkGroup withCollapsedRecipeIds(Set<ResourceLocation> collapsedRecipeIds) {
-		return new BookmarkGroup(id, title, viewMode, craftingMode, collapsed, collapsedRecipeIds);
+		return new BookmarkGroup(id, title, newLine, resultOnly, craftingMode, collapsedRecipeIds);
 	}
 }
