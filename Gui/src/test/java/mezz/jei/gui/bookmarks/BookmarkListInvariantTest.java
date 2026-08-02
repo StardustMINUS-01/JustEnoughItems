@@ -58,6 +58,49 @@ public class BookmarkListInvariantTest {
 		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id().equals(groupId)));
 	}
 
+	@Test
+	public void removingRecipeBlockKeepsLooseItemBookmarkWithNullRecipeUid() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark result = bookmark("result");
+		TestBookmark input = bookmark("input");
+		TestBookmark loose = bookmark("loose");
+
+		bookmarks.addToListWithoutNotifying(result, false);
+		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.addToListWithoutNotifying(loose, false);
+		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "plate"));
+		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
+		// loose keeps its default metadata with a null recipeUid, like a plain item bookmark.
+
+		boolean removed = bookmarks.removeRecipeBookmark(result, false);
+
+		Assertions.assertTrue(removed);
+		Assertions.assertEquals(List.of(loose), bookmarks.getBookmarks());
+	}
+
+	@Test
+	public void removingRecipeBlockInCraftingGroupKeepsLooseItemBookmark() {
+		BookmarkList bookmarks = bookmarkList();
+		String groupId = "group_1";
+		TestBookmark result = bookmark("result");
+		TestBookmark input = bookmark("input");
+		TestBookmark loose = bookmark("loose");
+
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", true, false, true, Set.of()));
+		bookmarks.addToListWithoutNotifying(result, false);
+		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.addToListWithoutNotifying(loose, false);
+		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(groupId, BookmarkItemType.RESULT, RECIPE, "plate"));
+		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(groupId, BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
+		bookmarks.moveBookmarkMetadataFromConfig(loose, BookmarkItemMetadata.defaultForGroup(groupId));
+		bookmarks.notifyListenersOfChange();
+
+		boolean removed = bookmarks.removeRecipeBookmark(result, true);
+
+		Assertions.assertTrue(removed);
+		Assertions.assertEquals(List.of(loose), bookmarks.getBookmarks());
+	}
+
 	private static BookmarkList bookmarkList() {
 		return new BookmarkList(null, null, null, null, null, null, null);
 	}
@@ -69,6 +112,24 @@ public class BookmarkListInvariantTest {
 	private static BookmarkItemMetadata metadata(BookmarkItemType type, ResourceLocation recipeUid, String ingredientUid) {
 		return new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			type,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			RECIPE_TYPE,
+			recipeUid,
+			Set.of(new BookmarkIngredientKey("test:item", ingredientUid, null))
+		);
+	}
+
+	private static BookmarkItemMetadata metadata(
+		String groupId,
+		BookmarkItemType type,
+		ResourceLocation recipeUid,
+		String ingredientUid
+	) {
+		return new BookmarkItemMetadata(
+			groupId,
 			type,
 			1,
 			1,

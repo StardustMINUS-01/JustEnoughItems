@@ -392,7 +392,9 @@ public class BookmarkList implements IIngredientGridSource {
 		List<IBookmark> removedBookmarks = bookmarksList.stream()
 			.filter(candidate -> {
 				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
-				return groupId.equals(metadata.groupId()) && recipeUids.contains(metadata.recipeUid());
+				return groupId.equals(metadata.groupId()) &&
+					metadata.recipeUid() != null &&
+					recipeUids.contains(metadata.recipeUid());
 			})
 			.toList();
 		if (removedBookmarks.isEmpty()) {
