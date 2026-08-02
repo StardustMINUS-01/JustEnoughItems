@@ -1,6 +1,7 @@
 package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.textures.Textures;
@@ -16,11 +17,17 @@ import org.jetbrains.annotations.Nullable;
 
 public class RecipeBookmarkButtonController implements IIconButtonController {
 	private final BookmarkList bookmarks;
+	private final IRecipeLayoutDrawable<?> recipeLayout;
 	private final @Nullable IBookmark recipeBookmark;
 	private boolean bookmarked;
 
-	public RecipeBookmarkButtonController(BookmarkList bookmarks, @Nullable IBookmark recipeBookmark) {
+	public RecipeBookmarkButtonController(
+		BookmarkList bookmarks,
+		IRecipeLayoutDrawable<?> recipeLayout,
+		@Nullable IBookmark recipeBookmark
+	) {
 		this.bookmarks = bookmarks;
+		this.recipeLayout = recipeLayout;
 		this.recipeBookmark = recipeBookmark;
 	}
 
@@ -56,7 +63,7 @@ public class RecipeBookmarkButtonController implements IIconButtonController {
 	public boolean onPress(IJeiUserInput input) {
 		if (recipeBookmark != null) {
 			if (!input.isSimulate()) {
-				bookmarks.toggleBookmark(recipeBookmark);
+				bookmarks.toggleRecipeBookmark(recipeLayout, false);
 			}
 			return true;
 		}

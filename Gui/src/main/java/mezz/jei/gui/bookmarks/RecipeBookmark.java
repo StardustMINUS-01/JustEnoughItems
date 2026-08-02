@@ -204,6 +204,11 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope);
 	}
 
+	@Nullable
+	Object getEqualityScope() {
+		return equalityScope;
+	}
+
 	private static boolean ingredientsEqual(Object first, Object second) {
 		if (first instanceof ItemStack firstStack && second instanceof ItemStack secondStack) {
 			return ItemStack.matches(firstStack, secondStack);
