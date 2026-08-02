@@ -22,7 +22,6 @@ import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -186,19 +185,6 @@ public class RecipeGuiLayouts {
 			}
 		}
 		return false;
-	}
-
-	public static Rect2i calculateRecipeFavoriteButtonArea(Rect2i transferButtonArea, Rect2i bookmarkButtonArea) {
-		int bookmarkToTransferGap = Math.max(
-			0,
-			transferButtonArea.getY() - (bookmarkButtonArea.getY() + bookmarkButtonArea.getHeight())
-		);
-		return new Rect2i(
-			bookmarkButtonArea.getX(),
-			bookmarkButtonArea.getY() - bookmarkButtonArea.getHeight() - bookmarkToTransferGap,
-			bookmarkButtonArea.getWidth(),
-			bookmarkButtonArea.getHeight()
-		);
 	}
 
 	private static boolean isOutputSlotUnderMouse(IRecipeLayoutDrawable<?> recipeLayout, double mouseX, double mouseY) {

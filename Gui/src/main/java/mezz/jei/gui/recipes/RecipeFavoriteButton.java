@@ -101,10 +101,6 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			targetSelector,
 			focusedRecipe
 		);
-		Rect2i layoutArea = recipeLayout.getRect();
-		Rect2i transferArea = offset(recipeLayout.getRecipeTransferButtonArea(), layoutArea);
-		Rect2i bookmarkArea = offset(recipeLayout.getRecipeBookmarkButtonArea(), layoutArea);
-		button.updateBounds(RecipeGuiLayouts.calculateRecipeFavoriteButtonArea(transferArea, bookmarkArea));
 		return button;
 	}
 
