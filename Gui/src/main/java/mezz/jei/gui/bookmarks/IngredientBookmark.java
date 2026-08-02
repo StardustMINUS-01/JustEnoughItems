@@ -8,7 +8,6 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientBookmarkElement;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.Objects;
 
 public class IngredientBookmark<T> implements IBookmark {
 	private final IElement<T> element;

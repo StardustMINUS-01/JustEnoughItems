@@ -34,7 +34,6 @@ import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
-import mezz.jei.common.util.LimitedLogger;
 import mezz.jei.library.gui.ingredients.CycleTicker;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeLayoutBuilder;
 import mezz.jei.library.gui.widgets.ScrollBoxRecipeWidget;
