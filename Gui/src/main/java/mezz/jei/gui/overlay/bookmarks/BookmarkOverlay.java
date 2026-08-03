@@ -24,6 +24,7 @@ import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyMouseButton;
@@ -765,6 +766,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	public void drawOnForeground(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
+			// Pre-warm the column-aware display slots so the per-slot visuals resolver
+			// always sees border data computed with the real grid column count.
+			this.bookmarkList.getDisplaySlots(this.contents.getUsableColumnCount());
 			this.contents.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
 		if (isFavoritePanelDisplayed()) {
@@ -1210,14 +1214,14 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			}
 			if (input.getInputType() == InputType.EXECUTE) {
 				String groupId = target.get().groupId();
-				boolean resultOnly = bookmarkList.getBookmarkGroups().stream()
+				boolean collapsed = bookmarkList.getBookmarkGroups().stream()
 					.filter(group -> group.id().equals(groupId))
 					.findFirst()
-					.map(BookmarkGroup::resultOnly)
+					.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
 					.orElse(false);
-				if (resultOnly) {
+				if (collapsed) {
 					// group-level collapse takes precedence, matching GTNH NEI behavior
-					bookmarkList.setGroupResultOnly(groupId, false);
+					bookmarkList.toggleGroupCollapsed(groupId);
 					playClickSound();
 					return Optional.of(this);
 				}
@@ -1289,7 +1293,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				return Optional.empty();
 			}
 
-			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_RESULT_ONLY) {
+			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED) {
 				if (input.getInputType() == InputType.EXECUTE) {
 					if (applyGroupClickAction(slot.get().groupId(), action.get())) {
 						playClickSound();
@@ -1298,7 +1302,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				return Optional.of(this);
 			}
 
-			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_NEW_LINE ||
+			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE ||
 				action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING) {
 				if (input.getInputType() == InputType.SIMULATE) {
 					groupPanelDrag = new GroupPanelDrag(
@@ -1386,8 +1390,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 
 	private boolean applyGroupClickAction(String groupId, BookmarkHotkeyAction action) {
 		return switch (action) {
-			case GROUP_TOGGLE_RESULT_ONLY -> bookmarkList.toggleGroupResultOnly(groupId);
-			case GROUP_TOGGLE_NEW_LINE -> bookmarkList.toggleGroupNewLine(groupId);
+			case GROUP_TOGGLE_COLLAPSED -> bookmarkList.toggleGroupCollapsed(groupId);
+			case GROUP_TOGGLE_VIEW_MODE -> bookmarkList.toggleGroupViewMode(groupId);
 			case GROUP_TOGGLE_CRAFTING -> {
 				bookmarkList.setGroupCraftingMode(groupId, !bookmarkList.isGroupCraftingMode(groupId));
 				yield true;

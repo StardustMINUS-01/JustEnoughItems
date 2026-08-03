@@ -1,5 +1,7 @@
 package mezz.jei.gui.overlay.bookmarks;
 
+import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
+
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -11,7 +13,8 @@ public record BookmarkSlotVisuals(
 	Optional<String> multiplierText,
 	OptionalInt multiplierTextColor,
 	Optional<String> recipeMarkerText,
-	OptionalInt recipeMarkerTextColor
+	OptionalInt recipeMarkerTextColor,
+	Optional<BookmarkSlotBorder> border
 ) {
 	public BookmarkSlotVisuals(
 		OptionalInt backgroundColor,
@@ -21,7 +24,7 @@ public record BookmarkSlotVisuals(
 		Optional<String> multiplierText,
 		Optional<String> recipeMarkerText
 	) {
-		this(backgroundColor, markerBackgroundColor, amountText, amountTextColor, multiplierText, OptionalInt.empty(), recipeMarkerText, OptionalInt.empty());
+		this(backgroundColor, markerBackgroundColor, amountText, amountTextColor, multiplierText, OptionalInt.empty(), recipeMarkerText, OptionalInt.empty(), Optional.empty());
 	}
 
 	public BookmarkSlotVisuals(
@@ -31,7 +34,7 @@ public record BookmarkSlotVisuals(
 		Optional<String> multiplierText,
 		Optional<String> recipeMarkerText
 	) {
-		this(backgroundColor, markerBackgroundColor, amountText, OptionalInt.empty(), multiplierText, OptionalInt.empty(), recipeMarkerText, OptionalInt.empty());
+		this(backgroundColor, markerBackgroundColor, amountText, OptionalInt.empty(), multiplierText, OptionalInt.empty(), recipeMarkerText, OptionalInt.empty(), Optional.empty());
 	}
 
 	public BookmarkSlotVisuals {
@@ -43,6 +46,7 @@ public record BookmarkSlotVisuals(
 		multiplierTextColor = multiplierTextColor == null ? OptionalInt.empty() : multiplierTextColor;
 		recipeMarkerText = recipeMarkerText == null ? Optional.empty() : recipeMarkerText;
 		recipeMarkerTextColor = recipeMarkerTextColor == null ? OptionalInt.empty() : recipeMarkerTextColor;
+		border = border == null ? Optional.empty() : border;
 	}
 
 	public static BookmarkSlotVisuals empty() {
@@ -54,7 +58,8 @@ public record BookmarkSlotVisuals(
 			Optional.empty(),
 			OptionalInt.empty(),
 			Optional.empty(),
-			OptionalInt.empty()
+			OptionalInt.empty(),
+			Optional.empty()
 		);
 	}
 }

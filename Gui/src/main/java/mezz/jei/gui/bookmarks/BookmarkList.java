@@ -65,6 +65,10 @@ public class BookmarkList implements IIngredientGridSource {
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private long changeVersion;
+	private long cachedDisplaySlotsVersion = -1;
+	private int cachedDisplaySlotsColumns = -1;
+	private List<BookmarkDisplaySlot<IBookmark>> cachedDisplaySlots = List.of();
+	private int latestDisplaySlotsColumns = 0;
 
 	public BookmarkList(
 		IRecipeManager recipeManager,
@@ -859,7 +863,7 @@ public class BookmarkList implements IIngredientGridSource {
 		for (RecipeBookmarkEntry recipeBookmark : addedOrExistingBookmarks) {
 			ensureRecipeBookmarkScope(recipeBookmark.bookmark());
 		}
-		bookmarkGroups.setNewLine(groupId, true);
+		bookmarkGroups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		bookmarkGroups.setCraftingMode(groupId, true);
 		notifyListenersOfChange();
 		saveBookmarks();
@@ -1156,7 +1160,15 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots(int columns) {
-		return bookmarkGroups.getDisplaySlots(bookmarksList, columns);
+		if (columns > 0) {
+			latestDisplaySlotsColumns = columns;
+		}
+		if (cachedDisplaySlotsVersion != changeVersion || cachedDisplaySlotsColumns != columns) {
+			cachedDisplaySlotsVersion = changeVersion;
+			cachedDisplaySlotsColumns = columns;
+			cachedDisplaySlots = bookmarkGroups.getDisplaySlots(bookmarksList, columns);
+		}
+		return cachedDisplaySlots;
 	}
 
 	public <R> RecipeBookmark<R, ?> getMatchingBookmark(RecipeType<R> recipeType, R recipe) {
@@ -1174,7 +1186,11 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public Optional<BookmarkDisplayEntry<IBookmark>> getDisplayEntry(IBookmark bookmark) {
-		return getDisplayEntries().stream()
+		List<BookmarkDisplaySlot<IBookmark>> displaySlots = latestDisplaySlotsColumns > 0 ?
+			getDisplaySlots(latestDisplaySlotsColumns) :
+			getDisplaySlots();
+		return displaySlots.stream()
+			.map(BookmarkDisplaySlot::entry)
 			.filter(entry -> entry.item().equals(bookmark))
 			.findFirst();
 	}
@@ -1682,12 +1698,12 @@ public class BookmarkList implements IIngredientGridSource {
 			return false;
 		}
 		String groupId = bookmarkGroups.getGroupId(bookmark);
-		boolean groupResultOnly = getBookmarkGroups().stream()
+		boolean groupCollapsed = getBookmarkGroups().stream()
 			.filter(group -> group.id().equals(groupId))
 			.findFirst()
-			.map(BookmarkGroup::resultOnly)
+			.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
 			.orElse(false);
-		if (groupResultOnly && !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+		if (groupCollapsed && !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
 			return shiftGroupAmount(groupId, shift);
 		}
 
@@ -1886,14 +1902,8 @@ public class BookmarkList implements IIngredientGridSource {
 		saveBookmarks();
 	}
 
-	public void setGroupNewLine(String groupId, boolean newLine) {
-		bookmarkGroups.setNewLine(groupId, newLine);
-		notifyListenersOfChange();
-		saveBookmarks();
-	}
-
-	public void setGroupResultOnly(String groupId, boolean resultOnly) {
-		bookmarkGroups.setResultOnly(groupId, resultOnly);
+	public void setGroupViewMode(String groupId, BookmarkViewMode viewMode) {
+		bookmarkGroups.setViewMode(groupId, viewMode);
 		notifyListenersOfChange();
 		saveBookmarks();
 	}
@@ -1944,23 +1954,23 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public boolean toggleGroupNewLine(String groupId) {
+	public boolean toggleGroupViewMode(String groupId) {
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.isEmpty()) {
 			return false;
 		}
-		bookmarkGroups.setNewLine(groupId, !group.get().newLine());
+		bookmarkGroups.toggleViewMode(groupId);
 		notifyListenersOfChange();
 		saveBookmarks();
 		return true;
 	}
 
-	public boolean toggleGroupResultOnly(String groupId) {
+	public boolean toggleGroupCollapsed(String groupId) {
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.isEmpty()) {
 			return false;
 		}
-		bookmarkGroups.setResultOnly(groupId, !group.get().resultOnly());
+		bookmarkGroups.toggleCollapsed(groupId);
 		notifyListenersOfChange();
 		saveBookmarks();
 		return true;

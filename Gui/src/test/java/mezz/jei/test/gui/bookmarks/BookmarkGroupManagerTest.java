@@ -5,6 +5,7 @@ import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
@@ -27,7 +28,7 @@ public class BookmarkGroupManagerTest {
 	}
 
 	@Test
-	public void resultOnlyGroupKeepsEveryNonIngredientVisible() {
+	public void collapsedGroupKeepsEveryNonIngredientVisible() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
 
@@ -36,14 +37,14 @@ public class BookmarkGroupManagerTest {
 		groups.addItem("plate", false);
 		groups.moveItemToGroup("gear", groupId);
 		groups.moveItemToGroup("plate", groupId);
-		groups.setResultOnly(groupId, true);
+		groups.setViewMode(groupId, BookmarkViewMode.COLLAPSED);
 
 		Assertions.assertEquals(List.of("iron", "gear", "plate"), groups.getVisibleItems(List.of("iron", "gear", "plate")));
 		Assertions.assertEquals(groupId, groups.getGroupId("gear"));
 	}
 
 	@Test
-	public void compactGroupConvertedToChainForcesResultOnly() {
+	public void compactGroupConvertedToChainKeepsDefaultView() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
 
@@ -51,37 +52,61 @@ public class BookmarkGroupManagerTest {
 
 		BookmarkGroup group = groups.getGroup(groupId).orElseThrow();
 		Assertions.assertTrue(group.craftingMode());
-		Assertions.assertFalse(group.newLine());
-		Assertions.assertTrue(group.resultOnly());
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, group.viewMode());
 	}
 
 	@Test
-	public void newLineGroupConvertedToChainKeepsResultOnly() {
+	public void newLineGroupConvertedToChainKeepsViewMode() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
-		groups.setNewLine(groupId, true);
+		groups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 
 		groups.setCraftingMode(groupId, true);
 
 		BookmarkGroup group = groups.getGroup(groupId).orElseThrow();
 		Assertions.assertTrue(group.craftingMode());
-		Assertions.assertTrue(group.newLine());
-		Assertions.assertFalse(group.resultOnly());
+		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, group.viewMode());
 	}
 
 	@Test
-	public void chainConvertedToGroupKeepsDisplayFlags() {
+	public void chainConvertedToGroupKeepsViewMode() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
-		groups.setNewLine(groupId, true);
+		groups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		groups.setCraftingMode(groupId, true);
 
 		groups.setCraftingMode(groupId, false);
 
 		BookmarkGroup group = groups.getGroup(groupId).orElseThrow();
 		Assertions.assertFalse(group.craftingMode());
-		Assertions.assertTrue(group.newLine());
-		Assertions.assertFalse(group.resultOnly());
+		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, group.viewMode());
+	}
+
+	@Test
+	public void viewModeToggleCyclesAndCollapseRemembersExpandedMode() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		String groupId = groups.createGroup("Machines");
+
+		groups.toggleViewMode(groupId);
+		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, groups.getGroup(groupId).orElseThrow().viewMode());
+
+		groups.toggleViewMode(groupId);
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
+
+		groups.toggleViewMode(groupId);
+		groups.toggleCollapsed(groupId);
+		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
+
+		// toggling the expanded mode while collapsed must not change the collapsed display
+		groups.toggleViewMode(groupId);
+		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
+
+		groups.toggleCollapsed(groupId);
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
+
+		groups.toggleCollapsed(groupId);
+		groups.toggleCollapsed(groupId);
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
 	}
 
 	@Test

@@ -90,29 +90,31 @@ public class BookmarkGroupManager<T> {
 		itemMetadata.put(item, metadata.withGroupId(groupId));
 	}
 
-	public void setNewLine(String groupId, boolean newLine) {
+	public void setViewMode(String groupId, BookmarkViewMode viewMode) {
 		BookmarkGroup group = groups.get(groupId);
 		if (group != null) {
-			groups.put(groupId, group.withNewLine(newLine));
+			groups.put(groupId, group.withViewMode(viewMode));
 		}
 	}
 
-	public void setResultOnly(String groupId, boolean resultOnly) {
+	public void toggleViewMode(String groupId) {
 		BookmarkGroup group = groups.get(groupId);
 		if (group != null) {
-			groups.put(groupId, group.withResultOnly(resultOnly));
+			groups.put(groupId, group.toggleViewMode());
+		}
+	}
+
+	public void toggleCollapsed(String groupId) {
+		BookmarkGroup group = groups.get(groupId);
+		if (group != null) {
+			groups.put(groupId, group.toggleCollapsed());
 		}
 	}
 
 	public void setCraftingMode(String groupId, boolean craftingMode) {
 		BookmarkGroup group = groups.get(groupId);
 		if (group != null) {
-			boolean resultOnly = group.resultOnly();
-			if (craftingMode && !group.newLine()) {
-				// A compact group converted into a recipe chain shows only its results.
-				resultOnly = true;
-			}
-			BookmarkGroup updated = group.withCraftingMode(craftingMode).withResultOnly(resultOnly);
+			BookmarkGroup updated = group.withCraftingMode(craftingMode);
 			if (!craftingMode && !updated.collapsedRecipeIds().isEmpty()) {
 				// per-recipe collapse only applies to recipe chains
 				updated = updated.withCollapsedRecipeIds(Set.of());

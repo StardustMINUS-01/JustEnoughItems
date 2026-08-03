@@ -1,9 +1,12 @@
 package mezz.jei.test.gui.bookmarks;
 
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import net.minecraft.resources.ResourceLocation;
@@ -68,12 +71,31 @@ public class BookmarkChainSlotVisualsTest {
 			new Object(),
 			0,
 			metadata,
-			false,
-			false,
+			BookmarkViewMode.DEFAULT,
 			Optional.empty(),
 			Optional.empty(),
 			false,
 			false
 		);
+	}
+
+	@Test
+	public void slotVisualsCarryBorderFromEntry() {
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.RESULT,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			ResourceLocation.parse("minecraft:crafting"),
+			ResourceLocation.parse("test:plate"),
+			Set.of(new BookmarkIngredientKey("test:item", "plate", null))
+		);
+		BookmarkSlotBorder border = new BookmarkSlotBorder(0x99A033A0, true, false, true, false);
+		BookmarkDisplayEntry<Object> entry = entry(metadata).withBorder(border);
+
+		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(entry).orElseThrow();
+
+		Assertions.assertEquals(Optional.of(border), visuals.border());
 	}
 }

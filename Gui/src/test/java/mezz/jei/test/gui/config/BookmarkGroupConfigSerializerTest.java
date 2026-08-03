@@ -4,6 +4,7 @@ import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.config.BookmarkGroupConfigSerializer;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
@@ -41,8 +42,8 @@ public class BookmarkGroupConfigSerializerTest {
 		BookmarkGroup group = new BookmarkGroup(
 			"group_1",
 			"Machines",
-			true,
-			true,
+			BookmarkViewMode.COLLAPSED,
+			BookmarkViewMode.TODO_LIST,
 			true,
 			Set.of(ResourceLocation.parse("test:plate"))
 		);
@@ -51,9 +52,21 @@ public class BookmarkGroupConfigSerializerTest {
 		BookmarkGroup decoded = BookmarkGroupConfigSerializer.deserializeGroup(serialized).orElseThrow();
 
 		Assertions.assertEquals(group, decoded);
-		Assertions.assertTrue(serialized.contains("\"newLine\":true"));
-		Assertions.assertTrue(serialized.contains("\"resultOnly\":true"));
-		Assertions.assertFalse(serialized.contains("viewMode"));
+		Assertions.assertTrue(serialized.contains("\"viewMode\":\"COLLAPSED\""));
+		Assertions.assertTrue(serialized.contains("\"expandedViewMode\":\"TODO_LIST\""));
+		Assertions.assertFalse(serialized.contains("\"newLine\""));
+		Assertions.assertFalse(serialized.contains("\"resultOnly\""));
 		Assertions.assertFalse(serialized.contains("collapsed\""));
+	}
+
+	@Test
+	public void collapsedGroupWithoutExpandedViewModeDefaultsToExpanded() {
+		BookmarkGroup decoded = BookmarkGroupConfigSerializer.deserializeGroup(
+			"G:{\"id\":\"group_1\",\"title\":\"Machines\",\"viewMode\":\"COLLAPSED\",\"crafting\":false}"
+		).orElseThrow();
+
+		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, decoded.viewMode());
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, decoded.expandedViewMode());
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, decoded.toggleCollapsed().viewMode());
 	}
 }

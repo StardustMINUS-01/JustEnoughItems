@@ -19,7 +19,8 @@ public final class FavoriteRecipeSlotVisuals {
 				Optional.empty(),
 				OptionalInt.empty(),
 				Optional.empty(),
-				OptionalInt.empty()
+				OptionalInt.empty(),
+				Optional.empty()
 			));
 	}
 }

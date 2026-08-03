@@ -2,6 +2,7 @@ package mezz.jei.gui.overlay.bookmarks;
 
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.IBookmark;
 import net.minecraft.resources.ResourceLocation;
 
@@ -211,7 +212,7 @@ public record BookmarkItemMovePlan(
 			return true;
 		}
 		return Optional.ofNullable(groups.get(groupId))
-			.map(group -> group.newLine() && !group.resultOnly())
+			.map(group -> group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
 	}
 

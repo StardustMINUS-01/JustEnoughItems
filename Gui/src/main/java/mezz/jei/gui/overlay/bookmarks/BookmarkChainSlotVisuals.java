@@ -3,6 +3,7 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.common.config.BookmarkRecipeMarkerMode;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 
@@ -70,7 +71,8 @@ public final class BookmarkChainSlotVisuals {
 				multiplierText,
 				getMultiplierTextColor(entry, item, displayMode, multiplierText),
 				recipeMarkerText,
-				getRecipeMarkerTextColor(recipeMarkerText)
+				getRecipeMarkerTextColor(recipeMarkerText),
+				Optional.ofNullable(entry.border())
 			));
 		}
 
@@ -85,7 +87,8 @@ public final class BookmarkChainSlotVisuals {
 				Optional.empty(),
 				OptionalInt.empty(),
 				recipeMarkerText,
-				getRecipeMarkerTextColor(recipeMarkerText)
+				getRecipeMarkerTextColor(recipeMarkerText),
+				Optional.ofNullable(entry.border())
 			));
 		}
 		if (!metadata.type().isGraphInput() && metadata.recipeUid() != null) {
@@ -99,7 +102,8 @@ public final class BookmarkChainSlotVisuals {
 				multiplierText,
 				getMultiplierTextColor(entry, null, displayMode, multiplierText),
 				recipeMarkerText,
-				getRecipeMarkerTextColor(recipeMarkerText)
+				getRecipeMarkerTextColor(recipeMarkerText),
+				Optional.ofNullable(entry.border())
 			));
 		}
 
@@ -113,7 +117,8 @@ public final class BookmarkChainSlotVisuals {
 				Optional.empty(),
 				OptionalInt.empty(),
 				Optional.empty(),
-				OptionalInt.empty()
+				OptionalInt.empty(),
+				Optional.ofNullable(entry.border())
 			));
 		}
 
@@ -133,7 +138,9 @@ public final class BookmarkChainSlotVisuals {
 		if (!Objects.equals(entry.metadata().groupId(), hovered.metadata().groupId())) {
 			return BookmarkSlotDisplayMode.DEFAULT;
 		}
-		if (entry.newLine() && context.rowIndex() >= 0 && context.rowIndex() == context.hoveredRowIndex()) {
+		if (entry.viewMode() == BookmarkViewMode.TODO_LIST &&
+			context.rowIndex() >= 0 &&
+			context.rowIndex() == context.hoveredRowIndex()) {
 			return requestedMode;
 		}
 		if (entry.sourceIndex() == hovered.sourceIndex() || sameRecipe(entry, hovered)) {

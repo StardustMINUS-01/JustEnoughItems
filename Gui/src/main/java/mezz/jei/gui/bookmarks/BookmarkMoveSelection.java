@@ -55,7 +55,7 @@ public record BookmarkMoveSelection(
 		return bookmarkList.getBookmarkGroups().stream()
 			.filter(group -> group.id().equals(groupId))
 			.findFirst()
-			.map(group -> group.craftingMode() || group.newLine())
+			.map(group -> group.craftingMode() || group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
 	}
 
@@ -63,7 +63,7 @@ public record BookmarkMoveSelection(
 		return bookmarkList.getBookmarkGroups().stream()
 			.filter(group -> group.id().equals(metadata.groupId()))
 			.findFirst()
-			.map(group -> group.newLine() && !group.resultOnly())
+			.map(group -> group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
 	}
 

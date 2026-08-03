@@ -5,6 +5,7 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,28 +51,90 @@ public final class BookmarkDisplayGenerator {
 					}
 					continue;
 				}
-				if (isHiddenResultOnlyCraftingItem(group, groupId, metadata)) {
+				if (isHiddenCraftingInput(group, groupId, metadata)) {
 					continue;
 				}
 				if (isCatalystInCollapsedClosure(group, details, metadata)) {
 					continue;
 				}
 				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, columns);
-			} else if (group == null || !group.resultOnly() || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+			} else if (group == null || group.viewMode() != BookmarkViewMode.COLLAPSED ||
+				BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns);
 			} else if (isResultOnlyGroupOutput(metadata)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns);
 			}
 		}
-		return List.copyOf(displaySlots);
+		return attachBorders(displaySlots, groups, columns);
 	}
 
-	private static boolean isHiddenResultOnlyCraftingItem(
+	private static <T> List<BookmarkDisplaySlot<T>> attachBorders(
+		List<BookmarkDisplaySlot<T>> displaySlots,
+		Map<String, BookmarkGroup> groups,
+		int columns
+	) {
+		if (displaySlots.isEmpty()) {
+			return List.copyOf(displaySlots);
+		}
+		Map<Integer, String> borderKeys = new HashMap<>();
+		for (BookmarkDisplaySlot<T> slot : displaySlots) {
+			String key = getBorderKey(slot.entry(), groups);
+			if (key != null) {
+				borderKeys.put(slot.slotIndex(), key);
+			}
+		}
+		if (borderKeys.isEmpty()) {
+			return List.copyOf(displaySlots);
+		}
+		List<BookmarkDisplaySlot<T>> borderedSlots = new ArrayList<>(displaySlots.size());
+		for (BookmarkDisplaySlot<T> slot : displaySlots) {
+			int slotIndex = slot.slotIndex();
+			String key = borderKeys.get(slotIndex);
+			if (key == null) {
+				borderedSlots.add(slot);
+				continue;
+			}
+			BookmarkDisplayEntry<T> entry = slot.entry().withBorder(new BookmarkSlotBorder(
+				getBorderColor(slot.entry(), groups),
+				!key.equals(borderKeys.get(slotIndex - 1)),
+				!key.equals(borderKeys.get(slotIndex + 1)),
+				columns > 0 && !key.equals(borderKeys.get(slotIndex - columns)),
+				columns > 0 && !key.equals(borderKeys.get(slotIndex + columns))
+			));
+			borderedSlots.add(new BookmarkDisplaySlot<>(slotIndex, entry, slot.shadow(), slot.firstOutput()));
+		}
+		return List.copyOf(borderedSlots);
+	}
+
+	private static <T> String getBorderKey(BookmarkDisplayEntry<T> entry, Map<String, BookmarkGroup> groups) {
+		String groupId = entry.metadata().groupId();
+		BookmarkGroup group = groups.get(groupId);
+		if (group != null && group.viewMode() == BookmarkViewMode.COLLAPSED) {
+			return "group:" + groupId;
+		}
+		ResourceLocation blockId = entry.collapsedBlockId();
+		if (blockId != null) {
+			return "recipe:" + blockId;
+		}
+		return null;
+	}
+
+	private static <T> int getBorderColor(BookmarkDisplayEntry<T> entry, Map<String, BookmarkGroup> groups) {
+		BookmarkGroup group = groups.get(entry.metadata().groupId());
+		if (group != null && group.viewMode() == BookmarkViewMode.COLLAPSED) {
+			return group.craftingMode() ?
+				BookmarkSlotBorder.GROUP_CHAIN_COLOR :
+				BookmarkSlotBorder.GROUP_NONE_COLOR;
+		}
+		return BookmarkSlotBorder.RECIPE_COLOR;
+	}
+
+	private static boolean isHiddenCraftingInput(
 		BookmarkGroup group,
 		String groupId,
 		BookmarkItemMetadata metadata
 	) {
-		return group.resultOnly() &&
+		return group.viewMode() != BookmarkViewMode.TODO_LIST &&
 			!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) &&
 			!metadata.type().isGraphOutput();
 	}
@@ -96,7 +159,7 @@ public final class BookmarkDisplayGenerator {
 		for (RecipeChainDetails.CollapsedBlockItem blockItem : block.items()) {
 			BookmarkItemMetadata metadata = blockItem.metadata();
 			boolean anchor = blockItem.anchor();
-			if (group.resultOnly() && !metadata.type().isGraphOutput()) {
+			if (group.viewMode() != BookmarkViewMode.TODO_LIST && !metadata.type().isGraphOutput()) {
 				continue;
 			}
 			int sourceIndex = blockItem.sourceIndex();
@@ -108,13 +171,13 @@ public final class BookmarkDisplayGenerator {
 				orderedItems.get(sourceIndex),
 				sourceIndex,
 				metadata,
-				isNewLine(group),
-				isResultOnly(group),
+				group.viewMode(),
 				Optional.of(blockRoot),
 				Optional.of(chainItem),
 				anchor && details.outputRecipes().contains(blockRoot),
 				anchor && details.middleRecipes().contains(blockRoot),
-				blockRoot
+				blockRoot,
+				null
 			);
 			addDisplaySlot(displaySlots, entry, !anchor, columns);
 		}
@@ -148,13 +211,23 @@ public final class BookmarkDisplayGenerator {
 			}
 			return;
 		}
-		if (group.resultOnly() && metadata.type().isGraphInput()) {
+		if (group.viewMode() != BookmarkViewMode.TODO_LIST && metadata.type().isGraphInput()) {
 			return;
 		}
 		addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem), false, columns);
 	}
 
 	private static <T> void addDisplaySlot(List<BookmarkDisplaySlot<T>> displaySlots, BookmarkDisplayEntry<T> entry, boolean shadow, int columns) {
+		if (!displaySlots.isEmpty()) {
+			int slotIndex = nextSlotIndex(displaySlots, entry, columns);
+			if (entry.viewMode() == BookmarkViewMode.COLLAPSED && columns > 0) {
+				BookmarkDisplaySlot<T> previousSlot = displaySlots.get(displaySlots.size() - 1);
+				boolean sameGroup = previousSlot.entry().metadata().groupId().equals(entry.metadata().groupId());
+				if (sameGroup && slotIndex % columns == 0) {
+					return;
+				}
+			}
+		}
 		displaySlots.add(new BookmarkDisplaySlot<>(
 			nextSlotIndex(displaySlots, entry, columns),
 			entry,
@@ -178,7 +251,7 @@ public final class BookmarkDisplayGenerator {
 		if (!previousGroupId.equals(groupId) && slotIndex % columns != 0) {
 			slotIndex += columns - slotIndex % columns;
 		}
-		if (!entry.newLine()) {
+		if (entry.viewMode() != BookmarkViewMode.TODO_LIST) {
 			return slotIndex;
 		}
 		while (true) {
@@ -248,8 +321,7 @@ public final class BookmarkDisplayGenerator {
 			item,
 			sourceIndex,
 			metadata,
-			isNewLine(group),
-			isResultOnly(group),
+			group == null ? BookmarkViewMode.DEFAULT : group.viewMode(),
 			Optional.ofNullable(metadata.recipeUid()),
 			Optional.empty(),
 			false,
@@ -270,20 +342,11 @@ public final class BookmarkDisplayGenerator {
 			item,
 			sourceIndex,
 			metadata,
-			isNewLine(group),
-			isResultOnly(group),
+			group.viewMode(),
 			Optional.ofNullable(recipeUid),
 			Optional.of(chainItem),
 			recipeUid != null && details.outputRecipes().contains(recipeUid),
 			recipeUid != null && details.middleRecipes().contains(recipeUid)
 		);
-	}
-
-	private static boolean isNewLine(BookmarkGroup group) {
-		return group != null && group.newLine() && !group.resultOnly();
-	}
-
-	private static boolean isResultOnly(BookmarkGroup group) {
-		return group != null && group.resultOnly();
 	}
 }

@@ -14,6 +14,7 @@ import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.collect.ListMultiMap;
+import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -146,6 +147,7 @@ public class IngredientListRenderer {
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		this.hoveredSlot = findHoveredSlot(mouseX, mouseY);
 		renderSlotBackgrounds(guiGraphics);
+		renderSlotBorders(guiGraphics);
 
 		if (searchable && Internal.getClientToggleState().isEditModeEnabled()) {
 			renderEditMode(guiGraphics);
@@ -198,6 +200,44 @@ public class IngredientListRenderer {
 		RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
 		if (drewBackground) {
 			RenderSystem.disableBlend();
+		}
+	}
+
+	private void renderSlotBorders(GuiGraphics guiGraphics) {
+		boolean drewBorder = false;
+		for (IngredientListSlot slot : slots) {
+			Optional<BookmarkSlotBorder> border = getSlotVisuals(slot)
+				.flatMap(BookmarkSlotVisuals::border);
+			if (border.isPresent()) {
+				drewBorder = true;
+				ImmutableRect2i area = slot.getArea();
+				RenderSystem.enableBlend();
+				drawBorder(guiGraphics, area, border.get());
+			}
+		}
+		RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+		if (drewBorder) {
+			RenderSystem.disableBlend();
+		}
+	}
+
+	private static void drawBorder(GuiGraphics guiGraphics, ImmutableRect2i area, BookmarkSlotBorder border) {
+		int color = border.color();
+		int x = area.getX();
+		int y = area.getY();
+		int width = area.getWidth();
+		int height = area.getHeight();
+		if (border.left()) {
+			guiGraphics.fill(RenderType.guiOverlay(), x - 1, y - 1, x, y + height, color);
+		}
+		if (border.right()) {
+			guiGraphics.fill(RenderType.guiOverlay(), x + width, y - 1, x + width + 1, y + height, color);
+		}
+		if (border.top()) {
+			guiGraphics.fill(RenderType.guiOverlay(), x - 1, y - 1, x + width + 1, y, color);
+		}
+		if (border.bottom()) {
+			guiGraphics.fill(RenderType.guiOverlay(), x - 1, y + height - 1, x + width + 1, y + height, color);
 		}
 	}
 
