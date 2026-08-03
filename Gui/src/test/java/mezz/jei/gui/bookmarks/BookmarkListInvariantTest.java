@@ -459,6 +459,64 @@ public class BookmarkListInvariantTest {
 		Assertions.assertFalse(group.resultOnly());
 	}
 
+	@Test
+	public void togglingRecipeInsideCollapsedClosureTogglesTheRoot() {
+		BookmarkList bookmarks = bookmarkList();
+		String groupId = createTwoRecipeChain(bookmarks);
+		bookmarks.setGroupCollapsedRecipeIds(groupId, Set.of(RECIPE));
+
+		// recipe B produces an input of recipe A, so it belongs to A's collapsed closure
+		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
+		Assertions.assertTrue(bookmarks.getCollapsedRecipeIds(groupId).isEmpty());
+
+		// after A is expanded, B is no longer inside any closure, so it collapses itself
+		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
+		Assertions.assertEquals(Set.of(RECIPE_B), bookmarks.getCollapsedRecipeIds(groupId));
+	}
+
+	@Test
+	public void togglingMiddleRecipeFlipsItsMultiplier() {
+		BookmarkList bookmarks = bookmarkList();
+		String groupId = createTwoRecipeChain(bookmarks);
+
+		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
+		Assertions.assertEquals(Set.of(RECIPE_B), bookmarks.getCollapsedRecipeIds(groupId));
+		for (IBookmark bookmark : bookmarks.getBookmarks()) {
+			BookmarkItemMetadata metadata = bookmarks.getBookmarkMetadata(bookmark);
+			if (RECIPE_B.equals(metadata.recipeUid())) {
+				Assertions.assertEquals(0, metadata.multiplier());
+			}
+		}
+
+		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
+		Assertions.assertTrue(bookmarks.getCollapsedRecipeIds(groupId).isEmpty());
+		for (IBookmark bookmark : bookmarks.getBookmarks()) {
+			BookmarkItemMetadata metadata = bookmarks.getBookmarkMetadata(bookmark);
+			if (RECIPE_B.equals(metadata.recipeUid())) {
+				Assertions.assertEquals(1, metadata.multiplier());
+			}
+		}
+	}
+
+	private static String createTwoRecipeChain(BookmarkList bookmarks) {
+		RecipeBookmark<Object, ItemStack> aResult = recipeBookmark(RECIPE, Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
+		RecipeBookmark<Object, ItemStack> aInput = recipeBookmark(RECIPE, Items.GOLD_INGOT, RecipeIngredientRole.INPUT);
+		RecipeBookmark<Object, ItemStack> bResult = recipeBookmark(RECIPE_B, Items.GOLD_INGOT, RecipeIngredientRole.OUTPUT);
+		RecipeBookmark<Object, ItemStack> bInput = recipeBookmark(RECIPE_B, Items.DIAMOND, RecipeIngredientRole.INPUT);
+		bookmarks.addToListWithoutNotifying(aResult, false);
+		bookmarks.addToListWithoutNotifying(aInput, false);
+		bookmarks.addToListWithoutNotifying(bResult, false);
+		bookmarks.addToListWithoutNotifying(bInput, false);
+		bookmarks.moveBookmarkMetadataFromConfig(aResult, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
+		bookmarks.moveBookmarkMetadataFromConfig(aInput, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
+		bookmarks.moveBookmarkMetadataFromConfig(bResult, metadata(BookmarkItemType.RESULT, RECIPE_B, "gold"));
+		bookmarks.moveBookmarkMetadataFromConfig(bInput, metadata(BookmarkItemType.INGREDIENT, RECIPE_B, "diamond"));
+		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(aResult, aInput, bResult, bInput));
+		bookmarks.setGroupNewLine(groupId, true);
+		bookmarks.setGroupCraftingMode(groupId, true);
+		return groupId;
+	}
+
 	private static BookmarkList bookmarkList() {
 		return new BookmarkList(null, null, null, null, null, null, null);
 	}

@@ -1209,8 +1209,20 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				return Optional.empty();
 			}
 			if (input.getInputType() == InputType.EXECUTE) {
+				String groupId = target.get().groupId();
+				boolean resultOnly = bookmarkList.getBookmarkGroups().stream()
+					.filter(group -> group.id().equals(groupId))
+					.findFirst()
+					.map(BookmarkGroup::resultOnly)
+					.orElse(false);
+				if (resultOnly) {
+					// group-level collapse takes precedence, matching GTNH NEI behavior
+					bookmarkList.setGroupResultOnly(groupId, false);
+					playClickSound();
+					return Optional.of(this);
+				}
 				ResourceLocation recipeUid = (ResourceLocation) target.get().recipeKey();
-				if (bookmarkList.toggleGroupCollapsedRecipeId(target.get().groupId(), recipeUid)) {
+				if (bookmarkList.toggleGroupCollapsedRecipeId(groupId, recipeUid)) {
 					playClickSound();
 				}
 			}

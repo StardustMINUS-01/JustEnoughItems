@@ -1909,9 +1909,34 @@ public class BookmarkList implements IIngredientGridSource {
 		if (group.isEmpty()) {
 			return false;
 		}
+		ResourceLocation collapsedRecipeId = bookmarkGroups.getRecipeChainDetails(groupId)
+			.map(details -> details.recipeRelations().entrySet().stream()
+				.filter(entry -> entry.getValue().contains(recipeUid))
+				.map(Map.Entry::getKey)
+				.findFirst()
+				.orElse(recipeUid))
+			.orElse(recipeUid);
 		Set<ResourceLocation> collapsedRecipeIds = new HashSet<>(group.get().collapsedRecipeIds());
-		if (!collapsedRecipeIds.add(recipeUid)) {
-			collapsedRecipeIds.remove(recipeUid);
+		boolean collapsed = !collapsedRecipeIds.contains(collapsedRecipeId);
+		if (collapsed) {
+			collapsedRecipeIds.add(collapsedRecipeId);
+		} else {
+			collapsedRecipeIds.remove(collapsedRecipeId);
+		}
+		boolean middleRecipe = bookmarkGroups.getRecipeChainDetails(groupId)
+			.map(details -> details.middleRecipes().contains(collapsedRecipeId))
+			.orElse(false);
+		if (middleRecipe) {
+			long fromMultiplier = collapsed ? 1 : 0;
+			long toMultiplier = collapsed ? 0 : 1;
+			for (IBookmark bookmark : bookmarksList) {
+				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+				if (groupId.equals(metadata.groupId()) &&
+					collapsedRecipeId.equals(metadata.recipeUid()) &&
+					metadata.multiplier() == fromMultiplier) {
+					bookmarkGroups.setItemMetadata(bookmark, metadata.withMultiplier(toMultiplier));
+				}
+			}
 		}
 		bookmarkGroups.setCollapsedRecipeIds(groupId, collapsedRecipeIds);
 		notifyListenersOfChange();

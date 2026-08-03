@@ -1,8 +1,10 @@
 package mezz.jei.gui.bookmarks.chain;
 
+import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -16,7 +18,8 @@ public record RecipeChainDetails(
 	Map<BookmarkIngredientKey, Long> containerItems,
 	Set<Integer> initialItems,
 	Set<Integer> missingIngredients,
-	Set<Integer> remainderItems
+	Set<Integer> remainderItems,
+	Map<ResourceLocation, CollapsedBlock> collapsedBlocks
 ) {
 	public RecipeChainDetails {
 		calculatedItems = Map.copyOf(calculatedItems);
@@ -29,5 +32,20 @@ public record RecipeChainDetails(
 		initialItems = Set.copyOf(initialItems);
 		missingIngredients = Set.copyOf(missingIngredients);
 		remainderItems = Set.copyOf(remainderItems);
+		collapsedBlocks = Map.copyOf(collapsedBlocks);
+	}
+
+	public record CollapsedBlockItem(
+		int sourceIndex,
+		BookmarkItemMetadata metadata,
+		RecipeChainItem chainItem,
+		boolean anchor
+	) {
+	}
+
+	public record CollapsedBlock(
+		ResourceLocation recipeUid,
+		List<CollapsedBlockItem> items
+	) {
 	}
 }

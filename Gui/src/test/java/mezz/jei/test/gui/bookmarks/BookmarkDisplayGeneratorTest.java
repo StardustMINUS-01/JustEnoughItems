@@ -8,6 +8,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
+import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
@@ -23,7 +24,7 @@ public class BookmarkDisplayGeneratorTest {
 	private static final ResourceLocation MACHINE_RECIPE = ResourceLocation.parse("test:machine");
 
 	@Test
-	public void generatorAddsSlotIndexesAndDisplayRecipeIds() {
+	public void collapsedRecipeFlattensClosureIntoAnchorAndShadows() {
 		List<String> orderedItems = List.of("plate", "ingot", "machine", "machine_plate");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
@@ -41,13 +42,15 @@ public class BookmarkDisplayGeneratorTest {
 			Map.of(GROUP_ID, details)
 		);
 
-		Assertions.assertEquals(List.of(0, 1, 2), slots.stream().map(slot -> slot.slotIndex()).toList());
-		Assertions.assertEquals(List.of("ingot", "machine", "machine_plate"), slots.stream().map(slot -> slot.entry().item()).toList());
-		Assertions.assertTrue(slots.get(0).shadow());
-		Assertions.assertFalse(slots.get(1).shadow());
-		Assertions.assertFalse(slots.get(2).shadow());
+		Assertions.assertEquals(List.of(0, 1), slots.stream().map(slot -> slot.slotIndex()).toList());
+		Assertions.assertEquals(List.of("machine", "ingot"), slots.stream().map(slot -> slot.entry().item()).toList());
+		Assertions.assertFalse(slots.get(0).shadow());
+		Assertions.assertTrue(slots.get(1).shadow());
 		Assertions.assertEquals(MACHINE_RECIPE, slots.get(0).entry().displayRecipeUid().orElseThrow());
 		Assertions.assertEquals(MACHINE_RECIPE, slots.get(1).entry().displayRecipeUid().orElseThrow());
+		Assertions.assertEquals(MACHINE_RECIPE, slots.get(0).entry().collapsedBlockId());
+		Assertions.assertEquals(MACHINE_RECIPE, slots.get(1).entry().collapsedBlockId());
+		Assertions.assertEquals(2, slots.get(1).entry().recipeChainItem().orElseThrow().shiftAmount());
 	}
 
 	@Test
@@ -222,6 +225,216 @@ public class BookmarkDisplayGeneratorTest {
 		);
 
 		Assertions.assertEquals(List.of("plate"), slots.stream().map(slot -> slot.entry().item()).toList());
+	}
+
+	@Test
+	public void collapsedTopRecipeFlattensWholeClosureLikeGtnh() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		ResourceLocation recipeB = ResourceLocation.parse("test:b");
+		ResourceLocation recipeC = ResourceLocation.parse("test:c");
+		List<String> orderedItems = List.of("out_a", "in_b", "in_c", "in_b_result", "in_a", "in_b2", "in_c_result", "in_d", "in_e");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1),
+			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
+			"in_c", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_c", 1, 1),
+			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 2, 1),
+			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
+			"in_b2", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_b2", 1, 1),
+			"in_c_result", metadata(BookmarkItemType.RESULT, recipeC, "in_c", 1, 1),
+			"in_d", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_d", 1, 1),
+			"in_e", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_e", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, false, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details)
+		);
+
+		Assertions.assertEquals(
+			List.of("out_a", "in_b_result", "in_a", "in_b2", "in_d", "in_e"),
+			slots.stream().map(slot -> slot.entry().item()).toList()
+		);
+		Assertions.assertFalse(slots.get(0).shadow());
+		Assertions.assertEquals(recipeA, slots.get(0).entry().collapsedBlockId());
+		for (int i = 1; i < slots.size(); i++) {
+			Assertions.assertTrue(slots.get(i).shadow());
+			Assertions.assertEquals(recipeA, slots.get(i).entry().collapsedBlockId());
+			Assertions.assertEquals(recipeA, slots.get(i).entry().displayRecipeUid().orElseThrow());
+		}
+		// B produces 2x in_b and A consumes 1, so the remainder shadow keeps shiftAmount 1.
+		Assertions.assertEquals(1, slots.get(1).entry().recipeChainItem().orElseThrow().shiftAmount());
+		Assertions.assertEquals(RecipeChainItemType.REMAINDER, slots.get(1).entry().recipeChainItem().orElseThrow().type());
+	}
+
+	@Test
+	public void collapsedRecipeAggregatesSharedIngredients() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		ResourceLocation recipeB = ResourceLocation.parse("test:b");
+		ResourceLocation recipeC = ResourceLocation.parse("test:c");
+		List<String> orderedItems = List.of("out_a", "in_b", "in_c", "in_b_result", "shared_b", "b2", "in_c_result", "shared_c", "c2");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1),
+			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
+			"in_c", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_c", 1, 1),
+			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
+			"shared_b", metadata(BookmarkItemType.INGREDIENT, recipeB, "shared", 1, 1),
+			"b2", metadata(BookmarkItemType.INGREDIENT, recipeB, "b2", 1, 1),
+			"in_c_result", metadata(BookmarkItemType.RESULT, recipeC, "in_c", 1, 1),
+			"shared_c", metadata(BookmarkItemType.INGREDIENT, recipeC, "shared", 1, 1),
+			"c2", metadata(BookmarkItemType.INGREDIENT, recipeC, "c2", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, false, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details)
+		);
+
+		Assertions.assertEquals(
+			List.of("out_a", "shared_b", "b2", "c2"),
+			slots.stream().map(slot -> slot.entry().item()).toList()
+		);
+		Assertions.assertEquals(2, slots.get(1).entry().recipeChainItem().orElseThrow().shiftAmount());
+	}
+
+	@Test
+	public void collapsedSingleRecipeShowsAnchorAndIngredientShadows() {
+		List<String> orderedItems = List.of("plate", "ingot");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
+			"ingot", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "ingot", 2, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, false, true, Set.of(PLATE_RECIPE));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(PLATE_RECIPE));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details)
+		);
+
+		Assertions.assertEquals(List.of("plate", "ingot"), slots.stream().map(slot -> slot.entry().item()).toList());
+		Assertions.assertFalse(slots.get(0).shadow());
+		Assertions.assertTrue(slots.get(1).shadow());
+		Assertions.assertEquals(2, slots.get(1).entry().recipeChainItem().orElseThrow().shiftAmount());
+	}
+
+	@Test
+	public void collapsedBlockInResultOnlyModeShowsOnlyAnchorAndRemainders() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		ResourceLocation recipeB = ResourceLocation.parse("test:b");
+		ResourceLocation recipeC = ResourceLocation.parse("test:c");
+		List<String> orderedItems = List.of("out_a", "in_b", "in_c", "in_b_result", "in_a", "in_b2", "in_c_result", "in_d", "in_e");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1),
+			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
+			"in_c", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_c", 1, 1),
+			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 2, 1),
+			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
+			"in_b2", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_b2", 1, 1),
+			"in_c_result", metadata(BookmarkItemType.RESULT, recipeC, "in_c", 1, 1),
+			"in_d", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_d", 1, 1),
+			"in_e", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_e", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, true, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details)
+		);
+
+		Assertions.assertEquals(List.of("out_a", "in_b_result"), slots.stream().map(slot -> slot.entry().item()).toList());
+	}
+
+	@Test
+	public void collapsedBlockEmitsEvenWhenClosureStartsWithIngredientInResultOnlyMode() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		ResourceLocation recipeB = ResourceLocation.parse("test:b");
+		List<String> orderedItems = List.of("in_b", "out_a", "in_b_result", "in_a");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
+			"out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1),
+			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
+			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, true, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details)
+		);
+
+		Assertions.assertEquals(List.of("out_a"), slots.stream().map(slot -> slot.entry().item()).toList());
+	}
+
+	@Test
+	public void collapsedBlockWrapsLikeSingleRecipe() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		ResourceLocation recipeB = ResourceLocation.parse("test:b");
+		ResourceLocation recipeC = ResourceLocation.parse("test:c");
+		List<String> orderedItems = List.of("out_a", "in_b", "in_c", "in_b_result", "in_a", "in_b2", "in_c_result", "in_d", "in_e");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1),
+			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
+			"in_c", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_c", 1, 1),
+			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 2, 1),
+			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
+			"in_b2", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_b2", 1, 1),
+			"in_c_result", metadata(BookmarkItemType.RESULT, recipeC, "in_c", 1, 1),
+			"in_d", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_d", 1, 1),
+			"in_e", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_e", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, false, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details),
+			3
+		);
+
+		Assertions.assertEquals(List.of(0, 1, 2, 4, 5, 7), slots.stream().map(slot -> slot.slotIndex()).toList());
+	}
+
+	@Test
+	public void catalystInsideCollapsedClosureIsHidden() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		ResourceLocation recipeB = ResourceLocation.parse("test:b");
+		List<String> orderedItems = List.of("out_a", "in_b", "in_b_result", "in_a", "cat_b");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1),
+			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
+			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
+			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
+			"cat_b", metadata(BookmarkItemType.CATALYST, recipeB, "cat_b", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", true, false, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details)
+		);
+
+		Assertions.assertEquals(List.of("out_a", "in_a"), slots.stream().map(slot -> slot.entry().item()).toList());
 	}
 
 	@Test

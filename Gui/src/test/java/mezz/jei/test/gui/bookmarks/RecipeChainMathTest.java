@@ -446,6 +446,324 @@ public class RecipeChainMathTest {
 		Assertions.assertTrue(chanceIngredient.equalsRecipe(MACHINE_RECIPE, BookmarkGroupManager.DEFAULT_GROUP_ID));
 	}
 
+	@Test
+	public void collapsedRecipeBlockFlattensClosureWithRemainder() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
+		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeA, key("out_a"), 1, 1)),
+			input(1, ingredient(recipeA, key("in_b"), 1)),
+			input(2, ingredient(recipeA, key("in_c"), 1)),
+			input(3, result(recipeB, key("in_b"), 2, 1)),
+			input(4, ingredient(recipeB, key("in_a"), 1)),
+			input(5, ingredient(recipeB, key("in_b2"), 1)),
+			input(6, result(recipeC, key("in_c"), 1, 1)),
+			input(7, ingredient(recipeC, key("in_d"), 1)),
+			input(8, ingredient(recipeC, key("in_e"), 1))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(List.of("out_a", "in_b", "in_a", "in_b2", "in_d", "in_e"), itemKeys);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertFalse(block.items().get(1).anchor());
+		Assertions.assertEquals(RecipeChainItemType.REMAINDER, block.items().get(1).chainItem().type());
+		Assertions.assertEquals(1, block.items().get(1).chainItem().shiftAmount());
+		Assertions.assertEquals(1, block.items().get(2).chainItem().shiftAmount());
+	}
+
+	@Test
+	public void collapsedRecipeBlockAggregatesSharedIngredients() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
+		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeA, key("out_a"), 1, 1)),
+			input(1, ingredient(recipeA, key("in_b"), 1)),
+			input(2, ingredient(recipeA, key("in_c"), 1)),
+			input(3, result(recipeB, key("in_b"), 1, 1)),
+			input(4, ingredient(recipeB, key("shared"), 1)),
+			input(5, ingredient(recipeB, key("b2"), 1)),
+			input(6, result(recipeC, key("in_c"), 1, 1)),
+			input(7, ingredient(recipeC, key("shared"), 1)),
+			input(8, ingredient(recipeC, key("c2"), 1))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(List.of("out_a", "shared", "b2", "c2"), itemKeys);
+		Assertions.assertEquals(2, block.items().get(1).chainItem().shiftAmount());
+	}
+
+	@Test
+	public void collapsedRecipeBlockKeepsAnchorWhenFullyConsumed() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeA, key("out_a"), 1, 1)),
+			input(1, ingredient(recipeA, key("in_b"), 1)),
+			input(2, result(recipeB, key("in_b"), 1, 1)),
+			input(3, ingredient(recipeB, key("in_a"), 1))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(List.of("out_a", "in_a"), itemKeys);
+	}
+
+	@Test
+	public void collapsedRecipeBlockShowsTopLevelSupplyAsZeroShiftShadow() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
+		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeA, key("out_a"), 1, 1)),
+			input(1, ingredient(recipeA, key("in_b"), 1)),
+			input(2, result(recipeB, key("in_b"), 1, 1)),
+			input(3, ingredient(recipeB, key("in_a"), 1)),
+			input(4, result(recipeC, key("in_a"), 2, 2)),
+			input(5, ingredient(recipeC, key("in_x"), 1))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(List.of("out_a", "in_a"), itemKeys);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, block.items().get(1).chainItem().type());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().shiftAmount());
+		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());
+		Assertions.assertTrue(details.collapsedBlocks().get(recipeA).items().stream()
+			.noneMatch(item -> item.metadata().permutations().iterator().next().ingredientUid().equals("in_x")));
+	}
+
+	@Test
+	public void collapsedRecipeBlockOmitsRootInputFullySuppliedByClosure() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeA, key("out_a"), 1, 1)),
+			input(1, ingredient(recipeA, key("in_b"), 3)),
+			input(2, result(recipeB, key("in_b"), 1, 1)),
+			input(3, ingredient(recipeB, key("in_a"), 1))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(List.of("out_a", "in_a"), itemKeys);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertEquals(3, block.items().get(1).chainItem().shiftAmount());
+		Assertions.assertTrue(block.items().stream()
+			.noneMatch(item -> item.metadata().permutations().iterator().next().ingredientUid().equals("in_b")));
+	}
+
+	@Test
+	public void collapsedRecipeBlockZeroesRootSupplyWhenRootMultiplierIsZero() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeA, key("out_a"), 1, 0)),
+			input(1, ingredient(recipeA, key("in_b"), 3))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(List.of("out_a", "in_b"), itemKeys);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertEquals(0, block.items().get(0).chainItem().calculatedAmount());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().shiftAmount());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().calculatedAmount());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().calculatedMultiplier());
+	}
+
+	@Test
+	public void collapsedRecipeBlockUsesWorkingMultiplierForMiddleRoot() {
+		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
+		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
+		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(recipeC, key("out_c"), 1, 1)),
+			input(1, ingredient(recipeC, key("in_a"), 1)),
+			input(2, result(recipeA, key("in_a"), 1, 0)),
+			input(3, ingredient(recipeA, key("in_b"), 3)),
+			input(4, result(recipeB, key("in_b"), 1, 1)),
+			input(5, ingredient(recipeB, key("in_x"), 1))
+		), Set.of(recipeA));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		// The middle root runs once because recipe C demands one in_a, so the anchor
+		// shows the demand-driven working amount instead of the collapsed bookmark multiplier 0.
+		Assertions.assertEquals(List.of("in_a", "in_x"), itemKeys);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
+		// The bookmark multiplier of the collapsed middle recipe is 0, so the real
+		// projection stays 0 even though the demand-driven calculated amount is 1.
+		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
+		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
+		Assertions.assertEquals(3, block.items().get(1).chainItem().shiftAmount());
+		Assertions.assertEquals(3, block.items().get(1).chainItem().calculatedAmount());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().realMultiplier());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().realAmount());
+		Assertions.assertTrue(block.items().stream()
+			.noneMatch(item -> item.metadata().permutations().iterator().next().ingredientUid().equals("in_b")));
+	}
+
+	@Test
+	public void collapsedRecipeBlockFlattensInscriberChainLikeGtnh() {
+		ResourceLocation r64 = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
+		ResourceLocation rCp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor");
+		ResourceLocation rCpp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_print");
+		ResourceLocation rSp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_print");
+		ResourceLocation rCpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
+		ResourceLocation rSpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
+
+		// Bookmark multiplier of the collapsed middle recipe is flipped to 0, but the
+		// block must use the demand-driven working multiplier (1, because the 64k recipe
+		// needs one calculation processor).
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(r64, key("cell_component_64k"), 1, 1)),
+			input(1, ingredient(r64, key("glowstone_dust"), 4)),
+			input(2, ingredient(r64, key("calculation_processor"), 1)),
+			input(3, ingredient(r64, key("cell_component_16k"), 3)),
+			input(4, ingredient(r64, key("quartz_glass"), 1)),
+			input(5, result(rCp, key("calculation_processor"), 1, 0)),
+			input(6, ingredient(rCp, key("printed_calculation_processor"), 1).withMultiplier(0)),
+			input(7, ingredient(rCp, key("redstone"), 1).withMultiplier(0)),
+			input(8, ingredient(rCp, key("printed_silicon"), 1).withMultiplier(0)),
+			input(9, result(rCpp, key("printed_calculation_processor"), 1, 1)),
+			input(10, ingredient(rCpp, key("calculation_processor_press"), 1)),
+			input(11, ingredient(rCpp, key("certus_quartz_crystal"), 1)),
+			input(12, result(rSp, key("printed_silicon"), 1, 1)),
+			input(13, ingredient(rSp, key("silicon_press"), 1)),
+			input(14, ingredient(rSp, key("silicon"), 1)),
+			input(15, result(rCpress, key("calculation_processor_press"), 1, 1)),
+			input(16, ingredient(rCpress, key("calculation_processor_press"), 1)),
+			input(17, ingredient(rCpress, key("iron_block"), 1)),
+			input(18, result(rSpress, key("silicon_press"), 1, 1)),
+			input(19, ingredient(rSpress, key("silicon_press"), 1)),
+			input(20, ingredient(rSpress, key("iron_block"), 1))
+		), Set.of(rCp));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(rCp);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(
+			List.of(
+				"calculation_processor",
+				"redstone",
+				"certus_quartz_crystal",
+				"silicon",
+				"calculation_processor_press",
+				"iron_block",
+				"silicon_press"
+			),
+			itemKeys
+		);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertEquals(0, block.items().get(0).chainItem().shiftAmount());
+		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
+		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
+		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
+		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());
+		Assertions.assertEquals(2, block.items().get(5).chainItem().calculatedAmount());
+		Assertions.assertEquals(0, block.items().get(1).chainItem().realMultiplier());
+		Assertions.assertEquals(0, block.items().get(5).chainItem().realMultiplier());
+		Assertions.assertTrue(block.items().stream()
+			.noneMatch(item -> {
+				String uid = item.metadata().permutations().iterator().next().ingredientUid();
+				return uid.equals("printed_calculation_processor") || uid.equals("printed_silicon");
+			}));
+	}
+
+	@Test
+	public void collapsedRecipeBlockUsesBookmarkMultiplierForRealProjection() {
+		ResourceLocation r64 = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
+		ResourceLocation rCp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor");
+		ResourceLocation rCpp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_print");
+		ResourceLocation rSp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_print");
+		ResourceLocation rCpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
+		ResourceLocation rSpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
+
+		// Same chain as the collapsed state, but the bookmark multiplier of the
+		// calculation processor was scrolled back to 1.
+		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
+			input(0, result(r64, key("cell_component_64k"), 1, 1)),
+			input(1, ingredient(r64, key("glowstone_dust"), 4)),
+			input(2, ingredient(r64, key("calculation_processor"), 1)),
+			input(3, ingredient(r64, key("cell_component_16k"), 3)),
+			input(4, ingredient(r64, key("quartz_glass"), 1)),
+			input(5, result(rCp, key("calculation_processor"), 1, 1)),
+			input(6, ingredient(rCp, key("printed_calculation_processor"), 1).withMultiplier(1)),
+			input(7, ingredient(rCp, key("redstone"), 1).withMultiplier(1)),
+			input(8, ingredient(rCp, key("printed_silicon"), 1).withMultiplier(1)),
+			input(9, result(rCpp, key("printed_calculation_processor"), 1, 1)),
+			input(10, ingredient(rCpp, key("calculation_processor_press"), 1)),
+			input(11, ingredient(rCpp, key("certus_quartz_crystal"), 1)),
+			input(12, result(rSp, key("printed_silicon"), 1, 1)),
+			input(13, ingredient(rSp, key("silicon_press"), 1)),
+			input(14, ingredient(rSp, key("silicon"), 1)),
+			input(15, result(rCpress, key("calculation_processor_press"), 1, 1)),
+			input(16, ingredient(rCpress, key("calculation_processor_press"), 1)),
+			input(17, ingredient(rCpress, key("iron_block"), 1)),
+			input(18, result(rSpress, key("silicon_press"), 1, 1)),
+			input(19, ingredient(rSpress, key("silicon_press"), 1)),
+			input(20, ingredient(rSpress, key("iron_block"), 1))
+		), Set.of(rCp));
+
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(rCp);
+		Assertions.assertNotNull(block);
+		List<String> itemKeys = block.items().stream()
+			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
+			.toList();
+		Assertions.assertEquals(
+			List.of(
+				"calculation_processor",
+				"redstone",
+				"certus_quartz_crystal",
+				"silicon",
+				"calculation_processor_press",
+				"iron_block",
+				"silicon_press"
+			),
+			itemKeys
+		);
+		Assertions.assertTrue(block.items().get(0).anchor());
+		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
+		// The middle recipe consumes one of its own outputs for the chain, so its
+		// real multiplier stays 0 (bookmark multiplier minus 1) while calculated stays 1.
+		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
+		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
+		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());
+		Assertions.assertEquals(1, block.items().get(1).chainItem().realMultiplier());
+		Assertions.assertEquals(1, block.items().get(1).chainItem().realAmount());
+		Assertions.assertEquals(2, block.items().get(5).chainItem().calculatedAmount());
+		Assertions.assertEquals(2, block.items().get(5).chainItem().realMultiplier());
+		Assertions.assertEquals(2, block.items().get(5).chainItem().realAmount());
+	}
+
 	private static RecipeChainInput input(int index, BookmarkItemMetadata metadata) {
 		return new RecipeChainInput(index, metadata);
 	}

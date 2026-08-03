@@ -15,6 +15,7 @@ import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -449,9 +450,10 @@ public final class RecipeChainMath {
 
 	private RecipeChainDetails createDetails() {
 		Map<Integer, RecipeChainItem> calculatedItems = new LinkedHashMap<>();
-		Map<Integer, ResourceLocation> itemToRecipe = createItemToRecipe();
+		Set<ResourceLocation> topLevelRecipes = getTopLevelRecipes();
+		Map<ResourceLocation, Set<ResourceLocation>> recipeRelations = createRecipeRelations(topLevelRecipes);
+		Map<Integer, ResourceLocation> itemToRecipe = createItemToRecipe(recipeRelations);
 		Set<ResourceLocation> middleRecipes = getMiddleRecipes();
-		Map<ResourceLocation, Set<ResourceLocation>> recipeRelations = createRecipeRelations();
 		Map<BookmarkIngredientKey, Long> missedItems = new LinkedHashMap<>();
 		Set<Integer> initialItemIndexes = new LinkedHashSet<>();
 		Set<Integer> missingIngredients = new LinkedHashSet<>();
@@ -523,6 +525,8 @@ public final class RecipeChainMath {
 			));
 		}
 
+		Map<ResourceLocation, RecipeChainDetails.CollapsedBlock> collapsedBlocks = createCollapsedBlocks(topLevelRecipes, itemToRecipe, recipeRelations);
+
 		return new RecipeChainDetails(
 			calculatedItems,
 			itemToRecipe,
@@ -533,7 +537,8 @@ public final class RecipeChainMath {
 			containerItems,
 			initialItemIndexes,
 			missingIngredients,
-			remainderItems
+			remainderItems,
+			collapsedBlocks
 		);
 	}
 
@@ -554,32 +559,73 @@ public final class RecipeChainMath {
 		return middleRecipes;
 	}
 
-	private Map<ResourceLocation, Set<ResourceLocation>> createRecipeRelations() {
+	private Map<ResourceLocation, Set<ResourceLocation>> createRecipeRelations(Set<ResourceLocation> topLevelRecipes) {
 		Map<ResourceLocation, Set<ResourceLocation>> recipeRelations = new LinkedHashMap<>();
-		for (ResourceLocation recipeUid : collapsedRecipes) {
-			recipeRelations.put(recipeUid, getRecipeRelations(recipeUid, new LinkedHashSet<>(Set.of(recipeUid))));
+		for (ResourceLocation recipeUid : sortedCollapsedRecipes()) {
+			recipeRelations.put(recipeUid, getRecipeRelations(recipeUid, topLevelRecipes, new LinkedHashSet<>(Set.of(recipeUid))));
 		}
 		return recipeRelations;
 	}
 
-	private Set<ResourceLocation> getRecipeRelations(ResourceLocation recipeUid, Set<ResourceLocation> recipes) {
+	private Set<ResourceLocation> getRecipeRelations(ResourceLocation recipeUid, Set<ResourceLocation> topLevelRecipes, Set<ResourceLocation> recipes) {
 		for (RecipeChainInput ingredient : graph.ingredientsFor(recipeUid)) {
 			RecipeChainInput preferred = preferredItems.get(ingredient);
 			ResourceLocation preferredRecipe = preferred == null ? null : preferred.metadata().recipeUid();
-			if (preferredRecipe != null && recipes.add(preferredRecipe)) {
-				getRecipeRelations(preferredRecipe, recipes);
+			if (preferredRecipe != null && !topLevelRecipes.contains(preferredRecipe) && recipes.add(preferredRecipe)) {
+				getRecipeRelations(preferredRecipe, topLevelRecipes, recipes);
 			}
 		}
 		return recipes;
 	}
 
-	private Map<Integer, ResourceLocation> createItemToRecipe() {
+	private Set<ResourceLocation> getTopLevelRecipes() {
+		Set<ResourceLocation> topLevelRecipes = new LinkedHashSet<>(outputRecipes.keySet());
+		for (RecipeChainInput result : recipeResults) {
+			ResourceLocation recipeUid = result.metadata().recipeUid();
+			if (recipeUid == null || topLevelRecipes.contains(recipeUid)) {
+				continue;
+			}
+			Set<ResourceLocation> parents = getRecipeParents(recipeUid, new LinkedHashSet<>(), new LinkedHashSet<>(Set.of(recipeUid)));
+			if (parents.size() != 1 || parents.stream().noneMatch(collapsedRecipes::contains)) {
+				topLevelRecipes.add(recipeUid);
+			}
+		}
+		return topLevelRecipes;
+	}
+
+	private Set<ResourceLocation> getRecipeParents(ResourceLocation recipeUid, Set<ResourceLocation> parents, Set<ResourceLocation> visited) {
+		Set<ResourceLocation> consumers = new LinkedHashSet<>();
+		for (Map.Entry<RecipeChainInput, RecipeChainInput> entry : preferredItems.entrySet()) {
+			RecipeChainInput preferred = entry.getValue();
+			if (preferred != null && recipeUid.equals(preferred.metadata().recipeUid())) {
+				ResourceLocation consumer = entry.getKey().metadata().recipeUid();
+				if (consumer != null) {
+					consumers.add(consumer);
+				}
+			}
+		}
+		if (consumers.isEmpty()) {
+			parents.add(recipeUid);
+		} else {
+			for (ResourceLocation consumer : consumers) {
+				if (visited.add(consumer)) {
+					if (outputRecipes.containsKey(consumer)) {
+						parents.add(consumer);
+					} else {
+						getRecipeParents(consumer, parents, visited);
+					}
+				}
+			}
+		}
+		return parents;
+	}
+
+	private Map<Integer, ResourceLocation> createItemToRecipe(Map<ResourceLocation, Set<ResourceLocation>> recipeRelations) {
 		Map<Integer, ResourceLocation> itemToRecipe = new LinkedHashMap<>();
 		if (collapsedRecipes.isEmpty()) {
 			return itemToRecipe;
 		}
-		Map<ResourceLocation, Set<ResourceLocation>> recipeRelations = createRecipeRelations();
-		for (ResourceLocation collapsedRecipe : collapsedRecipes) {
+		for (ResourceLocation collapsedRecipe : sortedCollapsedRecipes()) {
 			Set<ResourceLocation> relations = recipeRelations.getOrDefault(collapsedRecipe, Set.of(collapsedRecipe));
 			for (ResourceLocation recipeUid : relations) {
 				for (RecipeChainInput input : graph.itemsFor(recipeUid)) {
@@ -588,6 +634,278 @@ public final class RecipeChainMath {
 			}
 		}
 		return itemToRecipe;
+	}
+
+	private Map<ResourceLocation, RecipeChainDetails.CollapsedBlock> createCollapsedBlocks(
+		Set<ResourceLocation> topLevelRecipes,
+		Map<Integer, ResourceLocation> itemToRecipe,
+		Map<ResourceLocation, Set<ResourceLocation>> recipeRelations
+	) {
+		Map<ResourceLocation, RecipeChainDetails.CollapsedBlock> collapsedBlocks = new LinkedHashMap<>();
+		if (collapsedRecipes.isEmpty()) {
+			return collapsedBlocks;
+		}
+		Set<ResourceLocation> middleRecipes = getMiddleRecipes();
+		for (ResourceLocation root : sortedCollapsedRecipes()) {
+			Set<ResourceLocation> relations = recipeRelations.getOrDefault(root, Set.of(root));
+			List<RecipeChainInput> closureResults = recipeResults.stream()
+				.filter(result -> root.equals(itemToRecipe.get(result.index())))
+				.filter(result -> {
+					ResourceLocation recipeUid = result.metadata().recipeUid();
+					return recipeUid != null && relations.contains(recipeUid);
+				})
+				.toList();
+			List<RecipeChainInput> closureIngredients = recipeIngredients.stream()
+				.filter(ingredient -> root.equals(itemToRecipe.get(ingredient.index())))
+				.filter(ingredient -> {
+					ResourceLocation recipeUid = ingredient.metadata().recipeUid();
+					return recipeUid != null && relations.contains(recipeUid);
+				})
+				.toList();
+			Map<String, Long> shadowShifts = computeShadowShifts(root, relations);
+			List<BlockAccumulator> collected = collectCollapsedItems(
+				root,
+				relations,
+				topLevelRecipes,
+				outputRecipes.keySet(),
+				closureResults,
+				closureIngredients,
+				preferredItems,
+				requiredAmount,
+				workingMultipliers
+			);
+			for (BlockAccumulator accumulator : collected) {
+				long realMultiplier;
+				if (accumulator.anchor()) {
+					realMultiplier = middleRecipes.contains(root) ?
+						Math.max(0, accumulator.metadata().multiplier() - 1) :
+						accumulator.metadata().multiplier();
+				} else {
+					realMultiplier = accumulator.metadata()
+						.multiplierFromAmount(shadowShifts.getOrDefault(accumulator.key(), 0L));
+				}
+				accumulator.setRealMultiplier(realMultiplier);
+			}
+
+			List<RecipeChainDetails.CollapsedBlockItem> blockItems = new ArrayList<>();
+			Comparator<BlockAccumulator> blockComparator = Comparator
+				.comparingInt(BlockAccumulator::typeWeight)
+				.thenComparingInt(BlockAccumulator::sourceIndex);
+			collected.stream()
+				.sorted(blockComparator)
+				.map(BlockAccumulator::toBlockItem)
+				.forEach(blockItems::add);
+			collapsedBlocks.put(root, new RecipeChainDetails.CollapsedBlock(root, List.copyOf(blockItems)));
+		}
+		return collapsedBlocks;
+	}
+
+	/**
+	 * Derived from GTNH NEI RecipeChainDetails.generateShadowItems(): re-runs the closure math
+	 * with the bookmark multipliers (the collapsed root keeps its multiplier, every other
+	 * closure recipe is zeroed) so the block can show the real, bookmark-driven amounts.
+	 */
+	private Map<String, Long> computeShadowShifts(ResourceLocation root, Set<ResourceLocation> relations) {
+		List<RecipeChainInput> subResults = new ArrayList<>();
+		List<RecipeChainInput> subIngredients = new ArrayList<>();
+		for (RecipeChainInput result : recipeResults) {
+			ResourceLocation recipeUid = result.metadata().recipeUid();
+			if (recipeUid != null && relations.contains(recipeUid)) {
+				long multiplier = root.equals(recipeUid) ? result.metadata().multiplier() : 0;
+				BookmarkItemMetadata metadata = result.metadata().withMultiplier(multiplier);
+				subResults.add(new RecipeChainInput(result.index(), metadata, result.selectedKey(), result.selectedIngredient()));
+			}
+		}
+		for (RecipeChainInput ingredient : recipeIngredients) {
+			ResourceLocation recipeUid = ingredient.metadata().recipeUid();
+			if (recipeUid != null && relations.contains(recipeUid)) {
+				long multiplier = root.equals(recipeUid) ? ingredient.metadata().multiplier() : 0;
+				BookmarkItemMetadata metadata = ingredient.metadata().withMultiplier(multiplier);
+				subIngredients.add(new RecipeChainInput(ingredient.index(), metadata, ingredient.selectedKey(), ingredient.selectedIngredient()));
+			}
+		}
+		List<RecipeChainInput> subInputs = new ArrayList<>(subResults.size() + subIngredients.size());
+		subInputs.addAll(subResults);
+		subInputs.addAll(subIngredients);
+		RecipeChainMath shadowMath = RecipeChainMath.of(subInputs, Set.of());
+		shadowMath.refresh();
+		List<BlockAccumulator> shadowItems = collectCollapsedItems(
+			root,
+			relations,
+			Set.of(),
+			shadowMath.outputRecipes.keySet(),
+			subResults,
+			subIngredients,
+			shadowMath.preferredItems,
+			shadowMath.requiredAmount,
+			shadowMath.workingMultipliers
+		);
+		Map<String, Long> shifts = new HashMap<>();
+		for (BlockAccumulator item : shadowItems) {
+			shifts.put(item.key(), item.shiftAmount());
+		}
+		return shifts;
+	}
+
+	private static List<BlockAccumulator> collectCollapsedItems(
+		ResourceLocation root,
+		Set<ResourceLocation> relations,
+		Set<ResourceLocation> topLevelRecipes,
+		Set<ResourceLocation> outputRecipes,
+		List<RecipeChainInput> closureResults,
+		List<RecipeChainInput> closureIngredients,
+		Map<RecipeChainInput, RecipeChainInput> preferredItems,
+		Map<RecipeChainInput, Long> requiredAmount,
+		Map<RecipeChainInput, Long> workingMultipliers
+	) {
+		Map<String, BlockAccumulator> results = new LinkedHashMap<>();
+		Map<String, BlockAccumulator> ingredients = new LinkedHashMap<>();
+		long rootMultiplier = 0;
+		for (RecipeChainInput result : closureResults) {
+			BookmarkItemMetadata metadata = result.metadata();
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (recipeUid == null || !relations.contains(recipeUid)) {
+				continue;
+			}
+			long itemAmount = metadata.amount(workingMultipliers.getOrDefault(result, 0L));
+			long required = requiredAmount.getOrDefault(result, 0L);
+			long amount = itemAmount - required;
+			boolean anchor = root.equals(recipeUid);
+			if (anchor) {
+				rootMultiplier = workingMultipliers.getOrDefault(result, 0L);
+			}
+			if (anchor || amount > 0) {
+				String key = aggregationKey(metadata, result.index());
+				RecipeChainItemType type = outputRecipes.contains(recipeUid) ?
+					RecipeChainItemType.RESULT :
+					RecipeChainItemType.REMAINDER;
+				BlockAccumulator accumulator = results.computeIfAbsent(
+					key,
+					ignored -> new BlockAccumulator(key, result.index(), metadata, anchor ? RecipeChainItemType.RESULT : type, anchor)
+				);
+				accumulator.append(amount, itemAmount, metadata);
+			}
+		}
+		for (RecipeChainInput ingredient : closureIngredients) {
+			BookmarkItemMetadata metadata = ingredient.metadata();
+			ResourceLocation recipeUid = metadata.recipeUid();
+			if (recipeUid == null || !relations.contains(recipeUid)) {
+				continue;
+			}
+			RecipeChainInput preferred = preferredItems.get(ingredient);
+			long itemAmount = metadata.amount(workingMultipliers.getOrDefault(ingredient, 0L));
+			long amount = requiredAmount.containsKey(preferred) ?
+				0 :
+				requiredAmount.getOrDefault(ingredient, itemAmount);
+			long refAmount = preferred != null && !topLevelRecipes.contains(preferred.metadata().recipeUid()) ?
+				requiredAmount.getOrDefault(preferred, 0L) :
+				0;
+			boolean include = amount != 0 ||
+				(itemAmount > refAmount && requiredAmount.containsKey(preferred)) ||
+				(root.equals(recipeUid) && rootMultiplier == 0);
+			if (!include) {
+				continue;
+			}
+			String key = aggregationKey(metadata, ingredient.index());
+			BlockAccumulator accumulator = ingredients.computeIfAbsent(
+				key,
+				ignored -> new BlockAccumulator(key, ingredient.index(), metadata, RecipeChainItemType.INGREDIENT, false)
+			);
+			accumulator.append(amount, itemAmount - refAmount, metadata);
+		}
+		List<BlockAccumulator> collected = new ArrayList<>(results.size() + ingredients.size());
+		collected.addAll(results.values());
+		collected.addAll(ingredients.values());
+		return collected;
+	}
+
+	private List<ResourceLocation> sortedCollapsedRecipes() {
+		return collapsedRecipes.stream().sorted().toList();
+	}
+
+	private static String aggregationKey(BookmarkItemMetadata metadata, int sourceIndex) {
+		return metadata.permutations().stream()
+			.min(Comparator.naturalOrder())
+			.map(BookmarkIngredientKey::stableKey)
+			.orElse("index:" + sourceIndex);
+	}
+
+	private static final class BlockAccumulator {
+		private final String key;
+		private final int sourceIndex;
+		private final BookmarkItemMetadata metadata;
+		private final RecipeChainItemType type;
+		private final boolean anchor;
+		private long shiftAmount;
+		private long calculatedAmount;
+		private long calculatedMultiplier;
+		private long realMultiplier;
+
+		private BlockAccumulator(
+			String key,
+			int sourceIndex,
+			BookmarkItemMetadata metadata,
+			RecipeChainItemType type,
+			boolean anchor
+		) {
+			this.key = key;
+			this.sourceIndex = sourceIndex;
+			this.metadata = metadata;
+			this.type = type;
+			this.anchor = anchor;
+		}
+
+		private void append(long amount, long calculatedAmount, BookmarkItemMetadata metadata) {
+			shiftAmount = saturatedAdd(shiftAmount, amount);
+			this.calculatedAmount = saturatedAdd(this.calculatedAmount, calculatedAmount);
+			calculatedMultiplier = saturatedAdd(calculatedMultiplier, metadata.multiplierFromAmount(calculatedAmount));
+		}
+
+		private String key() {
+			return key;
+		}
+
+		private long shiftAmount() {
+			return shiftAmount;
+		}
+
+		private BookmarkItemMetadata metadata() {
+			return metadata;
+		}
+
+		private boolean anchor() {
+			return anchor;
+		}
+
+		private void setRealMultiplier(long realMultiplier) {
+			this.realMultiplier = realMultiplier;
+		}
+
+		private int typeWeight() {
+			return switch (type) {
+				case RESULT -> 0;
+				case REMAINDER -> 1;
+				case INGREDIENT -> 2;
+			};
+		}
+
+		private int sourceIndex() {
+			return sourceIndex;
+		}
+
+		private RecipeChainDetails.CollapsedBlockItem toBlockItem() {
+			RecipeChainItem item = new RecipeChainItem(
+				sourceIndex,
+				metadata,
+				type,
+				metadata.amount(realMultiplier),
+				shiftAmount,
+				calculatedAmount,
+				realMultiplier,
+				calculatedMultiplier
+			);
+			return new RecipeChainDetails.CollapsedBlockItem(sourceIndex, metadata, item, anchor);
+		}
 	}
 
 	private static long getRealMultiplier(BookmarkItemMetadata metadata, Set<ResourceLocation> middleRecipes) {

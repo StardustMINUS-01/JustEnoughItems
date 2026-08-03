@@ -32,6 +32,7 @@ public final class BookmarkDisplayGenerator {
 		int columns
 	) {
 		List<BookmarkDisplaySlot<T>> displaySlots = new ArrayList<>();
+		Set<ResourceLocation> emittedBlocks = new java.util.HashSet<>();
 		for (int sourceIndex = 0; sourceIndex < orderedItems.size(); sourceIndex++) {
 			T item = orderedItems.get(sourceIndex);
 			BookmarkItemMetadata metadata = metadataGetter.apply(item);
@@ -39,7 +40,20 @@ public final class BookmarkDisplayGenerator {
 			BookmarkGroup group = groups.get(groupId);
 			if (group != null && group.craftingMode()) {
 				RecipeChainDetails details = recipeChainDetails.get(group.id());
+				if (details == null) {
+					continue;
+				}
+				ResourceLocation blockRoot = details.itemToRecipe().get(sourceIndex);
+				if (blockRoot != null) {
+					if (emittedBlocks.add(blockRoot)) {
+						addCollapsedBlock(displaySlots, orderedItems, blockRoot, details, group, columns);
+					}
+					continue;
+				}
 				if (isHiddenResultOnlyCraftingItem(group, groupId, metadata)) {
+					continue;
+				}
+				if (isCatalystInCollapsedClosure(group, details, metadata)) {
 					continue;
 				}
 				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, columns);
@@ -67,6 +81,57 @@ public final class BookmarkDisplayGenerator {
 			!metadata.type().isCatalyst();
 	}
 
+	private static <T> void addCollapsedBlock(
+		List<BookmarkDisplaySlot<T>> displaySlots,
+		List<T> orderedItems,
+		ResourceLocation blockRoot,
+		RecipeChainDetails details,
+		BookmarkGroup group,
+		int columns
+	) {
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(blockRoot);
+		if (block == null) {
+			return;
+		}
+		for (RecipeChainDetails.CollapsedBlockItem blockItem : block.items()) {
+			BookmarkItemMetadata metadata = blockItem.metadata();
+			boolean anchor = blockItem.anchor();
+			if (group.resultOnly() && !metadata.type().isGraphOutput()) {
+				continue;
+			}
+			int sourceIndex = blockItem.sourceIndex();
+			if (sourceIndex < 0 || sourceIndex >= orderedItems.size()) {
+				continue;
+			}
+			RecipeChainItem chainItem = blockItem.chainItem();
+			BookmarkDisplayEntry<T> entry = new BookmarkDisplayEntry<>(
+				orderedItems.get(sourceIndex),
+				sourceIndex,
+				metadata,
+				isNewLine(group),
+				isResultOnly(group),
+				Optional.of(blockRoot),
+				Optional.of(chainItem),
+				anchor && details.outputRecipes().contains(blockRoot),
+				anchor && details.middleRecipes().contains(blockRoot),
+				blockRoot
+			);
+			addDisplaySlot(displaySlots, entry, !anchor, columns);
+		}
+	}
+
+	private static boolean isCatalystInCollapsedClosure(BookmarkGroup group, RecipeChainDetails details, BookmarkItemMetadata metadata) {
+		if (!metadata.type().isCatalyst()) {
+			return false;
+		}
+		ResourceLocation recipeUid = metadata.recipeUid();
+		if (recipeUid == null) {
+			return false;
+		}
+		return group.collapsedRecipeIds().stream()
+			.anyMatch(root -> details.recipeRelations().getOrDefault(root, Set.of(root)).contains(recipeUid));
+	}
+
 	private static <T> void addCraftingDisplaySlot(
 		List<BookmarkDisplaySlot<T>> displaySlots,
 		T item,
@@ -76,71 +141,17 @@ public final class BookmarkDisplayGenerator {
 		RecipeChainDetails details,
 		int columns
 	) {
-		if (details == null) {
-			return;
-		}
-		if (metadata.type().isCatalyst() && isOwnCollapsedRecipeInput(group, metadata)) {
-			return;
-		}
 		RecipeChainItem chainItem = details.calculatedItems().get(sourceIndex);
 		if (chainItem == null) {
 			if (metadata.type().isCatalyst()) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns);
-				return;
 			}
-			addCollapsedRecipeShadowSlot(displaySlots, item, sourceIndex, metadata, group, details, columns);
 			return;
 		}
 		if (group.resultOnly() && metadata.type().isGraphInput()) {
 			return;
 		}
-		BookmarkDisplayEntry<T> entry = createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem);
-		if (isHiddenCollapsedIntermediateResult(entry)) {
-			return;
-		}
-		addDisplaySlot(displaySlots, entry, isCollapsedRecipeShadow(group, entry), columns);
-	}
-
-	private static <T> void addCollapsedRecipeShadowSlot(
-		List<BookmarkDisplaySlot<T>> displaySlots,
-		T item,
-		int sourceIndex,
-		BookmarkItemMetadata metadata,
-		BookmarkGroup group,
-		RecipeChainDetails details,
-		int columns
-	) {
-		Optional<ResourceLocation> displayRecipeUid = getDisplayRecipeUid(group, details, metadata.recipeUid());
-		boolean ownCollapsedRecipeIngredient = metadata.type().isGraphInput() &&
-			metadata.recipeUid() != null &&
-			group.collapsedRecipeIds().contains(metadata.recipeUid());
-		if (displayRecipeUid.isEmpty() || displayRecipeUid.equals(Optional.ofNullable(metadata.recipeUid())) && !ownCollapsedRecipeIngredient) {
-			return;
-		}
-		BookmarkDisplayEntry<T> entry = new BookmarkDisplayEntry<>(
-			item,
-			sourceIndex,
-			metadata,
-			isNewLine(group),
-			isResultOnly(group),
-			displayRecipeUid,
-			Optional.empty(),
-			false,
-			false
-		);
-		addDisplaySlot(displaySlots, entry, true, columns);
-	}
-
-	private static boolean isHiddenCollapsedIntermediateResult(BookmarkDisplayEntry<?> entry) {
-		return entry.metadata().type().isGraphOutput() &&
-			entry.displayRecipeUid().isPresent() &&
-			entry.metadata().recipeUid() != null &&
-			!entry.displayRecipeUid().get().equals(entry.metadata().recipeUid());
-	}
-
-	private static boolean isOwnCollapsedRecipeInput(BookmarkGroup group, BookmarkItemMetadata metadata) {
-		ResourceLocation recipeUid = metadata.recipeUid();
-		return recipeUid != null && group.collapsedRecipeIds().contains(recipeUid);
+		addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem), false, columns);
 	}
 
 	private static <T> void addDisplaySlot(List<BookmarkDisplaySlot<T>> displaySlots, BookmarkDisplayEntry<T> entry, boolean shadow, int columns) {
@@ -183,22 +194,37 @@ public final class BookmarkDisplayGenerator {
 	}
 
 	private static boolean startsRecipeRow(BookmarkDisplayEntry<?> previous, BookmarkDisplayEntry<?> entry) {
+		if (sameCollapsedBlock(previous, entry)) {
+			return false;
+		}
 		BookmarkItemMetadata metadata = entry.metadata();
 		BookmarkItemMetadata previousMetadata = previous.metadata();
-		return metadata.recipeUid() == null ||
+		ResourceLocation recipeUid = entry.displayRecipeUid().orElse(null);
+		ResourceLocation previousRecipeUid = previous.displayRecipeUid().orElse(null);
+		return recipeUid == null ||
 			!previousMetadata.groupId().equals(metadata.groupId()) ||
 			!metadata.type().isGraphInput() ||
-			!metadata.recipeUid().equals(previousMetadata.recipeUid());
+			!recipeUid.equals(previousRecipeUid);
 	}
 
 	private static boolean continuesRecipe(BookmarkDisplayEntry<?> previous, BookmarkDisplayEntry<?> entry) {
+		if (sameCollapsedBlock(previous, entry)) {
+			return true;
+		}
 		BookmarkItemMetadata metadata = entry.metadata();
 		BookmarkItemMetadata previousMetadata = previous.metadata();
+		ResourceLocation recipeUid = entry.displayRecipeUid().orElse(null);
+		ResourceLocation previousRecipeUid = previous.displayRecipeUid().orElse(null);
 		return metadata.type().isRecipeAssociated() &&
 			previousMetadata.type().isRecipeAssociated() &&
 			previousMetadata.groupId().equals(metadata.groupId()) &&
-			metadata.recipeUid() != null &&
-			metadata.recipeUid().equals(previousMetadata.recipeUid());
+			recipeUid != null &&
+			recipeUid.equals(previousRecipeUid);
+	}
+
+	private static boolean sameCollapsedBlock(BookmarkDisplayEntry<?> previous, BookmarkDisplayEntry<?> entry) {
+		ResourceLocation previousBlockId = previous.collapsedBlockId();
+		return previousBlockId != null && previousBlockId.equals(entry.collapsedBlockId());
 	}
 
 	private static <T> boolean isFirstOutput(List<BookmarkDisplaySlot<T>> displaySlots, BookmarkDisplayEntry<T> entry) {
@@ -210,13 +236,6 @@ public final class BookmarkDisplayGenerator {
 		}
 		BookmarkDisplayEntry<T> previous = displaySlots.get(displaySlots.size() - 1).entry();
 		return !entry.displayRecipeUid().equals(previous.displayRecipeUid());
-	}
-
-	private static boolean isCollapsedRecipeShadow(BookmarkGroup group, BookmarkDisplayEntry<?> entry) {
-		return entry.displayRecipeUid()
-			.filter(displayRecipeUid -> !displayRecipeUid.equals(entry.metadata().recipeUid()))
-			.filter(group.collapsedRecipeIds()::contains)
-			.isPresent();
 	}
 
 	private static <T> BookmarkDisplayEntry<T> createDisplayEntry(
@@ -247,16 +266,14 @@ public final class BookmarkDisplayGenerator {
 		RecipeChainItem chainItem
 	) {
 		ResourceLocation recipeUid = metadata.recipeUid();
-		Optional<ResourceLocation> displayRecipeUid = getDisplayRecipeUid(group, details, recipeUid);
-		RecipeChainItem displayChainItem = getDisplayChainItem(recipeUid, displayRecipeUid, chainItem);
 		return new BookmarkDisplayEntry<>(
 			item,
 			sourceIndex,
 			metadata,
 			isNewLine(group),
 			isResultOnly(group),
-			displayRecipeUid,
-			Optional.of(displayChainItem),
+			Optional.ofNullable(recipeUid),
+			Optional.of(chainItem),
 			recipeUid != null && details.outputRecipes().contains(recipeUid),
 			recipeUid != null && details.middleRecipes().contains(recipeUid)
 		);
@@ -268,29 +285,5 @@ public final class BookmarkDisplayGenerator {
 
 	private static boolean isResultOnly(BookmarkGroup group) {
 		return group != null && group.resultOnly();
-	}
-
-	private static RecipeChainItem getDisplayChainItem(
-		ResourceLocation recipeUid,
-		Optional<ResourceLocation> displayRecipeUid,
-		RecipeChainItem chainItem
-	) {
-		if (recipeUid != null && displayRecipeUid.isPresent() && !displayRecipeUid.get().equals(recipeUid)) {
-			return chainItem.withRealProjection(chainItem.calculatedAmount(), chainItem.calculatedMultiplier());
-		}
-		return chainItem;
-	}
-
-	private static Optional<ResourceLocation> getDisplayRecipeUid(BookmarkGroup group, RecipeChainDetails details, ResourceLocation recipeUid) {
-		if (recipeUid == null) {
-			return Optional.empty();
-		}
-		for (ResourceLocation collapsedRecipeId : group.collapsedRecipeIds()) {
-			Set<ResourceLocation> relations = details.recipeRelations().get(collapsedRecipeId);
-			if (relations != null && relations.contains(recipeUid)) {
-				return Optional.of(collapsedRecipeId);
-			}
-		}
-		return Optional.of(recipeUid);
 	}
 }
