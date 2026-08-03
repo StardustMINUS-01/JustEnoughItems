@@ -29,6 +29,8 @@ public final class GeneratedFavoriteRecipeScanner {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
+	private final Map<BookmarkIngredientKey, List<RecipePreferenceCandidate>> candidatesByOutput = new LinkedHashMap<>();
+	private final Map<BookmarkIngredientKey, RecipePreferenceIngredientInfo> targetInfoByOutput = new LinkedHashMap<>();
 	public GeneratedFavoriteRecipeScanner(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
@@ -41,14 +43,30 @@ public final class GeneratedFavoriteRecipeScanner {
 
 	public void rebuild(FavoriteRecipeStore store, RecipePreferenceRules recipePreferenceRules) {
 		store.clearGeneratedFavorites();
+		candidatesByOutput.clear();
+		targetInfoByOutput.clear();
 		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput = new LinkedHashMap<>();
 		recipeManager.createRecipeCategoryLookup()
 			.get()
 			.forEach(category -> collectCategoryRecipes(category, recipesByOutput));
 
-		recipesByOutput.forEach((target, candidates) ->
+		recipesByOutput.forEach((target, candidates) -> {
+			candidatesByOutput.put(
+				target,
+				List.copyOf(candidates.recipes())
+			);
+			candidates.targetInfo().ifPresent(info -> targetInfoByOutput.put(target, info));
 			resolveGeneratedFavorite(candidates.targetInfo(), candidates.recipes(), recipePreferenceRules)
-				.ifPresent(recipe -> store.setGeneratedFavorite(target, recipe)));
+				.ifPresent(recipe -> store.setGeneratedFavorite(target, recipe));
+		});
+	}
+
+	public Map<BookmarkIngredientKey, List<RecipePreferenceCandidate>> getCandidatesByOutput() {
+		return Map.copyOf(candidatesByOutput);
+	}
+
+	public Map<BookmarkIngredientKey, RecipePreferenceIngredientInfo> getTargetInfoByOutput() {
+		return Map.copyOf(targetInfoByOutput);
 	}
 
 	public static Optional<FocusedRecipe> resolveGeneratedFavorite(

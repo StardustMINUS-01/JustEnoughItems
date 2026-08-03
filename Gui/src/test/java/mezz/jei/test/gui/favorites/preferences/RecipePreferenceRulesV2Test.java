@@ -70,6 +70,66 @@ public class RecipePreferenceRulesV2Test {
 		Assertions.assertFalse(target.matches(item("gtceu:molten_tin")));
 	}
 
+	@Test
+	public void slotRuleCollapsesVariantsToSingleRecipe() {
+		RecipePreferenceRule rule = new RecipePreferenceRule(
+			"glass",
+			RecipePreferenceTarget.tag(ResourceLocation.parse("c:glass_blocks")),
+			Optional.empty(),
+			List.of(),
+			List.of()
+		);
+		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
+		RecipePreferenceIngredientInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
+		RecipePreferenceCandidate shared = candidate("test:glass_recipe");
+
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipeForSlot(
+			List.of(glass, stained),
+			List.of(shared, shared)
+		);
+
+		Assertions.assertEquals(Optional.of(shared.recipe()), selected);
+	}
+
+	@Test
+	public void slotRuleReturnsEmptyWhenVariantsHaveConflictingCandidates() {
+		RecipePreferenceRule rule = new RecipePreferenceRule(
+			"glass",
+			RecipePreferenceTarget.tag(ResourceLocation.parse("c:glass_blocks")),
+			Optional.empty(),
+			List.of(),
+			List.of()
+		);
+		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
+		RecipePreferenceIngredientInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
+
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipeForSlot(
+			List.of(glass, stained),
+			List.of(candidate("test:glass_recipe"), candidate("test:stained_recipe"))
+		);
+
+		Assertions.assertTrue(selected.isEmpty());
+	}
+
+	@Test
+	public void slotRuleDoesNotApplyWhenTargetMatchesNoVariant() {
+		RecipePreferenceRule rule = new RecipePreferenceRule(
+			"iron",
+			RecipePreferenceTarget.item(ResourceLocation.parse("minecraft:iron_ingot")),
+			Optional.empty(),
+			List.of(),
+			List.of()
+		);
+		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
+
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipeForSlot(
+			List.of(glass),
+			List.of(candidate("test:glass_recipe"), candidate("test:stained_recipe"))
+		);
+
+		Assertions.assertTrue(selected.isEmpty());
+	}
+
 	private static RecipePreferenceRule rule(
 		List<List<RecipePreferenceTarget>> inputTiers,
 		List<List<String>> recipeTiers
@@ -91,6 +151,13 @@ public class RecipePreferenceRulesV2Test {
 
 	private static RecipePreferenceIngredientInfo item(ResourceLocation id) {
 		return RecipePreferenceIngredientInfo.item(id, Set.of());
+	}
+
+	private static RecipePreferenceIngredientInfo itemWithTag(String id, String tagId) {
+		return RecipePreferenceIngredientInfo.item(
+			ResourceLocation.parse(id),
+			Set.of(ResourceLocation.parse(tagId))
+		);
 	}
 
 	private static RecipePreferenceIngredientInfo fluid(String id) {

@@ -47,6 +47,7 @@ import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
 import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
 import mezz.jei.gui.favorites.GeneratedFavoriteRecipeScanner;
+import mezz.jei.gui.favorites.SlotPreferenceResolver;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.filter.FilterTextSource;
 import mezz.jei.gui.filter.IFilterTextSource;
@@ -282,7 +283,12 @@ public class JeiGuiStarter {
 			focusFactory,
 			ingredientManager
 		);
-		generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, recipePreferenceRules);
+		// The first scan must run after the JEI runtime is created (Internal.setRuntime happens
+		// after the registerRuntime callback returns). Building recipe layouts earlier fails with
+		// "Jei Runtime has not been created yet", which empties the generated favorites.
+		Minecraft.getInstance().execute(() ->
+			generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, recipePreferenceRules)
+		);
 		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
 			recipePreferenceConfig::loadRules,
 			minecraft::execute,
@@ -293,7 +299,11 @@ public class JeiGuiStarter {
 			recipePreferenceRulesReloadController::onConfigFileChanged
 		);
 		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
-			new FavoriteTreeBuilder(favoriteRecipes, favoriteTreeRecipeResolver),
+			new FavoriteTreeBuilder(
+				favoriteRecipes,
+				favoriteTreeRecipeResolver,
+				new SlotPreferenceResolver(generatedFavoriteRecipeScanner, recipePreferenceRules)
+			),
 			favoriteTreeRecipeResolver::resolveLayout,
 			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
 		);

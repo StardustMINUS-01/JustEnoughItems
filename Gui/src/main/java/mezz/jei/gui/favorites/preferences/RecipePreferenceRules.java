@@ -3,9 +3,11 @@ package mezz.jei.gui.favorites.preferences;
 import mezz.jei.gui.input.FocusedRecipe;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class RecipePreferenceRules {
 	public static final RecipePreferenceRules EMPTY = new RecipePreferenceRules(List.of());
@@ -27,6 +29,42 @@ public class RecipePreferenceRules {
 				continue;
 			}
 			Optional<FocusedRecipe> selected = rule.resolve(candidates);
+			if (selected.isPresent()) {
+				return selected;
+			}
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * Resolves a preferred recipe for a multi-variant input slot. A rule only takes over
+	 * when it matches at least one variant and collapses the merged candidates of all
+	 * variants to exactly one recipe; otherwise the slot falls back to the displayed variant.
+	 */
+	public Optional<FocusedRecipe> resolvePreferredRecipeForSlot(
+		List<RecipePreferenceIngredientInfo> variants,
+		List<RecipePreferenceCandidate> candidates
+	) {
+		List<RecipePreferenceCandidate> uniqueCandidates = candidates.stream()
+			.collect(Collectors.toMap(
+				RecipePreferenceCandidate::recipe,
+				candidate -> candidate,
+				(first, second) -> first,
+				LinkedHashMap::new
+			))
+			.values()
+			.stream()
+			.toList();
+		if (uniqueCandidates.size() == 1) {
+			return Optional.of(uniqueCandidates.getFirst().recipe());
+		}
+		for (CompiledRule rule : rules) {
+			boolean matchesVariant = variants.stream()
+				.anyMatch(rule.rule().target()::matches);
+			if (!matchesVariant) {
+				continue;
+			}
+			Optional<FocusedRecipe> selected = rule.resolve(uniqueCandidates);
 			if (selected.isPresent()) {
 				return selected;
 			}

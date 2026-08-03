@@ -59,7 +59,10 @@ public final class FavoriteTreeBookmarkWriter {
 		List<RecipeLayoutProjection> layouts = new ArrayList<>();
 		boolean rootProjection = true;
 		for (FavoriteTreeBuilder.FavoriteTreeRecipe recipe : result.recipes()) {
-			Optional<IRecipeLayoutDrawable<?>> layout = layoutResolver.resolve(recipe.recipe());
+			// Reuse the layout already built while expanding the tree; fall back to a fresh
+			// resolve only for recipes that were built without a layout (tests or custom resolvers).
+			Optional<IRecipeLayoutDrawable<?>> layout = recipe.layout()
+				.or(() -> layoutResolver.resolve(recipe.recipe()));
 			if (layout.isEmpty()) {
 				if (recipe.recipe().equals(root)) {
 					return Optional.empty();

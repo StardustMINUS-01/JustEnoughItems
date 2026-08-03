@@ -13,6 +13,7 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.search.SearchMode;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
@@ -57,6 +58,17 @@ public final class IngredientGridTooltipHelper {
 		IIngredientHelper<T> ingredientHelper,
 		boolean includeHotkeys
 	) {
+		getIngredientTooltip(tooltip, typedIngredient, ingredientRenderer, ingredientHelper, includeHotkeys, false);
+	}
+
+	public <T> void getIngredientTooltip(
+		JeiTooltip tooltip,
+		ITypedIngredient<T> typedIngredient,
+		IIngredientRenderer<T> ingredientRenderer,
+		IIngredientHelper<T> ingredientHelper,
+		boolean includeHotkeys,
+		boolean showToggleInputCatalyst
+	) {
 		SafeIngredientUtil.getTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient);
 
 		if (ingredientFilterConfig.colorSearchMode().getValue() != SearchMode.DISABLED) {
@@ -72,7 +84,14 @@ public final class IngredientGridTooltipHelper {
 		}
 
 		if (includeHotkeys) {
-			BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, keyBindings);
+			BookmarkHotkeyTooltipUtil.addIngredientHotkeys(
+				tooltip,
+				keyBindings,
+				Screen.hasAltDown(),
+				false,
+				false,
+				showToggleInputCatalyst
+			);
 		}
 	}
 

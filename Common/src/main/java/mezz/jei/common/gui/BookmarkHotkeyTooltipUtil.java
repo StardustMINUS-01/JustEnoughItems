@@ -12,15 +12,15 @@ public final class BookmarkHotkeyTooltipUtil {
 	}
 
 	public static void addIngredientHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings) {
-		addIngredientHotkeys(tooltip, keyBindings, Screen.hasAltDown(), false);
+		addIngredientHotkeys(tooltip, keyBindings, Screen.hasAltDown(), false, false, false);
 	}
 
 	public static void addIngredientHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown) {
-		addIngredientHotkeys(tooltip, keyBindings, altDown, false);
+		addIngredientHotkeys(tooltip, keyBindings, altDown, false, false, false);
 	}
 
 	public static void addIngredientHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown, boolean canAutoCraft) {
-		addIngredientHotkeys(tooltip, keyBindings, altDown, canAutoCraft, false);
+		addIngredientHotkeys(tooltip, keyBindings, altDown, canAutoCraft, false, false);
 	}
 
 	public static void addIngredientHotkeys(
@@ -29,6 +29,17 @@ public final class BookmarkHotkeyTooltipUtil {
 		boolean altDown,
 		boolean canAutoCraft,
 		boolean canEncodeAe2Pattern
+	) {
+		addIngredientHotkeys(tooltip, keyBindings, altDown, canAutoCraft, canEncodeAe2Pattern, false);
+	}
+
+	public static void addIngredientHotkeys(
+		ITooltipBuilder tooltip,
+		IInternalKeyMappings keyBindings,
+		boolean altDown,
+		boolean canAutoCraft,
+		boolean canEncodeAe2Pattern,
+		boolean showToggleInputCatalyst
 	) {
 		if (!addSeparatedAltHotkeySection(tooltip, altDown)) {
 			return;
@@ -40,6 +51,13 @@ public final class BookmarkHotkeyTooltipUtil {
 		HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("CTRL + ", keyBindings.getBookmark().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.hotkeys.add_with_count");
 		HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("SHIFT + ", keyBindings.getBookmark().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.hotkeys.add_with_recipe");
 		HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("CTRL + SHIFT + ", keyBindings.getBookmark().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.hotkeys.add_with_recipe_and_count");
+		if (showToggleInputCatalyst) {
+			HotkeyTooltipLine.add(
+				tooltip,
+				Component.translatable("jei.tooltip.bookmarks.group.keys.alt_scroll"),
+				"jei.tooltip.bookmarks.group.hotkeys.toggle_input_catalyst"
+			);
+		}
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientName().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_name");
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientTags().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_tags");
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientId().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_id");
