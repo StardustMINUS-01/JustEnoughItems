@@ -536,6 +536,98 @@ public class BookmarkListInvariantTest {
 		Assertions.assertTrue(border.bottom());
 	}
 
+	@Test
+	public void catalystBookmarkAmountIsNotShiftedByScroll() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark catalyst = bookmark("mold");
+		bookmarks.addToListWithoutNotifying(catalyst, false);
+		bookmarks.moveBookmarkMetadataFromConfig(catalyst, metadata(BookmarkItemType.CATALYST, RECIPE, "mold"));
+
+		long multiplierBefore = bookmarks.getBookmarkMetadata(catalyst).multiplier();
+
+		Assertions.assertFalse(bookmarks.shiftBookmarkAmount(catalyst, 1));
+		Assertions.assertFalse(bookmarks.shiftBookmarkAmount(catalyst, -1));
+		Assertions.assertEquals(multiplierBefore, bookmarks.getBookmarkMetadata(catalyst).multiplier());
+	}
+
+	@Test
+	public void toggleBookmarkInputCatalystSwitchesBetweenInputAndCatalyst() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark input = bookmark("ingot");
+		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
+
+		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
+		Assertions.assertEquals(BookmarkItemType.CATALYST, bookmarks.getBookmarkMetadata(input).type());
+
+		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
+		Assertions.assertEquals(BookmarkItemType.INGREDIENT, bookmarks.getBookmarkMetadata(input).type());
+	}
+
+	@Test
+	public void toggleBookmarkInputCatalystKeepsAmountAndFactor() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark input = bookmark("ingot");
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.INGREDIENT,
+			3,
+			4,
+			BookmarkItemMetadata.CHANCE_FULL,
+			RECIPE_TYPE,
+			RECIPE,
+			Set.of(new BookmarkIngredientKey("test:item", "ingot", null))
+		);
+		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.moveBookmarkMetadataFromConfig(input, metadata);
+
+		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
+		BookmarkItemMetadata toggled = bookmarks.getBookmarkMetadata(input);
+		Assertions.assertEquals(BookmarkItemType.CATALYST, toggled.type());
+		Assertions.assertEquals(3, toggled.multiplier());
+		Assertions.assertEquals(4, toggled.factor());
+	}
+
+	@Test
+	public void toggleBookmarkInputCatalystKeepsResultsUntouched() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark result = bookmark("plate");
+		bookmarks.addToListWithoutNotifying(result, false);
+		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "plate"));
+
+		Assertions.assertFalse(bookmarks.toggleBookmarkInputCatalyst(result));
+		Assertions.assertEquals(BookmarkItemType.RESULT, bookmarks.getBookmarkMetadata(result).type());
+	}
+
+	@Test
+	public void toggleBookmarkInputCatalystRejectsPlainBookmarks() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark item = bookmark("iron");
+		bookmarks.addToListWithoutNotifying(item, false);
+		bookmarks.moveBookmarkMetadataFromConfig(item, metadata(BookmarkItemType.ITEM, null, "iron"));
+
+		Assertions.assertFalse(bookmarks.toggleBookmarkInputCatalyst(item));
+		Assertions.assertEquals(BookmarkItemType.ITEM, bookmarks.getBookmarkMetadata(item).type());
+	}
+
+	@Test
+	public void amountScrollDoesNotToggleCatalystAndToggleDoesNotChangeAmount() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark input = bookmark("ingot");
+		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
+
+		Assertions.assertTrue(bookmarks.shiftBookmarkAmount(input, 1));
+		BookmarkItemMetadata afterScroll = bookmarks.getBookmarkMetadata(input);
+		Assertions.assertEquals(BookmarkItemType.INGREDIENT, afterScroll.type());
+		Assertions.assertEquals(2, afterScroll.multiplier());
+
+		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
+		BookmarkItemMetadata afterToggle = bookmarks.getBookmarkMetadata(input);
+		Assertions.assertEquals(BookmarkItemType.CATALYST, afterToggle.type());
+		Assertions.assertEquals(2, afterToggle.multiplier());
+	}
+
 	private static String createTwoRecipeChain(BookmarkList bookmarks) {
 		RecipeBookmark<Object, ItemStack> aResult = recipeBookmark(RECIPE, Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		RecipeBookmark<Object, ItemStack> aInput = recipeBookmark(RECIPE, Items.GOLD_INGOT, RecipeIngredientRole.INPUT);

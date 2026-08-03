@@ -44,6 +44,8 @@ public final class BookmarkHotkeyRouter {
 			requestedAction = altDown ? BookmarkHotkeyAction.SHIFT_AMOUNT_STEP : BookmarkHotkeyAction.SHIFT_AMOUNT;
 		} else if (shiftDown) {
 			requestedAction = BookmarkHotkeyAction.CYCLE_PERMUTATION;
+		} else if (altDown) {
+			requestedAction = BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST;
 		}
 		if (requestedAction == null || !isSupported(availableActions, requestedAction)) {
 			return Optional.empty();

@@ -8,8 +8,10 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IRecipesGui;
+import mezz.jei.common.gui.HotkeyTooltipLine;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
+import net.minecraft.network.chat.Component;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
@@ -58,6 +60,13 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 		tooltipHelper.getIngredientTooltip(tooltip, typedIngredient, ingredientRenderer, ingredientHelper);
 		if (delegate instanceof RecipeBookmarkElement<?, ?> recipeBookmarkElement) {
 			recipeBookmarkElement.addRecipeTooltipFeatures(tooltip);
+		}
+		if (displayEntry.metadata().type().isGraphInput() || displayEntry.metadata().type().isCatalyst()) {
+			HotkeyTooltipLine.add(
+				tooltip,
+				Component.translatable("jei.tooltip.bookmarks.group.keys.alt_scroll"),
+				"jei.tooltip.bookmarks.group.hotkeys.toggle_input_catalyst"
+			);
 		}
 	}
 

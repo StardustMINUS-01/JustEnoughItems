@@ -1340,7 +1340,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			boolean controlDown = Screen.hasControlDown();
 			boolean altDown = Screen.hasAltDown();
 			boolean shiftDown = Screen.hasShiftDown();
-			if (!controlDown && !shiftDown) {
+			if (!controlDown && !shiftDown && !altDown) {
 				return Optional.empty();
 			}
 
@@ -1373,6 +1373,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 				} else if (action.filter(a -> a == BookmarkHotkeyAction.CYCLE_PERMUTATION).isPresent()) {
 					long step = getScrollStep(scrollDelta, action.get());
 					if (bookmarkList.cycleBookmarkPermutation(bookmark.get(), step)) {
+						playClickSound();
+						return Optional.of(this);
+					}
+				} else if (action.filter(a -> a == BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST).isPresent()) {
+					if (bookmarkList.toggleBookmarkInputCatalyst(bookmark.get())) {
 						playClickSound();
 						return Optional.of(this);
 					}

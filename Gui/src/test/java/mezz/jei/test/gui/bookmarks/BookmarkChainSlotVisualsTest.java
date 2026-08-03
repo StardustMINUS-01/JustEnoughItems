@@ -8,12 +8,14 @@ import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
+import mezz.jei.gui.overlay.bookmarks.BookmarkSlotDisplayMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 
 public class BookmarkChainSlotVisualsTest {
@@ -97,5 +99,48 @@ public class BookmarkChainSlotVisualsTest {
 		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(entry).orElseThrow();
 
 		Assertions.assertEquals(Optional.of(border), visuals.border());
+	}
+
+	@Test
+	public void catalystBookmarkShowsYellowHighlightInRealMode() {
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.CATALYST,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			ResourceLocation.parse("test:category"),
+			ResourceLocation.parse("test:recipe"),
+			Set.of()
+		);
+
+		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(
+			entry(metadata),
+			BookmarkSlotDisplayMode.REAL
+		).orElseThrow();
+
+		Assertions.assertEquals(OptionalInt.of(0x66E8C135), visuals.backgroundColor());
+		Assertions.assertEquals(Optional.of("C"), visuals.recipeMarkerText());
+	}
+
+	@Test
+	public void ingredientBookmarkKeepsGreenHighlightInRealMode() {
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.INGREDIENT,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			ResourceLocation.parse("test:category"),
+			ResourceLocation.parse("test:recipe"),
+			Set.of()
+		);
+
+		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(
+			entry(metadata),
+			BookmarkSlotDisplayMode.REAL
+		).orElseThrow();
+
+		Assertions.assertEquals(OptionalInt.of(0x6645DA75), visuals.backgroundColor());
 	}
 }

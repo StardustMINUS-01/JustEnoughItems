@@ -250,7 +250,14 @@ public class IngredientListRenderer {
 				visuals.multiplierText()
 					.ifPresent(text -> drawTopLeftText(guiGraphics, font, area, text, visuals.multiplierTextColor().orElse(0xFFFFFFFF)));
 				visuals.recipeMarkerText()
-					.ifPresent(text -> drawTopRightText(guiGraphics, font, area, text, visuals.recipeMarkerTextColor().orElse(0xFFFFFF55)));
+					.ifPresent(text -> {
+						if (text.equals("C")) {
+							// catalyst marker sits at the bottom-left, away from the amount text
+							drawBottomLeftText(guiGraphics, font, area, text, visuals.recipeMarkerTextColor().orElse(0xFFFFFF55));
+						} else {
+							drawTopRightText(guiGraphics, font, area, text, visuals.recipeMarkerTextColor().orElse(0xFFFFFF55));
+						}
+					});
 				visuals.amountText()
 					.ifPresent(text -> drawBottomRightText(guiGraphics, font, area, text, visuals.amountTextColor().orElse(0xFFFFFFFF)));
 			});
@@ -287,6 +294,11 @@ public class IngredientListRenderer {
 	private static void drawTopRightText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
 		int x = area.getX() + area.getWidth() - scaledTextWidth(font, text);
 		drawScaledText(guiGraphics, font, text, x, area.getY() + 1, color);
+	}
+
+	private static void drawBottomLeftText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
+		int y = area.getY() + area.getHeight() - Math.round(font.lineHeight * BOOKMARK_SLOT_TEXT_SCALE);
+		drawScaledText(guiGraphics, font, text, area.getX() + 1, y, color);
 	}
 
 	private static void drawBottomRightText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {

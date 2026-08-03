@@ -1708,6 +1708,10 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 
 		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
+		if (targetMetadata.type().isCatalyst()) {
+			// catalyst bookmarks keep their multiplier and amount unchanged by scrolling
+			return false;
+		}
 		ResourceLocation recipeUid = targetMetadata.recipeUid();
 		boolean changed = false;
 		if (recipeUid != null && targetMetadata.type().isGraphMember()) {
@@ -1820,6 +1824,29 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 		IBookmark replacement = createPermutationBookmark(bookmark, nextIngredient.get());
 		return replaceBookmark(bookmark, replacement, metadata);
+	}
+
+	public boolean toggleBookmarkInputCatalyst(IBookmark bookmark) {
+		if (!bookmarksSet.contains(bookmark)) {
+			return false;
+		}
+		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+		BookmarkItemType type = metadata.type();
+		BookmarkItemType toggledType;
+		if (type == BookmarkItemType.INGREDIENT) {
+			toggledType = BookmarkItemType.CATALYST;
+		} else if (type == BookmarkItemType.CATALYST) {
+			toggledType = BookmarkItemType.INGREDIENT;
+		} else {
+			return false;
+		}
+		if (metadata.recipeUid() == null) {
+			return false;
+		}
+		bookmarkGroups.setItemMetadata(bookmark, metadata.withType(toggledType));
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
