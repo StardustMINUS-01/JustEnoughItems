@@ -35,6 +35,7 @@ import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -546,29 +547,6 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public Optional<String> addRecipeLayoutBookmarkGroup(
-		String title,
-		List<IRecipeLayoutDrawable<?>> recipeLayouts,
-		boolean preserveAmount
-	) {
-		List<RecipeBookmarkEntry> recipeBookmarks = new ArrayList<>();
-		for (IRecipeLayoutDrawable<?> recipeLayout : recipeLayouts) {
-			recipeBookmarks.addAll(createRecipeBookmarkEntries(new RecipeLayoutProjection(recipeLayout), preserveAmount, null));
-		}
-		if (recipeBookmarks.isEmpty()) {
-			return Optional.empty();
-		}
-		return Optional.of(addRecipeBookmarkEntryGroup(title, recipeBookmarks));
-	}
-
-	public Optional<String> addRecipeLayoutBookmarkGroup(List<IRecipeLayoutDrawable<?>> recipeLayouts, boolean preserveAmount) {
-		if (recipeLayouts.isEmpty()) {
-			return Optional.empty();
-		}
-		String title = getRecipeBookmarkGroupTitle(recipeLayouts.get(0).getRecipeSlotsView());
-		return addRecipeLayoutBookmarkGroup(title, recipeLayouts, preserveAmount);
-	}
-
 	public Optional<String> addRecipeLayoutProjectionBookmarkGroup(
 		List<RecipeLayoutProjection> recipeLayouts,
 		boolean preserveAmount
@@ -914,7 +892,7 @@ public class BookmarkList implements IIngredientGridSource {
 		for (IRecipeSlotView slotView : roleSlots) {
 			Optional<ITypedIngredient<?>> ingredient = slotView.getAllIngredients().findFirst();
 			if (ingredient.isPresent()) {
-				return Optional.of(createRecipeBookmark(recipeLayout, slotView, roleSlots, ingredient.get(), role, preserveAmount, virtualInputs, null));
+				return Optional.of(createRecipeBookmark(recipeLayout, slotView, roleSlots, ingredient.get(), role, preserveAmount, virtualInputs, null, null));
 			}
 		}
 		return Optional.empty();
@@ -943,8 +921,11 @@ public class BookmarkList implements IIngredientGridSource {
 			} else {
 				ingredient = slotView.getAllIngredients().findFirst();
 			}
+			BookmarkIngredientKey lockedInputPermutation = role == RecipeIngredientRole.INPUT ?
+				projection.selectedInputKey(i).orElse(null) :
+				null;
 			ingredient
-				.map(selected -> createRecipeBookmark(recipeLayout, slotView, roleSlots, selected, role, preserveAmount, virtualInputs, equalityScope))
+				.map(selected -> createRecipeBookmark(recipeLayout, slotView, roleSlots, selected, role, preserveAmount, virtualInputs, equalityScope, lockedInputPermutation))
 				.ifPresent(entry -> {
 					if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
 						bookmarks.add(entry);
@@ -1029,7 +1010,8 @@ public class BookmarkList implements IIngredientGridSource {
 		RecipeIngredientRole role,
 		boolean preserveAmount,
 		GtmVirtualCircuitCompat.VirtualInputProjection virtualInputs,
-		Object equalityScope
+		Object equalityScope,
+		@Nullable BookmarkIngredientKey lockedInputPermutation
 	) {
 		IRecipeCategory<R> recipeCategory = recipeLayout.getRecipeCategory();
 		R recipe = recipeLayout.getRecipe();
@@ -1057,19 +1039,15 @@ public class BookmarkList implements IIngredientGridSource {
 			ingredient,
 			ingredientManager
 		);
+		if (lockedInputPermutation != null) {
+			metadata = metadata.withPermutations(Set.of(lockedInputPermutation));
+		}
 		return new RecipeBookmarkEntry(bookmark, metadata);
 	}
 
 	private boolean sameIngredient(ITypedIngredient<?> first, ITypedIngredient<?> second) {
 		return BookmarkItemMetadataFactory.createPermutationKey(first, ingredientManager)
 			.equals(BookmarkItemMetadataFactory.createPermutationKey(second, ingredientManager));
-	}
-
-	private String getRecipeBookmarkGroupTitle(IRecipeSlotsView recipeSlotsView) {
-		return findFirstIngredient(recipeSlotsView, RecipeIngredientRole.OUTPUT)
-			.or(() -> findFirstIngredient(recipeSlotsView, RecipeIngredientRole.INPUT))
-			.map(this::getIngredientDisplayName)
-			.orElse("Recipe");
 	}
 
 	private String getRecipeBookmarkGroupTitle(RecipeLayoutProjection projection) {

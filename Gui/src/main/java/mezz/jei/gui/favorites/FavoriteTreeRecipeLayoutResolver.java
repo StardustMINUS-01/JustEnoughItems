@@ -13,6 +13,7 @@ import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -47,7 +48,7 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 		return focusedRecipeLayoutResolver.resolve(focusedRecipe, focusFactory.getEmptyFocusGroup());
 	}
 
-	List<FavoriteTreeBuilder.ResolvedInput> resolveInputs(IRecipeLayoutDrawable<?> layout) {
+	private List<FavoriteTreeBuilder.ResolvedInput> resolveInputs(IRecipeLayoutDrawable<?> layout) {
 		List<IRecipeSlotView> inputSlots = layout.getRecipeSlotsView()
 			.getSlotViews(RecipeIngredientRole.INPUT);
 		Set<BookmarkIngredientKey> nonConsumableInputs = GtmVirtualCircuitCompat
@@ -57,13 +58,16 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 			.map(GtmVirtualCircuitCompat.VirtualInput::ingredient)
 			.map(this::createKey)
 			.collect(Collectors.toUnmodifiableSet());
-		return inputSlots.stream()
-			.map(slot -> resolveInput(slot, nonConsumableInputs))
-			.flatMap(Optional::stream)
-			.toList();
+		List<FavoriteTreeBuilder.ResolvedInput> resolvedInputs = new ArrayList<>();
+		for (int i = 0; i < inputSlots.size(); i++) {
+			resolveInput(i, inputSlots.get(i), nonConsumableInputs)
+				.ifPresent(resolvedInputs::add);
+		}
+		return resolvedInputs;
 	}
 
 	private Optional<FavoriteTreeBuilder.ResolvedInput> resolveInput(
+		int inputSlotIndex,
 		IRecipeSlotView slot,
 		Set<BookmarkIngredientKey> nonConsumableInputs
 	) {
@@ -78,7 +82,7 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 		List<BookmarkIngredientKey> permutationKeys = ingredients.stream()
 			.map(this::createKey)
 			.toList();
-		return Optional.of(new FavoriteTreeBuilder.ResolvedInput(displayedKey, permutationKeys));
+		return Optional.of(new FavoriteTreeBuilder.ResolvedInput(inputSlotIndex, displayedKey, permutationKeys));
 	}
 
 	private BookmarkIngredientKey createKey(ITypedIngredient<?> ingredient) {

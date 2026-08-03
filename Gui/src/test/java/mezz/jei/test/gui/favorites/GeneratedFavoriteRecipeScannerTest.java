@@ -35,7 +35,7 @@ public class GeneratedFavoriteRecipeScannerTest {
 		);
 
 		Optional<FocusedRecipe> selected = GeneratedFavoriteRecipeScanner.resolveGeneratedFavorite(
-			target(),
+			Optional.of(target()),
 			candidates,
 			rules
 		);
@@ -51,7 +51,7 @@ public class GeneratedFavoriteRecipeScannerTest {
 		);
 
 		Optional<FocusedRecipe> selected = GeneratedFavoriteRecipeScanner.resolveGeneratedFavorite(
-			target(),
+			Optional.of(target()),
 			candidates,
 			RecipePreferenceRules.EMPTY
 		);

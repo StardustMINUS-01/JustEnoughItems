@@ -82,6 +82,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 public class JeiGuiStarter {
@@ -243,6 +244,45 @@ public class JeiGuiStarter {
 			clientCraftingGridClickRunner
 		);
 
+		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
+			recipeManager,
+			focusFactory,
+			ingredientManager
+		);
+		GeneratedFavoriteRecipeScanner generatedFavoriteRecipeScanner = new GeneratedFavoriteRecipeScanner(
+			recipeManager,
+			focusFactory,
+			ingredientManager
+		);
+		AtomicReference<RecipePreferenceRules> recipePreferenceRulesRef = new AtomicReference<>(recipePreferenceRules);
+		// The first scan must run after the JEI runtime is created (Internal.setRuntime happens
+		// after the registerRuntime callback returns). Building recipe layouts earlier fails with
+		// "Jei Runtime has not been created yet", which empties the generated favorites.
+		Minecraft.getInstance().execute(() ->
+			generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, recipePreferenceRulesRef.get())
+		);
+		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
+			recipePreferenceConfig::loadRules,
+			minecraft::execute,
+			rules -> {
+				recipePreferenceRulesRef.set(rules);
+				generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, rules);
+			}
+		);
+		Internal.getFileWatcher().addCallback(
+			recipePreferenceConfig.getPath(),
+			recipePreferenceRulesReloadController::onConfigFileChanged
+		);
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
+			new FavoriteTreeBuilder(
+				favoriteRecipes,
+				favoriteTreeRecipeResolver,
+				new SlotPreferenceResolver(generatedFavoriteRecipeScanner, recipePreferenceRulesRef::get)
+			),
+			favoriteTreeRecipeResolver::resolveLayout,
+			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
+		);
+
 		RecipesGui recipesGui = new RecipesGui(
 			recipeManager,
 			ingredientManager,
@@ -255,6 +295,7 @@ public class JeiGuiStarter {
 			bookmarkFactory,
 			favoriteRecipes,
 			favoriteRecipeConfig,
+			favoriteTreeBookmarkWriter,
 			clientCraftingGridClickRunner,
 			bookmarkOverlay::showBookmarkPanel,
 			bookmarkOverlay::showFavoritePanel
@@ -273,41 +314,6 @@ public class JeiGuiStarter {
 		);
 
 		FocusUtil focusUtil = new FocusUtil(focusFactory, clientConfig, ingredientManager);
-		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
-			recipeManager,
-			focusFactory,
-			ingredientManager
-		);
-		GeneratedFavoriteRecipeScanner generatedFavoriteRecipeScanner = new GeneratedFavoriteRecipeScanner(
-			recipeManager,
-			focusFactory,
-			ingredientManager
-		);
-		// The first scan must run after the JEI runtime is created (Internal.setRuntime happens
-		// after the registerRuntime callback returns). Building recipe layouts earlier fails with
-		// "Jei Runtime has not been created yet", which empties the generated favorites.
-		Minecraft.getInstance().execute(() ->
-			generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, recipePreferenceRules)
-		);
-		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
-			recipePreferenceConfig::loadRules,
-			minecraft::execute,
-			rules -> generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, rules)
-		);
-		Internal.getFileWatcher().addCallback(
-			recipePreferenceConfig.getPath(),
-			recipePreferenceRulesReloadController::onConfigFileChanged
-		);
-		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
-			new FavoriteTreeBuilder(
-				favoriteRecipes,
-				favoriteTreeRecipeResolver,
-				new SlotPreferenceResolver(generatedFavoriteRecipeScanner, recipePreferenceRules)
-			),
-			favoriteTreeRecipeResolver::resolveLayout,
-			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
-		);
-
 		UserInputRouter userInputRouter = new UserInputRouter(
 			"JEIGlobal",
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),

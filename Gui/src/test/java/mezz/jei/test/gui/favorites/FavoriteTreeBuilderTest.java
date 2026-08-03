@@ -21,6 +21,8 @@ public class FavoriteTreeBuilderTest {
 	private static final FocusedRecipe GLASS_RECIPE = recipe("glass_recipe");
 	private static final FocusedRecipe STAINED_RECIPE = recipe("stained_recipe");
 	private static final FocusedRecipe RULE_RECIPE = recipe("rule_recipe");
+	private static final FocusedRecipe WHITE_RECIPE = recipe("white_recipe");
+	private static final FocusedRecipe DUST_RECIPE = recipe("dust_recipe");
 
 	@Test
 	public void buildTreeIncludesRootRecipeOnlyWhenNoInputsAreFavorited() {
@@ -148,23 +150,6 @@ public class FavoriteTreeBuilderTest {
 
 		Assertions.assertEquals(List.of(ROOT, INGOT), recipes(result));
 		Assertions.assertEquals(Optional.of(key("blackstone")), result.recipes().get(0).inputs().get(0).selectedFavoriteKey());
-	}
-
-	@Test
-	public void recordsActivePermutationIndexForSelectedFavoriteInput() {
-		FavoriteRecipeStore store = store();
-		store.setFavorite(key("blackstone"), INGOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("cobblestone", "cobblestone", "deepslate_cobblestone", "blackstone")),
-				resolved(INGOT)
-			)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
-
-		Assertions.assertEquals(2, result.recipes().get(0).inputs().get(0).activePermutationIndex());
 	}
 
 	@Test
@@ -398,7 +383,167 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
 
+		// The middle recipe's slot is unresolved, so the recipe itself is not written.
+		Assertions.assertEquals(List.of(ROOT), recipes(result));
+	}
+
+	@Test
+	public void middleRecipeMultiVariantSlotWithDisplayedFavoriteDoesNotFallBack() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("ingot"), PLATE);
+		store.setGeneratedFavorite(key("stained"), STAINED_RECIPE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input("ingot")),
+				resolved(PLATE, input("stained", "glass", "stained"))
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+
+		// The displayed variant has a favorite, but the fallback to the currently
+		// displayed variant is only allowed for the root recipe the player is viewing,
+		// so the middle recipe stays unresolved and is pruned entirely.
+		Assertions.assertEquals(List.of(ROOT), recipes(result));
+	}
+
+	@Test
+	public void rootMultiVariantSlotFallsBackToViewSelection() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("white"), WHITE_RECIPE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained")),
+				resolved(WHITE_RECIPE)
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
+
+		Assertions.assertEquals(List.of(ROOT, WHITE_RECIPE), recipes(result));
+		// The view selection (white) wins over the fresh layout's displayed variant (stained).
+		Assertions.assertEquals(
+			Optional.of(key("white")),
+			result.recipes().get(0).inputs().get(1).selectedFavoriteKey()
+		);
+		Assertions.assertEquals(
+			Optional.of(WHITE_RECIPE),
+			result.recipes().get(0).inputs().get(1).selectedFavoriteRecipe()
+		);
+	}
+
+	@Test
+	public void rootMultiVariantSlotLocksViewSelectionWithoutExpanding() {
+		FavoriteTreeBuilder builder = builder(
+			store(),
+			graph(
+				resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained"))
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
+
+		Assertions.assertEquals(List.of(ROOT), recipes(result));
+		// The view selection is still locked for the bookmark even without a favorite,
+		// but no recipe is expanded from it.
+		Assertions.assertEquals(
+			Optional.of(key("white")),
+			result.recipes().get(0).inputs().get(1).selectedFavoriteKey()
+		);
+		Assertions.assertEquals(
+			Optional.empty(),
+			result.recipes().get(0).inputs().get(1).selectedFavoriteRecipe()
+		);
+	}
+
+	@Test
+	public void rootViewSelectionUsesInputSlotIndex() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("white"), WHITE_RECIPE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input(1, "ingot"), input(3, "stained", "glass", "stained")),
+				resolved(WHITE_RECIPE)
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(3, key("white")));
+
+		// The view selection is matched by the original slot index, not the compressed
+		// position in the resolved input list.
+		Assertions.assertEquals(List.of(ROOT, WHITE_RECIPE), recipes(result));
+		Assertions.assertEquals(
+			Optional.of(key("white")),
+			result.recipes().get(0).inputs().get(1).selectedFavoriteKey()
+		);
+	}
+
+	@Test
+	public void rootViewSelectionDoesNotLeakIntoMiddleRecipes() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("ingot"), PLATE);
+		store.setGeneratedFavorite(key("stained"), STAINED_RECIPE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input(0, "ingot")),
+				resolved(PLATE, input(0, "stained", "glass", "stained"))
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2, Map.of(0, key("stained")));
+
+		// The root's view selection must not be applied to the middle recipe's slot
+		// with the same index; if it leaked, the middle recipe would be complete and
+		// written, so the pruned result proves it does not leak.
+		Assertions.assertEquals(List.of(ROOT), recipes(result));
+	}
+
+	@Test
+	public void partiallyResolvedRecipePrunesResolvedChildren() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("ingot"), PLATE);
+		store.setGeneratedFavorite(key("dust"), DUST_RECIPE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input("ingot")),
+				resolved(PLATE, input("dust"), input(1, "stained", "glass", "stained")),
+				resolved(DUST_RECIPE)
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 3);
+
+		// The middle recipe has one resolved slot and one unresolved slot; because the
+		// recipe itself is not written, its resolved child must not appear either.
+		Assertions.assertEquals(List.of(ROOT), recipes(result));
+	}
+
+	@Test
+	public void middleRecipeWithAllResolvedInputsIsWrittenEvenWithoutExpansion() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("ingot"), PLATE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input("ingot")),
+				resolved(PLATE, input("dust"))
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+
+		// The dust slot has a definite variant but no unique recipe; the recipe is
+		// still complete and written, with the input left unexpanded.
 		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
+		Assertions.assertEquals(
+			Optional.of(key("dust")),
+			result.recipes().get(1).inputs().get(0).selectedFavoriteKey()
+		);
 		Assertions.assertEquals(
 			Optional.empty(),
 			result.recipes().get(1).inputs().get(0).selectedFavoriteRecipe()
@@ -434,12 +579,16 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	private static FavoriteTreeBuilder.ResolvedInput input(String displayed, String... permutations) {
+		return input(0, displayed, permutations);
+	}
+
+	private static FavoriteTreeBuilder.ResolvedInput input(int inputSlotIndex, String displayed, String... permutations) {
 		List<BookmarkIngredientKey> permutationKeys = permutations.length == 0 ?
 			List.of(key(displayed)) :
 			List.of(permutations).stream()
 				.map(FavoriteTreeBuilderTest::key)
 				.toList();
-		return new FavoriteTreeBuilder.ResolvedInput(key(displayed), permutationKeys);
+		return new FavoriteTreeBuilder.ResolvedInput(inputSlotIndex, key(displayed), permutationKeys);
 	}
 
 	private static List<FocusedRecipe> recipes(FavoriteTreeBuilder.FavoriteTreeResult result) {

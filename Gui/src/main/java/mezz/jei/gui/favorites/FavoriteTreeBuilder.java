@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -31,11 +32,22 @@ public final class FavoriteTreeBuilder {
 	}
 
 	public FavoriteTreeResult build(FocusedRecipe root, int depth) {
+		return build(root, depth, Map.of());
+	}
+
+	public FavoriteTreeResult build(
+		FocusedRecipe root,
+		int depth,
+		Map<Integer, BookmarkIngredientKey> rootSelectedInputKeys
+	) {
 		Optional<ResolvedRecipe> rootRecipe = recipeResolver.resolve(root);
 		if (rootRecipe.isEmpty()) {
 			return new FavoriteTreeResult(List.of());
 		}
 
+		Map<Integer, BookmarkIngredientKey> normalizedRootSelectedInputKeys = rootSelectedInputKeys == null ?
+			Map.of() :
+			Map.copyOf(rootSelectedInputKeys);
 		List<FavoriteTreeRecipe> recipes = new ArrayList<>();
 		List<ResolvedRecipe> loop = new ArrayList<>();
 		Set<BookmarkIngredientKey> visitedIngredients = new LinkedHashSet<>();
@@ -49,7 +61,16 @@ public final class FavoriteTreeBuilder {
 			boolean canAddChildren = remainingDepth >= 0;
 			List<ResolvedRecipe> localLoop = new ArrayList<>();
 			for (ResolvedRecipe recipe : loop) {
-				recipes.add(resolveTreeRecipe(recipe, visitedIngredients, visitedRecipes, localLoop, canAddChildren));
+				resolveTreeRecipe(
+						root,
+						recipe,
+						normalizedRootSelectedInputKeys,
+						visitedIngredients,
+						visitedRecipes,
+						localLoop,
+						canAddChildren
+					)
+					.ifPresent(recipes::add);
 			}
 			loop = localLoop;
 		}
@@ -57,8 +78,10 @@ public final class FavoriteTreeBuilder {
 		return new FavoriteTreeResult(recipes);
 	}
 
-	private FavoriteTreeRecipe resolveTreeRecipe(
+	private Optional<FavoriteTreeRecipe> resolveTreeRecipe(
+		FocusedRecipe root,
 		ResolvedRecipe recipe,
+		Map<Integer, BookmarkIngredientKey> rootSelectedInputKeys,
 		Set<BookmarkIngredientKey> visitedIngredients,
 		Set<FocusedRecipe> visitedRecipes,
 		List<ResolvedRecipe> localLoop,
@@ -66,25 +89,38 @@ public final class FavoriteTreeBuilder {
 	) {
 		List<FavoriteTreeInput> inputs = recipe.inputs()
 			.stream()
-			.map(input -> resolveTreeInput(input, visitedIngredients, visitedRecipes, localLoop, canAddChildren))
+			.map(input -> resolveTreeInput(root, recipe, input, rootSelectedInputKeys))
 			.toList();
-		return new FavoriteTreeRecipe(recipe.recipe(), inputs, recipe.layout());
+		boolean complete = inputs.stream()
+			.allMatch(input -> input.selectedFavoriteKey().isPresent());
+		if (!complete) {
+			return Optional.empty();
+		}
+		for (FavoriteTreeInput input : inputs) {
+			input.selectedFavoriteKey().ifPresent(visitedIngredients::add);
+			if (canAddChildren) {
+				input.selectedFavoriteRecipe()
+					.filter(visitedRecipes::add)
+					.flatMap(recipeResolver::resolve)
+					.ifPresent(localLoop::add);
+			}
+		}
+		return Optional.of(new FavoriteTreeRecipe(recipe.recipe(), inputs, recipe.layout()));
 	}
 
 	private FavoriteTreeInput resolveTreeInput(
+		FocusedRecipe root,
+		ResolvedRecipe recipe,
 		ResolvedInput input,
-		Set<BookmarkIngredientKey> visitedIngredients,
-		Set<FocusedRecipe> visitedRecipes,
-		List<ResolvedRecipe> localLoop,
-		boolean canAddChildren
+		Map<Integer, BookmarkIngredientKey> rootSelectedInputKeys
 	) {
+		BookmarkIngredientKey displayedKey = recipe.recipe().equals(root) ?
+			rootSelectedInputKeys.getOrDefault(input.inputSlotIndex(), input.displayedKey()) :
+			input.displayedKey();
 		List<BookmarkIngredientKey> permutations = input.normalizedPermutationKeys();
 		Optional<BookmarkIngredientKey> selectedKey;
 		Optional<FocusedRecipe> selectedRecipe;
 		if (permutations.size() > 1) {
-			// Multi-variant (tag) slot: manual favorite must collapse to exactly one
-			// variant, otherwise the slot-level rules take over, and only then do we
-			// fall back to the currently displayed variant.
 			List<BookmarkIngredientKey> manualKeys = permutations.stream()
 				.filter(key -> favoriteRecipes.getManualFavorite(key).isPresent())
 				.toList();
@@ -97,42 +133,29 @@ public final class FavoriteTreeBuilder {
 					Optional.empty() :
 					slotRuleResolver.resolveSlot(permutations);
 				if (ruleRecipe.isPresent()) {
-					selectedKey = Optional.of(input.displayedKey());
+					selectedKey = Optional.of(displayedKey);
 					selectedRecipe = ruleRecipe;
+				} else if (recipe.recipe().equals(root)) {
+					selectedKey = Optional.of(displayedKey);
+					selectedRecipe = favoriteRecipes.getFavorite(displayedKey);
 				} else {
-					selectedKey = Optional.of(input.displayedKey());
-					selectedRecipe = favoriteRecipes.getFavorite(input.displayedKey());
+					selectedKey = Optional.empty();
+					selectedRecipe = Optional.empty();
 				}
 			}
 		} else {
 			BookmarkIngredientKey singleKey = permutations.isEmpty() ?
-				input.displayedKey() :
+				displayedKey :
 				permutations.getFirst();
 			selectedKey = Optional.of(singleKey);
 			selectedRecipe = favoriteRecipes.getFavorite(singleKey);
 		}
-		selectedKey.ifPresent(visitedIngredients::add);
-		if (canAddChildren && selectedRecipe.isPresent() && visitedRecipes.add(selectedRecipe.get())) {
-			recipeResolver.resolve(selectedRecipe.get())
-				.ifPresent(localLoop::add);
-		}
-
-		int activePermutationIndex = selectedKey
-			.map(key -> activePermutationIndex(permutations, key))
-			.orElseGet(() -> activePermutationIndex(permutations, input.displayedKey()));
 
 		return new FavoriteTreeInput(
-			input.displayedKey(),
-			permutations,
+			input.inputSlotIndex(),
 			selectedKey,
-			selectedRecipe,
-			activePermutationIndex
+			selectedRecipe
 		);
-	}
-
-	private static int activePermutationIndex(List<BookmarkIngredientKey> permutations, BookmarkIngredientKey selectedKey) {
-		int index = permutations.indexOf(selectedKey);
-		return Math.max(index, 0);
 	}
 
 	@FunctionalInterface
@@ -156,10 +179,12 @@ public final class FavoriteTreeBuilder {
 	}
 
 	public record ResolvedInput(
+		int inputSlotIndex,
 		BookmarkIngredientKey displayedKey,
 		List<BookmarkIngredientKey> permutationKeys
 	) {
 		public ResolvedInput {
+			inputSlotIndex = Math.max(0, inputSlotIndex);
 			permutationKeys = permutationKeys == null ? List.of() : List.copyOf(permutationKeys);
 		}
 
@@ -188,21 +213,15 @@ public final class FavoriteTreeBuilder {
 			inputs = inputs == null ? List.of() : List.copyOf(inputs);
 			layout = layout == null ? Optional.empty() : layout;
 		}
-
-		public FavoriteTreeRecipe(FocusedRecipe recipe, List<FavoriteTreeInput> inputs) {
-			this(recipe, inputs, Optional.empty());
-		}
 	}
 
 	public record FavoriteTreeInput(
-		BookmarkIngredientKey displayedKey,
-		List<BookmarkIngredientKey> permutationKeys,
+		int inputSlotIndex,
 		Optional<BookmarkIngredientKey> selectedFavoriteKey,
-		Optional<FocusedRecipe> selectedFavoriteRecipe,
-		int activePermutationIndex
+		Optional<FocusedRecipe> selectedFavoriteRecipe
 	) {
 		public FavoriteTreeInput {
-			permutationKeys = permutationKeys == null ? List.of() : List.copyOf(permutationKeys);
+			inputSlotIndex = Math.max(0, inputSlotIndex);
 			selectedFavoriteKey = selectedFavoriteKey == null ? Optional.empty() : selectedFavoriteKey;
 			selectedFavoriteRecipe = selectedFavoriteRecipe == null ? Optional.empty() : selectedFavoriteRecipe;
 		}

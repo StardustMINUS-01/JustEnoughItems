@@ -17,7 +17,9 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import net.minecraft.SharedConstants;
@@ -35,9 +37,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class BookmarkListVirtualCircuitTest {
@@ -56,8 +60,8 @@ public class BookmarkListVirtualCircuitTest {
 		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
 		TestRecipeLayout layout = layout(
 			new GTRecipe(7),
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT))
+			List.of(List.of(item(Items.IRON_INGOT))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
 		);
 
 		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, false));
@@ -84,8 +88,8 @@ public class BookmarkListVirtualCircuitTest {
 		ItemStack mold = new ItemStack(Items.SHEARS, 3);
 		TestRecipeLayout layout = layout(
 			new GTRecipe(7, mold),
-			List.of(item(Items.IRON_INGOT), typed(mold)),
-			List.of(item(Items.GOLD_INGOT))
+			List.of(List.of(item(Items.IRON_INGOT)), List.of(typed(mold))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
 		);
 
 		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, true));
@@ -106,8 +110,8 @@ public class BookmarkListVirtualCircuitTest {
 		ItemStack mold = new ItemStack(Items.SHEARS, 3);
 		TestRecipeLayout layout = layout(
 			new GTRecipe(7, mold),
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT))
+			List.of(List.of(item(Items.IRON_INGOT))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
 		);
 
 		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, true));
@@ -131,8 +135,12 @@ public class BookmarkListVirtualCircuitTest {
 		ItemStack secondCatalyst = new ItemStack(Items.FLINT_AND_STEEL, 2);
 		TestRecipeLayout layout = layout(
 			new GTRecipe(7, List.of(firstCatalyst, secondCatalyst)),
-			List.of(item(Items.IRON_INGOT), typed(firstCatalyst), typed(secondCatalyst)),
-			List.of(item(Items.GOLD_INGOT))
+			List.of(
+				List.of(item(Items.IRON_INGOT)),
+				List.of(typed(firstCatalyst)),
+				List.of(typed(secondCatalyst))
+			),
+			List.of(List.of(item(Items.GOLD_INGOT)))
 		);
 
 		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, true));
@@ -152,8 +160,8 @@ public class BookmarkListVirtualCircuitTest {
 		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
 		TestRecipeLayout layout = layout(
 			new Object(),
-			List.of(identity("styrene_butadiene_rubber")),
-			List.of(item(Items.GOLD_INGOT))
+			List.of(List.of(identity("styrene_butadiene_rubber"))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
 		);
 
 		bookmarks.addRecipeBookmarks(layout, false);
@@ -162,10 +170,63 @@ public class BookmarkListVirtualCircuitTest {
 		Assertions.assertEquals(2, bookmarks.getBookmarks().size());
 	}
 
+	@Test
+	public void projectionLocksSelectedInputPermutation() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		TestRecipeLayout layout = layout(
+			new Object(),
+			List.of(List.of(item(Items.GLASS), item(Items.RED_STAINED_GLASS), item(Items.BLUE_STAINED_GLASS))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
+		);
+		BookmarkIngredientKey selectedKey = BookmarkItemMetadataFactory.createPermutationKey(
+			item(Items.RED_STAINED_GLASS),
+			INGREDIENT_MANAGER
+		);
+
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, false, Map.of(0, selectedKey)));
+
+		BookmarkItemMetadata metadata = bookmarks.getBookmarks().stream()
+			.filter(bookmark -> bookmark.getElement().getTypedIngredient().getItemStack()
+				.map(stack -> stack.is(Items.RED_STAINED_GLASS))
+				.orElse(false))
+			.map(bookmarks::getBookmarkMetadata)
+			.findFirst()
+			.orElseThrow();
+		Assertions.assertEquals(Set.of(selectedKey), metadata.permutations());
+	}
+
+	@Test
+	public void projectionWithoutSelectedInputKeepsAllVariants() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		TestRecipeLayout layout = layout(
+			new Object(),
+			List.of(List.of(item(Items.GLASS), item(Items.RED_STAINED_GLASS), item(Items.BLUE_STAINED_GLASS))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
+		);
+
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, false));
+
+		BookmarkItemMetadata metadata = bookmarks.getBookmarks().stream()
+			.filter(bookmark -> bookmark.getElement().getTypedIngredient().getItemStack()
+				.map(stack -> stack.is(Items.GLASS))
+				.orElse(false))
+			.map(bookmarks::getBookmarkMetadata)
+			.findFirst()
+			.orElseThrow();
+		Assertions.assertEquals(
+			Set.of(
+				BookmarkItemMetadataFactory.createPermutationKey(item(Items.GLASS), INGREDIENT_MANAGER),
+				BookmarkItemMetadataFactory.createPermutationKey(item(Items.RED_STAINED_GLASS), INGREDIENT_MANAGER),
+				BookmarkItemMetadataFactory.createPermutationKey(item(Items.BLUE_STAINED_GLASS), INGREDIENT_MANAGER)
+			),
+			metadata.permutations()
+		);
+	}
+
 	private static TestRecipeLayout layout(
 		Object recipe,
-		List<@Nullable ITypedIngredient<?>> inputs,
-		List<@Nullable ITypedIngredient<?>> outputs
+		List<List<@Nullable ITypedIngredient<?>>> inputs,
+		List<List<@Nullable ITypedIngredient<?>>> outputs
 	) {
 		return new TestRecipeLayout(new TestRecipeCategory(), recipe, inputs, outputs);
 	}
@@ -335,8 +396,8 @@ public class BookmarkListVirtualCircuitTest {
 	private record TestRecipeLayout(
 		TestRecipeCategory category,
 		Object recipe,
-		List<@Nullable ITypedIngredient<?>> inputs,
-		List<@Nullable ITypedIngredient<?>> outputs
+		List<List<@Nullable ITypedIngredient<?>>> inputs,
+		List<List<@Nullable ITypedIngredient<?>>> outputs
 	) implements IRecipeLayoutDrawable<Object> {
 		@Override
 		public void setPosition(int posX, int posY) {
@@ -415,20 +476,23 @@ public class BookmarkListVirtualCircuitTest {
 		}
 	}
 
-	private record TestRecipeSlotView(RecipeIngredientRole role, @Nullable ITypedIngredient<?> ingredient) implements IRecipeSlotView {
+	private record TestRecipeSlotView(
+		RecipeIngredientRole role,
+		List<@Nullable ITypedIngredient<?>> ingredients
+	) implements IRecipeSlotView {
 		@Override
 		public Stream<ITypedIngredient<?>> getAllIngredients() {
-			return ingredient == null ? Stream.empty() : Stream.of(ingredient);
+			return ingredients.stream().filter(Objects::nonNull);
 		}
 
 		@Override
 		public List<@Nullable ITypedIngredient<?>> getAllIngredientsList() {
-			return Collections.singletonList(ingredient);
+			return ingredients;
 		}
 
 		@Override
 		public Optional<ITypedIngredient<?>> getDisplayedIngredient() {
-			return Optional.ofNullable(ingredient);
+			return ingredients.stream().filter(Objects::nonNull).findFirst();
 		}
 
 		@Override

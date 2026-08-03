@@ -77,6 +77,31 @@ public class FavoriteTreeRecipeLayoutResolverTest {
 		Assertions.assertEquals("minecraft:iron_ingot", inputs.get(0).displayedKey().ingredientUid());
 	}
 
+	@Test
+	public void resolveInputsKeepOriginalSlotIndices() {
+		TestRecipeLayout layout = layout(
+			new Object(),
+			java.util.Arrays.<ITypedIngredient<?>>asList(item(Items.IRON_INGOT), null, item(Items.GOLD_INGOT)),
+			List.of(item(Items.DIAMOND))
+		);
+		FavoriteTreeRecipeLayoutResolver resolver = new FavoriteTreeRecipeLayoutResolver(
+			recipeManager(layout),
+			focusFactory(),
+			INGREDIENT_MANAGER
+		);
+
+		List<FavoriteTreeBuilder.ResolvedInput> inputs = resolver.resolve(new FocusedRecipe(
+			layout.category().getRecipeType().getUid(),
+			RECIPE_UID
+		)).orElseThrow().inputs();
+
+		Assertions.assertEquals(2, inputs.size());
+		Assertions.assertEquals(0, inputs.get(0).inputSlotIndex());
+		Assertions.assertEquals("minecraft:iron_ingot", inputs.get(0).displayedKey().ingredientUid());
+		Assertions.assertEquals(2, inputs.get(1).inputSlotIndex());
+		Assertions.assertEquals("minecraft:gold_ingot", inputs.get(1).displayedKey().ingredientUid());
+	}
+
 	private static IRecipeManager recipeManager(TestRecipeLayout layout) {
 		IRecipeLookup<Object> lookup = new IRecipeLookup<>() {
 			@Override

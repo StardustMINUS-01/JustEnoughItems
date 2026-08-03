@@ -3,8 +3,6 @@ package mezz.jei.gui.recipes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
-import mezz.jei.api.recipe.IFocusFactory;
-import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
@@ -15,13 +13,10 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
-import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.elements.GuiIconToggleButton;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
-import mezz.jei.gui.favorites.FavoriteTreeBuilder;
-import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -58,9 +53,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 	public static RecipeFavoriteButton create(
 		IRecipeLayoutDrawable<?> recipeLayout,
 		IIngredientManager ingredientManager,
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		BookmarkList bookmarks,
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter,
 		FavoriteRecipeStore favoriteRecipes,
 		FavoriteRecipeConfig favoriteRecipeConfig,
 		Runnable showBookmarkPanel,
@@ -73,16 +66,6 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			recipeLayout,
 			ingredient -> BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager),
 			storedTarget
-		);
-		FavoriteTreeRecipeLayoutResolver treeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
-			recipeManager,
-			focusFactory,
-			ingredientManager
-		);
-		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
-			new FavoriteTreeBuilder(favoriteRecipes, treeRecipeResolver),
-			treeRecipeResolver::resolveLayout,
-			bookmarks::addRecipeLayoutProjectionBookmarkGroup
 		);
 
 		Textures textures = Internal.getTextures();
@@ -382,7 +365,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			focusedRecipe,
 			clientConfig.favoriteTreeDepth().getValue(),
 			selectedOutputKey,
-			inputSlotSelectionState.selectedKeys()
+			inputSlotSelectionState.currentSelections(recipeLayout)
 		);
 		groupId.ifPresent(ignored -> showBookmarkPanel.run());
 		return groupId;

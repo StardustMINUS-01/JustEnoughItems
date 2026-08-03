@@ -70,17 +70,6 @@ public final class GeneratedFavoriteRecipeScanner {
 	}
 
 	public static Optional<FocusedRecipe> resolveGeneratedFavorite(
-		RecipePreferenceIngredientInfo target,
-		List<RecipePreferenceCandidate> recipes,
-		RecipePreferenceRules recipePreferenceRules
-	) {
-		if (recipes.size() == 1) {
-			return Optional.of(recipes.getFirst().recipe());
-		}
-		return recipePreferenceRules.resolvePreferredRecipe(target, recipes);
-	}
-
-	public static Optional<FocusedRecipe> resolveGeneratedFavorite(
 		Optional<RecipePreferenceIngredientInfo> target,
 		List<RecipePreferenceCandidate> recipes,
 		RecipePreferenceRules recipePreferenceRules

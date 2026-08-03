@@ -11,26 +11,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
-/**
- * Slot-level preference resolution backed by the generated favorite scan data.
- * Merges the output candidates of every variant in the slot and lets the preference
- * rules collapse them to a single recipe.
- */
 public final class SlotPreferenceResolver implements SlotRuleResolver {
 	private final GeneratedFavoriteRecipeScanner scanner;
-	private final RecipePreferenceRules rules;
+	private final Supplier<RecipePreferenceRules> rulesSupplier;
 
 	public SlotPreferenceResolver(
 		GeneratedFavoriteRecipeScanner scanner,
-		RecipePreferenceRules rules
+		Supplier<RecipePreferenceRules> rulesSupplier
 	) {
 		this.scanner = scanner;
-		this.rules = rules;
+		this.rulesSupplier = rulesSupplier;
 	}
 
 	@Override
 	public Optional<FocusedRecipe> resolveSlot(List<BookmarkIngredientKey> variants) {
+		RecipePreferenceRules rules = rulesSupplier.get();
 		if (rules.isEmpty() || variants.isEmpty()) {
 			return Optional.empty();
 		}
@@ -41,8 +38,6 @@ public final class SlotPreferenceResolver implements SlotRuleResolver {
 				scanner.getTargetInfoByOutput().get(variant)
 			);
 			if (info.isEmpty()) {
-				// A variant without any output info cannot take part in a unique
-				// slot-level collapse, so the slot is not considered unique.
 				return Optional.empty();
 			}
 			variantInfos.add(info.get());

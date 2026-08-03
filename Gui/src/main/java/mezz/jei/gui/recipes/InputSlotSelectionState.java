@@ -32,6 +32,25 @@ public final class InputSlotSelectionState {
 		return Map.copyOf(selectedKeys);
 	}
 
+	public Map<Integer, BookmarkIngredientKey> currentSelections(IRecipeLayoutDrawable<?> recipeLayout) {
+		Map<Integer, BookmarkIngredientKey> selections = new LinkedHashMap<>();
+		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView()
+			.getSlotViews(RecipeIngredientRole.INPUT);
+		for (int i = 0; i < inputSlots.size(); i++) {
+			IRecipeSlotView slot = inputSlots.get(i);
+			BookmarkIngredientKey explicit = selectedKeys.get(i);
+			if (explicit != null && findByKey(slot, explicit).isPresent()) {
+				selections.put(i, explicit);
+				continue;
+			}
+			int slotIndex = i;
+			slot.getDisplayedIngredient()
+				.map(this::key)
+				.ifPresent(displayed -> selections.put(slotIndex, displayed));
+		}
+		return Map.copyOf(selections);
+	}
+
 	public void clear() {
 		selectedKeys.clear();
 	}

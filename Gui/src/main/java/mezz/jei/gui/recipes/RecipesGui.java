@@ -39,6 +39,7 @@ import mezz.jei.api.gui.buttons.IButtonState;
 import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
@@ -80,6 +81,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private final IIngredientManager ingredientManager;
 	private final FavoriteRecipeStore favoriteRecipes;
 	private final FavoriteRecipeConfig favoriteRecipeConfig;
+	private final FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter;
 	private final ClientFallbackStarter clientFallbackStarter;
 	private final Runnable showBookmarkPanel;
 	private final Runnable showFavoritePanel;
@@ -135,6 +137,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		BookmarkFactory bookmarkFactory,
 		FavoriteRecipeStore favoriteRecipes,
 		FavoriteRecipeConfig favoriteRecipeConfig,
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter,
 		ClientFallbackStarter clientFallbackStarter,
 		Runnable showBookmarkPanel,
 		Runnable showFavoritePanel
@@ -145,6 +148,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.bookmarks = bookmarks;
 		this.favoriteRecipes = favoriteRecipes;
 		this.favoriteRecipeConfig = favoriteRecipeConfig;
+		this.favoriteTreeBookmarkWriter = favoriteTreeBookmarkWriter;
 		this.clientFallbackStarter = clientFallbackStarter;
 		this.showBookmarkPanel = showBookmarkPanel;
 		this.showFavoritePanel = showFavoritePanel;
@@ -646,9 +650,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		RecipeFavoriteButton favoriteButton = RecipeFavoriteButton.create(
 			recipeLayoutDrawable,
 			ingredientManager,
-			recipeManager,
-			focusFactory,
-			bookmarks,
+			favoriteTreeBookmarkWriter,
 			favoriteRecipes,
 			favoriteRecipeConfig,
 			showBookmarkPanel,

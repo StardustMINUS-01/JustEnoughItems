@@ -10,6 +10,7 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.recipes.InputSlotSelectionState;
 import net.minecraft.client.renderer.Rect2i;
 import org.junit.jupiter.api.Assertions;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -83,6 +85,21 @@ public class InputSlotSelectionStateTest {
 			.map(String.class::cast)
 			.toList();
 		Assertions.assertEquals(List.of("second"), transferredCandidates);
+	}
+
+	@Test
+	public void currentSelectionsPreferExplicitScrollOverDisplayedVariant() {
+		IRecipeSlotDrawable firstSlot = slot(List.of(typed("first"), typed("second")));
+		IRecipeSlotDrawable secondSlot = slot(List.of(typed("third"), typed("fourth")));
+		IRecipeLayoutDrawable<?> layout = layout(firstSlot, firstSlot, secondSlot);
+		InputSlotSelectionState state = new InputSlotSelectionState(ingredientManager());
+		Assertions.assertTrue(state.scroll(layout, 4, 4, -1, false));
+
+		Map<Integer, BookmarkIngredientKey> selections = state.currentSelections(layout);
+
+		Assertions.assertEquals(2, selections.size());
+		Assertions.assertEquals("second", selections.get(0).ingredientUid());
+		Assertions.assertEquals("third", selections.get(1).ingredientUid());
 	}
 
 
