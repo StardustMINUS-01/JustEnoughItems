@@ -54,11 +54,6 @@ public final class IngredientGridLayout {
 		return slotLayouts.size() - blocked;
 	}
 
-	/**
-	 * Counts the usable (unblocked) slots in the first row that contains any unblocked slot.
-	 * This is the column count that matches the actual visible slots, so layout code that
-	 * fills the visible slots sequentially (such as bookmark chain wrapping) can align with it.
-	 */
 	public static int calculateUsableColumnCount(
 		ImmutableRect2i area,
 		Set<ImmutableRect2i> exclusionAreas,

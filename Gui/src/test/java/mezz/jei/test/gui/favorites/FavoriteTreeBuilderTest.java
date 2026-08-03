@@ -324,12 +324,10 @@ public class FavoriteTreeBuilderTest {
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, INGOT, STAINED_RECIPE), recipes(result));
-		// The single-variant slot expands via its generated favorite...
 		Assertions.assertEquals(
 			Optional.of(key("ingot")),
 			result.recipes().get(0).inputs().get(0).selectedFavoriteKey()
 		);
-		// ...while the multi-variant slot falls back to the displayed variant.
 		Assertions.assertEquals(
 			Optional.of(key("stained")),
 			result.recipes().get(0).inputs().get(1).selectedFavoriteKey()
@@ -357,8 +355,6 @@ public class FavoriteTreeBuilderTest {
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE, GLASS_RECIPE), recipes(result));
-		// The middle recipe's multi-variant slot expands via the unique manual favorite,
-		// even though the displayed variant is a different one.
 		Assertions.assertEquals(
 			Optional.of(key("glass")),
 			result.recipes().get(1).inputs().get(0).selectedFavoriteKey()
@@ -383,7 +379,6 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
 
-		// The middle recipe's slot is unresolved, so the recipe itself is not written.
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
@@ -402,9 +397,6 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
 
-		// The displayed variant has a favorite, but the fallback to the currently
-		// displayed variant is only allowed for the root recipe the player is viewing,
-		// so the middle recipe stays unresolved and is pruned entirely.
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
@@ -423,7 +415,6 @@ public class FavoriteTreeBuilderTest {
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
 
 		Assertions.assertEquals(List.of(ROOT, WHITE_RECIPE), recipes(result));
-		// The view selection (white) wins over the fresh layout's displayed variant (stained).
 		Assertions.assertEquals(
 			Optional.of(key("white")),
 			result.recipes().get(0).inputs().get(1).selectedFavoriteKey()
@@ -446,8 +437,6 @@ public class FavoriteTreeBuilderTest {
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
-		// The view selection is still locked for the bookmark even without a favorite,
-		// but no recipe is expanded from it.
 		Assertions.assertEquals(
 			Optional.of(key("white")),
 			result.recipes().get(0).inputs().get(1).selectedFavoriteKey()
@@ -472,8 +461,6 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(3, key("white")));
 
-		// The view selection is matched by the original slot index, not the compressed
-		// position in the resolved input list.
 		Assertions.assertEquals(List.of(ROOT, WHITE_RECIPE), recipes(result));
 		Assertions.assertEquals(
 			Optional.of(key("white")),
@@ -496,9 +483,6 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2, Map.of(0, key("stained")));
 
-		// The root's view selection must not be applied to the middle recipe's slot
-		// with the same index; if it leaked, the middle recipe would be complete and
-		// written, so the pruned result proves it does not leak.
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
@@ -518,8 +502,6 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 3);
 
-		// The middle recipe has one resolved slot and one unresolved slot; because the
-		// recipe itself is not written, its resolved child must not appear either.
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
@@ -537,8 +519,6 @@ public class FavoriteTreeBuilderTest {
 
 		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
 
-		// The dust slot has a definite variant but no unique recipe; the recipe is
-		// still complete and written, with the input left unexpanded.
 		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
 		Assertions.assertEquals(
 			Optional.of(key("dust")),

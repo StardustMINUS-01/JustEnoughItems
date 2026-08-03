@@ -70,7 +70,6 @@ public class FavoriteTreeBookmarkWriterTest {
 		);
 
 		Assertions.assertEquals(Optional.of("group"), groupId);
-		// PLATE is pruned (one unresolved slot) and takes its resolved child with it.
 		Assertions.assertEquals(2, projections.size());
 		Assertions.assertSame(rootLayout, projections.get(0).layout());
 		Assertions.assertSame(whiteLayout, projections.get(1).layout());

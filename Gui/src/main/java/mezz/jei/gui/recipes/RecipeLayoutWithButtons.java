@@ -152,7 +152,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		this.transferButtonArea = toImmutable(offset(recipeLayout.getRecipeTransferButtonArea(), layoutRect));
 		this.bookmarkButtonArea = toImmutable(offset(recipeLayout.getRecipeBookmarkButtonArea(), layoutRect));
 		if (favoriteButton != null) {
-			// place the favorite button above all visible side buttons, using the same slot system
 			favoriteButton.updateBounds(toImmutable(offset(recipeLayout.getSideButtonArea(i), layoutRect)));
 		}
 	}

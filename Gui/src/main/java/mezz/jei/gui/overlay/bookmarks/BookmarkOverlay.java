@@ -766,8 +766,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	public void drawOnForeground(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
-			// Pre-warm the column-aware display slots so the per-slot visuals resolver
-			// always sees border data computed with the real grid column count.
 			this.bookmarkList.getDisplaySlots(this.contents.getUsableColumnCount());
 			this.contents.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
@@ -1220,7 +1218,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 					.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
 					.orElse(false);
 				if (collapsed) {
-					// group-level collapse takes precedence, matching GTNH NEI behavior
 					bookmarkList.toggleGroupCollapsed(groupId);
 					playClickSound();
 					return Optional.of(this);

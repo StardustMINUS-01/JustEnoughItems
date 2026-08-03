@@ -267,7 +267,6 @@ public class BookmarkDisplayGeneratorTest {
 			Assertions.assertEquals(recipeA, slots.get(i).entry().collapsedBlockId());
 			Assertions.assertEquals(recipeA, slots.get(i).entry().displayRecipeUid().orElseThrow());
 		}
-		// B produces 2x in_b and A consumes 1, so the remainder shadow keeps shiftAmount 1.
 		Assertions.assertEquals(1, slots.get(1).entry().recipeChainItem().orElseThrow().shiftAmount());
 		Assertions.assertEquals(RecipeChainItemType.REMAINDER, slots.get(1).entry().recipeChainItem().orElseThrow().type());
 	}
@@ -351,7 +350,6 @@ public class BookmarkDisplayGeneratorTest {
 			3
 		);
 
-		// Only results are visible and the collapsed row is truncated after the first line.
 		Assertions.assertEquals(List.of("plate", "machine", "gear"), slots.stream().map(slot -> slot.entry().item()).toList());
 		Assertions.assertEquals(List.of(0, 1, 2), slots.stream().map(slot -> slot.slotIndex()).toList());
 		for (var slot : slots) {
@@ -612,7 +610,6 @@ public class BookmarkDisplayGeneratorTest {
 		);
 
 		Assertions.assertEquals(List.of("plate", "machine"), slots.stream().map(slot -> slot.entry().item()).toList());
-		// Result-only outputs wrap like normal bookmarks instead of forcing one recipe per row.
 		Assertions.assertEquals(List.of(0, 1), slots.stream().map(slot -> slot.slotIndex()).toList());
 	}
 
@@ -642,8 +639,6 @@ public class BookmarkDisplayGeneratorTest {
 			List.of("loose_1", "plate", "machine", "loose_2"),
 			slots.stream().map(slot -> slot.entry().item()).toList()
 		);
-		// loose_1 is on row 0, the result-only group occupies row 1 (indexes 3, 4),
-		// and loose_2 starts on a fresh row so it never shares the result-only group's rows.
 		Assertions.assertEquals(List.of(0, 3, 4, 6), slots.stream().map(slot -> slot.slotIndex()).toList());
 	}
 

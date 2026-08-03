@@ -252,7 +252,6 @@ public class IngredientListRenderer {
 				visuals.recipeMarkerText()
 					.ifPresent(text -> {
 						if (text.equals("C")) {
-							// catalyst marker sits at the bottom-left, away from the amount text
 							drawBottomLeftText(guiGraphics, font, area, text, visuals.recipeMarkerTextColor().orElse(0xFFFFFF55));
 						} else {
 							drawTopRightText(guiGraphics, font, area, text, visuals.recipeMarkerTextColor().orElse(0xFFFFFF55));

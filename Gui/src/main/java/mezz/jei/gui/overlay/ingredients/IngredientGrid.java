@@ -92,12 +92,6 @@ public class IngredientGrid implements IIngredientGrid {
 		return this.area.width() / IngredientGridLayout.INGREDIENT_WIDTH;
 	}
 
-	/**
-	 * The number of usable columns in the current grid area: unblocked slots in the
-	 * first row that has any unblocked slot. Unlike {@link #getColumnCount()}, this
-	 * excludes slots blocked by GUI exclusion areas or the mouse exclusion point,
-	 * so it matches the visible slots that elements are actually rendered into.
-	 */
 	public int getUsableColumnCount() {
 		return IngredientGridLayout.calculateUsableColumnCount(
 			this.area,

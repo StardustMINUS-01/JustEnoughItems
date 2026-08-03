@@ -13,10 +13,6 @@ final class IngredientGridPageState {
 	 * Requested item indexes and anchor indexes are rounded down to their containing page before being stored here.
 	 */
 	private int firstItemIndex = 0;
-	/**
-	 * The zero-based page number currently being rendered. Unlike {@link #firstItemIndex},
-	 * this is a stable ordinal that survives page size changes, matching the legacy fork behavior.
-	 */
 	private int pageNumber = 0;
 	/**
 	 * An explicit element to keep visible when the ingredient list or grid bounds change.
@@ -43,8 +39,6 @@ final class IngredientGridPageState {
 	public int updateForPageNumber(int pageNumber, int itemCount, int itemsPerPage) {
 		this.pageAnchorElement = null;
 		if (itemCount <= 0 || itemsPerPage <= 0) {
-			// Transient empty or zero-capacity frames (for example during screen transitions)
-			// must not wipe the persistent page ordinal chosen by the player.
 			this.firstItemIndex = 0;
 			return this.firstItemIndex;
 		}

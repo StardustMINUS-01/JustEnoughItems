@@ -36,11 +36,6 @@ public class RecipePreferenceRules {
 		return Optional.empty();
 	}
 
-	/**
-	 * Resolves a preferred recipe for a multi-variant input slot. A rule only takes over
-	 * when it matches at least one variant and collapses the merged candidates of all
-	 * variants to exactly one recipe; otherwise the slot falls back to the displayed variant.
-	 */
 	public Optional<FocusedRecipe> resolvePreferredRecipeForSlot(
 		List<RecipePreferenceIngredientInfo> variants,
 		List<RecipePreferenceCandidate> candidates

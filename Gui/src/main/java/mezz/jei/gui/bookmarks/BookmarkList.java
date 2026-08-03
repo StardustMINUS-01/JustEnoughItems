@@ -1152,7 +1152,8 @@ public class BookmarkList implements IIngredientGridSource {
 	public <R> RecipeBookmark<R, ?> getMatchingBookmark(RecipeType<R> recipeType, R recipe) {
 		for (IBookmark bookmark : bookmarksList) {
 			if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
-				if (recipeBookmark.getRecipeCategory().getRecipeType().equals(recipeType) &&
+				if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarkGroups.getGroupId(bookmark)) &&
+					recipeBookmark.getRecipeCategory().getRecipeType().equals(recipeType) &&
 					recipeBookmark.getRecipe().equals(recipe)) {
 					@SuppressWarnings("unchecked")
 					RecipeBookmark<R, ?> castBookmark = (RecipeBookmark<R, ?>) recipeBookmark;
@@ -1449,11 +1450,6 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 	}
 
-	/**
-	 * Expands the given bookmarks into their complete recipe blocks, so operations
-	 * can reach entries that are hidden from the visible layout (e.g. inputs of a
-	 * result-only group). Plain item bookmarks are kept as-is.
-	 */
 	public List<IBookmark> expandToRecipeBlocks(List<IBookmark> bookmarks) {
 		Set<IBookmark> expanded = new LinkedHashSet<>();
 		for (IBookmark bookmark : bookmarks) {
@@ -1651,7 +1647,6 @@ public class BookmarkList implements IIngredientGridSource {
 			return;
 		}
 		if (!bookmarksSet.add(replacement)) {
-			// an equal copy already exists in this group, so the old bookmark is redundant
 			bookmarkGroups.removeItem(oldBookmark);
 			bookmarksList.remove(index);
 			return;
@@ -1687,7 +1682,6 @@ public class BookmarkList implements IIngredientGridSource {
 
 		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
 		if (targetMetadata.type().isCatalyst()) {
-			// catalyst bookmarks keep their multiplier and amount unchanged by scrolling
 			return false;
 		}
 		ResourceLocation recipeUid = targetMetadata.recipeUid();

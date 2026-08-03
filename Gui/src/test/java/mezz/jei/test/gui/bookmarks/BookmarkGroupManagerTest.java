@@ -97,7 +97,6 @@ public class BookmarkGroupManagerTest {
 		groups.toggleCollapsed(groupId);
 		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
 
-		// toggling the expanded mode while collapsed must not change the collapsed display
 		groups.toggleViewMode(groupId);
 		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
 

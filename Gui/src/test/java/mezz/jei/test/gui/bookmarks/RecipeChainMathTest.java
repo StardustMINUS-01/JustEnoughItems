@@ -612,13 +612,9 @@ public class RecipeChainMathTest {
 		List<String> itemKeys = block.items().stream()
 			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
 			.toList();
-		// The middle root runs once because recipe C demands one in_a, so the anchor
-		// shows the demand-driven working amount instead of the collapsed bookmark multiplier 0.
 		Assertions.assertEquals(List.of("in_a", "in_x"), itemKeys);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
-		// The bookmark multiplier of the collapsed middle recipe is 0, so the real
-		// projection stays 0 even though the demand-driven calculated amount is 1.
 		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
 		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
 		Assertions.assertEquals(3, block.items().get(1).chainItem().shiftAmount());
@@ -638,9 +634,6 @@ public class RecipeChainMathTest {
 		ResourceLocation rCpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
 		ResourceLocation rSpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
 
-		// Bookmark multiplier of the collapsed middle recipe is flipped to 0, but the
-		// block must use the demand-driven working multiplier (1, because the 64k recipe
-		// needs one calculation processor).
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(r64, key("cell_component_64k"), 1, 1)),
 			input(1, ingredient(r64, key("glowstone_dust"), 4)),
@@ -707,8 +700,6 @@ public class RecipeChainMathTest {
 		ResourceLocation rCpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
 		ResourceLocation rSpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
 
-		// Same chain as the collapsed state, but the bookmark multiplier of the
-		// calculation processor was scrolled back to 1.
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(r64, key("cell_component_64k"), 1, 1)),
 			input(1, ingredient(r64, key("glowstone_dust"), 4)),
@@ -752,8 +743,6 @@ public class RecipeChainMathTest {
 		);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
-		// The middle recipe consumes one of its own outputs for the chain, so its
-		// real multiplier stays 0 (bookmark multiplier minus 1) while calculated stays 1.
 		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
 		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
 		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());

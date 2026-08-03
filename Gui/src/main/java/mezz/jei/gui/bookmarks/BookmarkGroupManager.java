@@ -116,7 +116,6 @@ public class BookmarkGroupManager<T> {
 		if (group != null) {
 			BookmarkGroup updated = group.withCraftingMode(craftingMode);
 			if (!craftingMode && !updated.collapsedRecipeIds().isEmpty()) {
-				// per-recipe collapse only applies to recipe chains
 				updated = updated.withCollapsedRecipeIds(Set.of());
 			}
 			groups.put(groupId, updated);

@@ -91,7 +91,6 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(loose, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "plate"));
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
-		// loose keeps its default metadata with a null recipeUid, like a plain item bookmark.
 
 		boolean removed = bookmarks.removeRecipeBookmark(result, false);
 
@@ -464,11 +463,9 @@ public class BookmarkListInvariantTest {
 		String groupId = createTwoRecipeChain(bookmarks);
 		bookmarks.setGroupCollapsedRecipeIds(groupId, Set.of(RECIPE));
 
-		// recipe B produces an input of recipe A, so it belongs to A's collapsed closure
 		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
 		Assertions.assertTrue(bookmarks.getCollapsedRecipeIds(groupId).isEmpty());
 
-		// after A is expanded, B is no longer inside any closure, so it collapses itself
 		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
 		Assertions.assertEquals(Set.of(RECIPE_B), bookmarks.getCollapsedRecipeIds(groupId));
 	}
@@ -515,6 +512,32 @@ public class BookmarkListInvariantTest {
 		List<BookmarkDisplaySlot<IBookmark>> refreshed = bookmarks.getDisplaySlots(3);
 		Assertions.assertNotSame(first, refreshed);
 		Assertions.assertSame(refreshed, bookmarks.getDisplaySlots(3));
+	}
+
+	@Test
+	public void getMatchingBookmarkOnlyMatchesDefaultGroupBookmarks() {
+		BookmarkList bookmarks = bookmarkList();
+		RecipeBookmark<Object, ItemStack> defaultBookmark = recipeBookmark(RECIPE, Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
+		bookmarks.addToListWithoutNotifying(defaultBookmark, false);
+		bookmarks.moveBookmarkMetadataFromConfig(defaultBookmark, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
+		Assertions.assertSame(
+			defaultBookmark,
+			bookmarks.getMatchingBookmark(new TestRecipeCategory(RECIPE).getRecipeType(), defaultBookmark.getRecipe())
+		);
+
+		RecipeBookmark<Object, ItemStack> groupedBookmark = new RecipeBookmark<>(
+			new TestRecipeCategory(RECIPE_B),
+			new Object(),
+			RECIPE_B,
+			new TestTypedIngredient<>(VanillaTypes.ITEM_STACK, new ItemStack(Items.GOLD_INGOT)),
+			RecipeIngredientRole.OUTPUT,
+			null
+		);
+		bookmarks.addToListWithoutNotifying(groupedBookmark, false);
+		bookmarks.createGroupForBookmarks("Machines", List.of(groupedBookmark));
+		Assertions.assertNull(
+			bookmarks.getMatchingBookmark(new TestRecipeCategory(RECIPE_B).getRecipeType(), groupedBookmark.getRecipe())
+		);
 	}
 
 	@Test
