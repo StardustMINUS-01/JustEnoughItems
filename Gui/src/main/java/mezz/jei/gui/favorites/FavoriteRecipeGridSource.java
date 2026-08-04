@@ -11,6 +11,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
@@ -18,6 +19,7 @@ import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +32,11 @@ import java.util.OptionalLong;
 public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	@FunctionalInterface
 	public interface RecipeInputsResolver {
-		ResolvedRecipeIngredients resolveIngredients(FocusedRecipe recipe, ITypedIngredient<?> target);
+		ResolvedRecipeIngredients resolveIngredients(
+			FocusedRecipe recipe,
+			ITypedIngredient<?> target,
+			Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs
+		);
 	}
 
 	public record ResolvedRecipeIngredients(Optional<ITypedIngredient<?>> target, List<ITypedIngredient<?>> inputs) {
@@ -66,7 +72,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			ingredientManager,
 			recipeManager,
 			focusFactory,
-			new LayoutRecipeInputsResolver(recipeManager, focusFactory)
+			new LayoutRecipeInputsResolver(recipeManager, focusFactory, ingredientManager)
 		);
 	}
 
@@ -155,11 +161,15 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	private <T> Optional<IElement<?>> createElement(IIngredientType<T> ingredientType, FavoriteRecipeStore.Entry entry) {
 		return resolveIngredient(ingredientType, entry.target().ingredientUid())
-			.map(ingredient -> createRecipeTargetElement(ingredient, entry.recipe()))
+			.map(ingredient -> createRecipeTargetElement(ingredient, entry.recipe(), entry.inputs()))
 			.map(element -> (IElement<?>) element);
 	}
 
-	private <T> FavoriteRecipeElement<T> createRecipeTargetElement(ITypedIngredient<T> displayIngredient, FocusedRecipe recipe) {
+	private <T> FavoriteRecipeElement<T> createRecipeTargetElement(
+		ITypedIngredient<T> displayIngredient,
+		FocusedRecipe recipe,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs
+	) {
 		return new FavoriteRecipeElement<>(
 			displayIngredient,
 			displayIngredient,
@@ -170,6 +180,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			store,
 			true,
 			Optional.empty(),
+			Optional.empty(),
+			entryInputs,
 			!panelState.isSortDragHidden(recipe, true, Optional.empty())
 		);
 	}
@@ -177,7 +189,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	private <T> FavoriteRecipeElement<T> createRecipeTargetElement(
 		ITypedIngredient<T> displayIngredient,
 		ITypedIngredient<?> targetIngredient,
-		FocusedRecipe recipe
+		FocusedRecipe recipe,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs
 	) {
 		return new FavoriteRecipeElement<>(
 			displayIngredient,
@@ -189,6 +202,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			store,
 			true,
 			Optional.empty(),
+			Optional.empty(),
+			entryInputs,
 			!panelState.isSortDragHidden(recipe, true, Optional.empty())
 		);
 	}
@@ -227,7 +242,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 				mergeRecipeInputs(resolvedIngredients.inputs()),
 				MergedRecipeInput::key
 			)
-			.forEach(ingredient -> inputElements.add(createRecipeInputElement(ingredient, entry.recipe())));
+			.forEach(ingredient -> inputElements.add(createRecipeInputElement(ingredient, entry.recipe(), entry.inputs())));
 		for (IElement<?> inputElement : inputElements) {
 			rows.add(inputElement);
 			position++;
@@ -248,24 +263,37 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	private <T> Optional<ResolvedRecipeRowTarget> createRecipeRowTarget(IIngredientType<T> ingredientType, FavoriteRecipeStore.Entry entry) {
 		return resolveIngredient(ingredientType, entry.target().ingredientUid())
 			.map(displayIngredient -> {
-				ResolvedRecipeIngredients resolvedIngredients = recipeInputsResolver.resolveIngredients(entry.recipe(), displayIngredient);
+				ResolvedRecipeIngredients resolvedIngredients = recipeInputsResolver.resolveIngredients(entry.recipe(), displayIngredient, entry.inputs());
 				ITypedIngredient<?> targetIngredient = resolvedIngredients.target()
 					.orElse(displayIngredient);
-				FavoriteRecipeElement<T> targetElement = createRecipeTargetElement(displayIngredient, targetIngredient, entry.recipe());
+				FavoriteRecipeElement<T> targetElement = createRecipeTargetElement(displayIngredient, targetIngredient, entry.recipe(), entry.inputs());
 				return new ResolvedRecipeRowTarget(targetElement, resolvedIngredients);
 			});
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	private FavoriteRecipeElement<?> createRecipeInputElement(MergedRecipeInput input, FocusedRecipe recipe) {
-		return createRecipeInputElement((ITypedIngredient) input.ingredient(), input.amount(), recipe, input.key());
+	private FavoriteRecipeElement<?> createRecipeInputElement(
+		MergedRecipeInput input,
+		FocusedRecipe recipe,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> slotInputs
+	) {
+		return createRecipeInputElement(
+			(ITypedIngredient) input.ingredient(),
+			input.amount(),
+			recipe,
+			input.key(),
+			findSlotInput(slotInputs, input.key()),
+			slotInputs
+		);
 	}
 
 	private <T> FavoriteRecipeElement<T> createRecipeInputElement(
 		ITypedIngredient<T> ingredient,
 		long amount,
 		FocusedRecipe recipe,
-		FavoriteRecipePanelState.RecipeInputKey inputKey
+		FavoriteRecipePanelState.RecipeInputKey inputKey,
+		@Nullable FavoriteRecipeStore.FavoriteSlotInput slotInput,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs
 	) {
 		ITypedIngredient<T> displayIngredient = ingredientManager.normalizeTypedIngredient(ingredient);
 		return new FavoriteRecipeElement<>(
@@ -278,8 +306,25 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			store,
 			false,
 			Optional.of(inputKey),
+			Optional.ofNullable(slotInput),
+			entryInputs,
 			!panelState.isSortDragHidden(recipe, false, Optional.of(inputKey))
 		);
+	}
+
+	@Nullable
+	private static FavoriteRecipeStore.FavoriteSlotInput findSlotInput(
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> slotInputs,
+		FavoriteRecipePanelState.RecipeInputKey inputKey
+	) {
+		for (FavoriteRecipeStore.FavoriteSlotInput slotInput : slotInputs.values()) {
+			BookmarkIngredientKey selected = slotInput.selected();
+			if (selected.ingredientTypeUid().equals(inputKey.ingredientTypeUid()) &&
+				selected.ingredientUid().equals(inputKey.ingredientUid())) {
+				return slotInput;
+			}
+		}
+		return null;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -403,19 +448,36 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	}
 
 	private static class LayoutRecipeInputsResolver implements RecipeInputsResolver {
+		private final IIngredientManager ingredientManager;
 		private final IFocusFactory focusFactory;
 		private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 
-		private LayoutRecipeInputsResolver(IRecipeManager recipeManager, IFocusFactory focusFactory) {
+		private LayoutRecipeInputsResolver(
+			IRecipeManager recipeManager,
+			IFocusFactory focusFactory,
+			IIngredientManager ingredientManager
+		) {
+			this.ingredientManager = ingredientManager;
 			this.focusFactory = focusFactory;
 			this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 		}
 
 		@Override
-		public ResolvedRecipeIngredients resolveIngredients(FocusedRecipe recipe, ITypedIngredient<?> target) {
+		public ResolvedRecipeIngredients resolveIngredients(
+			FocusedRecipe recipe,
+			ITypedIngredient<?> target,
+			Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs
+		) {
 			return createRecipeLayout(recipe, target)
 				.map(layout -> {
-					FavoriteRecipeSlotResolver.ResolvedRecipeIngredients resolved = FavoriteRecipeSlotResolver.resolve(layout, target);
+					Map<Integer, BookmarkIngredientKey> selectedInputs = new HashMap<>(inputs.size());
+					inputs.forEach((index, slotInput) -> selectedInputs.put(index, slotInput.selected()));
+					FavoriteRecipeSlotResolver.ResolvedRecipeIngredients resolved = FavoriteRecipeSlotResolver.resolve(
+						layout,
+						target,
+						ingredientManager,
+						selectedInputs
+					);
 					return new ResolvedRecipeIngredients(resolved.target(), resolved.inputs());
 				})
 				.orElse(new ResolvedRecipeIngredients(Optional.empty(), List.of()));

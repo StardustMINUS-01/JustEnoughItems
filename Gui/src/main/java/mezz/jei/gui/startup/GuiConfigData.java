@@ -1,7 +1,7 @@
 package mezz.jei.gui.startup;
 
 import mezz.jei.common.platform.Services;
-import mezz.jei.gui.config.BookmarkConfig;
+import mezz.jei.gui.config.BookmarkJsonConfig;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
@@ -23,7 +23,7 @@ public record GuiConfigData(
 	public static GuiConfigData create() {
 		Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
 
-		IBookmarkConfig bookmarkConfig = new BookmarkConfig(configDir);
+		IBookmarkConfig bookmarkConfig = new BookmarkJsonConfig(configDir);
 		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(configDir);
 		RecipePreferenceConfig recipePreferenceConfig = new RecipePreferenceConfig(configDir);
 		ILookupHistoryConfig lookupHistoryConfig = new LookupHistoryJsonConfig(configDir);

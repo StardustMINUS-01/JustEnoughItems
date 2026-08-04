@@ -1,5 +1,7 @@
 package mezz.jei.gui.bookmarks;
 
+import com.mojang.serialization.Codec;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.constants.VanillaTypes;
@@ -62,6 +64,8 @@ public class BookmarkList implements IIngredientGridSource {
 	private final IBookmarkConfig bookmarkConfig;
 	private final IClientConfig clientConfig;
 	private final IGuiHelper guiHelper;
+	private final @Nullable ICodecHelper codecHelper;
+	private final @Nullable Codec<IBookmark> bookmarkCodec;
 	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
@@ -89,7 +93,9 @@ public class BookmarkList implements IIngredientGridSource {
 			bookmarkConfig,
 			clientConfig,
 			guiHelper,
-			key -> Optional.empty()
+			key -> Optional.empty(),
+			null,
+			null
 		);
 	}
 
@@ -103,6 +109,32 @@ public class BookmarkList implements IIngredientGridSource {
 		IGuiHelper guiHelper,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup
 	) {
+		this(
+			recipeManager,
+			focusFactory,
+			ingredientManager,
+			registryAccess,
+			bookmarkConfig,
+			clientConfig,
+			guiHelper,
+			preferredRecipeLookup,
+			null,
+			null
+		);
+	}
+
+	public BookmarkList(
+		IRecipeManager recipeManager,
+		IFocusFactory focusFactory,
+		IIngredientManager ingredientManager,
+		RegistryAccess registryAccess,
+		IBookmarkConfig bookmarkConfig,
+		IClientConfig clientConfig,
+		IGuiHelper guiHelper,
+		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup,
+		@Nullable ICodecHelper codecHelper,
+		@Nullable Codec<IBookmark> bookmarkCodec
+	) {
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
 		this.ingredientManager = ingredientManager;
@@ -110,6 +142,8 @@ public class BookmarkList implements IIngredientGridSource {
 		this.bookmarkConfig = bookmarkConfig;
 		this.clientConfig = clientConfig;
 		this.guiHelper = guiHelper;
+		this.codecHelper = codecHelper;
+		this.bookmarkCodec = bookmarkCodec;
 		this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 		this.preferredRecipeLookup = preferredRecipeLookup;
 	}
@@ -2075,8 +2109,17 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private void saveBookmarks() {
-		if (bookmarkConfig != null) {
-			bookmarkConfig.saveBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, this);
+		if (bookmarkConfig != null && codecHelper != null && bookmarkCodec != null) {
+			bookmarkConfig.saveBookmarks(
+				recipeManager,
+				focusFactory,
+				guiHelper,
+				ingredientManager,
+				registryAccess,
+				codecHelper,
+				List.copyOf(getBookmarks()),
+				bookmarkCodec
+			);
 		}
 	}
 

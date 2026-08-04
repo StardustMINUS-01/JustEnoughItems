@@ -27,6 +27,7 @@ import com.mojang.serialization.Codec;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class FavoriteRecipeGridSourceTest {
@@ -138,7 +139,7 @@ public class FavoriteRecipeGridSourceTest {
 
 	private static FavoriteRecipeStore store(IIngredientType<?> ingredientType, String targetUid, FocusedRecipe recipe) {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		store.setFavorite(BookmarkIngredientKey.of(ingredientType.getUid(), targetUid), recipe);
+		store.setFavorite(BookmarkIngredientKey.of(ingredientType.getUid(), targetUid), recipe, Map.of());
 		return store;
 	}
 
@@ -169,9 +170,13 @@ public class FavoriteRecipeGridSourceTest {
 		}
 
 		@Override
-		public FavoriteRecipeGridSource.ResolvedRecipeIngredients resolveIngredients(FocusedRecipe recipe, ITypedIngredient<?> target) {
+		public FavoriteRecipeGridSource.ResolvedRecipeIngredients resolveIngredients(
+			FocusedRecipe recipe,
+			ITypedIngredient<?> target,
+			Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs
+		) {
 			calls++;
-			return new FavoriteRecipeGridSource.ResolvedRecipeIngredients(target, inputs);
+			return new FavoriteRecipeGridSource.ResolvedRecipeIngredients(target, this.inputs);
 		}
 	}
 

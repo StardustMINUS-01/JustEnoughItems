@@ -209,9 +209,21 @@ public class JeiGuiStarter {
 			bookmarkConfig,
 			clientConfig,
 			guiHelper,
-			favoriteRecipes::getFavorite
+			favoriteRecipes::getFavorite,
+			codecHelper,
+			bookmarkCodec
 		);
-		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
+		bookmarkConfig.loadBookmarks(
+			recipeManager,
+			focusFactory,
+			guiHelper,
+			ingredientManager,
+			registryAccess,
+			bookmarkList,
+			codecHelper,
+			bookmarkCodec,
+			bookmarkFactory
+		);
 
 		BookmarkOverlay bookmarkOverlay = OverlayHelper.createBookmarkOverlay(
 			ingredientManager,

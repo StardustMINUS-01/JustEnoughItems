@@ -3,13 +3,13 @@ package mezz.jei.gui.config;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
+import mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Comparator;
@@ -26,7 +26,12 @@ public final class BookmarkGroupConfigSerializer {
 	}
 
 	public static String serializeGroup(BookmarkGroup group) {
+		return MARKER_GROUP + serializeGroupJson(group);
+	}
+
+	public static JsonObject serializeGroupJson(BookmarkGroup group) {
 		JsonObject json = new JsonObject();
+		json.addProperty("type", "group");
 		json.addProperty("id", group.id());
 		json.addProperty("title", group.title());
 		json.addProperty("viewMode", group.viewMode().name());
@@ -42,7 +47,7 @@ public final class BookmarkGroupConfigSerializer {
 				.forEach(collapsedRecipes::add);
 			json.add("collapsedRecipes", collapsedRecipes);
 		}
-		return MARKER_GROUP + json;
+		return json;
 	}
 
 	public static Optional<BookmarkGroup> deserializeGroup(String line) {
@@ -52,6 +57,14 @@ public final class BookmarkGroupConfigSerializer {
 
 		try {
 			JsonObject json = JsonParser.parseString(line.substring(MARKER_GROUP.length())).getAsJsonObject();
+			return deserializeGroupJson(json);
+		} catch (RuntimeException ignored) {
+			return Optional.empty();
+		}
+	}
+
+	public static Optional<BookmarkGroup> deserializeGroupJson(JsonObject json) {
+		try {
 			String id = json.get("id").getAsString();
 			String title = json.get("title").getAsString();
 			BookmarkViewMode viewMode = json.has("viewMode") ?
@@ -107,30 +120,20 @@ public final class BookmarkGroupConfigSerializer {
 			JsonArray permutations = new JsonArray();
 			metadata.permutations().stream()
 				.sorted(Comparator.naturalOrder())
-				.map(BookmarkGroupConfigSerializer::serializePermutation)
+				.map(BookmarkIngredientKeySerializer::serialize)
 				.forEach(permutations::add);
 			json.add("permutations", permutations);
 		}
 		if (metadata.containerItem() != null) {
-			json.add("containerItem", serializePermutation(metadata.containerItem()));
+			json.add("containerItem", BookmarkIngredientKeySerializer.serialize(metadata.containerItem()));
 		}
 		if (metadata.containerItemCraftingUses() != 1) {
 			json.addProperty("containerItemCraftingUses", metadata.containerItemCraftingUses());
 		}
 		if (metadata.brokenContainerItem() != null) {
-			json.add("brokenContainerItem", serializePermutation(metadata.brokenContainerItem()));
+			json.add("brokenContainerItem", BookmarkIngredientKeySerializer.serialize(metadata.brokenContainerItem()));
 		}
 		return MARKER_BOOKMARK_METADATA + json;
-	}
-
-	private static JsonObject serializePermutation(BookmarkIngredientKey permutation) {
-		JsonObject json = new JsonObject();
-		json.addProperty("type", permutation.ingredientTypeUid());
-		json.addProperty("uid", permutation.ingredientUid());
-		if (permutation.serializedIngredient() != null) {
-			json.addProperty("ingredient", permutation.serializedIngredient());
-		}
-		return json;
 	}
 
 	public static Optional<BookmarkItemMetadata> deserializeBookmarkMetadata(String line) {
@@ -157,17 +160,17 @@ public final class BookmarkGroupConfigSerializer {
 				json.getAsJsonArray("permutations")
 					.asList()
 					.stream()
-					.map(BookmarkGroupConfigSerializer::deserializePermutation)
+					.map(BookmarkIngredientKeySerializer::deserialize)
 					.collect(Collectors.toUnmodifiableSet()) :
 				Set.of();
 			BookmarkIngredientKey containerItem = json.has("containerItem") ?
-				deserializePermutation(json.get("containerItem")) :
+				BookmarkIngredientKeySerializer.deserialize(json.get("containerItem")) :
 				null;
 			long containerItemCraftingUses = json.has("containerItemCraftingUses") ?
 				json.get("containerItemCraftingUses").getAsLong() :
 				1;
 			BookmarkIngredientKey brokenContainerItem = json.has("brokenContainerItem") ?
-				deserializePermutation(json.get("brokenContainerItem")) :
+				BookmarkIngredientKeySerializer.deserialize(json.get("brokenContainerItem")) :
 				null;
 			return Optional.of(new BookmarkItemMetadata(
 				groupId,
@@ -187,14 +190,4 @@ public final class BookmarkGroupConfigSerializer {
 		}
 	}
 
-	private static BookmarkIngredientKey deserializePermutation(JsonElement element) {
-		if (element.isJsonPrimitive()) {
-			return BookmarkIngredientKey.legacy(element.getAsString());
-		}
-		JsonObject json = element.getAsJsonObject();
-		String type = json.has("type") ? json.get("type").getAsString() : BookmarkIngredientKey.UNKNOWN_TYPE_UID;
-		String uid = json.has("uid") ? json.get("uid").getAsString() : "fallback:unknown";
-		String ingredient = json.has("ingredient") ? json.get("ingredient").getAsString() : null;
-		return new BookmarkIngredientKey(type, uid, ingredient);
-	}
 }

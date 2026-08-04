@@ -106,26 +106,45 @@ public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<Recip
 	}
 
 	private <T> DeserializeResult<RecipeBookmark<?, ?>> createBookmark(String string, IRecipeCategory<T> recipeCategory, ResourceLocation recipeUid, ITypedIngredient<?> output, RecipeIngredientRole displayRole) {
-		IFocus<?> focus = focusFactory.createFocus(displayRole, output);
-
-		Optional<T> recipeResult = findRecipe(recipeCategory, List.of(focus), recipeUid);
+		Optional<RecipeBookmark<?, ?>> recipeResult = createBookmark(recipeCategory, recipeUid, output, displayRole);
 		if (recipeResult.isEmpty()) {
 			String error = "could not find a recipe for this string: %s".formatted(string);
 			return new DeserializeResult<>(null, error);
 		}
 
-		T recipe = recipeResult.get();
-		RecipeBookmark<T, ?> recipeBookmark = new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, displayRole);
-		return new DeserializeResult<>(recipeBookmark);
+		return new DeserializeResult<>(recipeResult.get());
 	}
 
-	private <T> Optional<T> findRecipe(IRecipeCategory<T> recipeCategory, List<IFocus<?>> focus, ResourceLocation recipeUid) {
-		RecipeType<T> recipeType = recipeCategory.getRecipeType();
-		return recipeManager.createRecipeLookup(recipeType)
-			.limitFocus(focus)
+	public Optional<RecipeBookmark<?, ?>> createBookmark(
+		ResourceLocation recipeTypeUid,
+		ResourceLocation recipeUid,
+		ITypedIngredient<?> output,
+		RecipeIngredientRole displayRole
+	) {
+		Optional<RecipeType<?>> recipeTypeResult = recipeManager.getRecipeType(recipeTypeUid);
+		if (recipeTypeResult.isEmpty()) {
+			return Optional.empty();
+		}
+		IRecipeCategory<?> recipeCategory = recipeManager.getRecipeCategory(recipeTypeResult.get());
+		return createBookmark(recipeCategory, recipeUid, output, displayRole);
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public Optional<RecipeBookmark<?, ?>> createBookmark(
+		IRecipeCategory<?> recipeCategory,
+		ResourceLocation recipeUid,
+		ITypedIngredient<?> output,
+		RecipeIngredientRole displayRole
+	) {
+		IFocus<?> focus = focusFactory.createFocus(displayRole, output);
+		RecipeType<?> recipeType = recipeCategory.getRecipeType();
+		IRecipeCategory<Object> rawCategory = (IRecipeCategory<Object>) recipeCategory;
+		return recipeManager.createRecipeLookup((RecipeType<Object>) recipeType)
+			.limitFocus(List.of(focus))
 			.get()
-			.filter(r -> Objects.equals(recipeCategory.getRegistryName(r), recipeUid))
-			.findFirst();
+			.filter(recipe -> Objects.equals(rawCategory.getRegistryName(recipe), recipeUid))
+			.findFirst()
+			.map(recipe -> new RecipeBookmark(rawCategory, recipe, recipeUid, output, displayRole));
 	}
 
 	@Override

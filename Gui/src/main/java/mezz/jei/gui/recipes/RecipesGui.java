@@ -32,6 +32,7 @@ import mezz.jei.common.util.MathUtil;
 import mezz.jei.common.util.StringUtil;
 import mezz.jei.gui.GuiProperties;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
@@ -42,6 +43,7 @@ import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
+import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -58,10 +60,13 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -82,6 +87,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private final FavoriteRecipeStore favoriteRecipes;
 	private final FavoriteRecipeConfig favoriteRecipeConfig;
 	private final FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter;
+	private final Map<FocusedRecipe, Map<Integer, FavoriteRecipeStore.FavoriteSlotInput>> pendingFavoriteInputs = new HashMap<>();
 	private final ClientFallbackStarter clientFallbackStarter;
 	private final Runnable showBookmarkPanel;
 	private final Runnable showFavoritePanel;
@@ -598,6 +604,23 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		}
 	}
 
+	public <T> void showRecipesWithFavoriteInputs(
+		IRecipeCategory<T> recipeCategory,
+		List<T> recipes,
+		List<IFocus<?>> focuses,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs
+	) {
+		if (!recipes.isEmpty()) {
+			T recipe = recipes.getFirst();
+			ResourceLocation recipeUid = recipeCategory.getRegistryName(recipe);
+			if (recipeUid != null) {
+				FocusedRecipe focusedRecipe = new FocusedRecipe(recipeCategory.getRecipeType().getUid(), recipeUid);
+				pendingFavoriteInputs.put(focusedRecipe, Map.copyOf(inputs));
+			}
+		}
+		showRecipes(recipeCategory, recipes, focuses);
+	}
+
 	@Override
 	public <T> Optional<T> getIngredientUnderMouse(IIngredientType<T> ingredientType) {
 		double x = MouseUtil.getX();
@@ -647,6 +670,14 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 	RecipeLayoutForkExtras createRecipeLayoutForkExtras(IRecipeLayoutDrawable<?> recipeLayoutDrawable) {
 		InputSlotSelectionState inputSlotSelectionState = new InputSlotSelectionState(ingredientManager);
+		Optional.ofNullable(getFocusedRecipe(recipeLayoutDrawable))
+			.map(pendingFavoriteInputs::remove)
+			.ifPresent(inputs -> {
+				Map<Integer, BookmarkIngredientKey> selectedKeys = new HashMap<>();
+				inputs.forEach((index, slotInput) -> selectedKeys.put(index, slotInput.selected()));
+				inputSlotSelectionState.setSelectedKeys(selectedKeys);
+				inputSlotSelectionState.apply(recipeLayoutDrawable);
+			});
 		RecipeFavoriteButton favoriteButton = RecipeFavoriteButton.create(
 			recipeLayoutDrawable,
 			ingredientManager,
@@ -663,6 +694,14 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			clientFallbackStarter,
 			this::showBookmarkPanel
 		);
+	}
+
+	private static <R> @Nullable FocusedRecipe getFocusedRecipe(IRecipeLayoutDrawable<R> recipeLayoutDrawable) {
+		ResourceLocation recipeUid = recipeLayoutDrawable.getRecipeCategory().getRegistryName(recipeLayoutDrawable.getRecipe());
+		if (recipeUid == null) {
+			return null;
+		}
+		return new FocusedRecipe(recipeLayoutDrawable.getRecipeCategory().getRecipeType().getUid(), recipeUid);
 	}
 
 	record RecipeLayoutForkExtras(

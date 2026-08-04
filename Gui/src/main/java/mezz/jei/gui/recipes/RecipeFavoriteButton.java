@@ -16,6 +16,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.elements.GuiIconToggleButton;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.favorites.FavoriteRecipeInputs;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -31,6 +32,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
 import java.util.Optional;
 
 public class RecipeFavoriteButton extends GuiIconToggleButton {
@@ -47,6 +49,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 	private final IClientConfig clientConfig;
 	private final FavoriteRecipeTargetSelector targetSelector;
 	private final @Nullable FocusedRecipe focusedRecipe;
+	private final IIngredientManager ingredientManager;
 	private boolean favorite;
 	private boolean selectingTarget;
 
@@ -82,7 +85,8 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			inputSlotSelectionState,
 			Internal.getJeiClientConfigs().getClientConfig(),
 			targetSelector,
-			focusedRecipe
+			focusedRecipe,
+			ingredientManager
 		);
 		return button;
 	}
@@ -98,7 +102,8 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		InputSlotSelectionState inputSlotSelectionState,
 		IClientConfig clientConfig,
 		FavoriteRecipeTargetSelector targetSelector,
-		@Nullable FocusedRecipe focusedRecipe
+		@Nullable FocusedRecipe focusedRecipe,
+		IIngredientManager ingredientManager
 	) {
 		super(icon, icon);
 		this.recipeLayout = recipeLayout;
@@ -112,6 +117,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		this.clientConfig = clientConfig;
 		this.targetSelector = targetSelector;
 		this.focusedRecipe = focusedRecipe;
+		this.ingredientManager = ingredientManager;
 
 		if (targetSelector.targetCount() == 0 || focusedRecipe == null) {
 			button.active = false;
@@ -156,12 +162,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			return false;
 		}
 		if (!input.isSimulate()) {
-			boolean added = toggleFavorite(favoriteRecipes, focusedRecipe, selectedTarget.get());
-			if (added) {
-				showFavoritePanel.run();
-			}
-			favoriteRecipeConfig.saveFavorites(favoriteRecipes);
-			tick();
+			toggleFavorite(selectedTarget.get());
 		}
 		return true;
 	}
@@ -205,15 +206,30 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 	public static boolean toggleFavorite(
 		FavoriteRecipeStore favoriteRecipes,
 		FocusedRecipe focusedRecipe,
-		BookmarkIngredientKey selectedTarget
+		BookmarkIngredientKey selectedTarget,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs
 	) {
 		Optional<BookmarkIngredientKey> storedTarget = favoriteRecipes.getManualFavorite(focusedRecipe);
 		if (storedTarget.filter(selectedTarget::equals).isPresent()) {
 			favoriteRecipes.removeFavorite(focusedRecipe);
 			return false;
 		}
-		favoriteRecipes.setFavorite(selectedTarget, focusedRecipe);
+		favoriteRecipes.setFavorite(selectedTarget, focusedRecipe, inputs);
 		return true;
+	}
+
+	private void toggleFavorite(BookmarkIngredientKey selectedTarget) {
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs = FavoriteRecipeInputs.capture(
+			recipeLayout,
+			inputSlotSelectionState,
+			ingredientManager
+		);
+		boolean added = RecipeFavoriteButton.toggleFavorite(favoriteRecipes, focusedRecipe, selectedTarget, inputs);
+		if (added) {
+			showFavoritePanel.run();
+		}
+		favoriteRecipeConfig.saveFavorites(favoriteRecipes);
+		tick();
 	}
 
 	public static Optional<FavoriteOutputSlotAction> resolveFavoriteOutputSlotAction(
@@ -308,12 +324,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			}
 			switch (action.get()) {
 				case TOGGLE_FAVORITE -> {
-					boolean added = toggleFavorite(favoriteRecipes, focusedRecipe, target.get());
-					if (added) {
-						showFavoritePanel.run();
-					}
-					favoriteRecipeConfig.saveFavorites(favoriteRecipes);
-					tick();
+					toggleFavorite(target.get());
 				}
 				case SAVE_FAVORITE_TREE -> {
 					if (saveFavoriteTree(Optional.of(target.get())).isEmpty()) {

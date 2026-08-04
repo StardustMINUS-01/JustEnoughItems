@@ -42,7 +42,7 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void depthZeroDoesNotExpandInputs() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("ingot"), INGOT);
+		favorite(store, key("ingot"), INGOT);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -60,7 +60,7 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void buildTreeExpandsManualFavoriteInput() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("ingot"), INGOT);
+		favorite(store, key("ingot"), INGOT);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -98,7 +98,7 @@ public class FavoriteTreeBuilderTest {
 	public void buildTreePrefersManualFavoriteOverGeneratedFavorite() {
 		FavoriteRecipeStore store = store();
 		store.setGeneratedFavorite(key("ingot"), INGOT);
-		store.setFavorite(key("ingot"), PLATE);
+		favorite(store, key("ingot"), PLATE);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -117,8 +117,8 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void depthOneExpandsOnlyOneLayer() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("plate"), PLATE);
-		store.setFavorite(key("ingot"), INGOT);
+		favorite(store, key("plate"), PLATE);
+		favorite(store, key("ingot"), INGOT);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -137,7 +137,7 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void buildTreeFindsFavoriteFromInputPermutationsWhenDisplayedInputIsNotFavorited() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("blackstone"), INGOT);
+		favorite(store, key("blackstone"), INGOT);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -155,8 +155,8 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void cycleDoesNotExpandForever() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("plate"), PLATE);
-		store.setFavorite(key("root"), ROOT);
+		favorite(store, key("plate"), PLATE);
+		favorite(store, key("root"), ROOT);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -174,7 +174,7 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void duplicateFavoriteRecipeIsAddedOnce() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("plate"), PLATE);
+		favorite(store, key("plate"), PLATE);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -193,7 +193,7 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void missingFocusedRecipeStopsThatBranch() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("gear"), GEAR);
+		favorite(store, key("gear"), GEAR);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -219,7 +219,7 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void multiVariantSlotExpandsUniqueManualFavorite() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("glass"), GLASS_RECIPE);
+		favorite(store, key("glass"), GLASS_RECIPE);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -244,8 +244,8 @@ public class FavoriteTreeBuilderTest {
 	@Test
 	public void multiVariantSlotWithMultipleManualFavoritesFallsBackToSlotRule() {
 		FavoriteRecipeStore store = store();
-		store.setFavorite(key("glass"), GLASS_RECIPE);
-		store.setFavorite(key("stained"), STAINED_RECIPE);
+		favorite(store, key("glass"), GLASS_RECIPE);
+		favorite(store, key("stained"), STAINED_RECIPE);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -342,7 +342,7 @@ public class FavoriteTreeBuilderTest {
 	public void middleRecipeMultiVariantSlotExpandsByUniqueManualFavorite() {
 		FavoriteRecipeStore store = store();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
-		store.setFavorite(key("glass"), GLASS_RECIPE);
+		favorite(store, key("glass"), GLASS_RECIPE);
 		FavoriteTreeBuilder builder = builder(
 			store,
 			graph(
@@ -530,6 +530,41 @@ public class FavoriteTreeBuilderTest {
 		);
 	}
 
+	@Test
+	public void middleRecipeUsesStoredFavoriteInputSelection() {
+		FavoriteRecipeStore store = store();
+		store.setGeneratedFavorite(key("ingot"), PLATE);
+		store.setFavorite(
+			key("plate"),
+			PLATE,
+			Map.of(0, new FavoriteRecipeStore.FavoriteSlotInput(
+				key("glass"),
+				List.of(key("glass"), key("stained"))
+			))
+		);
+		favorite(store, key("glass"), GLASS_RECIPE);
+		FavoriteTreeBuilder builder = builder(
+			store,
+			graph(
+				resolved(ROOT, input("ingot")),
+				resolved(PLATE, input("stained", "glass", "stained")),
+				resolved(GLASS_RECIPE)
+			)
+		);
+
+		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+
+		Assertions.assertEquals(List.of(ROOT, PLATE, GLASS_RECIPE), recipes(result));
+		Assertions.assertEquals(
+			Optional.of(key("glass")),
+			result.recipes().get(1).inputs().get(0).selectedFavoriteKey()
+		);
+		Assertions.assertEquals(
+			Optional.of(GLASS_RECIPE),
+			result.recipes().get(1).inputs().get(0).selectedFavoriteRecipe()
+		);
+	}
+
 	private static FavoriteTreeBuilder builder(FavoriteRecipeStore store, Map<FocusedRecipe, FavoriteTreeBuilder.ResolvedRecipe> graph) {
 		return new FavoriteTreeBuilder(store, recipe -> Optional.ofNullable(graph.get(recipe)));
 	}
@@ -580,6 +615,10 @@ public class FavoriteTreeBuilderTest {
 
 	private static FavoriteRecipeStore store() {
 		return new FavoriteRecipeStore();
+	}
+
+	private static void favorite(FavoriteRecipeStore store, BookmarkIngredientKey key, FocusedRecipe recipe) {
+		store.setFavorite(key, recipe, Map.of());
 	}
 
 	private static BookmarkIngredientKey key(String uid) {

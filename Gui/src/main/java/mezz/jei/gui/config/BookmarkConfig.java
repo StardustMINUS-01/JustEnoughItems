@@ -1,7 +1,6 @@
 package mezz.jei.gui.config;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.serialization.DynamicOps;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -23,8 +22,6 @@ import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.LogManager;
@@ -34,12 +31,11 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public class BookmarkConfig implements IBookmarkConfig {
+public class BookmarkConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	static final String MARKER_STACK = "T:";
@@ -57,7 +53,7 @@ public class BookmarkConfig implements IBookmarkConfig {
 			line.startsWith(MARKER_RECIPE);
 	}
 
-	private static Optional<Path> getPath(Path jeiConfigurationDir) {
+	static Optional<Path> getPath(Path jeiConfigurationDir) {
 		return ServerConfigPathUtil.getWorldPath(jeiConfigurationDir)
 			.flatMap(configPath -> {
 				try {
@@ -75,58 +71,6 @@ public class BookmarkConfig implements IBookmarkConfig {
 		this.jeiConfigurationDir = jeiConfigurationDir;
 	}
 
-	@Override
-	public void saveBookmarks(
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		IGuiHelper guiHelper,
-		IIngredientManager ingredientManager,
-		RegistryAccess registryAccess,
-		BookmarkList bookmarkList
-	) {
-		getPath(jeiConfigurationDir)
-			.ifPresent(path -> {
-				TypedIngredientSerializer ingredientSerializer = new TypedIngredientSerializer(ingredientManager);
-				RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(recipeManager, focusFactory, ingredientSerializer);
-
-				List<String> strings = new ArrayList<>();
-				for (BookmarkGroup group : bookmarkList.getBookmarkGroups()) {
-					if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(group.id())) {
-						strings.add(BookmarkGroupConfigSerializer.serializeGroup(group));
-					}
-				}
-
-				List<IBookmark> bookmarks = bookmarkList.getBookmarks();
-				for (IBookmark bookmark : bookmarks) {
-					BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
-					if (!metadata.isDefault()) {
-						strings.add(BookmarkGroupConfigSerializer.serializeBookmarkMetadata(metadata));
-					}
-					if (bookmark instanceof IngredientBookmark<?> ingredientBookmark) {
-						ITypedIngredient<?> typedIngredient = ingredientBookmark.getIngredient();
-						if (typedIngredient.getIngredient() instanceof ItemStack stack) {
-							serializeItemStack(registryAccess, stack)
-								.ifPresent(tag -> strings.add(MARKER_STACK + tag));
-						} else {
-							strings.add(MARKER_INGREDIENT + ingredientSerializer.serialize(typedIngredient));
-						}
-					} else if (bookmark instanceof RecipeBookmark<?,?> recipeBookmark) {
-						strings.add(MARKER_RECIPE + recipeBookmarkSerializer.serialize(recipeBookmark));
-					} else {
-						LOGGER.error("Unknown IBookmark type, unable to save it: {}", bookmark.getClass());
-					}
-				}
-
-				try {
-					Files.write(path, strings);
-					LOGGER.debug("Saved bookmarks list to file {}", path);
-				} catch (IOException e) {
-					LOGGER.error("Failed to save bookmarks list to file {}", path, e);
-				}
-			});
-	}
-
-	@Override
 	public void loadBookmarks(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
@@ -282,9 +226,4 @@ public class BookmarkConfig implements IBookmarkConfig {
 			.findFirst();
 	}
 
-	private static Optional<Tag> serializeItemStack(RegistryAccess registryAccess, ItemStack stack) {
-		DynamicOps<Tag> ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-		return ItemStack.CODEC.encodeStart(ops, stack)
-			.resultOrPartial(error -> LOGGER.warn("Failed to save bookmarked ItemStack '{}': {}", stack.getDisplayName(), error));
-	}
 }

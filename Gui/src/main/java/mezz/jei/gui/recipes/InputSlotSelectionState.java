@@ -32,6 +32,11 @@ public final class InputSlotSelectionState {
 		return Map.copyOf(selectedKeys);
 	}
 
+	public void setSelectedKeys(Map<Integer, BookmarkIngredientKey> keys) {
+		selectedKeys.clear();
+		selectedKeys.putAll(keys);
+	}
+
 	public Map<Integer, BookmarkIngredientKey> currentSelections(IRecipeLayoutDrawable<?> recipeLayout) {
 		Map<Integer, BookmarkIngredientKey> selections = new LinkedHashMap<>();
 		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView()

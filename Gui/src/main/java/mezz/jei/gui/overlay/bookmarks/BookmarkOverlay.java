@@ -1197,6 +1197,32 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			}
 			return Optional.of(this);
 		}
+
+		@Override
+		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDelta) {
+			if (!isFavoritePanelDisplayed() ||
+				scrollDelta == 0 ||
+				!Screen.hasShiftDown() ||
+				Screen.hasControlDown() ||
+				Screen.hasAltDown()) {
+				return Optional.empty();
+			}
+			Optional<FavoriteRecipeElementPanelSlot> slot = getFavoriteRecipeElementSlotUnderMouse(mouseX, mouseY);
+			if (slot.isEmpty()) {
+				return Optional.empty();
+			}
+			FavoriteRecipeElement<?> element = slot.get().element();
+			Optional<FavoriteRecipeStore.FavoriteSlotInput> slotInput = element.getFavoriteSlotInput();
+			if (slotInput.isEmpty()) {
+				return Optional.empty();
+			}
+			long step = scrollDelta > 0 ? 1 : -1;
+			if (favoriteRecipes.cycleFavoriteInputs(element.getFocusedRecipe(), slotInput.get(), step)) {
+				playClickSound();
+				return Optional.of(this);
+			}
+			return Optional.empty();
+		}
 	}
 
 	private class RecipeCollapseInputHandler implements IUserInputHandler {

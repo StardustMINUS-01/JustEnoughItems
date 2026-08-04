@@ -20,12 +20,14 @@ import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -39,75 +41,9 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	private final boolean favoriteTarget;
 	private final Optional<String> amountText;
 	private final Optional<FavoriteRecipePanelState.RecipeInputKey> recipeInputKey;
+	private final Optional<FavoriteRecipeStore.FavoriteSlotInput> favoriteSlotInput;
+	private final Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs;
 	private final boolean visible;
-
-	public FavoriteRecipeElement(
-		ITypedIngredient<T> ingredient,
-		FocusedRecipe recipe,
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory
-	) {
-		this(ingredient, recipe, recipeManager, focusFactory, null, true);
-	}
-
-	public FavoriteRecipeElement(
-		ITypedIngredient<T> ingredient,
-		FocusedRecipe recipe,
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		FavoriteRecipeStore favoriteRecipes,
-		boolean favoriteTarget
-	) {
-		this(ingredient, ingredient, Optional.empty(), recipe, recipeManager, focusFactory, favoriteRecipes, favoriteTarget);
-	}
-
-	public FavoriteRecipeElement(
-		ITypedIngredient<T> ingredient,
-		ITypedIngredient<T> tooltipIngredient,
-		Optional<String> amountText,
-		FocusedRecipe recipe,
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		FavoriteRecipeStore favoriteRecipes,
-		boolean favoriteTarget
-	) {
-		this(
-			ingredient,
-			tooltipIngredient,
-			amountText,
-			recipe,
-			recipeManager,
-			focusFactory,
-			favoriteRecipes,
-			favoriteTarget,
-			Optional.empty()
-		);
-	}
-
-	public FavoriteRecipeElement(
-		ITypedIngredient<T> ingredient,
-		ITypedIngredient<T> tooltipIngredient,
-		Optional<String> amountText,
-		FocusedRecipe recipe,
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		FavoriteRecipeStore favoriteRecipes,
-		boolean favoriteTarget,
-		Optional<FavoriteRecipePanelState.RecipeInputKey> recipeInputKey
-	) {
-		this(
-			ingredient,
-			tooltipIngredient,
-			amountText,
-			recipe,
-			recipeManager,
-			focusFactory,
-			favoriteRecipes,
-			favoriteTarget,
-			recipeInputKey,
-			true
-		);
-	}
 
 	public FavoriteRecipeElement(
 		ITypedIngredient<T> ingredient,
@@ -119,6 +55,8 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		FavoriteRecipeStore favoriteRecipes,
 		boolean favoriteTarget,
 		Optional<FavoriteRecipePanelState.RecipeInputKey> recipeInputKey,
+		Optional<FavoriteRecipeStore.FavoriteSlotInput> favoriteSlotInput,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs,
 		boolean visible
 	) {
 		this.ingredient = ingredient;
@@ -130,6 +68,8 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		this.favoriteTarget = favoriteTarget;
 		this.amountText = amountText == null ? Optional.empty() : amountText;
 		this.recipeInputKey = recipeInputKey == null ? Optional.empty() : recipeInputKey;
+		this.favoriteSlotInput = favoriteSlotInput == null ? Optional.empty() : favoriteSlotInput;
+		this.entryInputs = entryInputs == null ? Map.of() : Map.copyOf(entryInputs);
 		this.visible = visible;
 	}
 
@@ -168,7 +108,16 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 			.filter(candidate -> Objects.equals(recipeCategory.getRegistryName(candidate), recipe.recipeUid()))
 			.findFirst();
 		if (focused.isPresent()) {
-			recipesGui.showRecipes(recipeCategory, List.of(focused.get()), focuses);
+			if (recipesGui instanceof RecipesGui recipesGuiImpl) {
+				recipesGuiImpl.showRecipesWithFavoriteInputs(
+					recipeCategory,
+					List.of(focused.get()),
+					focuses,
+					entryInputs
+				);
+			} else {
+				recipesGui.showRecipes(recipeCategory, List.of(focused.get()), focuses);
+			}
 		} else {
 			recipesGui.show(focuses);
 		}
@@ -217,6 +166,14 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 
 	public Optional<FavoriteRecipePanelState.RecipeInputKey> getRecipeInputKey() {
 		return recipeInputKey;
+	}
+
+	public Optional<FavoriteRecipeStore.FavoriteSlotInput> getFavoriteSlotInput() {
+		return favoriteSlotInput;
+	}
+
+	public Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> getEntryInputs() {
+		return entryInputs;
 	}
 
 	@Override

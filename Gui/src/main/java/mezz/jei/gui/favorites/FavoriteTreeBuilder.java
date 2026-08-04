@@ -120,7 +120,15 @@ public final class FavoriteTreeBuilder {
 		List<BookmarkIngredientKey> permutations = input.normalizedPermutationKeys();
 		Optional<BookmarkIngredientKey> selectedKey;
 		Optional<FocusedRecipe> selectedRecipe;
-		if (permutations.size() > 1) {
+		FavoriteRecipeStore.FavoriteSlotInput storedInput = recipe.recipe().equals(root) ?
+			null :
+			favoriteRecipes.getManualEntry(recipe.recipe())
+				.flatMap(entry -> Optional.ofNullable(entry.inputs().get(input.inputSlotIndex())))
+				.orElse(null);
+		if (storedInput != null && permutations.contains(storedInput.selected())) {
+			selectedKey = Optional.of(storedInput.selected());
+			selectedRecipe = favoriteRecipes.getFavorite(storedInput.selected());
+		} else if (permutations.size() > 1) {
 			List<BookmarkIngredientKey> manualKeys = permutations.stream()
 				.filter(key -> favoriteRecipes.getManualFavorite(key).isPresent())
 				.toList();

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 public class FavoriteRecipeStoreTest {
 	private static final BookmarkIngredientKey IRON_PICKAXE = target("minecraft:iron_pickaxe");
@@ -22,7 +23,7 @@ public class FavoriteRecipeStoreTest {
 	public void manualFavoriteCanBeReadFromTargetAndRecipe() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
 
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
 
 		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getManualFavorite(IRON_PICKAXE).orElseThrow());
 		Assertions.assertEquals(IRON_PICKAXE, store.getManualFavorite(IRON_PICKAXE_RECIPE).orElseThrow());
@@ -32,9 +33,9 @@ public class FavoriteRecipeStoreTest {
 	@Test
 	public void sameTargetFavoriteReplacesOldRecipeMapping() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
 
-		store.setFavorite(IRON_PICKAXE, ALTERNATE_IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, ALTERNATE_IRON_PICKAXE_RECIPE, Map.of());
 
 		Assertions.assertEquals(ALTERNATE_IRON_PICKAXE_RECIPE, store.getManualFavorite(IRON_PICKAXE).orElseThrow());
 		Assertions.assertTrue(store.getManualFavorite(IRON_PICKAXE_RECIPE).isEmpty());
@@ -44,9 +45,9 @@ public class FavoriteRecipeStoreTest {
 	@Test
 	public void sameRecipeFavoriteReplacesOldTargetMapping() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
 
-		store.setFavorite(DIAMOND_PICKAXE, IRON_PICKAXE_RECIPE);
+		store.setFavorite(DIAMOND_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
 
 		Assertions.assertTrue(store.getManualFavorite(IRON_PICKAXE).isEmpty());
 		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getManualFavorite(DIAMOND_PICKAXE).orElseThrow());
@@ -56,7 +57,7 @@ public class FavoriteRecipeStoreTest {
 	@Test
 	public void removingTargetFavoriteClearsBothDirections() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
 
 		store.removeFavorite(IRON_PICKAXE);
 
@@ -71,7 +72,7 @@ public class FavoriteRecipeStoreTest {
 		int[] changed = {0};
 		store.addSourceListChangedListener(() -> changed[0]++);
 
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
 		store.removeFavorite(IRON_PICKAXE);
 		store.clear();
 
@@ -93,7 +94,7 @@ public class FavoriteRecipeStoreTest {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
 
-		store.setFavorite(IRON_PICKAXE, ALTERNATE_IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, ALTERNATE_IRON_PICKAXE_RECIPE, Map.of());
 
 		Assertions.assertEquals(ALTERNATE_IRON_PICKAXE_RECIPE, store.getFavorite(IRON_PICKAXE).orElseThrow());
 		Assertions.assertEquals(IRON_PICKAXE, store.getManualFavorite(ALTERNATE_IRON_PICKAXE_RECIPE).orElseThrow());
@@ -103,7 +104,7 @@ public class FavoriteRecipeStoreTest {
 	public void removingManualFavoriteFallsBackToGeneratedFavorite() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
-		store.setFavorite(IRON_PICKAXE, ALTERNATE_IRON_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, ALTERNATE_IRON_PICKAXE_RECIPE, Map.of());
 
 		store.removeFavorite(IRON_PICKAXE);
 
@@ -114,9 +115,9 @@ public class FavoriteRecipeStoreTest {
 	@Test
 	public void movingManualFavoriteBeforeTargetReordersEntries() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
-		store.setFavorite(DIAMOND_PICKAXE, DIAMOND_PICKAXE_RECIPE);
-		store.setFavorite(GOLDEN_PICKAXE, GOLDEN_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
+		store.setFavorite(DIAMOND_PICKAXE, DIAMOND_PICKAXE_RECIPE, Map.of());
+		store.setFavorite(GOLDEN_PICKAXE, GOLDEN_PICKAXE_RECIPE, Map.of());
 
 		Assertions.assertTrue(store.moveFavorite(DIAMOND_PICKAXE_RECIPE, IRON_PICKAXE_RECIPE, 0));
 
@@ -130,9 +131,9 @@ public class FavoriteRecipeStoreTest {
 	@Test
 	public void movingManualFavoriteAfterTargetReordersEntriesAndNotifiesListeners() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
-		store.setFavorite(DIAMOND_PICKAXE, DIAMOND_PICKAXE_RECIPE);
-		store.setFavorite(GOLDEN_PICKAXE, GOLDEN_PICKAXE_RECIPE);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
+		store.setFavorite(DIAMOND_PICKAXE, DIAMOND_PICKAXE_RECIPE, Map.of());
+		store.setFavorite(GOLDEN_PICKAXE, GOLDEN_PICKAXE_RECIPE, Map.of());
 		int[] changed = {0};
 		store.addSourceListChangedListener(() -> changed[0]++);
 
@@ -143,6 +144,133 @@ public class FavoriteRecipeStoreTest {
 			GOLDEN_PICKAXE_RECIPE,
 			IRON_PICKAXE_RECIPE
 		), store.entries().stream().map(FavoriteRecipeStore.Entry::recipe).toList());
+		Assertions.assertEquals(1, changed[0]);
+	}
+
+	@Test
+	public void setFavoriteStoresInputSelectionsWithEntry() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		FavoriteRecipeStore.FavoriteSlotInput slotInput = new FavoriteRecipeStore.FavoriteSlotInput(
+			target("minecraft:sand"),
+			List.of(target("minecraft:sand"), target("minecraft:red_sand"))
+		);
+
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of(0, slotInput));
+
+		FavoriteRecipeStore.Entry entry = store.getManualEntry(IRON_PICKAXE_RECIPE).orElseThrow();
+		Assertions.assertEquals(IRON_PICKAXE, entry.target());
+		Assertions.assertEquals(slotInput, entry.inputs().get(0));
+		Assertions.assertEquals(1, entry.inputs().size());
+	}
+
+	@Test
+	public void cycleFavoriteInputMovesSelectedWithinPermutations() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		FavoriteRecipeStore.FavoriteSlotInput slotInput = new FavoriteRecipeStore.FavoriteSlotInput(
+			target("minecraft:sand"),
+			List.of(target("minecraft:sand"), target("minecraft:red_sand"))
+		);
+		store.setFavorite(
+			IRON_PICKAXE,
+			IRON_PICKAXE_RECIPE,
+			Map.of(0, slotInput)
+		);
+
+		Assertions.assertTrue(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, slotInput, 1));
+
+		FavoriteRecipeStore.FavoriteSlotInput cycledSlotInput = store.getManualEntry(IRON_PICKAXE_RECIPE).orElseThrow().inputs().get(0);
+		Assertions.assertEquals(target("minecraft:red_sand"), cycledSlotInput.selected());
+	}
+
+	@Test
+	public void cycleFavoriteInputWrapsAround() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		FavoriteRecipeStore.FavoriteSlotInput slotInput = new FavoriteRecipeStore.FavoriteSlotInput(
+			target("minecraft:sand"),
+			List.of(target("minecraft:sand"), target("minecraft:red_sand"))
+		);
+		store.setFavorite(
+			IRON_PICKAXE,
+			IRON_PICKAXE_RECIPE,
+			Map.of(0, slotInput)
+		);
+
+		Assertions.assertTrue(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, slotInput, -1));
+		FavoriteRecipeStore.FavoriteSlotInput current = store.getManualEntry(IRON_PICKAXE_RECIPE).orElseThrow().inputs().get(0);
+		Assertions.assertTrue(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, current, -1));
+
+		FavoriteRecipeStore.FavoriteSlotInput cycledSlotInput = store.getManualEntry(IRON_PICKAXE_RECIPE).orElseThrow().inputs().get(0);
+		Assertions.assertEquals(target("minecraft:sand"), cycledSlotInput.selected());
+	}
+
+	@Test
+	public void cycleFavoriteInputDoesNothingWhenSingleCandidateOrEntryMissing() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		FavoriteRecipeStore.FavoriteSlotInput singleCandidate = new FavoriteRecipeStore.FavoriteSlotInput(
+			target("minecraft:sand"),
+			List.of(target("minecraft:sand"))
+		);
+		store.setFavorite(
+			IRON_PICKAXE,
+			IRON_PICKAXE_RECIPE,
+			Map.of(0, singleCandidate)
+		);
+		int[] changed = {0};
+		store.addSourceListChangedListener(() -> changed[0]++);
+
+		Assertions.assertFalse(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, singleCandidate, 1));
+		Assertions.assertFalse(store.cycleFavoriteInputs(
+			IRON_PICKAXE_RECIPE,
+			new FavoriteRecipeStore.FavoriteSlotInput(
+				target("minecraft:red_sand"),
+				List.of(target("minecraft:red_sand"))
+			),
+			1
+		));
+		Assertions.assertFalse(store.cycleFavoriteInputs(
+			DIAMOND_PICKAXE_RECIPE,
+			singleCandidate,
+			1
+		));
+		Assertions.assertEquals(0, changed[0]);
+	}
+
+	@Test
+	public void cycleFavoriteInputNotifiesListenersOnChange() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		FavoriteRecipeStore.FavoriteSlotInput slotInput = new FavoriteRecipeStore.FavoriteSlotInput(
+			target("minecraft:sand"),
+			List.of(target("minecraft:sand"), target("minecraft:red_sand"))
+		);
+		store.setFavorite(
+			IRON_PICKAXE,
+			IRON_PICKAXE_RECIPE,
+			Map.of(0, slotInput)
+		);
+		int[] changed = {0};
+		store.addSourceListChangedListener(() -> changed[0]++);
+
+		Assertions.assertTrue(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, slotInput, 1));
+		Assertions.assertEquals(1, changed[0]);
+	}
+
+	@Test
+	public void setFavoritesBatchReplacesManualEntriesAndNotifiesOnce() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of());
+		store.setGeneratedFavorite(GOLDEN_PICKAXE, GOLDEN_PICKAXE_RECIPE);
+		int[] changed = {0};
+		store.addSourceListChangedListener(() -> changed[0]++);
+
+		store.setFavorites(List.of(
+			new FavoriteRecipeStore.Entry(DIAMOND_PICKAXE, DIAMOND_PICKAXE_RECIPE, Map.of()),
+			new FavoriteRecipeStore.Entry(GOLDEN_PICKAXE, GOLDEN_PICKAXE_RECIPE, Map.of())
+		));
+
+		Assertions.assertTrue(store.getManualFavorite(IRON_PICKAXE).isEmpty());
+		Assertions.assertEquals(DIAMOND_PICKAXE_RECIPE, store.getManualFavorite(DIAMOND_PICKAXE).orElseThrow());
+		Assertions.assertEquals(GOLDEN_PICKAXE_RECIPE, store.getManualFavorite(GOLDEN_PICKAXE).orElseThrow());
+		Assertions.assertEquals(GOLDEN_PICKAXE_RECIPE, store.getGeneratedFavorite(GOLDEN_PICKAXE).orElseThrow());
 		Assertions.assertEquals(1, changed[0]);
 	}
 
