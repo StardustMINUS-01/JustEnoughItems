@@ -7,6 +7,8 @@ import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.util.ReflectionCache;
+import mezz.jei.common.util.SaturatedMath;
 import net.minecraft.resources.ResourceLocation;
 
 import java.lang.reflect.Method;
@@ -133,7 +135,7 @@ public final class BookmarkItemMetadataFactory {
 				.filter(ingredient -> selectedKey.equals(createPermutationKey(ingredient, ingredientManager)))
 				.toList();
 			if (!matchingIngredients.isEmpty()) {
-				amount = saturatedAdd(amount, BookmarkIngredientAmountResolver.getAmount(matchingIngredients.get(0), ingredientManager));
+				amount = SaturatedMath.add(amount, BookmarkIngredientAmountResolver.getAmount(matchingIngredients.get(0), ingredientManager));
 			}
 		}
 		return amount;
@@ -194,13 +196,13 @@ public final class BookmarkItemMetadataFactory {
 			if (maxDamage <= 0) {
 				return electricUses;
 			}
-			long durabilityUses = saturatedDivideRoundUp(Math.max(0, maxDamage - damage), damagePerCraft);
+			long durabilityUses = SaturatedMath.divideRoundUp(Math.max(0, maxDamage - damage), damagePerCraft);
 			return Math.min(durabilityUses, electricUses);
 		}
 		if (maxDamage <= 0) {
 			return 1;
 		}
-		long durabilityUses = saturatedDivideRoundUp(Math.max(0, maxDamage - damage), damagePerCraft);
+		long durabilityUses = SaturatedMath.divideRoundUp(Math.max(0, maxDamage - damage), damagePerCraft);
 		return Math.max(1, durabilityUses);
 	}
 
@@ -214,7 +216,7 @@ public final class BookmarkItemMetadataFactory {
 			if (charge <= 0) {
 				return 0;
 			}
-			long energyPerCraft = saturatedMultiply(damagePerCraft, getGtmEnergyUsageMultiplier());
+			long energyPerCraft = SaturatedMath.multiply(damagePerCraft, getGtmEnergyUsageMultiplier());
 			if (energyPerCraft <= 0) {
 				return -1;
 			}
@@ -293,7 +295,7 @@ public final class BookmarkItemMetadataFactory {
 		try {
 			return invokeNoArg(item, "getToolStats");
 		} catch (NoSuchMethodException ignored) {
-			for (Method method : item.getClass().getMethods()) {
+			for (Method method : ReflectionCache.getMethods(item.getClass())) {
 				if (!"getToolStats".equals(method.getName()) || method.getParameterCount() != 1) {
 					continue;
 				}
@@ -309,13 +311,13 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	private static Object invokeNoArg(Object target, String methodName) throws ReflectiveOperationException {
-		Method method = target.getClass().getMethod(methodName);
-		method.trySetAccessible();
+		Method method = ReflectionCache.findMethod(target.getClass(), methodName)
+			.orElseThrow(() -> new NoSuchMethodException(methodName));
 		return method.invoke(target);
 	}
 
 	private static Integer invokeIntMethod(Object target, String methodName, Object argument) throws ReflectiveOperationException {
-		for (Method method : target.getClass().getMethods()) {
+		for (Method method : ReflectionCache.getMethods(target.getClass())) {
 			if (!methodName.equals(method.getName()) || method.getParameterCount() != 1) {
 				continue;
 			}
@@ -382,8 +384,10 @@ public final class BookmarkItemMetadataFactory {
 			if (toolStats == null) {
 				return 0;
 			}
-			Method getLong = toolStats.getClass().getMethod("getLong", String.class);
-			getLong.trySetAccessible();
+			Method getLong = ReflectionCache.findMethod(toolStats.getClass(), "getLong", String.class).orElse(null);
+			if (getLong == null) {
+				return 0;
+			}
 			Object value = getLong.invoke(toolStats, key);
 			if (value instanceof Number number) {
 				return number.longValue();
@@ -407,14 +411,13 @@ public final class BookmarkItemMetadataFactory {
 
 	private static boolean hasStringKey(Object tag, String key) throws ReflectiveOperationException {
 		for (String methodName : List.of("hasKey", "contains")) {
-			try {
-				Method method = tag.getClass().getMethod(methodName, String.class);
-				method.trySetAccessible();
-				Object result = method.invoke(tag, key);
-				if (result instanceof Boolean bool) {
-					return bool;
-				}
-			} catch (NoSuchMethodException ignored) {
+			Method method = ReflectionCache.findMethod(tag.getClass(), methodName, String.class).orElse(null);
+			if (method == null) {
+				continue;
+			}
+			Object result = method.invoke(tag, key);
+			if (result instanceof Boolean bool) {
+				return bool;
 			}
 		}
 		return false;
@@ -422,12 +425,11 @@ public final class BookmarkItemMetadataFactory {
 
 	private static Object getCompound(Object tag, String key) throws ReflectiveOperationException {
 		for (String methodName : List.of("getCompoundTag", "getCompound")) {
-			try {
-				Method method = tag.getClass().getMethod(methodName, String.class);
-				method.trySetAccessible();
-				return method.invoke(tag, key);
-			} catch (NoSuchMethodException ignored) {
+			Method method = ReflectionCache.findMethod(tag.getClass(), methodName, String.class).orElse(null);
+			if (method == null) {
+				continue;
 			}
+			return method.invoke(tag, key);
 		}
 		return null;
 	}
@@ -435,13 +437,17 @@ public final class BookmarkItemMetadataFactory {
 	@SuppressWarnings("unchecked")
 	private static <T> T getCraftingRemainingItem(T ingredient) {
 		try {
-			Method hasCraftingRemainingItem = ingredient.getClass().getMethod("hasCraftingRemainingItem");
-			hasCraftingRemainingItem.trySetAccessible();
+			Method hasCraftingRemainingItem = ReflectionCache.findMethod(ingredient.getClass(), "hasCraftingRemainingItem").orElse(null);
+			if (hasCraftingRemainingItem == null) {
+				return null;
+			}
 			if (!Boolean.TRUE.equals(hasCraftingRemainingItem.invoke(ingredient))) {
 				return null;
 			}
-			Method getCraftingRemainingItem = ingredient.getClass().getMethod("getCraftingRemainingItem");
-			getCraftingRemainingItem.trySetAccessible();
+			Method getCraftingRemainingItem = ReflectionCache.findMethod(ingredient.getClass(), "getCraftingRemainingItem").orElse(null);
+			if (getCraftingRemainingItem == null) {
+				return null;
+			}
 			Object remainingItem = getCraftingRemainingItem.invoke(ingredient);
 			return remainingItem == ingredient ? null : (T) remainingItem;
 		} catch (ReflectiveOperationException | RuntimeException ignored) {
@@ -457,29 +463,6 @@ public final class BookmarkItemMetadataFactory {
 		} catch (RuntimeException e) {
 			return "fallback:" + getFallbackIngredientId(ingredient);
 		}
-	}
-
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
-
-	private static long saturatedMultiply(long first, long second) {
-		try {
-			return Math.multiplyExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
-
-	private static long saturatedDivideRoundUp(long numerator, long denominator) {
-		if (denominator <= 0 || numerator <= 0) {
-			return 0;
-		}
-		return 1 + (numerator - 1) / denominator;
 	}
 
 	private static String getFallbackIngredientId(ITypedIngredient<?> ingredient) {

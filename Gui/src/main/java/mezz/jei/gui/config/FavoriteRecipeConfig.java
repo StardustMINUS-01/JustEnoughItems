@@ -1,9 +1,7 @@
 package mezz.jei.gui.config;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import mezz.jei.common.config.file.GsonArrayFileHelper;
 import mezz.jei.common.util.DeduplicatingRunner;
 import mezz.jei.common.util.ServerConfigPathUtil;
@@ -11,7 +9,6 @@ import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,28 +33,14 @@ public class FavoriteRecipeConfig {
 			return new FavoriteRecipeStore();
 		}
 
-		try (BufferedReader reader = Files.newBufferedReader(path.get())) {
-			JsonElement jsonElement = JsonParser.parseReader(reader);
-			if (!jsonElement.isJsonArray()) {
-				LOGGER.error("Failed to load favorite recipes from file {}: expected an array", path.get());
-				return new FavoriteRecipeStore();
-			}
-			JsonArray jsonArray = jsonElement.getAsJsonArray();
-			if (jsonArray.isEmpty() || !GsonArrayFileHelper.isVersionHeader(jsonArray.get(0), VERSION)) {
-				LOGGER.error("Failed to load favorite recipes from file {}: missing or mismatched version header", path.get());
-				return new FavoriteRecipeStore();
-			}
-			JsonArray entries = new JsonArray();
-			for (int i = 1; i < jsonArray.size(); i++) {
-				entries.add(jsonArray.get(i));
-			}
-			FavoriteRecipeStore store = FavoriteRecipeJsonSerializer.deserializeStore(entries);
-			LOGGER.debug("Loaded favorite recipes from file: {}", path.get());
-			return store;
-		} catch (RuntimeException | IOException e) {
-			LOGGER.error("Failed to load favorite recipes from file {}", path.get(), e);
+		JsonArray entries = GsonArrayFileHelper.read(path.get(), VERSION).orElse(null);
+		if (entries == null) {
+			LOGGER.error("Failed to load favorite recipes from file {}: missing or invalid content", path.get());
 			return new FavoriteRecipeStore();
 		}
+		FavoriteRecipeStore store = FavoriteRecipeJsonSerializer.deserializeStore(entries);
+		LOGGER.debug("Loaded favorite recipes from file: {}", path.get());
+		return store;
 	}
 
 	public void saveFavorites(FavoriteRecipeStore store) {

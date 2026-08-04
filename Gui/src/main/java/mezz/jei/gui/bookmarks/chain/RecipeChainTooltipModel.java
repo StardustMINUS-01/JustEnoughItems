@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.chain;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
@@ -118,7 +119,7 @@ public record RecipeChainTooltipModel(
 		for (RecipeChainInput inventoryInput : inventoryInputs) {
 			BookmarkItemMetadata inventoryMetadata = inventoryInput.metadata();
 			if (metadata.isSatisfiedBy(inventoryMetadata)) {
-				amount = saturatedAdd(amount, inventoryMetadata.amount());
+				amount = SaturatedMath.add(amount, inventoryMetadata.amount());
 			}
 		}
 		return amount;
@@ -216,7 +217,7 @@ public record RecipeChainTooltipModel(
 		if (existing == null) {
 			byKey.put(item.key(), item);
 		} else {
-			byKey.put(item.key(), existing.withAmount(saturatedAdd(existing.amount(), item.amount())));
+			byKey.put(item.key(), existing.withAmount(SaturatedMath.add(existing.amount(), item.amount())));
 		}
 	}
 
@@ -243,13 +244,6 @@ public record RecipeChainTooltipModel(
 		);
 	}
 
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
 
 	public record Section(
 		RecipeChainTooltipSectionType type,

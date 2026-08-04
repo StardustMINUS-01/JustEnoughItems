@@ -1,5 +1,7 @@
 package mezz.jei.gui.compat.gtm;
 
+import mezz.jei.common.util.ReflectionCache;
+
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -241,13 +243,7 @@ public final class GtmVirtualCircuitCompat {
 			if (clazz == null) {
 				return null;
 			}
-			try {
-				Method method = clazz.getMethod(methodName, parameterTypes);
-				method.trySetAccessible();
-				return method;
-			} catch (ReflectiveOperationException | SecurityException e) {
-				return null;
-			}
+			return ReflectionCache.findMethod(clazz, methodName, parameterTypes).orElse(null);
 		}
 
 		@Nullable
@@ -265,8 +261,10 @@ public final class GtmVirtualCircuitCompat {
 				return null;
 			}
 			try {
-				Method method = target.getClass().getMethod(methodName);
-				method.trySetAccessible();
+				Method method = ReflectionCache.findMethod(target.getClass(), methodName).orElse(null);
+				if (method == null) {
+					return null;
+				}
 				return method.invoke(target);
 			} catch (ReflectiveOperationException | SecurityException | IllegalArgumentException | LinkageError e) {
 				return null;
@@ -280,19 +278,15 @@ public final class GtmVirtualCircuitCompat {
 
 		@Nullable
 		private static Object readField(Object target, String fieldName) {
-			Class<?> clazz = target.getClass();
-			while (clazz != null) {
-				try {
-					Field field = clazz.getDeclaredField(fieldName);
-					field.trySetAccessible();
-					return field.get(target);
-				} catch (NoSuchFieldException e) {
-					clazz = clazz.getSuperclass();
-				} catch (ReflectiveOperationException | SecurityException | IllegalArgumentException | LinkageError e) {
-					return null;
-				}
+			Field field = ReflectionCache.findField(target.getClass(), fieldName).orElse(null);
+			if (field == null) {
+				return null;
 			}
-			return null;
+			try {
+				return field.get(target);
+			} catch (ReflectiveOperationException | SecurityException | IllegalArgumentException | LinkageError e) {
+				return null;
+			}
 		}
 	}
 

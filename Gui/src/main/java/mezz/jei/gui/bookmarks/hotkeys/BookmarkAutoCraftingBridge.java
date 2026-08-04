@@ -8,6 +8,7 @@
  */
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
@@ -446,7 +447,7 @@ public final class BookmarkAutoCraftingBridge {
 			if (expectedIncrease <= 0) {
 				return after > before;
 			}
-			return after >= saturatedAdd(before, expectedIncrease);
+			return after >= SaturatedMath.add(before, expectedIncrease);
 		}
 
 		private long expectedResultAmount(ResourceLocation recipeUid, int craftedCount) {
@@ -454,7 +455,7 @@ public final class BookmarkAutoCraftingBridge {
 			for (RecipeChainInput input : chainInputs) {
 				BookmarkItemMetadata metadata = input.metadata();
 				if (metadata.type().isGraphOutput() && recipeUid.equals(metadata.recipeUid())) {
-					amount = saturatedAdd(amount, metadata.amount(craftedCount));
+					amount = SaturatedMath.add(amount, metadata.amount(craftedCount));
 				}
 			}
 			return amount;
@@ -468,7 +469,7 @@ public final class BookmarkAutoCraftingBridge {
 				boolean matchesResult = results.stream()
 					.anyMatch(result -> result.isSatisfiedBy(available));
 				if (matchesResult) {
-					amount = saturatedAdd(amount, available.amount());
+					amount = SaturatedMath.add(amount, available.amount());
 				}
 			}
 			return amount;
@@ -485,13 +486,6 @@ public final class BookmarkAutoCraftingBridge {
 			return results;
 		}
 
-		private static long saturatedAdd(long first, long second) {
-			try {
-				return Math.addExact(first, second);
-			} catch (ArithmeticException e) {
-				return Long.MAX_VALUE;
-			}
-		}
 	}
 
 	private static boolean craft(

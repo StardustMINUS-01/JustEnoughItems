@@ -1,14 +1,18 @@
 package mezz.jei.common.config.file;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import mezz.jei.common.util.PathUtil;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Optional;
 
 public final class GsonArrayFileHelper {
 	private GsonArrayFileHelper() {
@@ -47,5 +51,25 @@ public final class GsonArrayFileHelper {
 		return versionElement != null &&
 			versionElement.isJsonPrimitive() &&
 			versionElement.getAsInt() == version;
+	}
+
+	public static Optional<JsonArray> read(Path path, int version) {
+		try (BufferedReader reader = Files.newBufferedReader(path)) {
+			JsonElement jsonElement = JsonParser.parseReader(reader);
+			if (!jsonElement.isJsonArray()) {
+				return Optional.empty();
+			}
+			JsonArray jsonArray = jsonElement.getAsJsonArray();
+			if (jsonArray.isEmpty() || !isVersionHeader(jsonArray.get(0), version)) {
+				return Optional.empty();
+			}
+			JsonArray entries = new JsonArray();
+			for (int i = 1; i < jsonArray.size(); i++) {
+				entries.add(jsonArray.get(i));
+			}
+			return Optional.of(entries);
+		} catch (RuntimeException | IOException e) {
+			return Optional.empty();
+		}
 	}
 }

@@ -19,6 +19,7 @@ import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import mezz.jei.common.util.SaturatedMath;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -420,7 +421,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 				amount = -1;
 				return;
 			}
-			amount = saturatedAdd(amount, inputAmount.getAsLong());
+			amount = SaturatedMath.add(amount, inputAmount.getAsLong());
 		}
 
 		public MergedRecipeInput toRecipeInput() {
@@ -438,13 +439,6 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			return new FavoriteRecipePanelState.RecipeInputKey(first.getType().getUid(), uniqueId);
 		}
 
-		private static long saturatedAdd(long first, long second) {
-			try {
-				return Math.addExact(first, second);
-			} catch (ArithmeticException e) {
-				return Long.MAX_VALUE;
-			}
-		}
 	}
 
 	private static class LayoutRecipeInputsResolver implements RecipeInputsResolver {

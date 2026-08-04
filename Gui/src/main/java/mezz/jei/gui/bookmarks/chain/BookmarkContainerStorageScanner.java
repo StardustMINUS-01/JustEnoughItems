@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.chain;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -32,7 +33,7 @@ public final class BookmarkContainerStorageScanner {
 			}
 			keyFactory.apply(normalized(stack))
 				.ifPresent(key -> {
-					amounts.merge(key, (long) stack.getCount(), BookmarkContainerStorageScanner::saturatedAdd);
+					amounts.merge(key, (long) stack.getCount(), SaturatedMath::add);
 					representatives.putIfAbsent(key, normalized(stack));
 				});
 		}
@@ -45,13 +46,6 @@ public final class BookmarkContainerStorageScanner {
 		return copy;
 	}
 
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
 
 	public record StorageSnapshot(
 		Map<BookmarkIngredientKey, Long> amounts,

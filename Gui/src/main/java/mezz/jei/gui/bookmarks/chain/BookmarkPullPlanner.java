@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.chain;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
@@ -28,7 +29,7 @@ public final class BookmarkPullPlanner {
 		if (freeSlots <= 0 || maxStackSize <= 0) {
 			return new BookmarkPullPlan(Map.of());
 		}
-		long maxPullAmount = saturatedMultiply(freeSlots, maxStackSize);
+		long maxPullAmount = SaturatedMath.multiply(freeSlots, maxStackSize);
 		RecipeChainDetails details = RecipeChainMath.refresh(inputs, collapsedRecipes);
 		Map<BookmarkIngredientKey, Long> amounts = details.outputRecipes().isEmpty() ?
 			planInitialOnlyPull(inputs, playerInventory, shift, maxPullAmount) :
@@ -143,24 +144,9 @@ public final class BookmarkPullPlanner {
 		if (amount <= 0) {
 			return;
 		}
-		amounts.merge(key, Math.min(amount, maxPullAmount), (first, second) -> Math.min(saturatedAdd(first, second), maxPullAmount));
+		amounts.merge(key, Math.min(amount, maxPullAmount), (first, second) -> Math.min(SaturatedMath.add(first, second), maxPullAmount));
 	}
 
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
-
-	private static long saturatedMultiply(long first, long second) {
-		try {
-			return Math.multiplyExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
 
 	private interface KeyConsumer {
 		void accept(BookmarkIngredientKey key);

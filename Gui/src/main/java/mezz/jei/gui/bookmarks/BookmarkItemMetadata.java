@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks;
 
+import mezz.jei.common.util.SaturatedMath;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
@@ -107,12 +108,12 @@ public record BookmarkItemMetadata(
 
 	public long amount(long multiplier) {
 		long effectiveMultiplier = type.scalesWithMultiplier() ? multiplier : 1;
-		long amount = saturatedMultiply(Math.max(0, factor), Math.max(0, effectiveMultiplier));
+		long amount = SaturatedMath.multiply(Math.max(0, factor), Math.max(0, effectiveMultiplier));
 		if (chance > 0 && chance != CHANCE_FULL) {
 			if (type.isGraphInput()) {
-				return saturatedDivideRoundUp(saturatedMultiply(amount, chance), CHANCE_FULL);
+				return SaturatedMath.divideRoundUp(SaturatedMath.multiply(amount, chance), CHANCE_FULL);
 			}
-			return saturatedMultiply(amount, chance) / CHANCE_FULL;
+			return SaturatedMath.multiply(amount, chance) / CHANCE_FULL;
 		}
 		return amount;
 	}
@@ -122,10 +123,10 @@ public record BookmarkItemMetadata(
 			return 0;
 		}
 		if (chance == CHANCE_FULL) {
-			return saturatedDivideRoundUp(amount, factor);
+			return SaturatedMath.divideRoundUp(amount, factor);
 		}
-		long denominator = saturatedMultiply(factor, chance);
-		return saturatedDivideRoundUp(saturatedMultiply(amount, CHANCE_FULL), denominator);
+		long denominator = SaturatedMath.multiply(factor, chance);
+		return SaturatedMath.divideRoundUp(SaturatedMath.multiply(amount, CHANCE_FULL), denominator);
 	}
 
 	public boolean equalsRecipe(BookmarkItemMetadata metadata) {
@@ -154,18 +155,4 @@ public record BookmarkItemMetadata(
 			brokenContainerItem == null;
 	}
 
-	private static long saturatedMultiply(long first, long second) {
-		try {
-			return Math.multiplyExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
-
-	private static long saturatedDivideRoundUp(long numerator, long denominator) {
-		if (denominator <= 0 || numerator <= 0) {
-			return 0;
-		}
-		return 1 + (numerator - 1) / denominator;
-	}
 }

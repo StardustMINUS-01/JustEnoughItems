@@ -2102,7 +2102,7 @@ public class BookmarkList implements IIngredientGridSource {
 
 	public void notifyListenersOfChange() {
 		changeVersion++;
-		bookmarkGroups.refreshRecipeChainDetails(bookmarksList);
+		bookmarkGroups.markRecipeChainDetailsDirty(bookmarksList);
 		for (SourceListChangedListener listener : listeners) {
 			listener.onSourceListChanged();
 		}
@@ -2117,7 +2117,7 @@ public class BookmarkList implements IIngredientGridSource {
 				ingredientManager,
 				registryAccess,
 				codecHelper,
-				List.copyOf(getBookmarks()),
+				getBookmarks(),
 				bookmarkCodec
 			);
 		}

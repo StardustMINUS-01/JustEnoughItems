@@ -2,7 +2,6 @@ package mezz.jei.gui.config;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -23,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -146,31 +144,18 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		IFocusFactory focusFactory,
 		IIngredientManager ingredientManager
 	) {
-		try (BufferedReader reader = Files.newBufferedReader(path)) {
-			JsonElement jsonElement = JsonParser.parseReader(reader);
-			if (!jsonElement.isJsonArray()) {
-				LOGGER.error("Failed to load bookmarks config from file {}: expected an array", path);
-				return;
-			}
-			JsonArray jsonArray = jsonElement.getAsJsonArray();
-			if (jsonArray.isEmpty() || !GsonArrayFileHelper.isVersionHeader(jsonArray.get(0), VERSION)) {
-				LOGGER.error("Failed to load bookmarks config from file {}: missing or mismatched version header", path);
-				return;
-			}
-			JsonArray elements = new JsonArray();
-			for (int i = 1; i < jsonArray.size(); i++) {
-				elements.add(jsonArray.get(i));
-			}
-			RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(
-				recipeManager,
-				focusFactory,
-				new TypedIngredientSerializer(ingredientManager)
-			);
-			BookmarkJsonSerializer.deserialize(elements, bookmarkList, recipeBookmarkSerializer, ingredientManager);
-			LOGGER.debug("Loaded bookmarks config from file: {}", path);
-		} catch (RuntimeException | IOException e) {
-			LOGGER.error("Failed to load bookmarks config from file {}", path, e);
+		JsonArray elements = GsonArrayFileHelper.read(path, VERSION).orElse(null);
+		if (elements == null) {
+			LOGGER.error("Failed to load bookmarks config from file {}: missing or invalid content", path);
+			return;
 		}
+		RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(
+			recipeManager,
+			focusFactory,
+			new TypedIngredientSerializer(ingredientManager)
+		);
+		BookmarkJsonSerializer.deserialize(elements, bookmarkList, recipeBookmarkSerializer, ingredientManager);
+		LOGGER.debug("Loaded bookmarks config from file: {}", path);
 	}
 
 }

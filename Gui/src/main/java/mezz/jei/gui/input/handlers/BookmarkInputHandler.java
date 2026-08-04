@@ -1,5 +1,6 @@
 package mezz.jei.gui.input.handlers;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
@@ -509,7 +510,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			if (stack.isEmpty()) {
 				continue;
 			}
-			createKey(stack).ifPresent(key -> amounts.merge(key, (long) stack.getCount(), BookmarkInputHandler::saturatedAdd));
+			createKey(stack).ifPresent(key -> amounts.merge(key, (long) stack.getCount(), SaturatedMath::add));
 		}
 		return Map.copyOf(amounts);
 	}
@@ -535,13 +536,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
 	}
 
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
 
 	private Optional<IUserInputHandler> handleBookmark(UserInput input, IInternalKeyMappings keyBindings) {
 		boolean shiftDown = InputModifiers.hasShift(input);

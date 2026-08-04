@@ -8,6 +8,7 @@
  */
 package mezz.jei.gui.bookmarks.chain;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
@@ -148,13 +149,13 @@ public final class RecipeChainMath {
 			for (RecipeChainInput available : inventory) {
 				BookmarkItemMetadata availableMetadata = available.metadata();
 				if (metadata.isSatisfiedBy(availableMetadata)) {
-					availableAmount = saturatedAdd(availableAmount, availableMetadata.amount());
+					availableAmount = SaturatedMath.add(availableAmount, availableMetadata.amount());
 				}
 			}
 
 			if (availableAmount >= requiredAmount) {
 				long remainder = availableAmount % requiredAmount;
-				long expandedAmount = saturatedAdd(availableAmount, requiredAmount - remainder);
+				long expandedAmount = SaturatedMath.add(availableAmount, requiredAmount - remainder);
 				recipeIngredients.set(i, new RecipeChainInput(
 					ingredient.index(),
 					new BookmarkItemMetadata(
@@ -314,7 +315,7 @@ public final class RecipeChainMath {
 		long consumed = Math.min(amount, available);
 		addContainerItems(input.metadata(), consumed);
 		if (consumed > 0 || requiredAmount.containsKey(input)) {
-			requiredAmount.put(input, saturatedAdd(currentAmount, consumed));
+			requiredAmount.put(input, SaturatedMath.add(currentAmount, consumed));
 		}
 		return amount - consumed;
 	}
@@ -422,7 +423,7 @@ public final class RecipeChainMath {
 
 	private void addContainerItem(BookmarkIngredientKey key, long amount) {
 		if (key != null && amount > 0) {
-			containerItems.merge(key, amount, RecipeChainMath::saturatedAdd);
+			containerItems.merge(key, amount, SaturatedMath::add);
 		}
 	}
 
@@ -441,10 +442,10 @@ public final class RecipeChainMath {
 
 	private void addShift(ResourceLocation recipeUid, long shift) {
 		for (RecipeChainInput ingredient : graph.ingredientsFor(recipeUid)) {
-			workingMultipliers.merge(ingredient, shift, RecipeChainMath::saturatedAdd);
+			workingMultipliers.merge(ingredient, shift, SaturatedMath::add);
 		}
 		for (RecipeChainInput result : graph.resultsFor(recipeUid)) {
-			workingMultipliers.merge(result, shift, RecipeChainMath::saturatedAdd);
+			workingMultipliers.merge(result, shift, SaturatedMath::add);
 		}
 	}
 
@@ -545,7 +546,7 @@ public final class RecipeChainMath {
 	private static void addMissedItem(Map<BookmarkIngredientKey, Long> missedItems, BookmarkItemMetadata metadata, long amount) {
 		metadata.permutations().stream()
 			.findFirst()
-			.ifPresent(key -> missedItems.merge(key, amount, RecipeChainMath::saturatedAdd));
+			.ifPresent(key -> missedItems.merge(key, amount, SaturatedMath::add));
 	}
 
 	private Set<ResourceLocation> getMiddleRecipes() {
@@ -856,9 +857,9 @@ public final class RecipeChainMath {
 		}
 
 		private void append(long amount, long calculatedAmount, BookmarkItemMetadata metadata) {
-			shiftAmount = saturatedAdd(shiftAmount, amount);
-			this.calculatedAmount = saturatedAdd(this.calculatedAmount, calculatedAmount);
-			calculatedMultiplier = saturatedAdd(calculatedMultiplier, metadata.multiplierFromAmount(calculatedAmount));
+			shiftAmount = SaturatedMath.add(shiftAmount, amount);
+			this.calculatedAmount = SaturatedMath.add(this.calculatedAmount, calculatedAmount);
+			calculatedMultiplier = SaturatedMath.add(calculatedMultiplier, metadata.multiplierFromAmount(calculatedAmount));
 		}
 
 		private String key() {
@@ -921,11 +922,4 @@ public final class RecipeChainMath {
 		return recipeUid != null && outputTargets.get(recipeUid) == result;
 	}
 
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
 }

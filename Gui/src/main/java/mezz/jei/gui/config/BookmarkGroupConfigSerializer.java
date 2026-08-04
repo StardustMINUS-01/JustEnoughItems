@@ -12,7 +12,6 @@ import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer;
 import net.minecraft.resources.ResourceLocation;
 
-import java.util.Comparator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -87,10 +86,6 @@ public final class BookmarkGroupConfigSerializer {
 		}
 	}
 
-	public static String serializeBookmarkGroupId(String groupId) {
-		return MARKER_BOOKMARK_GROUP + groupId;
-	}
-
 	public static Optional<String> deserializeBookmarkGroupId(String line) {
 		if (!line.startsWith(MARKER_BOOKMARK_GROUP)) {
 			return Optional.empty();
@@ -101,39 +96,6 @@ public final class BookmarkGroupConfigSerializer {
 			return Optional.empty();
 		}
 		return Optional.of(groupId);
-	}
-
-	public static String serializeBookmarkMetadata(BookmarkItemMetadata metadata) {
-		JsonObject json = new JsonObject();
-		json.addProperty("groupId", metadata.groupId());
-		json.addProperty("type", metadata.type().name());
-		json.addProperty("multiplier", metadata.multiplier());
-		json.addProperty("factor", metadata.factor());
-		json.addProperty("chance", metadata.chance());
-		if (metadata.recipeUid() != null) {
-			if (metadata.recipeTypeUid() != null) {
-				json.addProperty("recipeTypeUid", metadata.recipeTypeUid().toString());
-			}
-			json.addProperty("recipeUid", metadata.recipeUid().toString());
-		}
-		if (!metadata.permutations().isEmpty()) {
-			JsonArray permutations = new JsonArray();
-			metadata.permutations().stream()
-				.sorted(Comparator.naturalOrder())
-				.map(BookmarkIngredientKeySerializer::serialize)
-				.forEach(permutations::add);
-			json.add("permutations", permutations);
-		}
-		if (metadata.containerItem() != null) {
-			json.add("containerItem", BookmarkIngredientKeySerializer.serialize(metadata.containerItem()));
-		}
-		if (metadata.containerItemCraftingUses() != 1) {
-			json.addProperty("containerItemCraftingUses", metadata.containerItemCraftingUses());
-		}
-		if (metadata.brokenContainerItem() != null) {
-			json.add("brokenContainerItem", BookmarkIngredientKeySerializer.serialize(metadata.brokenContainerItem()));
-		}
-		return MARKER_BOOKMARK_METADATA + json;
 	}
 
 	public static Optional<BookmarkItemMetadata> deserializeBookmarkMetadata(String line) {

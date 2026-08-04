@@ -3,8 +3,10 @@ package mezz.jei.gui.bookmarks;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.util.ReflectionCache;
 
 import java.lang.reflect.Method;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 public final class BookmarkIngredientAmountResolver {
@@ -33,9 +35,11 @@ public final class BookmarkIngredientAmountResolver {
 
 	private static long getReflectedAmount(Object ingredient) {
 		try {
-			Method getAmount = ingredient.getClass().getMethod("getAmount");
-			getAmount.trySetAccessible();
-			Object amount = getAmount.invoke(ingredient);
+			Optional<Method> getAmount = ReflectionCache.findMethod(ingredient.getClass(), "getAmount");
+			if (getAmount.isEmpty()) {
+				return -1;
+			}
+			Object amount = getAmount.get().invoke(ingredient);
 			if (amount instanceof Number number) {
 				return number.longValue();
 			}

@@ -171,6 +171,23 @@ public class BookmarkGroupManagerTest {
 	}
 
 	@Test
+	public void recipeChainDetailsRebuildLazilyAfterMarkingDirty() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		String groupId = groups.createGroup("Machines");
+		groups.setCraftingMode(groupId, true);
+		groups.addItem("plate", false);
+		groups.addItem("ingot", false);
+		groups.setItemMetadata("plate", metadata(groupId, BookmarkItemType.RESULT, "test:plate", "plate", 1, 1));
+		groups.setItemMetadata("ingot", metadata(groupId, BookmarkItemType.INGREDIENT, "test:plate", "ingot", 2, 1));
+
+		groups.markRecipeChainDetailsDirty(List.of("plate", "ingot"));
+
+		var details = groups.getRecipeChainDetails(groupId).orElseThrow();
+		Assertions.assertEquals(Set.of(ResourceLocation.fromNamespaceAndPath("test", "plate")), details.outputRecipes());
+		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, details.calculatedItems().get(1).type());
+	}
+
+	@Test
 	public void nonCraftingGroupDoesNotKeepRecipeChainDetails() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");

@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
 public class BookmarkGroupManager<T> {
 	public static final String DEFAULT_GROUP_ID = "default";
@@ -19,6 +20,8 @@ public class BookmarkGroupManager<T> {
 	private final Map<String, BookmarkGroup> groups = new LinkedHashMap<>();
 	private final Map<T, BookmarkItemMetadata> itemMetadata = new IdentityHashMap<>();
 	private final Map<String, RecipeChainDetails> recipeChainDetails = new LinkedHashMap<>();
+	private boolean recipeChainDetailsDirty = true;
+	private @Nullable List<T> pendingOrderedItems;
 	private int nextGroupId = 1;
 
 	public BookmarkGroupManager() {
@@ -29,6 +32,8 @@ public class BookmarkGroupManager<T> {
 		groups.clear();
 		itemMetadata.clear();
 		recipeChainDetails.clear();
+		recipeChainDetailsDirty = true;
+		pendingOrderedItems = null;
 		nextGroupId = 1;
 		groups.put(DEFAULT_GROUP_ID, new BookmarkGroup(DEFAULT_GROUP_ID, "Bookmarks"));
 	}
@@ -148,6 +153,7 @@ public class BookmarkGroupManager<T> {
 	}
 
 	public Optional<RecipeChainDetails> getRecipeChainDetails(String groupId) {
+		ensureRecipeChainDetails();
 		return Optional.ofNullable(recipeChainDetails.get(groupId));
 	}
 
@@ -182,6 +188,18 @@ public class BookmarkGroupManager<T> {
 				refreshRecipeChainDetails(group, orderedItems);
 			}
 		}
+		recipeChainDetailsDirty = false;
+	}
+
+	public void markRecipeChainDetailsDirty(List<T> orderedItems) {
+		recipeChainDetailsDirty = true;
+		pendingOrderedItems = orderedItems;
+	}
+
+	private void ensureRecipeChainDetails() {
+		if (recipeChainDetailsDirty && pendingOrderedItems != null) {
+			refreshRecipeChainDetails(pendingOrderedItems);
+		}
 	}
 
 	private void refreshRecipeChainDetails(BookmarkGroup group, List<T> orderedItems) {
@@ -214,6 +232,7 @@ public class BookmarkGroupManager<T> {
 	}
 
 	public List<BookmarkDisplaySlot<T>> getDisplaySlots(List<T> orderedItems) {
+		ensureRecipeChainDetails();
 		return BookmarkDisplayGenerator.generate(
 			orderedItems,
 			this::getItemMetadata,
@@ -231,6 +250,7 @@ public class BookmarkGroupManager<T> {
 		int columns,
 		List<Integer> usableColumnsPerRow
 	) {
+		ensureRecipeChainDetails();
 		return BookmarkDisplayGenerator.generate(
 			orderedItems,
 			this::getItemMetadata,

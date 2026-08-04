@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.chain;
 
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import net.minecraft.world.item.ItemStack;
 
@@ -48,7 +49,7 @@ public final class BookmarkExternalStorageSnapshots {
 			ItemStack stack = normalized(entry.stack());
 			keyFactory.apply(stack)
 				.ifPresent(key -> {
-					amounts.merge(key, entry.amount(), BookmarkExternalStorageSnapshots::saturatedAdd);
+					amounts.merge(key, entry.amount(), SaturatedMath::add);
 					representatives.putIfAbsent(key, stack);
 				});
 		}
@@ -61,13 +62,6 @@ public final class BookmarkExternalStorageSnapshots {
 		return copy;
 	}
 
-	private static long saturatedAdd(long first, long second) {
-		try {
-			return Math.addExact(first, second);
-		} catch (ArithmeticException e) {
-			return Long.MAX_VALUE;
-		}
-	}
 
 	public record Entry(ItemStack stack, long amount) {
 		public Entry {
