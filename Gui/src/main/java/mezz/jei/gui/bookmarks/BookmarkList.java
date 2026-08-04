@@ -68,6 +68,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private long changeVersion;
 	private long cachedDisplaySlotsVersion = -1;
 	private int cachedDisplaySlotsColumns = -1;
+	private List<Integer> cachedDisplaySlotsPerRow = List.of();
 	private List<BookmarkDisplaySlot<IBookmark>> cachedDisplaySlots = List.of();
 	private int latestDisplaySlotsColumns = 0;
 
@@ -1095,10 +1096,15 @@ public class BookmarkList implements IIngredientGridSource {
 
 	@Override
 	public List<IElement<?>> getElements(int columns) {
+		return getElements(columns, List.of());
+	}
+
+	@Override
+	public List<IElement<?>> getElements(int columns, List<Integer> usableColumnsPerRow) {
 		if (columns <= 0) {
 			return getElements();
 		}
-		List<BookmarkDisplaySlot<IBookmark>> displaySlots = getDisplaySlots(columns);
+		List<BookmarkDisplaySlot<IBookmark>> displaySlots = getDisplaySlots(columns, usableColumnsPerRow);
 		if (displaySlots.isEmpty()) {
 			return List.of();
 		}
@@ -1138,13 +1144,20 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots(int columns) {
+		return getDisplaySlots(columns, List.of());
+	}
+
+	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots(int columns, List<Integer> usableColumnsPerRow) {
 		if (columns > 0) {
 			latestDisplaySlotsColumns = columns;
 		}
-		if (cachedDisplaySlotsVersion != changeVersion || cachedDisplaySlotsColumns != columns) {
+		if (cachedDisplaySlotsVersion != changeVersion ||
+			cachedDisplaySlotsColumns != columns ||
+			!cachedDisplaySlotsPerRow.equals(usableColumnsPerRow)) {
 			cachedDisplaySlotsVersion = changeVersion;
 			cachedDisplaySlotsColumns = columns;
-			cachedDisplaySlots = bookmarkGroups.getDisplaySlots(bookmarksList, columns);
+			cachedDisplaySlotsPerRow = List.copyOf(usableColumnsPerRow);
+			cachedDisplaySlots = bookmarkGroups.getDisplaySlots(bookmarksList, columns, usableColumnsPerRow);
 		}
 		return cachedDisplaySlots;
 	}

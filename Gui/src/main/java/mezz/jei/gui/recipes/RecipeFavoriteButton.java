@@ -19,6 +19,7 @@ import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
@@ -29,7 +30,6 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Optional;
 
@@ -221,28 +221,16 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		IInternalKeyMappings keyBindings
 	) {
 		int modifiers = input.getModifiers();
-		if (hasControl(modifiers) || hasAlt(modifiers)) {
+		if (InputModifiers.hasControl(modifiers) || InputModifiers.hasAlt(modifiers)) {
 			return Optional.empty();
 		}
 		if (!keyBindings.getFavoriteRecipe().matchesIgnoringModifiers(input.getKey())) {
 			return Optional.empty();
 		}
-		if (hasShift(modifiers)) {
+		if (InputModifiers.hasShift(modifiers)) {
 			return Optional.of(FavoriteOutputSlotAction.SAVE_FAVORITE_TREE);
 		}
 		return Optional.of(FavoriteOutputSlotAction.TOGGLE_FAVORITE);
-	}
-
-	private static boolean hasShift(int modifiers) {
-		return (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
-	}
-
-	private static boolean hasControl(int modifiers) {
-		return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
-	}
-
-	private static boolean hasAlt(int modifiers) {
-		return (modifiers & GLFW.GLFW_MOD_ALT) != 0;
 	}
 
 	public enum FavoriteOutputSlotAction {

@@ -15,14 +15,6 @@ public final class BookmarkHotkeyTooltipUtil {
 		addIngredientHotkeys(tooltip, keyBindings, Screen.hasAltDown(), false, false, false);
 	}
 
-	public static void addIngredientHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown) {
-		addIngredientHotkeys(tooltip, keyBindings, altDown, false, false, false);
-	}
-
-	public static void addIngredientHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown, boolean canAutoCraft) {
-		addIngredientHotkeys(tooltip, keyBindings, altDown, canAutoCraft, false, false);
-	}
-
 	public static void addIngredientHotkeys(
 		ITooltipBuilder tooltip,
 		IInternalKeyMappings keyBindings,
@@ -71,22 +63,6 @@ public final class BookmarkHotkeyTooltipUtil {
 			HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("SHIFT + ", favoriteRecipeKey), "jei.tooltip.recipe.hotkeys.save_favorite_tree");
 			addCraftItemsHotkeys(tooltip, keyBindings, "jei.tooltip.bookmarks.hotkeys");
 		}
-	}
-
-	public static void addGroupHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings) {
-		addGroupHotkeys(tooltip, keyBindings, Screen.hasAltDown(), false);
-	}
-
-	public static void addGroupHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown) {
-		addGroupHotkeys(tooltip, keyBindings, altDown, false);
-	}
-
-	public static void addGroupHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown, boolean grouped) {
-		addGroupHotkeys(tooltip, keyBindings, altDown, grouped, false);
-	}
-
-	public static void addGroupHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown, boolean grouped, boolean craftingMode) {
-		addGroupHotkeys(tooltip, keyBindings, altDown, grouped, craftingMode, false);
 	}
 
 	public static void addGroupHotkeys(
@@ -142,11 +118,7 @@ public final class BookmarkHotkeyTooltipUtil {
 	}
 
 	public static void addFavoriteRecipeHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings) {
-		addFavoriteRecipeHotkeys(tooltip, keyBindings, Screen.hasAltDown());
-	}
-
-	public static void addFavoriteRecipeHotkeys(ITooltipBuilder tooltip, IInternalKeyMappings keyBindings, boolean altDown) {
-		if (!addSeparatedAltHotkeySection(tooltip, altDown)) {
+		if (!addSeparatedAltHotkeySection(tooltip, Screen.hasAltDown())) {
 			return;
 		}
 
@@ -156,12 +128,8 @@ public final class BookmarkHotkeyTooltipUtil {
 	}
 
 	public static void addFavoriteRecipeRowHotkeys(ITooltipBuilder tooltip) {
-		addFavoriteRecipeRowHotkeys(tooltip, Screen.hasAltDown());
-	}
-
-	public static void addFavoriteRecipeRowHotkeys(ITooltipBuilder tooltip, boolean altDown) {
 		tooltip.add(Component.translatable("jei.tooltip.favoriteRecipes.recipeRow").withStyle(ChatFormatting.GREEN));
-		if (!addAltHotkeySection(tooltip, altDown)) {
+		if (!addAltHotkeySection(tooltip, Screen.hasAltDown())) {
 			return;
 		}
 

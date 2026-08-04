@@ -11,6 +11,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
+import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
@@ -50,7 +51,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	private final IFocusFactory focusFactory;
 	private final RecipeInputsResolver recipeInputsResolver;
 	private List<IElement<?>> cachedGridElements;
-	private final Map<Integer, List<IElement<?>>> cachedRecipeRows = new HashMap<>();
+	private final Map<RecipeRowsKey, List<IElement<?>>> cachedRecipeRows = new HashMap<>();
 
 	public FavoriteRecipeGridSource(
 		FavoriteRecipeStore store,
@@ -95,10 +96,16 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	@Override
 	public List<IElement<?>> getElements(int columns) {
+		return getElements(columns, List.of());
+	}
+
+	@Override
+	public List<IElement<?>> getElements(int columns, List<Integer> usableColumnsPerRow) {
 		if (panelState.displayMode() != FavoriteRecipePanelState.DisplayMode.RECIPE_ROWS || columns <= 1) {
 			return getElements();
 		}
-		return cachedRecipeRows.computeIfAbsent(columns, this::createRecipeRows);
+		RecipeRowsKey key = new RecipeRowsKey(columns, List.copyOf(usableColumnsPerRow));
+		return cachedRecipeRows.computeIfAbsent(key, this::createRecipeRows);
 	}
 
 	@Override
@@ -123,10 +130,11 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		cachedRecipeRows.clear();
 	}
 
-	private List<IElement<?>> createRecipeRows(int columns) {
+	private List<IElement<?>> createRecipeRows(RecipeRowsKey key) {
 		List<IElement<?>> rows = new ArrayList<>();
+		int position = 0;
 		for (FavoriteRecipeStore.Entry entry : store.entries()) {
-			createRecipeRow(entry, columns).forEach(rows::add);
+			position = createRecipeRow(entry, key.columns(), key.usableColumnsPerRow(), rows, position);
 		}
 		return List.copyOf(rows);
 	}
@@ -189,29 +197,46 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		return ingredientManager.getTypedIngredientByUid(ingredientType, ingredientUid);
 	}
 
-	private List<IElement<?>> createRecipeRow(FavoriteRecipeStore.Entry entry, int columns) {
+	private int createRecipeRow(
+		FavoriteRecipeStore.Entry entry,
+		int columns,
+		List<Integer> usableColumnsPerRow,
+		List<IElement<?>> rows,
+		int position
+	) {
 		Optional<ResolvedRecipeRowTarget> target = createRecipeRowTarget(entry);
 		if (target.isEmpty()) {
-			return List.of();
+			return position;
 		}
+		position = BookmarkRowLayout.rowStart(position, columns, usableColumnsPerRow);
 		IElement<?> targetElement = target.get().element();
-		ResolvedRecipeIngredients resolvedIngredients = target.get().ingredients();
-		List<IElement<?>> row = new ArrayList<>();
-		row.add(targetElement);
+		rows.add(targetElement);
+		position++;
 		if (panelState.isRecipeRowCollapsed(entry.recipe())) {
-			addPlaceholders(row, columns);
-			return row;
+			int rowEnd = BookmarkRowLayout.nextRowStart(position - 1, columns, usableColumnsPerRow);
+			while (position < rowEnd) {
+				rows.add(LayoutPlaceholderElement.INSTANCE);
+				position++;
+			}
+			return position;
 		}
+		ResolvedRecipeIngredients resolvedIngredients = target.get().ingredients();
+		List<IElement<?>> inputElements = new ArrayList<>();
 		panelState.orderRecipeInputs(
 				entry.recipe(),
 				mergeRecipeInputs(resolvedIngredients.inputs()),
 				MergedRecipeInput::key
 			)
-			.stream()
-			.map(ingredient -> createRecipeInputElement(ingredient, entry.recipe()))
-			.forEach(row::add);
-		addPlaceholdersToCompleteRows(row, columns);
-		return row;
+			.forEach(ingredient -> inputElements.add(createRecipeInputElement(ingredient, entry.recipe())));
+		for (IElement<?> inputElement : inputElements) {
+			rows.add(inputElement);
+			position++;
+		}
+		while (!BookmarkRowLayout.isRowStart(position, columns, usableColumnsPerRow)) {
+			rows.add(LayoutPlaceholderElement.INSTANCE);
+			position++;
+		}
+		return position;
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -278,18 +303,6 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		return Optional.of(BookmarkAmountFormatter.formatTypedAmount(amount, ingredient.getType().getUid()));
 	}
 
-	private static void addPlaceholders(List<IElement<?>> row, int columns) {
-		while (row.size() < columns) {
-			row.add(LayoutPlaceholderElement.INSTANCE);
-		}
-	}
-
-	private static void addPlaceholdersToCompleteRows(List<IElement<?>> row, int columns) {
-		while (row.size() % columns != 0) {
-			row.add(LayoutPlaceholderElement.INSTANCE);
-		}
-	}
-
 	private List<MergedRecipeInput> mergeRecipeInputs(List<ITypedIngredient<?>> inputs) {
 		Map<IngredientMergeKey, MergedInput<?>> mergedInputs = new LinkedHashMap<>();
 		for (ITypedIngredient<?> input : inputs) {
@@ -321,6 +334,9 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	}
 
 	private record ResolvedRecipeRowTarget(IElement<?> element, ResolvedRecipeIngredients ingredients) {
+	}
+
+	private record RecipeRowsKey(int columns, List<Integer> usableColumnsPerRow) {
 	}
 
 	private static final class MergedInput<T> {

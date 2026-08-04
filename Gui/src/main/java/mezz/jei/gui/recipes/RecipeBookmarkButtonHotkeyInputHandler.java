@@ -2,9 +2,9 @@ package mezz.jei.gui.recipes;
 
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.gui.screens.Screen;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -31,7 +31,7 @@ public class RecipeBookmarkButtonHotkeyInputHandler implements IUserInputHandler
 			return Optional.empty();
 		}
 
-		boolean preserveAmount = hasControl(input);
+		boolean preserveAmount = InputModifiers.hasControl(input.getModifiers());
 		if (!addRecipeBookmarkGroup.apply(input, preserveAmount)) {
 			return Optional.empty();
 		}
@@ -42,20 +42,8 @@ public class RecipeBookmarkButtonHotkeyInputHandler implements IUserInputHandler
 	}
 
 	private static boolean isBookmarkRecipeHotkey(UserInput input, IInternalKeyMappings keyBindings) {
-		return hasShift(input) &&
-			!hasAlt(input) &&
+		return InputModifiers.hasShift(input.getModifiers()) &&
+			!InputModifiers.hasAlt(input.getModifiers()) &&
 			keyBindings.getBookmark().matchesIgnoringModifiers(input.getKey());
-	}
-
-	private static boolean hasShift(UserInput input) {
-		return (input.getModifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
-	}
-
-	private static boolean hasControl(UserInput input) {
-		return (input.getModifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
-	}
-
-	private static boolean hasAlt(UserInput input) {
-		return (input.getModifiers() & GLFW.GLFW_MOD_ALT) != 0;
 	}
 }

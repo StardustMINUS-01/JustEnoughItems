@@ -134,7 +134,10 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 	}
 
 	private List<IElement<?>> getElementsForLayout() {
-		return ingredientSource.getElements(this.ingredientGrid.getUsableColumnCount());
+		return ingredientSource.getElements(
+			this.ingredientGrid.getUsableColumnCount(),
+			this.ingredientGrid.getUsableColumnsPerRow()
+		);
 	}
 
 	private void rememberFirstVisibleElementAsPageAnchor() {

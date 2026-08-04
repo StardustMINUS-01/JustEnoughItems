@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -402,5 +403,10 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 	public int getUsableColumnCount() {
 		updateLayoutIfDirty();
 		return this.ingredientGrid.getUsableColumnCount();
+	}
+
+	public List<Integer> getUsableColumnsPerRow() {
+		updateLayoutIfDirty();
+		return this.ingredientGrid.getUsableColumnsPerRow();
 	}
 }

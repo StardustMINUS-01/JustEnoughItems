@@ -223,12 +223,21 @@ public class BookmarkGroupManager<T> {
 	}
 
 	public List<BookmarkDisplaySlot<T>> getDisplaySlots(List<T> orderedItems, int columns) {
+		return getDisplaySlots(orderedItems, columns, List.of());
+	}
+
+	public List<BookmarkDisplaySlot<T>> getDisplaySlots(
+		List<T> orderedItems,
+		int columns,
+		List<Integer> usableColumnsPerRow
+	) {
 		return BookmarkDisplayGenerator.generate(
 			orderedItems,
 			this::getItemMetadata,
 			groups,
 			recipeChainDetails,
-			columns
+			columns,
+			usableColumnsPerRow
 		);
 	}
 

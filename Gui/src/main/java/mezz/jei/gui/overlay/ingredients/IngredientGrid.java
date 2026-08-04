@@ -35,7 +35,9 @@ import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -98,6 +100,23 @@ public class IngredientGrid implements IIngredientGrid {
 			this.guiExclusionAreas,
 			this.mouseExclusionPoint
 		);
+	}
+
+	@Override
+	public List<Integer> getUsableColumnsPerRow() {
+		List<IngredientGridLayout.SlotLayout> slotLayouts = IngredientGridLayout.calculateSlots(
+			this.area,
+			this.guiExclusionAreas,
+			this.mouseExclusionPoint,
+			0
+		);
+		Map<Integer, Integer> usableByRow = new LinkedHashMap<>();
+		for (IngredientGridLayout.SlotLayout slotLayout : slotLayouts) {
+			if (!slotLayout.blocked()) {
+				usableByRow.merge(slotLayout.area().getY(), 1, Integer::sum);
+			}
+		}
+		return List.copyOf(usableByRow.values());
 	}
 
 	@Override

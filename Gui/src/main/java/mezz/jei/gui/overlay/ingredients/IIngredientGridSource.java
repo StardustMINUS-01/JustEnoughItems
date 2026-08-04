@@ -14,6 +14,11 @@ public interface IIngredientGridSource {
 		return getElements();
 	}
 
+	@Unmodifiable
+	default List<IElement<?>> getElements(int columns, List<Integer> usableColumnsPerRow) {
+		return getElements(columns);
+	}
+
 	default boolean isEmpty() {
 		return getElements().isEmpty();
 	}

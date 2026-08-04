@@ -85,7 +85,6 @@ public class FavoriteRecipeStoreTest {
 		store.setGeneratedFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE);
 
 		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getGeneratedFavorite(IRON_PICKAXE).orElseThrow());
-		Assertions.assertEquals(IRON_PICKAXE, store.getGeneratedFavorite(IRON_PICKAXE_RECIPE).orElseThrow());
 		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getFavorite(IRON_PICKAXE).orElseThrow());
 	}
 
@@ -98,7 +97,6 @@ public class FavoriteRecipeStoreTest {
 
 		Assertions.assertEquals(ALTERNATE_IRON_PICKAXE_RECIPE, store.getFavorite(IRON_PICKAXE).orElseThrow());
 		Assertions.assertEquals(IRON_PICKAXE, store.getManualFavorite(ALTERNATE_IRON_PICKAXE_RECIPE).orElseThrow());
-		Assertions.assertEquals(IRON_PICKAXE, store.getGeneratedFavorite(IRON_PICKAXE_RECIPE).orElseThrow());
 	}
 
 	@Test

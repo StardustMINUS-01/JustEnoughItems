@@ -523,7 +523,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			return false;
 		}
 		JeiTooltip tooltip = new JeiTooltip();
-		BookmarkHotkeyTooltipUtil.addFavoriteRecipeRowHotkeys(tooltip, Screen.hasAltDown());
+		BookmarkHotkeyTooltipUtil.addFavoriteRecipeRowHotkeys(tooltip);
 		tooltip.draw(guiGraphics, mouseX, mouseY);
 		return true;
 	}
@@ -766,7 +766,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	public void drawOnForeground(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
-			this.bookmarkList.getDisplaySlots(this.contents.getUsableColumnCount());
+			this.bookmarkList.getDisplaySlots(
+				this.contents.getUsableColumnCount(),
+				this.contents.getUsableColumnsPerRow()
+			);
 			this.contents.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
 		if (isFavoritePanelDisplayed()) {
@@ -986,7 +989,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		List<ImmutableRect2i> pageAreas,
 		PanelSnapshotKey key
 	) {
-		List<BookmarkDisplaySlot<IBookmark>> displaySlots = this.bookmarkList.getDisplaySlots(this.contents.getUsableColumnCount());
+		List<BookmarkDisplaySlot<IBookmark>> displaySlots = this.bookmarkList.getDisplaySlots(
+			this.contents.getUsableColumnCount(),
+			this.contents.getUsableColumnsPerRow()
+		);
 		int firstDisplaySlotIndex = key.pageNumber() * key.pageSize();
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots = BookmarkPanelLayout.createPagePanelSlots(
 			displaySlots,

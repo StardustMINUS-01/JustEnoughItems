@@ -431,9 +431,6 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			poseStack.pushPose();
 			{
 				Offset offset = getTopRightOffset(getWidth(), SCALE);
-				// this z level seems to be the sweet spot so that
-				// 2D icons draw above the items, and
-				// 3D icons draw still draw under tooltips.
 				poseStack.translate(offset.x() + xOffset, offset.y() + yOffset, 200);
 				poseStack.scale(SCALE, SCALE, SCALE);
 				icon.draw(guiGraphics);

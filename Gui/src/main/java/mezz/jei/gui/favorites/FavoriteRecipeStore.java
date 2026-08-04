@@ -60,10 +60,6 @@ public class FavoriteRecipeStore {
 		return Optional.ofNullable(generatedRecipesByTarget.get(target));
 	}
 
-	public Optional<BookmarkIngredientKey> getGeneratedFavorite(FocusedRecipe recipe) {
-		return Optional.ofNullable(generatedTargetsByRecipe.get(recipe));
-	}
-
 	public Optional<FocusedRecipe> getFavorite(BookmarkIngredientKey target) {
 		return getManualFavorite(target)
 			.or(() -> getGeneratedFavorite(target));
