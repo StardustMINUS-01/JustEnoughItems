@@ -24,3 +24,18 @@ See LICENSES/LGPL-3.0.txt and LICENSES/GPL-3.0.txt.
 ## Additional modifications
 
 Copyright (c) 2026 StardustMINUS and the Stellar Remnants Team
+
+Original additions are primarily located in:
+
+- mezz.jei.gui.favorites and mezz.jei.gui.favorites.preferences (recipe tree generation and slot preference rules)
+- mezz.jei.gui.compat.ae2, mezz.jei.gui.compat.gtm and the matching NeoForge compat packages (AE2 pattern encoding and GTM circuit integration)
+- mezz.jei.gui.config.file.serializers and mezz.jei.common.config.file (JSON configuration storage)
+- mezz.jei.gui.input (focused recipe resolution and input modifier handling)
+- mezz.jei.gui.overlay.elements (placeholder and projected bookmark elements)
+- mezz.jei.common.network.packets (crafting-grid and bookmark pull transport)
+- mezz.jei.gui.bookmarks.chain.RecipeChainGraph, RecipeChainPlan and BookmarkPullPlanner (recipe chain graph and planning)
+
+Note: mezz.jei.gui.bookmarks.chain.RecipeChainMath contains portions adapted
+from GTNH NEI (see the GTNewHorizons NotEnoughItems section above), while its
+graph-based chain computation (via RecipeChainGraph and RecipeChainPlan) is an
+original addition.

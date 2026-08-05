@@ -6,7 +6,8 @@
   "name": "${modName}",
   "description": "${modDescription}",
   "authors": [
-    "${modAuthor}"
+    "StardustMINUS",
+    "Stellar Remnants Team"
   ],
   "contact": {
     "homepage": "${curseHomepageUrl}",
