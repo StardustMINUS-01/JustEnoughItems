@@ -1,6 +1,6 @@
 modLoader="javafml"
 loaderVersion="${neoforgeLoaderVersionRange}"
-license="The MIT License (MIT)"
+license="MIT AND LGPL-3.0-or-later"
 
 [[mods]]
 modId="jeiclienttests"

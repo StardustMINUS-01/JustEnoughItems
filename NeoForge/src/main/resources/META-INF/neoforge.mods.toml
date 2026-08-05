@@ -13,7 +13,7 @@ loaderVersion="${neoforgeLoaderVersionRange}" #mandatory
 issueTrackerURL="${githubUrl}/issues?q=is%3Aissue" #optional
 
 # License
-license="The MIT License (MIT)"
+license="MIT AND LGPL-3.0-or-later"
 
 # A file name (in the root of the mod JAR) containing a logo for display
 #logoFile="examplemod.png" #optional

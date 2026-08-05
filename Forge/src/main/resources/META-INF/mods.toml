@@ -13,7 +13,7 @@ loaderVersion="${forgeLoaderVersionRange}" #mandatory
 issueTrackerURL="${githubUrl}/issues?q=is%3Aissue" #optional
 
 # License
-license="The MIT License (MIT)"
+license="MIT AND LGPL-3.0-or-later"
 
 # A text field displayed in the mod UI
 #credits="Thanks for this example mod goes to Java" #optional

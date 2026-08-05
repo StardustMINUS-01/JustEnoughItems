@@ -13,7 +13,7 @@
     "sources": "${githubUrl}"
   },
 
-  "license": "The MIT License (MIT)",
+  "license": "MIT AND LGPL-3.0-or-later",
   "icon": "jei-icon.png",
 
   "environment": "*",
