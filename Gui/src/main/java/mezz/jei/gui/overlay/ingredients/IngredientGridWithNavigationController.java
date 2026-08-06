@@ -12,6 +12,7 @@ import mezz.jei.gui.input.DelegatingClickableIngredientInternal;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IMouseOverable;
 import mezz.jei.gui.input.IPaged;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.SameElementInputHandler;
@@ -271,7 +272,8 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 			return Optional.of(this);
 		}
 
-		if (input.is(keyBindings.getQuickMove())) {
+		if (input.is(keyBindings.getQuickMove()) &&
+			!InputModifiers.isCheatGiveInput(input, keyBindings.getCheatItemStack(), toggleState.isCheatItemsEnabled())) {
 			if (this.ghostIngredientQuickMoveManager.quickMove(screen, input)) {
 				return Optional.of(this);
 			}

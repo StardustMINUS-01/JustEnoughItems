@@ -19,8 +19,10 @@ import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
 import mezz.jei.gui.recipes.RecipeGuiLayouts;
@@ -51,6 +53,8 @@ public class FocusInputHandler implements IUserInputHandler {
 	private final IFocusFactory focusFactory;
 	private final IClientToggleState toggleState;
 	private final CommandUtil commandUtil;
+	private final IConnectionToServer serverConnection;
+	private final ScrollStep scrollStep;
 
 	public FocusInputHandler(
 		CombinedRecipeFocusSource focusSource,
@@ -61,7 +65,8 @@ public class FocusInputHandler implements IUserInputHandler {
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
 		IClientToggleState toggleState,
-		IConnectionToServer serverConnection
+		IConnectionToServer serverConnection,
+		ScrollStep scrollStep
 	) {
 		this.focusSource = focusSource;
 		this.recipesGui = recipesGui;
@@ -71,10 +76,23 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.focusFactory = focusFactory;
 		this.toggleState = toggleState;
 		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
+		this.serverConnection = serverConnection;
+		this.scrollStep = scrollStep;
 	}
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (toggleState.isFastPickupEnabled() &&
+			input.is(keyBindings.getLeftClick()) &&
+			!InputModifiers.hasShift(input) &&
+			!InputModifiers.hasControl(input) &&
+			!InputModifiers.hasAlt(input)) {
+			Optional<IUserInputHandler> handledFastPickup = handleFastPickup(input, keyBindings);
+			if (handledFastPickup.isPresent()) {
+				return handledFastPickup;
+			}
+		}
+
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
@@ -309,13 +327,50 @@ public class FocusInputHandler implements IUserInputHandler {
 			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
 				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
 				if (!itemStack.isEmpty()) {
+					int amount = resolveGiveAmount(giveAmount, itemStack, clicked.getCheatGiveAmount());
 					if (!input.isSimulate()) {
-						commandUtil.giveStack(itemStack, giveAmount);
+						commandUtil.giveStack(itemStack, amount);
 					}
 					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
 					consumer.accept(handler);
 				}
 			})
 			.findFirst();
+	}
+
+	private Optional<IUserInputHandler> handleFastPickup(UserInput input, IInternalKeyMappings keyBindings) {
+		if (!serverConnection.isJeiOnServer()) {
+			return Optional.empty();
+		}
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
+				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
+				if (!itemStack.isEmpty()) {
+					int amount = resolveFastPickupAmount(itemStack, clicked.getCheatGiveAmount(), scrollStep);
+					if (!input.isSimulate()) {
+						commandUtil.fastPickupStack(itemStack.copyWithCount(amount));
+					}
+					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
+					consumer.accept(handler);
+				}
+			})
+			.findFirst();
+	}
+
+	static int resolveGiveAmount(GiveAmount giveAmount, ItemStack itemStack, Optional<Long> cheatGiveAmount) {
+		if (cheatGiveAmount.isPresent()) {
+			long amount = Math.max(1, cheatGiveAmount.get());
+			return (int) Math.min(Integer.MAX_VALUE, amount);
+		}
+		return giveAmount.getAmountForStack(itemStack);
+	}
+
+	static int resolveFastPickupAmount(ItemStack itemStack, Optional<Long> cheatGiveAmount, ScrollStep scrollStep) {
+		if (cheatGiveAmount.isPresent()) {
+			long amount = Math.max(1, cheatGiveAmount.get());
+			return (int) Math.min(Integer.MAX_VALUE, amount);
+		}
+		long amount = scrollStep.getValue() == 0 ? itemStack.getMaxStackSize() : scrollStep.getValue();
+		return (int) Math.min(Integer.MAX_VALUE, amount);
 	}
 }

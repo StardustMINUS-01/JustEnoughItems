@@ -30,6 +30,7 @@ import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotDisplayMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisualContext;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.bookmarks.FavoriteRecipeSlotVisuals;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
 import net.minecraft.client.gui.screens.Screen;
@@ -162,6 +163,7 @@ public final class OverlayHelper {
 		IClientConfig clientConfig,
 		IClientToggleState toggleState,
 		IConnectionToServer serverConnection,
+		ScrollStep scrollStep,
 		Textures textures,
 		IColorHelper colorHelper
 	) {
@@ -255,7 +257,8 @@ public final class OverlayHelper {
 			clientConfig,
 			bookmarkListConfig,
 			screenHelper,
-			keyMappings
+			keyMappings,
+			scrollStep
 		);
 	}
 

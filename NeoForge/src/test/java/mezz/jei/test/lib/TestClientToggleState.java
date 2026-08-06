@@ -39,6 +39,21 @@ public class TestClientToggleState implements IClientToggleState {
 	}
 
 	@Override
+	public boolean isFastPickupEnabled() {
+		return false;
+	}
+
+	@Override
+	public void toggleFastPickupEnabled() {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public void setFastPickupEnabled(boolean value) {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
 	public boolean isBookmarkOverlayEnabled() {
 		return true;
 	}

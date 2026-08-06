@@ -29,6 +29,7 @@ public class ClientCheatPermissionHandler {
 
 			IClientToggleState toggleState = Internal.getClientToggleState();
 			toggleState.setCheatItemsEnabled(false);
+			toggleState.setFastPickupEnabled(false);
 			player.closeContainer();
 		}
 	}

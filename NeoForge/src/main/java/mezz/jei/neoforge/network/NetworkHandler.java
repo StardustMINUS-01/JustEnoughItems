@@ -10,6 +10,7 @@ import mezz.jei.common.network.packets.PacketCheatPermission;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
+import mezz.jei.common.network.packets.PacketFastPickupItemStack;
 import mezz.jei.common.network.packets.PacketFillCraftingGrid;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
 import mezz.jei.common.network.packets.PacketPullBookmarkItems;
@@ -50,6 +51,7 @@ public class NetworkHandler {
 			.optional()
 			.playToServer(PacketDeletePlayerItem.TYPE, PacketDeletePlayerItem.STREAM_CODEC, wrapServerHandler(PacketDeletePlayerItem::process))
 			.playToServer(PacketGiveItemStack.TYPE, PacketGiveItemStack.STREAM_CODEC, wrapServerHandler(PacketGiveItemStack::process))
+			.playToServer(PacketFastPickupItemStack.TYPE, PacketFastPickupItemStack.STREAM_CODEC, wrapServerHandler(PacketFastPickupItemStack::process))
 			.playToServer(PacketRecipeTransfer.TYPE, PacketRecipeTransfer.STREAM_CODEC, wrapServerHandler(PacketRecipeTransfer::process))
 			.playToServer(PacketRecipeTransferCounted.TYPE, PacketRecipeTransferCounted.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferCounted::process))
 			.playToServer(PacketSetHotbarItemStack.TYPE, PacketSetHotbarItemStack.STREAM_CODEC, wrapServerHandler(PacketSetHotbarItemStack::process))

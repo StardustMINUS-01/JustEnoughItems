@@ -1,10 +1,15 @@
 package mezz.jei.gui.input;
 
+import mezz.jei.api.runtime.IJeiKeyMapping;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
 
 public final class InputModifiers {
 	private InputModifiers() {
+	}
+
+	public static boolean isCheatGiveInput(UserInput input, IJeiKeyMapping cheatItemStack, boolean cheatItemsEnabled) {
+		return cheatItemsEnabled && input.is(cheatItemStack);
 	}
 
 	public static boolean hasShift(UserInput input) {

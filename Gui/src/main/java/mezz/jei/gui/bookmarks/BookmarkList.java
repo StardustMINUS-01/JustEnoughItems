@@ -1163,10 +1163,16 @@ public class BookmarkList implements IIngredientGridSource {
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private IElement<?> createDisplayElement(BookmarkDisplayEntry<IBookmark> entry) {
 		IElement<?> element = entry.item().getElement();
-		if (entry.recipeChainItem().isEmpty() && entry.metadata().recipeUid() == null) {
+		if (!needsProjectedElement(entry)) {
 			return element;
 		}
 		return new ProjectedBookmarkElement((IElement) element, entry);
+	}
+
+	static boolean needsProjectedElement(BookmarkDisplayEntry<?> entry) {
+		return entry.recipeChainItem().isPresent() ||
+			entry.metadata().recipeUid() != null ||
+			!entry.metadata().isDefault();
 	}
 
 	public List<BookmarkDisplayEntry<IBookmark>> getDisplayEntries() {

@@ -71,6 +71,7 @@ import mezz.jei.gui.input.handlers.GuiAreaInputHandler;
 import mezz.jei.gui.input.handlers.UserInputRouter;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
 import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.FocusUtil;
@@ -128,6 +129,7 @@ public class JeiGuiStarter {
 		ModNameSortingConfig modNameSortingConfig = configData.modNameSortingConfig();
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = configData.ingredientTypeSortingConfig();
 		IClientToggleState toggleState = Internal.getClientToggleState();
+		ScrollStep scrollStep = new ScrollStep();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
 		FavoriteRecipeConfig favoriteRecipeConfig = configData.favoriteRecipeConfig();
 		RecipePreferenceConfig recipePreferenceConfig = configData.recipePreferenceConfig();
@@ -239,6 +241,7 @@ public class JeiGuiStarter {
 			clientConfig,
 			toggleState,
 			serverConnection,
+			scrollStep,
 			textures,
 			colorHelper
 		);
@@ -322,7 +325,8 @@ public class JeiGuiStarter {
 		);
 
 		List<ICharTypedHandler> charTypedHandlers = List.of(
-			ingredientListOverlay
+			ingredientListOverlay,
+			bookmarkOverlay
 		);
 
 		FocusUtil focusUtil = new FocusUtil(focusFactory, clientConfig, ingredientManager);
@@ -344,7 +348,7 @@ public class JeiGuiStarter {
 				clientConfig,
 				recipesGui
 			),
-			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection),
+			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection, scrollStep),
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);

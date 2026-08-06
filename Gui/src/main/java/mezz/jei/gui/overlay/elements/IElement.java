@@ -47,4 +47,8 @@ public interface IElement<T> {
 	default boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 		return false;
 	}
+
+	default Optional<Long> getCheatGiveAmount() {
+		return Optional.empty();
+	}
 }

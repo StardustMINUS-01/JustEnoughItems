@@ -13,11 +13,15 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.config.IJeiConfigValue;
 import mezz.jei.api.runtime.IClickableIngredient;
+import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.api.runtime.IScreenHelper;
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientGridConfig;
 import mezz.jei.common.config.IngredientGridNavigationMode;
+import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.common.util.NavigationVisibility;
@@ -26,6 +30,8 @@ import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.InputType;
+import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.util.CommandUtil;
@@ -42,11 +48,13 @@ import mezz.jei.test.lib.TestJeiConfigValue;
 import mezz.jei.test.lib.TestPlugin;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.item.ItemStack;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -412,6 +420,34 @@ public class IngredientGridWithNavigationControllerTest {
 		assertEquals(190, fixture.grid.firstItemIndex);
 	}
 
+	@Test
+	public void cheatGiveTakesPriorityOverQuickMove() {
+		InputConstants.Key leftMouse = InputConstants.Type.MOUSE.getOrCreate(0);
+		IInternalKeyMappings keyMappings = createKeyMappings(leftMouse);
+		RecordingQuickMoveManager quickMoveManager = new RecordingQuickMoveManager();
+		Fixture fixture = Fixture.createWithQuickMoveManager(quickMoveManager, new TestCheatToggleState());
+		UserInput input = new UserInput(leftMouse, 0, 0, 0, InputType.SIMULATE);
+
+		Optional<IUserInputHandler> handler = fixture.controller.handleUserInput(null, input, keyMappings);
+
+		assertEquals(Optional.empty(), handler);
+		assertEquals(0, quickMoveManager.calls);
+	}
+
+	@Test
+	public void quickMoveStillHandlesWhenCheatDisabled() {
+		InputConstants.Key leftMouse = InputConstants.Type.MOUSE.getOrCreate(0);
+		IInternalKeyMappings keyMappings = createKeyMappings(leftMouse);
+		RecordingQuickMoveManager quickMoveManager = new RecordingQuickMoveManager();
+		Fixture fixture = Fixture.createWithQuickMoveManager(quickMoveManager, new TestClientToggleState());
+		UserInput input = new UserInput(leftMouse, 0, 0, 0, InputType.SIMULATE);
+
+		Optional<IUserInputHandler> handler = fixture.controller.handleUserInput(null, input, keyMappings);
+
+		assertEquals(Optional.of(fixture.controller), handler);
+		assertEquals(1, quickMoveManager.calls);
+	}
+
 	private static class Fixture {
 		final IngredientGridWithNavigationController controller;
 		final TestNavigationGrid grid;
@@ -461,6 +497,28 @@ public class IngredientGridWithNavigationControllerTest {
 				commandUtil,
 				ingredientManager,
 				(x, y) -> mouseOver,
+				quickMoveManager
+			);
+			return new Fixture(controller, grid, source, focusUtil);
+		}
+
+		static Fixture createWithQuickMoveManager(GhostIngredientQuickMoveManager quickMoveManager, IClientToggleState toggleState) {
+			TestClientConfig clientConfig = new TestClientConfig(false);
+			TestConnectionToServer connection = new TestConnectionToServer();
+			IIngredientManager ingredientManager = createIngredientManager();
+			FocusUtil focusUtil = new FocusUtil(new FocusFactory(ingredientManager), clientConfig, ingredientManager);
+			CommandUtil commandUtil = new CommandUtil(clientConfig, connection);
+			TestNavigationGrid grid = new TestNavigationGrid(3, 1);
+			TestIngredientGridSource source = new TestIngredientGridSource(3);
+			IngredientGridWithNavigationController controller = new IngredientGridWithNavigationController(
+				source,
+				grid,
+				new TestGridConfig(IngredientGridNavigationMode.PAGED),
+				toggleState,
+				clientConfig,
+				commandUtil,
+				ingredientManager,
+				(x, y) -> true,
 				quickMoveManager
 			);
 			return new Fixture(controller, grid, source, focusUtil);
@@ -768,6 +826,59 @@ public class IngredientGridWithNavigationControllerTest {
 		}
 
 		public void onRuntimeStopped() {
+		}
+	}
+
+	private static class RecordingQuickMoveManager extends GhostIngredientQuickMoveManager {
+		int calls;
+
+		RecordingQuickMoveManager() {
+			super(new EmptyRecipeFocusSource(), new TestScreenHelper());
+		}
+
+		@Override
+		public <T extends Screen> boolean quickMove(T screen, UserInput input) {
+			calls++;
+			return true;
+		}
+	}
+
+	private static class TestCheatToggleState extends TestClientToggleState {
+		@Override
+		public boolean isCheatItemsEnabled() {
+			return true;
+		}
+	}
+
+	private static IInternalKeyMappings createKeyMappings(InputConstants.Key quickMoveKey) {
+		IJeiKeyMapping matching = new TestKeyMapping(quickMoveKey);
+		IJeiKeyMapping noMatch = new TestKeyMapping(InputConstants.UNKNOWN);
+		return (IInternalKeyMappings) Proxy.newProxyInstance(
+			IInternalKeyMappings.class.getClassLoader(),
+			new Class<?>[]{IInternalKeyMappings.class},
+			(proxy, method, args) -> {
+				if (method.getName().equals("getQuickMove") || method.getName().equals("getCheatItemStack")) {
+					return matching;
+				}
+				return noMatch;
+			}
+		);
+	}
+
+	private record TestKeyMapping(InputConstants.Key key) implements IJeiKeyMapping {
+		@Override
+		public boolean isActiveAndMatches(InputConstants.Key input) {
+			return key.equals(input);
+		}
+
+		@Override
+		public boolean isUnbound() {
+			return false;
+		}
+
+		@Override
+		public Component getTranslatedKeyMessage() {
+			return Component.literal("test");
 		}
 	}
 

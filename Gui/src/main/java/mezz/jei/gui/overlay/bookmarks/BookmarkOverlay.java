@@ -16,6 +16,7 @@ import mezz.jei.common.config.file.IConfigListener;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.JeiClientSoundUtil;
@@ -48,6 +49,7 @@ import mezz.jei.gui.input.IDragHandler;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
+import mezz.jei.gui.input.ICharTypedHandler;
 import mezz.jei.gui.input.IPaged;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -91,7 +93,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
+public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, ICharTypedHandler {
 	private static final int BORDER_MARGIN = 6;
 	private static final int INNER_PADDING = 2;
 	private static final int BUTTON_SIZE = 20;
@@ -134,6 +136,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	private final IClientToggleState toggleState;
 	private final IClientConfig clientConfig;
 	private final IInternalKeyMappings keyBindings;
+	private final ScrollStep scrollStep;
+	private final ScrollStepTextField scrollStepField;
+	private ImmutableRect2i scrollStepArea = ImmutableRect2i.EMPTY;
 	private @Nullable PanelSnapshotKey panelSnapshotKey;
 	private @Nullable PanelSnapshot panelSnapshot;
 	private boolean recipeChainTooltipShiftDown;
@@ -158,7 +163,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		IClientConfig clientConfig,
 		IIngredientGridConfig bookmarkListConfig,
 		IScreenHelper screenHelper,
-		IInternalKeyMappings keyBindings
+		IInternalKeyMappings keyBindings,
+		ScrollStep scrollStep
 	) {
 		this.bookmarkList = bookmarkList;
 		this.favoriteRecipes = favoriteRecipes;
@@ -166,6 +172,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		this.toggleState = toggleState;
 		this.clientConfig = clientConfig;
 		this.keyBindings = keyBindings;
+		this.scrollStep = scrollStep;
+		this.scrollStepField = new ScrollStepTextField(scrollStep);
 		this.bookmarkButton = BookmarkButton.create(this, keyBindings);
 		this.favoriteButton = FavoriteRecipePanelButton.create(this, favoriteRecipes);
 		this.historyButton = LookupHistoryButton.create(clientConfig);
@@ -217,6 +225,16 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			guiPropertiesCache.hasValidScreen() &&
 			favoriteContents.hasRoom() &&
 			!favoriteContents.isEmpty();
+	}
+
+	@Override
+	public boolean hasKeyboardFocus() {
+		return scrollStepField.isFocused();
+	}
+
+	@Override
+	public boolean onCharTyped(char codePoint, int modifiers) {
+		return scrollStepField.charTyped(codePoint, modifiers);
 	}
 
 	public boolean isFavoritePanelSelected() {
@@ -332,7 +350,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			this.bookmarkButton.updateBounds(bookmarkButtonArea);
 			ImmutableRect2i historyButtonArea  = bookmarkButtonArea.moveRight(2 + BUTTON_SIZE);
 			this.historyButton.updateBounds(historyButtonArea);
-			this.favoriteButton.updateBounds(calculateFavoritePanelButtonArea(historyButtonArea));
+			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(historyButtonArea);
+			this.favoriteButton.updateBounds(favoriteButtonArea);
+			ImmutableRect2i gridArea = this.contents.getIngredientGridArea();
+			this.scrollStepArea = calculateScrollStepArea(favoriteButtonArea, gridArea.getX() + gridArea.getWidth());
+			this.scrollStepField.updateBounds(scrollStepArea);
 		} else {
 			ImmutableRect2i bookmarkButtonArea = displayArea
 				.insetBy(BORDER_MARGIN)
@@ -341,7 +363,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			this.bookmarkButton.updateBounds(bookmarkButtonArea);
 			ImmutableRect2i historyButtonArea  = bookmarkButtonArea.moveRight(2 + BUTTON_SIZE);
 			this.historyButton.updateBounds(historyButtonArea);
-			this.favoriteButton.updateBounds(calculateFavoritePanelButtonArea(historyButtonArea));
+			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(historyButtonArea);
+			this.favoriteButton.updateBounds(favoriteButtonArea);
+			this.scrollStepArea = calculateScrollStepArea(favoriteButtonArea, displayArea.getWidth() - BORDER_MARGIN);
+			this.scrollStepField.updateBounds(scrollStepArea);
 		}
 	}
 
@@ -377,6 +402,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		return historyButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
 	}
 
+	public static ImmutableRect2i calculateScrollStepArea(ImmutableRect2i favoriteButtonArea, int rightBoundary) {
+		int x = favoriteButtonArea.getX() + favoriteButtonArea.getWidth() + INNER_PADDING;
+		int width = rightBoundary - x;
+		return new ImmutableRect2i(x, favoriteButtonArea.getY(), Math.max(0, width), favoriteButtonArea.getHeight());
+	}
+
 	public static LayoutAreas calculateLayoutAreas(ImmutableRect2i displayArea, boolean lookupHistoryOnSide, int historyRows) {
 		ImmutableRect2i contentsLayoutArea = displayArea
 			.cropBottom(BUTTON_SIZE + INNER_PADDING)
@@ -385,6 +416,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		OptionalInt contentsBottomLimit = OptionalInt.empty();
 		if (lookupHistoryOnSide) {
 			ImmutableRect2i calculatedHistoryArea = displayArea
+				.cropLeft(GROUP_PANEL_WIDTH)
 				.insetBy(BORDER_MARGIN)
 				.moveUp(BUTTON_SIZE + INNER_PADDING)
 				.keepBottom(historyRows * LookupHistoryOverlay.SLOT_HEIGHT);
@@ -444,6 +476,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			this.bookmarkButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			this.favoriteButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			this.historyButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
+			this.scrollStepField.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
 		}
 	}
 
@@ -709,17 +742,25 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			favoriteButtonInputHandler,
 			historyButtonInputHandler
 		);
+		final IUserInputHandler fallbackInputHandler = new CombinedInputHandler(
+			"BookmarkOverlayFallback",
+			groupInputHandler,
+			this.scrollStepField.createInputHandler(),
+			buttonInputHandler
+		);
 
 		final IUserInputHandler displayedInputHandler = new CombinedInputHandler(
 			"BookmarkOverlay",
 			recipeCollapseInputHandler,
 			groupInputHandler,
+			this.scrollStepField.createInputHandler(),
 			this.contents.createInputHandler(),
 			buttonInputHandler
 		);
 		final IUserInputHandler favoriteDisplayedInputHandler = new CombinedInputHandler(
 			"FavoriteRecipeOverlay",
 			favoriteRecipeRowInputHandler,
+			this.scrollStepField.createInputHandler(),
 			this.favoriteContents.createInputHandler(),
 			buttonInputHandler
 		);
@@ -731,7 +772,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			if (isListDisplayed()) {
 				return displayedInputHandler;
 			}
-			return buttonInputHandler;
+			return fallbackInputHandler;
 		});
 	}
 
@@ -1265,7 +1306,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 
 	private class GroupInputHandler implements IUserInputHandler {
 		private static final long SCROLL_STEP = 1;
-		private static final long SCROLL_LARGE_STEP = 64;
 
 		@Override
 		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
@@ -1276,6 +1316,24 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			int mouseButton = input.getKey().getValue();
 			if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT && mouseButton != InputConstants.MOUSE_BUTTON_RIGHT) {
 				return Optional.empty();
+			}
+
+			if (scrollStepArea.contains(input.getMouseX(), input.getMouseY())) {
+				boolean ctrlLeftClick = InputModifiers.hasControl(input) && mouseButton == InputConstants.MOUSE_BUTTON_LEFT;
+				boolean rightClick = mouseButton == InputConstants.MOUSE_BUTTON_RIGHT;
+				if (!ctrlLeftClick && !rightClick) {
+					return Optional.empty();
+				}
+				if (input.getInputType() == InputType.EXECUTE) {
+					if (ctrlLeftClick) {
+						toggleFastPickup();
+					} else {
+						scrollStep.reset();
+						scrollStepField.syncFromScrollStep();
+					}
+					playClickSound();
+				}
+				return Optional.of(this);
 			}
 
 			BookmarkHotkeyMouseButton hotkeyMouseButton = mouseButton == InputConstants.MOUSE_BUTTON_LEFT ?
@@ -1361,6 +1419,18 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDelta) {
+			if (scrollStepArea.contains(mouseX, mouseY)) {
+				if (scrollDelta == 0) {
+					return Optional.empty();
+				}
+				long direction = scrollDelta > 0 ? 1 : -1;
+				long step = Screen.hasControlDown() ? 64 : 1;
+				scrollStep.add(direction * step);
+				scrollStepField.syncFromScrollStep();
+				playClickSound();
+				return Optional.of(this);
+			}
+
 			Optional<GroupPanelSlot> groupSlot = getGroupPanelSlotUnderMouse(mouseX, mouseY);
 			boolean defaultControl = getDefaultGroupControlArea().contains(mouseX, mouseY);
 			if (!isMouseOver(mouseX, mouseY) && groupSlot.isEmpty() && !defaultControl) {
@@ -1415,10 +1485,18 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			return Optional.empty();
 		}
 
-		private static long getScrollStep(double scrollDelta, BookmarkHotkeyAction action) {
+		private long getScrollStep(double scrollDelta, BookmarkHotkeyAction action) {
 			long direction = scrollDelta > 0 ? 1 : -1;
-			long step = action == BookmarkHotkeyAction.SHIFT_AMOUNT_STEP ? SCROLL_LARGE_STEP : SCROLL_STEP;
+			long step = action == BookmarkHotkeyAction.SHIFT_AMOUNT_STEP ? scrollStep.getEffectiveStep() : SCROLL_STEP;
 			return direction * step;
+		}
+	}
+
+	private void toggleFastPickup() {
+		toggleState.toggleFastPickupEnabled();
+		scrollStepField.syncFromScrollStep();
+		if (toggleState.isFastPickupEnabled()) {
+			Internal.getServerConnection().sendPacketToServer(PacketRequestCheatPermission.INSTANCE);
 		}
 	}
 

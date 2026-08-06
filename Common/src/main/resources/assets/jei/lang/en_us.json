@@ -427,5 +427,6 @@
   "description.jei.debug.formatting.2": "Testing %s %s formatting replacements.",
   "description.jei.debug.formatting.3": "%s nested",
   "jei.alias.panda.spawn.egg": "endangered",
-  "jei.alias.villager.spawn.egg": "HMMM"
+  "jei.alias.villager.spawn.egg": "HMMM",
+  "jei.bookmark.scrollStep.oneStack": "One Stack"
 }

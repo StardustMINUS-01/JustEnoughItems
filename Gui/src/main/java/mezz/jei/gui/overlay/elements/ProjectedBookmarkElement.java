@@ -81,6 +81,21 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	}
 
 	@Override
+	public Optional<Long> getCheatGiveAmount() {
+		Optional<Long> chainAmount = displayEntry.recipeChainItem()
+			.map(RecipeChainItem::calculatedAmount)
+			.filter(amount -> amount > 0);
+		if (chainAmount.isPresent()) {
+			return chainAmount;
+		}
+		if (displayEntry.metadata().isDefault()) {
+			return Optional.empty();
+		}
+		long amount = displayEntry.metadata().amount();
+		return amount > 0 ? Optional.of(amount) : Optional.empty();
+	}
+
+	@Override
 	public void tick() {
 		delegate.tick();
 	}

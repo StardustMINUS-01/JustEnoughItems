@@ -9,6 +9,7 @@ import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
+import java.util.Optional;
 
 
 public interface IClickableIngredientInternal<T> {
@@ -27,6 +28,10 @@ public interface IClickableIngredientInternal<T> {
 	 * This is generally only active in the JEI ingredient list and bookmark list.
 	 */
 	ItemStack getCheatItemStack(IIngredientManager ingredientManager);
+
+	default Optional<Long> getCheatGiveAmount() {
+		return getElement().getCheatGiveAmount();
+	}
 
 	/**
 	 * Most GUIs shouldn't allow JEI to click to set the focus,

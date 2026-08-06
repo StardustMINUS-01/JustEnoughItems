@@ -33,6 +33,7 @@ import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayActivator;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
@@ -100,6 +101,15 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 		boolean transferOnce = input.is(keyBindings.getTransferRecipeBookmark());
 		boolean transferMax = input.is(keyBindings.getMaxTransferRecipeBookmark());
+		if (shouldSkipTransferForCheatGive(
+			input,
+			keyBindings,
+			Internal.getClientToggleState().isCheatItemsEnabled(),
+			transferOnce,
+			transferMax
+		)) {
+			return false;
+		}
 		if (transferOnce || transferMax) {
 			Minecraft minecraft = Minecraft.getInstance();
 			Screen screen = minecraft.screen;
@@ -121,6 +131,17 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			}
 		}
 		return false;
+	}
+
+	static boolean shouldSkipTransferForCheatGive(
+		UserInput input,
+		IInternalKeyMappings keyBindings,
+		boolean cheatItemsEnabled,
+		boolean transferOnce,
+		boolean transferMax
+	) {
+		return (transferOnce || transferMax) &&
+			InputModifiers.isCheatGiveInput(input, keyBindings.getCheatItemStack(), cheatItemsEnabled);
 	}
 
 	private boolean handleAutoCrafting(UserInput input, IInternalKeyMappings keyBindings) {
