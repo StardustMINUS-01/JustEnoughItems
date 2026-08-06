@@ -50,7 +50,7 @@ val modrinthToken: String? by project
 // set by ORG_GRADLE_PROJECT_curseforgeApikey in Jenkinsfile
 val curseforgeApikey: String? by project
 
-val baseArchivesName = "${modId}-${minecraftVersion}-fabric"
+val baseArchivesName = "JEIunofficial-${minecraftVersion}-fabric"
 base {
     archivesName.set(baseArchivesName)
 }

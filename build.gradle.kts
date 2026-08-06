@@ -80,7 +80,7 @@ subprojects {
         buildNumber = "343"
     }
 
-    version = "${specificationVersion}.${buildNumber}"
+    version = "${specificationVersion}.${buildNumber}-alpha1"
     group = modGroup
 
     tasks.withType<Javadoc> {

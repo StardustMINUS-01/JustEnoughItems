@@ -33,7 +33,7 @@ val modrinthToken: String? by project
 // set by ORG_GRADLE_PROJECT_curseforgeApikey in Jenkinsfile
 val curseforgeApikey: String? by project
 
-val baseArchivesName = "${modId}-${minecraftVersion}-neoforge"
+val baseArchivesName = "JEIunofficial-${minecraftVersion}-neoforge"
 base {
 	archivesName.set(baseArchivesName)
 }
@@ -382,7 +382,7 @@ publishMods {
 	file.set(shadedJar.flatMap { it.archiveFile })
 	type = BETA
 	modLoaders.add("neoforge")
-	displayName.set("${project.version} for NeoForge $minecraftVersion")
+	displayName.set("JEIunofficial ${project.version} for NeoForge $minecraftVersion")
 	version.set(project.version.toString())
 
 	curseforge {

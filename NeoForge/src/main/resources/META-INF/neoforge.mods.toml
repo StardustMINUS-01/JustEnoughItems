@@ -16,7 +16,7 @@ issueTrackerURL="${githubUrl}/issues?q=is%3Aissue" #optional
 license="MIT AND LGPL-3.0-or-later"
 
 # A file name (in the root of the mod JAR) containing a logo for display
-#logoFile="examplemod.png" #optional
+logoFile="jei-icon.png" #optional
 
 # A text field displayed in the mod UI
 #credits="Thanks for this example mod goes to Java" #optional
