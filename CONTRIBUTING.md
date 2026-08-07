@@ -34,7 +34,8 @@ Useful local test commands:
 
 ```shell
 ./gradlew test
-./gradlew :Fabric:runGameTest
+./gradlew :Fabric:runClientGameTest
+./gradlew :Fabric:runClientGameTestWithoutAmecs
 ./gradlew :NeoForge:runGameTestServer
 ```
 

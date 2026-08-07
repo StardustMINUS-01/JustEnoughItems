@@ -10,7 +10,7 @@
     "Stellar Remnants Team"
   ],
   "contact": {
-    "homepage": "${curseHomepageUrl}",
+    "homepage": "${homepageUrl}",
     "sources": "${githubUrl}"
   },
 

@@ -31,7 +31,7 @@ version="${version}" #mandatory
 displayName="${modName}" #mandatory
 
 # A URL for the "homepage" for this mod, displayed in the mod UI
-displayURL="${curseHomepageUrl}" #optional
+displayURL="${homepageUrl}" #optional
 
 # A URL to query for updates for this mod. See the JSON update specification <here>
 #updateJSONURL="" #optional

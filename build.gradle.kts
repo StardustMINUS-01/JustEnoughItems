@@ -33,6 +33,7 @@ repositories {
 // gradle.properties
 val curseHomepageUrl: String by extra
 val curseProjectId: String by extra
+val homepageUrl: String by extra
 val fabricApiVersion: String by extra
 val fabricApiVersionRange: String by extra
 val fabricLoaderVersion: String by extra
@@ -77,10 +78,10 @@ subprojects {
     //adds the build number to the end of the version string if on a build server
     var buildNumber = project.findProperty("BUILD_NUMBER")
     if (buildNumber == null) {
-        buildNumber = "343"
+        buildNumber = "344"
     }
 
-    version = "${specificationVersion}.${buildNumber}-alpha1"
+    version = "${specificationVersion}.${buildNumber}"
     group = modGroup
 
     tasks.withType<Javadoc> {
@@ -113,6 +114,7 @@ subprojects {
 
         val properties = mapOf(
             "curseHomepageUrl" to curseHomepageUrl,
+            "homepageUrl" to homepageUrl,
             "fabricApiVersion" to fabricApiVersion,
             "fabricApiVersionRange" to fabricApiVersionRange,
             "fabricLoaderVersion" to fabricLoaderVersion,
