@@ -29,4 +29,5 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
 ## License
 
 This project is distributed under the MIT License and LGPL-3.0-or-later.
-See [LICENSE.txt](LICENSE.txt) and [LICENSES/](LICENSES/).
+See [LICENSE.txt](LICENSE.txt) and
+[LICENSE-LGPL-3.0-or-later.txt](LICENSE-LGPL-3.0-or-later.txt).
