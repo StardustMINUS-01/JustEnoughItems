@@ -213,7 +213,8 @@ public class JeiGuiStarter {
 			guiHelper,
 			favoriteRecipes::getFavorite,
 			codecHelper,
-			bookmarkCodec
+			bookmarkCodec,
+			bookmarkFactory
 		);
 		bookmarkConfig.loadBookmarks(
 			recipeManager,

@@ -66,6 +66,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private final IGuiHelper guiHelper;
 	private final @Nullable ICodecHelper codecHelper;
 	private final @Nullable Codec<IBookmark> bookmarkCodec;
+	private final @Nullable BookmarkFactory bookmarkFactory;
 	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
@@ -95,6 +96,7 @@ public class BookmarkList implements IIngredientGridSource {
 			guiHelper,
 			key -> Optional.empty(),
 			null,
+			null,
 			null
 		);
 	}
@@ -119,6 +121,7 @@ public class BookmarkList implements IIngredientGridSource {
 			guiHelper,
 			preferredRecipeLookup,
 			null,
+			null,
 			null
 		);
 	}
@@ -133,7 +136,8 @@ public class BookmarkList implements IIngredientGridSource {
 		IGuiHelper guiHelper,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup,
 		@Nullable ICodecHelper codecHelper,
-		@Nullable Codec<IBookmark> bookmarkCodec
+		@Nullable Codec<IBookmark> bookmarkCodec,
+		@Nullable BookmarkFactory bookmarkFactory
 	) {
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
@@ -144,6 +148,7 @@ public class BookmarkList implements IIngredientGridSource {
 		this.guiHelper = guiHelper;
 		this.codecHelper = codecHelper;
 		this.bookmarkCodec = bookmarkCodec;
+		this.bookmarkFactory = bookmarkFactory;
 		this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 		this.preferredRecipeLookup = preferredRecipeLookup;
 	}
