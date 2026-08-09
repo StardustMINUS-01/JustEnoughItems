@@ -22,5 +22,5 @@ public record BookmarkSlotBorder(
 ) {
 	public static final int GROUP_NONE_COLOR = 0xFF666666;
 	public static final int GROUP_CHAIN_COLOR = 0xFF4FA3FF;
-	public static final int RECIPE_COLOR = 0x99A033A0;
+	public static final int RECIPE_COLOR = 0xFFB84CD0;
 }

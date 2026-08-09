@@ -1,6 +1,11 @@
 package mezz.jei.gui.overlay.ingredients;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
@@ -21,7 +26,9 @@ import mezz.jei.gui.overlay.elements.IElement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.RenderType;
+import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -174,8 +181,10 @@ public class IngredientListRenderer {
 
 	private void renderSlotBackgrounds(GuiGraphics guiGraphics) {
 		boolean drewBackground = false;
-		for (IngredientListSlot slot : slots) {
-			Optional<BookmarkSlotVisuals> visuals = getSlotVisuals(slot);
+		int hoveredSlotIndex = hoveredSlot.map(slots::indexOf).orElse(-1);
+		for (int i = 0; i < slots.size(); i++) {
+			IngredientListSlot slot = slots.get(i);
+			Optional<BookmarkSlotVisuals> visuals = getSlotVisuals(slot, i, hoveredSlotIndex);
 			OptionalInt backgroundColor = visuals
 				.map(BookmarkSlotVisuals::backgroundColor)
 				.orElseGet(OptionalInt::empty);
@@ -204,48 +213,76 @@ public class IngredientListRenderer {
 	}
 
 	private void renderSlotBorders(GuiGraphics guiGraphics) {
-		boolean drewBorder = false;
-		for (IngredientListSlot slot : slots) {
-			Optional<BookmarkSlotBorder> border = getSlotVisuals(slot)
+		Matrix4f matrix = guiGraphics.pose().last().pose();
+		BufferBuilder bufferBuilder = null;
+		int hoveredSlotIndex = hoveredSlot.map(slots::indexOf).orElse(-1);
+		for (int i = 0; i < slots.size(); i++) {
+			IngredientListSlot slot = slots.get(i);
+			Optional<BookmarkSlotBorder> border = getSlotVisuals(slot, i, hoveredSlotIndex)
 				.flatMap(BookmarkSlotVisuals::border);
 			if (border.isPresent()) {
-				drewBorder = true;
-				ImmutableRect2i area = slot.getArea();
-				RenderSystem.enableBlend();
-				drawBorder(guiGraphics, area, border.get());
+				if (bufferBuilder == null) {
+					bufferBuilder = Tesselator.getInstance()
+						.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+				}
+				drawBorder(bufferBuilder, matrix, slot.getArea(), border.get());
 			}
 		}
-		RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-		if (drewBorder) {
+		if (bufferBuilder != null) {
+			RenderSystem.enableBlend();
+			RenderSystem.setShader(GameRenderer::getPositionColorShader);
+			BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
 			RenderSystem.disableBlend();
 		}
 	}
 
-	private static void drawBorder(GuiGraphics guiGraphics, ImmutableRect2i area, BookmarkSlotBorder border) {
+	private static void drawBorder(
+		BufferBuilder bufferBuilder,
+		Matrix4f matrix,
+		ImmutableRect2i area,
+		BookmarkSlotBorder border
+	) {
 		int color = border.color();
-		int x = area.getX();
-		int y = area.getY();
-		int width = area.getWidth();
-		int height = area.getHeight();
+		float x = area.getX();
+		float y = area.getY();
+		float width = area.getWidth();
+		float height = area.getHeight();
 		if (border.left()) {
-			guiGraphics.fill(RenderType.guiOverlay(), x - 1, y - 1, x, y + height, color);
+			addQuad(bufferBuilder, matrix, x - 0.5F, y - 0.5F, x + 0.5F, y + height + 0.5F, color);
 		}
 		if (border.right()) {
-			guiGraphics.fill(RenderType.guiOverlay(), x + width, y - 1, x + width + 1, y + height, color);
+			addQuad(bufferBuilder, matrix, x + width - 0.5F, y - 0.5F, x + width + 0.5F, y + height + 0.5F, color);
 		}
 		if (border.top()) {
-			guiGraphics.fill(RenderType.guiOverlay(), x - 1, y - 1, x + width + 1, y, color);
+			addQuad(bufferBuilder, matrix, x - 0.5F, y - 0.5F, x + width + 0.5F, y + 0.5F, color);
 		}
 		if (border.bottom()) {
-			guiGraphics.fill(RenderType.guiOverlay(), x - 1, y + height - 1, x + width + 1, y + height, color);
+			addQuad(bufferBuilder, matrix, x - 0.5F, y + height - 0.5F, x + width + 0.5F, y + height + 0.5F, color);
 		}
+	}
+
+	private static void addQuad(
+		BufferBuilder bufferBuilder,
+		Matrix4f matrix,
+		float x1,
+		float y1,
+		float x2,
+		float y2,
+		int color
+	) {
+		bufferBuilder.addVertex(matrix, x1, y1, 0).setColor(color);
+		bufferBuilder.addVertex(matrix, x1, y2, 0).setColor(color);
+		bufferBuilder.addVertex(matrix, x2, y2, 0).setColor(color);
+		bufferBuilder.addVertex(matrix, x2, y1, 0).setColor(color);
 	}
 
 	private void renderSlotTextOverlays(GuiGraphics guiGraphics) {
 		Minecraft minecraft = Minecraft.getInstance();
 		Font font = minecraft.font;
-		for (IngredientListSlot slot : slots) {
-			getSlotVisuals(slot).ifPresent(visuals -> {
+		int hoveredSlotIndex = hoveredSlot.map(slots::indexOf).orElse(-1);
+		for (int i = 0; i < slots.size(); i++) {
+			IngredientListSlot slot = slots.get(i);
+			getSlotVisuals(slot, i, hoveredSlotIndex).ifPresent(visuals -> {
 				ImmutableRect2i area = slot.getArea();
 				visuals.multiplierText()
 					.ifPresent(text -> drawTopLeftText(guiGraphics, font, area, text, visuals.multiplierTextColor().orElse(0xFFFFFFFF)));
@@ -263,7 +300,7 @@ public class IngredientListRenderer {
 		}
 	}
 
-	private Optional<BookmarkSlotVisuals> getSlotVisuals(IngredientListSlot slot) {
+	private Optional<BookmarkSlotVisuals> getSlotVisuals(IngredientListSlot slot, int slotIndex, int hoveredSlotIndex) {
 		Optional<IElement<?>> element = slot.getOptionalElement()
 			.filter(IElement::isVisible);
 		if (element.isEmpty()) {
@@ -274,8 +311,8 @@ public class IngredientListRenderer {
 		IngredientListSlotContext context = new IngredientListSlotContext(
 			element.get(),
 			hoveredElement,
-			slots.indexOf(slot),
-			hoveredSlot.map(slots::indexOf).orElse(-1),
+			slotIndex,
+			hoveredSlotIndex,
 			getRowIndex(slot),
 			hoveredSlot.map(this::getRowIndex).orElse(-1)
 		);
