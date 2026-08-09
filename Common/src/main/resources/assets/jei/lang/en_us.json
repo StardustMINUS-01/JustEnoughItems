@@ -134,6 +134,8 @@
   "jei.message.ae2.pattern_encoding.no_requests": "No AE2 pattern requests can be encoded for this recipe chain.",
   "jei.message.ae2.pattern_encoding.no_recipe_request": "This recipe cannot be encoded as an AE2 pattern.",
   "jei.message.ae2.pattern_encoding.too_many_requests": "This recipe chain has more than %s AE2 pattern requests.",
+  "jei.message.ae2.pattern_encoding.result": "Encoded %s pattern(s), skipped %s existing, %s invalid",
+  "jei.message.ae2.pattern_encoding.result_stopped": "Encoded %s pattern(s), skipped %s existing, %s invalid, stopped: %s",
   "_comment": "Key Bindings",
   "jei.key.category.overlays": "JEI (Overlays)",
   "key.jei.toggleOverlay": "Show/Hide JEI Overlays",

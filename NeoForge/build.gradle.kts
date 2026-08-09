@@ -38,6 +38,15 @@ base {
 	archivesName.set(baseArchivesName)
 }
 
+repositories {
+	maven("https://api.modrinth.com/maven") {
+		name = "Modrinth"
+		content {
+			includeGroup("maven.modrinth")
+		}
+	}
+}
+
 val gameTestJunitResultsDir = layout.buildDirectory.dir("test-results/gameTest")
 val commonClientTestFixturesSource = project(":Common").layout.projectDirectory.dir("src/clientTestFixtures/java")
 
@@ -153,6 +162,8 @@ dependencies {
 	modShadeImplementation("net.mezzdev:suffixtree:${suffixtreeVersion}") {
 		isTransitive = false
 	}
+	compileOnly("maven.modrinth:ae2:19.2.17")
+	testImplementation("maven.modrinth:ae2:19.2.17")
 	"gameTestImplementation"("net.neoforged:testframework:${neoforgeVersion}") {
 		isTransitive = false
 	}

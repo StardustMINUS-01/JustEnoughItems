@@ -323,7 +323,6 @@ public class RecipeChainPatternEncodeRequestFactory {
 	) {
 		List<@Nullable JeiPatternStack> sparseInputs = readSlots(slotsView.getSlotViews(mezz.jei.api.recipe.RecipeIngredientRole.INPUT));
 		GtmVirtualCircuitCompat.VirtualInputProjection virtualInputs = GtmVirtualCircuitCompat.projectVirtualInputs(recipe, ingredientManager);
-		List<VirtualInputSlot> virtualInputSlots = projectVirtualInputs(virtualInputs, sparseInputs);
 		List<@Nullable JeiPatternStack> sparseOutputs = readSlots(slotsView.getSlotViews(mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT));
 		return createProcessingRequest(
 			getHoveredOutputKeys(hoveredSlot),
@@ -331,7 +330,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 			recipeUid,
 			sparseInputs,
 			sparseOutputs,
-			createGtmCatalysts(virtualInputSlots, sparseInputs)
+			projectGtmCatalysts(virtualInputs, sparseInputs)
 		);
 	}
 
@@ -355,9 +354,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 				case CATALYST -> {
 					int sourceSlot = sparseInputs.size();
 					sparseInputs.add(stack.get());
-					if (!GtmVirtualCircuitCompat.isProgrammedCircuit(stack.get().ingredient())) {
-						catalysts.add(new JeiPatternCatalyst(sourceSlot, stack.get()));
-					}
+					catalysts.add(new JeiPatternCatalyst(sourceSlot, stack.get()));
 				}
 				case RESULT -> sparseOutputs.add(stack.get());
 				case ITEM -> {
@@ -405,12 +402,12 @@ public class RecipeChainPatternEncodeRequestFactory {
 			.map(stack -> new JeiPatternStack(stack.kind(), stack.ingredient(), Math.max(1, input.metadata().amount())));
 	}
 
-	private List<VirtualInputSlot> projectVirtualInputs(
+	private List<JeiPatternCatalyst> projectGtmCatalysts(
 		GtmVirtualCircuitCompat.VirtualInputProjection virtualInputs,
 		List<@Nullable JeiPatternStack> sparseInputs
 	) {
 		Set<Integer> matchedSlots = new java.util.HashSet<>();
-		List<VirtualInputSlot> projectedSlots = new ArrayList<>();
+		List<JeiPatternCatalyst> catalysts = new ArrayList<>();
 		for (GtmVirtualCircuitCompat.VirtualInput virtualInput : virtualInputs.inputs()) {
 			Optional<JeiPatternStack> expected = toStack(virtualInput.ingredient());
 			if (expected.isEmpty()) {
@@ -431,26 +428,12 @@ public class RecipeChainPatternEncodeRequestFactory {
 				sparseInputs.add(expected.get());
 				matchingSlot = sparseInputs.size() - 1;
 			}
-			projectedSlots.add(new VirtualInputSlot(matchingSlot, virtualInput.programmedCircuit()));
-		}
-		return List.copyOf(projectedSlots);
-	}
-
-	private static List<JeiPatternCatalyst> createGtmCatalysts(
-		List<VirtualInputSlot> virtualInputSlots,
-		List<@Nullable JeiPatternStack> sparseInputs
-	) {
-		List<JeiPatternCatalyst> catalysts = new ArrayList<>();
-		for (VirtualInputSlot projectedSlot : virtualInputSlots) {
-			JeiPatternStack input = sparseInputs.get(projectedSlot.slot());
-			if (!projectedSlot.programmedCircuit() && input != null) {
-				catalysts.add(new JeiPatternCatalyst(projectedSlot.slot(), input));
+			JeiPatternStack input = sparseInputs.get(matchingSlot);
+			if (input != null) {
+				catalysts.add(new JeiPatternCatalyst(matchingSlot, input));
 			}
 		}
 		return List.copyOf(catalysts);
-	}
-
-	private record VirtualInputSlot(int slot, boolean programmedCircuit) {
 	}
 
 	private boolean sameStack(JeiPatternStack first, JeiPatternStack second) {

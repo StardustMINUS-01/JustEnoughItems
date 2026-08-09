@@ -20,7 +20,9 @@ import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
 import mezz.jei.common.network.packets.PlayToClientPacket;
 import mezz.jei.common.network.packets.PlayToServerPacket;
+import mezz.jei.neoforge.compat.ae2.Ae2CompatUtil;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
+import mezz.jei.neoforge.compat.ae2.patternencoding.PacketEncodeRecipeChainPatterns;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -45,8 +47,8 @@ public class NetworkHandler {
 	}
 
 	public void registerPacketHandlers(PermanentEventSubscriptions subscriptions) {
-		subscriptions.register(RegisterPayloadHandlersEvent.class, ev ->
-			ev.registrar(this.protocolVersion)
+		subscriptions.register(RegisterPayloadHandlersEvent.class, ev -> {
+			var registrar = ev.registrar(this.protocolVersion)
 			.executesOn(HandlerThread.MAIN)
 			.optional()
 			.playToServer(PacketDeletePlayerItem.TYPE, PacketDeletePlayerItem.STREAM_CODEC, wrapServerHandler(PacketDeletePlayerItem::process))
@@ -60,8 +62,11 @@ public class NetworkHandler {
 			.playToServer(PacketFillCraftingGrid.TYPE, PacketFillCraftingGrid.STREAM_CODEC, wrapServerHandler(PacketFillCraftingGrid::process))
 			.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
 			.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
-			.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process))
-		);
+			.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
+			if (Ae2CompatUtil.isLoaded()) {
+				registrar.playToServer(PacketEncodeRecipeChainPatterns.TYPE, PacketEncodeRecipeChainPatterns.STREAM_CODEC, wrapServerHandler(PacketEncodeRecipeChainPatterns::process));
+			}
+		});
 	}
 
 	private <T extends PlayToClientPacket<T>> IPayloadHandler<T> wrapClientHandler(BiConsumer<T, ClientPacketContext> consumer) {

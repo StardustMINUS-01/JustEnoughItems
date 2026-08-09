@@ -36,7 +36,7 @@ public final class GtmVirtualCircuitCompat {
 		return ingredientManager.createTypedIngredient(VanillaTypes.ITEM_STACK, stack, false);
 	}
 
-	public static boolean isProgrammedCircuit(ITypedIngredient<?> ingredient) {
+	static boolean isProgrammedCircuit(ITypedIngredient<?> ingredient) {
 		return ingredient.getItemStack()
 			.filter(stack -> !stack.isEmpty())
 			.map(ACCESS::isProgrammedCircuit)

@@ -132,6 +132,8 @@
   "jei.message.ae2.pattern_encoding.no_requests": "此配方链没有可写入的AE2样板请求。",
   "jei.message.ae2.pattern_encoding.no_recipe_request": "此配方不能写入为AE2样板。",
   "jei.message.ae2.pattern_encoding.too_many_requests": "此配方链包含超过%s个AE2样板请求。",
+  "jei.message.ae2.pattern_encoding.result": "已编码 %s 个样板，跳过 %s 个已有、%s 个无效",
+  "jei.message.ae2.pattern_encoding.result_stopped": "已编码 %s 个样板，跳过 %s 个已有、%s 个无效，已停止：%s",
 
   "_comment": "Key Bindings",
   "jei.key.category.overlays": "JEI（叠加层）",

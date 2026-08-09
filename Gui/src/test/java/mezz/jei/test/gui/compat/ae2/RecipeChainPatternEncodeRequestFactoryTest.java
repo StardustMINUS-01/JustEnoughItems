@@ -333,11 +333,11 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Assertions.assertEquals(Items.REPEATER, circuit.getItem());
 		Assertions.assertEquals(1, circuit.getCount());
 		Assertions.assertEquals(7, IntCircuitBehaviour.getCircuitConfiguration(circuit));
-		Assertions.assertTrue(request.catalysts().isEmpty());
+		Assertions.assertEquals(List.of(new JeiPatternCatalyst(1, request.sparseInputs().get(1))), request.catalysts());
 	}
 
 	@Test
-	public void processingBookmarkRequestKeepsGtmCircuitOutOfCatalystMetadata() {
+	public void processingBookmarkRequestMarksSavedGtmCircuitAsCatalyst() {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
@@ -356,11 +356,11 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
 		Assertions.assertEquals(1, request.sparseInputs().size());
-		Assertions.assertTrue(request.catalysts().isEmpty());
+		Assertions.assertEquals(List.of(new JeiPatternCatalyst(0, request.sparseInputs().getFirst())), request.catalysts());
 	}
 
 	@Test
-	public void savedProgrammedCircuitDoesNotEnterOrdinaryCatalystMetadata() {
+	public void savedProgrammedCircuitIsMarkedAsCatalyst() {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
@@ -376,7 +376,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 
 		JeiPatternEncodeRequest request = factory.createRequests(inputs, Set.of(), resolver(layout)).requests().getFirst();
 
-		Assertions.assertTrue(request.catalysts().isEmpty());
+		Assertions.assertEquals(List.of(new JeiPatternCatalyst(0, request.sparseInputs().getFirst())), request.catalysts());
 	}
 
 	@Test
@@ -455,7 +455,8 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Assertions.assertEquals(1, request.sparseInputs().get(1).amount());
 		Assertions.assertEquals(3, request.sparseInputs().get(2).amount());
 		Assertions.assertEquals(List.of(
-			new JeiPatternCatalyst(2, request.sparseInputs().get(2))
+			new JeiPatternCatalyst(2, request.sparseInputs().get(2)),
+			new JeiPatternCatalyst(3, request.sparseInputs().get(3))
 		), request.catalysts());
 	}
 
@@ -479,7 +480,8 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Assertions.assertEquals(1, request.sparseInputs().get(1).amount());
 		Assertions.assertEquals(3, request.sparseInputs().get(2).amount());
 		Assertions.assertEquals(List.of(
-			new JeiPatternCatalyst(2, request.sparseInputs().get(2))
+			new JeiPatternCatalyst(2, request.sparseInputs().get(2)),
+			new JeiPatternCatalyst(3, request.sparseInputs().get(3))
 		), request.catalysts());
 	}
 

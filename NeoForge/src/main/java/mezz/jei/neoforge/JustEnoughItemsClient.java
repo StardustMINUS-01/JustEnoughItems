@@ -19,6 +19,7 @@ import mezz.jei.neoforge.chat.JeiInternalShowCommand;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
 import mezz.jei.neoforge.compat.ae2.Ae2BookmarkStorageSnapshotProvider;
 import mezz.jei.neoforge.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
+import mezz.jei.neoforge.compat.ae2.Ae2JeiSearchTextCompat;
 import mezz.jei.neoforge.network.NetworkHandler;
 import mezz.jei.neoforge.plugins.neoforge.NeoForgeGuiPlugin;
 import mezz.jei.neoforge.startup.ForgePluginFinder;
@@ -88,6 +89,7 @@ public class JustEnoughItemsClient {
 			.ifPresent(BookmarkExternalStorageSnapshots::registerProvider);
 		Ae2RecipeChainPatternEncodingBridge.createIfLoaded()
 			.ifPresent(Ae2RecipeChainPatternEncodingBridgeRegistry::register);
+		Ae2JeiSearchTextCompat.register();
 	}
 
 	private void onGameShuttingDown() {

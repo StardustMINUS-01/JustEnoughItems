@@ -3,7 +3,6 @@ package mezz.jei.test.neoforge.compat.ae2;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeRequest;
 import mezz.jei.neoforge.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.junit.jupiter.api.Assertions;
@@ -13,39 +12,41 @@ import java.util.List;
 
 public class Ae2RecipeChainPatternEncodingBridgeTest {
 	@Test
-	public void createIfLoadedReturnsEmptyWhenAe2StageAClassesAreMissing() {
-		Assertions.assertTrue(Ae2RecipeChainPatternEncodingBridge.createIfLoaded().isEmpty());
-	}
-
-	@Test
 	public void sendRequestsReturnsFalseForEmptyRequests() {
-		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(new TestAccess(true));
+		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(new TestAccess(true, true));
 
 		Assertions.assertFalse(bridge.sendRequests(null, List.of()));
 	}
 
 	@Test
 	public void sendRequestsReturnsFalseForNonTerminalMenu() {
-		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(new TestAccess(false));
+		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(new TestAccess(false, true));
 
 		Assertions.assertFalse(bridge.sendRequests(null, List.of(request())));
 	}
 
 	@Test
-	public void sendRequestsReturnsFalseWhenAllRequestConversionsFail() {
-		TestAccess access = new TestAccess(true);
-		access.failRequestConversion = true;
+	public void sendRequestsReturnsFalseWhenSendFails() {
+		TestAccess access = new TestAccess(true, false);
 		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(access);
 
 		Assertions.assertFalse(bridge.sendRequests(null, List.of(request())));
-		Assertions.assertEquals(0, access.sentPackets);
+		Assertions.assertEquals(0, access.sentRequests);
+	}
+
+	@Test
+	public void sendRequestsReturnsTrueWhenSent() {
+		TestAccess access = new TestAccess(true, true);
+		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(access);
+
+		Assertions.assertTrue(bridge.sendRequests(null, List.of(request())));
+		Assertions.assertEquals(1, access.sentRequests);
 	}
 
 	private static JeiPatternEncodeRequest request() {
-		ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "recipe");
 		return new JeiPatternEncodeRequest(
 			ResourceLocation.fromNamespaceAndPath("test", "category"),
-			recipeUid,
+			ResourceLocation.fromNamespaceAndPath("test", "recipe"),
 			JeiPatternEncodeMode.PROCESSING,
 			List.of(),
 			List.of(),
@@ -59,11 +60,12 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 
 	private static final class TestAccess implements Ae2RecipeChainPatternEncodingBridge.Access {
 		private final boolean terminal;
-		private boolean failRequestConversion;
-		private int sentPackets;
+		private final boolean sendSucceeds;
+		private int sentRequests;
 
-		private TestAccess(boolean terminal) {
+		private TestAccess(boolean terminal, boolean sendSucceeds) {
 			this.terminal = terminal;
+			this.sendSucceeds = sendSucceeds;
 		}
 
 		@Override
@@ -72,18 +74,12 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 		}
 
 		@Override
-		public Object createRequest(JeiPatternEncodeRequest request) throws ReflectiveOperationException {
-			if (failRequestConversion) {
-				throw new ReflectiveOperationException("failed");
+		public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+			if (!sendSucceeds) {
+				return false;
 			}
-			return new Object();
-		}
-
-		@Override
-		public CustomPacketPayload createPacket(List<Object> requests) {
-			sentPackets++;
-			throw new UnsupportedOperationException("send should not be reached");
+			sentRequests++;
+			return true;
 		}
 	}
-
 }
