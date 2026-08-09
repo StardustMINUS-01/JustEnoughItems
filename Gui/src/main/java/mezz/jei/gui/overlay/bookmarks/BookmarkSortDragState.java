@@ -42,7 +42,7 @@ public final class BookmarkSortDragState {
 	private final long startedAtMillis;
 	private final long thresholdMillis;
 	private final Set<IBookmark> hiddenBookmarks = new HashSet<>();
-	private List<PreviewSlot> previewSlots = List.of();
+	private List<PreviewSlot<IBookmark>> previewSlots = List.of();
 	private List<ImmutableRect2i> targetSlotOverlayAreas = List.of();
 	private boolean active;
 
@@ -210,8 +210,8 @@ public final class BookmarkSortDragState {
 			return false;
 		}
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		for (PreviewSlot slot : previewSlots) {
-			ITypedIngredient<?> typedIngredient = slot.bookmark().getElement().getTypedIngredient();
+		for (PreviewSlot<IBookmark> slot : previewSlots) {
+			ITypedIngredient<?> typedIngredient = slot.element().getElement().getTypedIngredient();
 			drawIngredient(
 				guiGraphics,
 				ingredientManager,
@@ -230,25 +230,25 @@ public final class BookmarkSortDragState {
 		return getFloatingGroupPanelSlots(previewSlots, mouseX, mouseY, dragOffsetX, dragOffsetY);
 	}
 
-	private static List<FloatingGroupPanelSlot> getFloatingGroupPanelSlots(
-		List<PreviewSlot> previewSlots,
+	static List<FloatingGroupPanelSlot> getFloatingGroupPanelSlots(
+		List<? extends PreviewSlot<?>> previewSlots,
 		int mouseX,
 		int mouseY,
 		int dragOffsetX,
 		int dragOffsetY
 	) {
-		Map<Integer, PreviewSlot> rowsByY = new LinkedHashMap<>();
+		Map<Integer, PreviewSlot<?>> rowsByY = new LinkedHashMap<>();
 		previewSlots.stream()
-			.sorted(Comparator.comparingInt(PreviewSlot::relativeY).thenComparingInt(PreviewSlot::relativeX))
+			.sorted(Comparator.comparingInt((PreviewSlot<?> slot) -> slot.relativeY()).thenComparingInt(slot -> slot.relativeX()))
 			.forEach(slot -> rowsByY.putIfAbsent(slot.relativeY(), slot));
-		List<PreviewSlot> rowSlots = new ArrayList<>(rowsByY.values());
+		List<PreviewSlot<?>> rowSlots = new ArrayList<>(rowsByY.values());
 		int groupLeftX = previewSlots.stream()
-			.mapToInt(PreviewSlot::relativeX)
+			.mapToInt(slot -> slot.relativeX())
 			.min()
 			.orElse(0);
 		List<FloatingGroupPanelSlot> groupPanelSlots = new ArrayList<>();
 		for (int i = 0; i < rowSlots.size(); i++) {
-			PreviewSlot slot = rowSlots.get(i);
+			PreviewSlot<?> slot = rowSlots.get(i);
 			boolean connectedToPrevious = i > 0 && rowSlots.get(i - 1).relativeY() + rowSlots.get(i - 1).height() == slot.relativeY();
 			boolean connectedToNext = i + 1 < rowSlots.size() && slot.relativeY() + slot.height() == rowSlots.get(i + 1).relativeY();
 			groupPanelSlots.add(new FloatingGroupPanelSlot(
@@ -524,7 +524,7 @@ public final class BookmarkSortDragState {
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	private static <T> void drawIngredient(
+	static <T> void drawIngredient(
 		GuiGraphics guiGraphics,
 		IIngredientManager ingredientManager,
 		ITypedIngredient<T> typedIngredient,
@@ -543,16 +543,12 @@ public final class BookmarkSortDragState {
 	) {
 		if (previewSlots.isEmpty()) {
 			Set<IBookmark> bookmarkSet = new HashSet<>(bookmarks);
-			previewSlots = panelSlots.stream()
-				.filter(slot -> bookmarkSet.contains(slot.item()))
-				.map(slot -> new PreviewSlot(
-					slot.item(),
-					slot.area().getX() - previewOrigin.getX(),
-					slot.area().getY() - previewOrigin.getY(),
-					slot.area().getWidth(),
-					slot.area().getHeight()
-				))
-				.toList();
+			previewSlots = toPreviewSlots(
+				panelSlots.stream()
+					.filter(slot -> bookmarkSet.contains(slot.item()))
+					.toList(),
+				previewOrigin
+			);
 		}
 		for (IBookmark bookmark : bookmarks) {
 			if (hiddenBookmarks.add(bookmark)) {
@@ -569,7 +565,22 @@ public final class BookmarkSortDragState {
 		DRAG_PLACEHOLDER
 	}
 
-	private record PreviewSlot(IBookmark bookmark, int relativeX, int relativeY, int width, int height) {
+	static List<PreviewSlot<IBookmark>> toPreviewSlots(
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
+		ImmutableRect2i origin
+	) {
+		return panelSlots.stream()
+			.map(slot -> new PreviewSlot<>(
+				slot.item(),
+				slot.area().getX() - origin.getX(),
+				slot.area().getY() - origin.getY(),
+				slot.area().getWidth(),
+				slot.area().getHeight()
+			))
+			.toList();
+	}
+
+	record PreviewSlot<T>(T element, int relativeX, int relativeY, int width, int height) {
 	}
 
 	private static Map<String, Set<ResourceLocation>> getRecipeIdsByGroup(

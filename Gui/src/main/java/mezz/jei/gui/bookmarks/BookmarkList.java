@@ -1491,12 +1491,12 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 	}
 
-	public String getBookmarkGroupId(IBookmark bookmark) {
-		return bookmarkGroups.getGroupId(bookmark);
-	}
-
 	public BookmarkItemMetadata getBookmarkMetadata(IBookmark bookmark) {
 		return bookmarkGroups.getItemMetadata(bookmark);
+	}
+
+	public String getBookmarkGroupId(IBookmark bookmark) {
+		return bookmarkGroups.getGroupId(bookmark);
 	}
 
 	public void setBookmarkMetadata(IBookmark bookmark, BookmarkItemMetadata metadata) {

@@ -25,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public class GhostIngredientDragManager {
 	private final IRecipeFocusSource source;
@@ -38,7 +39,12 @@ public class GhostIngredientDragManager {
 	private ITypedIngredient<?> hoveredIngredient;
 	@Nullable
 	private Screen hoveredScreen;
+	private @Nullable Supplier<Optional<ITypedIngredient<?>>> extraHoveredIngredientSource;
 	private List<Rect2i> hoveredTargetAreas = List.of();
+
+	public void setExtraHoveredIngredientSource(@Nullable Supplier<Optional<ITypedIngredient<?>>> extraHoveredIngredientSource) {
+		this.extraHoveredIngredientSource = extraHoveredIngredientSource;
+	}
 
 	public GhostIngredientDragManager(
 		IRecipeFocusSource source,
@@ -76,6 +82,9 @@ public class GhostIngredientDragManager {
 				.map(IClickableIngredientInternal::getTypedIngredient)
 				.findFirst()
 				.orElse(null);
+			if (hovered == null && extraHoveredIngredientSource != null) {
+				hovered = extraHoveredIngredientSource.get().orElse(null);
+			}
 			if (shouldRefreshHoveredTargets(this.hoveredScreen, currentScreen, this.hoveredIngredient, hovered)) {
 				this.hoveredScreen = currentScreen;
 				this.hoveredIngredient = hovered;

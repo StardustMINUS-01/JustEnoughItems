@@ -25,6 +25,8 @@ import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
@@ -44,6 +46,7 @@ import mezz.jei.gui.elements.GuiIconToggleButton;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.ghost.GhostIngredientDrag;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDragHandler;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
@@ -75,6 +78,7 @@ import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -94,6 +98,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, ICharTypedHandler {
+	private static @Nullable GroupDropHandler groupDropHandler;
+	private static @Nullable GroupDropHighlightProvider groupDropHighlightProvider;
 	private static final int BORDER_MARGIN = 6;
 	private static final int INNER_PADDING = 2;
 	private static final int BUTTON_SIZE = 20;
@@ -111,6 +117,24 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		Optional<ImmutableRect2i> historyArea,
 		OptionalInt contentsBottomLimit
 	) {}
+
+	public static void setGroupDropHandler(@Nullable GroupDropHandler groupDropHandler) {
+		BookmarkOverlay.groupDropHandler = groupDropHandler;
+	}
+
+	public static void setGroupDropHighlightProvider(@Nullable GroupDropHighlightProvider groupDropHighlightProvider) {
+		BookmarkOverlay.groupDropHighlightProvider = groupDropHighlightProvider;
+	}
+
+	@FunctionalInterface
+	public interface GroupDropHandler {
+		boolean dropGroup(List<ITypedIngredient<?>> ingredients, double mouseX, double mouseY);
+	}
+
+	@FunctionalInterface
+	public interface GroupDropHighlightProvider {
+		List<Rect2i> getDropAreas(List<ITypedIngredient<?>> ingredients);
+	}
 
 	// input
 	private final BookmarkDragManager bookmarkDragManager;
@@ -185,6 +209,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				.orElse(null)
 		);
 		this.bookmarkDragManager = new BookmarkDragManager(this);
+		contents.setExtraHoveredIngredientSource(() -> getGroupDropHoverIngredient(MouseUtil.getX(), MouseUtil.getY()));
 		bookmarkList.addSourceListChangedListener(() -> {
 			clearPanelSnapshot();
 			toggleState.setBookmarkEnabled(!bookmarkList.isEmpty());
@@ -459,6 +484,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				sortDragState.drawSourceSlotOverlays(guiGraphics, getPanelSlots());
 			}
 			drawBookmarkGroupPanels(guiGraphics, mouseX, mouseY);
+			if (groupPanelDrag != null) {
+				groupPanelDrag.drawPreview(guiGraphics, mouseX, mouseY);
+			}
 		}
 		if (isFavoritePanelDisplayed()) {
 			updateFavoriteSortDrag(mouseX, mouseY);
@@ -923,11 +951,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		int mouseX,
 		int mouseY
 	) {
-		List<FavoriteRecipeSortDragState.FloatingGroupPanelSlot> slots = sortDragState.getFloatingGroupPanelSlots(mouseX, mouseY);
+		List<BookmarkSortDragState.FloatingGroupPanelSlot> slots = sortDragState.getFloatingGroupPanelSlots(mouseX, mouseY);
 		if (slots.isEmpty()) {
 			return false;
 		}
-		for (FavoriteRecipeSortDragState.FloatingGroupPanelSlot slot : slots) {
+		for (BookmarkSortDragState.FloatingGroupPanelSlot slot : slots) {
 			drawGroupPanelLine(
 				guiGraphics,
 				slot.slotArea(),
@@ -983,6 +1011,58 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	private List<GroupPanelSlot> getGroupPanelSlots() {
 		return getPanelSnapshot().groupPanelSlots();
+	}
+
+	private List<ITypedIngredient<?>> getGroupDropIngredients(String groupId) {
+		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
+		Set<BookmarkIngredientKey> seen = new HashSet<>();
+		List<ITypedIngredient<?>> ingredients = new ArrayList<>();
+		for (IBookmark bookmark : bookmarkList.getBookmarks()) {
+			if (!isGroupDropBookmark(groupId, bookmark)) {
+				continue;
+			}
+			ITypedIngredient<?> ingredient = bookmark.getElement().getTypedIngredient();
+			BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
+			if (seen.add(key)) {
+				ingredients.add(ingredient);
+			}
+		}
+		return List.copyOf(ingredients);
+	}
+
+	private boolean isGroupDropBookmark(String groupId, IBookmark bookmark) {
+		if (!groupId.equals(bookmarkList.getBookmarkGroupId(bookmark))) {
+			return false;
+		}
+		BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
+		return metadata.type() == BookmarkItemType.RESULT || metadata.type() == BookmarkItemType.ITEM;
+	}
+
+	private List<BookmarkPanelLayout.PanelSlot<IBookmark>> getGroupDropPanelSlots(
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> groupSlots,
+		String groupId
+	) {
+		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
+		Set<BookmarkIngredientKey> seen = new HashSet<>();
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> result = new ArrayList<>();
+		for (BookmarkPanelLayout.PanelSlot<IBookmark> slot : groupSlots) {
+			if (!isGroupDropBookmark(groupId, slot.item())) {
+				continue;
+			}
+			BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(slot.item().getElement().getTypedIngredient(), ingredientManager);
+			if (seen.add(key)) {
+				result.add(slot);
+			}
+		}
+		return result;
+	}
+
+	private Optional<ITypedIngredient<?>> getGroupDropHoverIngredient(double mouseX, double mouseY) {
+		if (groupDropHighlightProvider == null) {
+			return Optional.empty();
+		}
+		return getGroupPanelSlotUnderMouse(mouseX, mouseY)
+			.flatMap(slot -> getGroupDropIngredients(slot.groupId()).stream().findFirst());
 	}
 
 	BookmarkList getBookmarkList() {
@@ -1395,7 +1475,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 					groupPanelDrag = new GroupPanelDrag(
 						slot.get(),
 						action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING,
-						action.get()
+						action.get(),
+						action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE
 					);
 					return Optional.of(this);
 				}
@@ -2234,7 +2315,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		private final GroupPanelSlot startSlot;
 		private final boolean exclude;
 		private final @Nullable BookmarkHotkeyAction clickFallbackAction;
+		private final boolean dropMode;
 		private final long startedAtMillis;
+		private final double startX;
+		private final double startY;
+		private final int dragOffsetX;
+		private final int dragOffsetY;
 		private @Nullable GroupPanelSlot endSlot;
 
 		public GroupPanelDrag(
@@ -2242,16 +2328,33 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			boolean exclude,
 			@Nullable BookmarkHotkeyAction clickFallbackAction
 		) {
+			this(startSlot, exclude, clickFallbackAction, false);
+		}
+
+		public GroupPanelDrag(
+			GroupPanelSlot startSlot,
+			boolean exclude,
+			@Nullable BookmarkHotkeyAction clickFallbackAction,
+			boolean dropMode
+		) {
 			this.startSlot = startSlot;
 			this.exclude = exclude;
 			this.clickFallbackAction = clickFallbackAction;
+			this.dropMode = dropMode;
 			this.startedAtMillis = System.currentTimeMillis();
+			this.startX = MouseUtil.getX();
+			this.startY = MouseUtil.getY();
+			this.dragOffsetX = startSlot.area().getX() - (int) Math.round(this.startX);
+			this.dragOffsetY = startSlot.area().getY() - (int) Math.round(this.startY);
 		}
 
 		public List<GroupPanelSlot> getPreviewGroupPanelSlots(
 			List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
 			List<GroupPanelSlot> groupPanelSlots
 		) {
+			if (dropMode) {
+				return groupPanelSlots;
+			}
 			updateEndSlot(MouseUtil.getY());
 			if (this.endSlot == null) {
 				return groupPanelSlots;
@@ -2271,6 +2374,27 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 
 		public boolean complete(UserInput input) {
+			if (dropMode) {
+				if (!isDragged(input)) {
+					if (clickFallbackAction == null) {
+						return false;
+					}
+					boolean changed = applyGroupClickAction(startSlot.groupId(), clickFallbackAction);
+					if (changed) {
+						playClickSound();
+					}
+					return changed;
+				}
+				GroupDropHandler handler = groupDropHandler;
+				if (handler != null) {
+					List<ITypedIngredient<?>> ingredients = getGroupDropIngredients(startSlot.groupId());
+					if (!ingredients.isEmpty() && handler.dropGroup(ingredients, input.getMouseX(), input.getMouseY())) {
+						playClickSound();
+						return true;
+					}
+				}
+				return false;
+			}
 			updateEndSlot(input.getMouseY());
 			if (this.endSlot == null) {
 				if (this.clickFallbackAction == null) {
@@ -2299,6 +2423,71 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				playClickSound();
 			}
 			return changed;
+		}
+
+		void drawPreview(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+			if (!dropMode || !isDragged(mouseX, mouseY)) {
+				return;
+			}
+			List<BookmarkPanelLayout.PanelSlot<IBookmark>> groupSlots = getPanelSlots().stream()
+				.filter(slot -> startSlot.groupId().equals(bookmarkList.getBookmarkGroupId(slot.item())))
+				.toList();
+			if (groupSlots.isEmpty()) {
+				return;
+			}
+			ImmutableRect2i origin = groupSlots.getFirst().area();
+			List<BookmarkSortDragState.PreviewSlot<IBookmark>> allPreviewSlots = BookmarkSortDragState.toPreviewSlots(groupSlots, origin);
+			List<BookmarkSortDragState.PreviewSlot<IBookmark>> dropPreviewSlots = BookmarkSortDragState.toPreviewSlots(
+				getGroupDropPanelSlots(groupSlots, startSlot.groupId()),
+				origin
+			);
+			if (dropPreviewSlots.isEmpty()) {
+				return;
+			}
+			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
+			if (groupDropHighlightProvider != null && !toggleState.isCheatItemsEnabled()) {
+				List<ITypedIngredient<?>> ingredients = new ArrayList<>(dropPreviewSlots.size());
+				for (BookmarkSortDragState.PreviewSlot<IBookmark> slot : dropPreviewSlots) {
+					ingredients.add(slot.element().getElement().getTypedIngredient());
+				}
+				List<Rect2i> dropAreas = groupDropHighlightProvider.getDropAreas(ingredients);
+				GhostIngredientDrag.drawTargets(guiGraphics, mouseX, mouseY, dropAreas);
+			}
+			for (BookmarkSortDragState.PreviewSlot<IBookmark> slot : dropPreviewSlots) {
+				ITypedIngredient<?> ingredient = slot.element().getElement().getTypedIngredient();
+				BookmarkSortDragState.drawIngredient(
+					guiGraphics,
+					ingredientManager,
+					ingredient,
+					mouseX + dragOffsetX + slot.relativeX(),
+					mouseY + dragOffsetY + slot.relativeY()
+				);
+			}
+			List<BookmarkSortDragState.FloatingGroupPanelSlot> floatingSlots = BookmarkSortDragState.getFloatingGroupPanelSlots(
+				allPreviewSlots,
+				mouseX,
+				mouseY,
+				dragOffsetX,
+				dragOffsetY
+			);
+			int color = getGroupPanelColor(startSlot.groupId());
+			for (BookmarkSortDragState.FloatingGroupPanelSlot slot : floatingSlots) {
+				drawGroupPanelLine(
+					guiGraphics,
+					slot.slotArea(),
+					color,
+					slot.connectedToPrevious(),
+					slot.connectedToNext()
+				);
+			}
+		}
+
+		private boolean isDragged(UserInput input) {
+			return isDragged(input.getMouseX(), input.getMouseY());
+		}
+
+		private boolean isDragged(double mouseX, double mouseY) {
+			return Math.abs(mouseX - startX) > 4 || Math.abs(mouseY - startY) > 4;
 		}
 
 		private void updateEndSlot(double mouseY) {

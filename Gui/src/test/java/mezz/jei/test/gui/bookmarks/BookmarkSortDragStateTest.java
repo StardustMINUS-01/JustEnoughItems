@@ -1,7 +1,6 @@
 package mezz.jei.test.gui.bookmarks;
 
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSortDragState;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -29,7 +28,7 @@ public class BookmarkSortDragStateTest {
 
 	private static Object previewSlot(int relativeX, int relativeY) throws ReflectiveOperationException {
 		Class<?> previewSlotClass = Class.forName("mezz.jei.gui.overlay.bookmarks.BookmarkSortDragState$PreviewSlot");
-		Constructor<?> constructor = previewSlotClass.getDeclaredConstructor(IBookmark.class, int.class, int.class, int.class, int.class);
+		Constructor<?> constructor = previewSlotClass.getDeclaredConstructor(Object.class, int.class, int.class, int.class, int.class);
 		constructor.setAccessible(true);
 		return constructor.newInstance(null, relativeX, relativeY, 16, 16);
 	}

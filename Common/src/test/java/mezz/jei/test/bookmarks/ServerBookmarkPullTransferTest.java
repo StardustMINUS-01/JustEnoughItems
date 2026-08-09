@@ -1,7 +1,9 @@
 package mezz.jei.test.bookmarks;
 
 import mezz.jei.common.bookmarks.BookmarkPullTarget;
+import mezz.jei.common.bookmarks.ServerBookmarkExternalStoragePull;
 import mezz.jei.common.bookmarks.ServerBookmarkPullTransfer;
+import mezz.jei.common.bookmarks.ServerBookmarkPullTransfers;
 import net.minecraft.SharedConstants;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
@@ -14,7 +16,9 @@ import net.minecraft.server.Bootstrap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -133,6 +137,83 @@ public class ServerBookmarkPullTransferTest {
 		for (int i = 36; i < 41; i++) {
 			assertEquals(true, playerInventory.getItem(i).isEmpty());
 		}
+	}
+
+	@Test
+	public void externalHandlerConsumesCurrentMenuBeforeContainerFallback() throws Exception {
+		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
+		SimpleContainer playerInventory = playerInventory(ItemStack.EMPTY);
+		TestMenu menu = new TestMenu(7);
+		menu.addContainerSlots(container);
+		menu.addPlayerSlots(playerInventory);
+
+		try (AutoCloseable ignored = ServerBookmarkPullTransfers.registerHandler(
+			(currentMenu, containerId, currentPlayerInventory, player, targets) -> {
+				if (currentMenu == menu && containerId == 7 && targets.size() == 1) {
+					currentPlayerInventory.setItem(0, new ItemStack(Items.EMERALD, 3));
+					return OptionalInt.of(3);
+				}
+				return OptionalInt.empty();
+			}
+		)) {
+			int moved = ServerBookmarkPullTransfers.pull(
+				menu,
+				7,
+				playerInventory,
+				null,
+				List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
+			);
+
+			assertEquals(3, moved);
+			assertEquals(10, container.getItem(0).getCount());
+			assertEquals(3, playerInventory.getItem(0).getCount());
+			assertEquals(Items.EMERALD, playerInventory.getItem(0).getItem());
+		}
+	}
+
+	@Test
+	public void fallsBackToOrdinaryContainerPullWhenNoExternalHandlerHandlesMenu() {
+		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
+		SimpleContainer playerInventory = playerInventory(ItemStack.EMPTY);
+		TestMenu menu = new TestMenu(7);
+		menu.addContainerSlots(container);
+		menu.addPlayerSlots(playerInventory);
+
+		int moved = ServerBookmarkPullTransfers.pull(
+			menu,
+			7,
+			playerInventory,
+			null,
+			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
+		);
+
+		assertEquals(5, moved);
+		assertEquals(5, container.getItem(0).getCount());
+		assertEquals(5, playerInventory.getItem(0).getCount());
+	}
+
+	@Test
+	public void externalStoragePullCapsExtractionAtPlayerInventoryCapacity() {
+		SimpleContainer playerInventory = playerInventory(new ItemStack(Items.DIAMOND, 63));
+		TestMenu menu = new TestMenu(7);
+		List<Integer> requestedAmounts = new ArrayList<>();
+
+		int moved = ServerBookmarkExternalStoragePull.pull(
+			menu,
+			7,
+			playerInventory,
+			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5)),
+			(target, amount) -> {
+				requestedAmounts.add(amount);
+				ItemStack extracted = target.itemStack().copy();
+				extracted.setCount(amount);
+				return extracted;
+			}
+		);
+
+		assertEquals(List.of(1), requestedAmounts);
+		assertEquals(1, moved);
+		assertEquals(64, playerInventory.getItem(0).getCount());
 	}
 
 	private static SimpleContainer playerInventory(ItemStack... stacks) {

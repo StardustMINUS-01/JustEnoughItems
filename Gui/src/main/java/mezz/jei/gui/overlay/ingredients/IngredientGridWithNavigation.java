@@ -1,6 +1,7 @@
 package mezz.jei.gui.overlay.ingredients;
 
 import mezz.jei.api.ingredients.IIngredientType;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.config.IClientConfig;
@@ -32,6 +33,7 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -49,6 +51,10 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 	private final ScalableDrawable exclusionAreaShadow;
 	private final CommandUtil commandUtil;
 	private final GhostIngredientDragManager ghostIngredientDragManager;
+
+	public void setExtraHoveredIngredientSource(Supplier<Optional<ITypedIngredient<?>>> source) {
+		this.ghostIngredientDragManager.setExtraHoveredIngredientSource(source);
+	}
 	private final IUserInputHandler inputHandler;
 
 	private ImmutableRect2i backgroundArea = ImmutableRect2i.EMPTY;

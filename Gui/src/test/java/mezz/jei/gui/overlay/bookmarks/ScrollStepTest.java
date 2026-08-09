@@ -69,4 +69,9 @@ public class ScrollStepTest {
 
 		assertEquals(0, scrollStep.getValue());
 	}
+
+	@Test
+	public void digitsParseToValue() {
+		assertEquals(33, ScrollStepTextField.parse("33"));
+	}
 }

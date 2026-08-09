@@ -150,7 +150,7 @@ public final class BookmarkDisplayGenerator {
 	) {
 		return group.viewMode() != BookmarkViewMode.TODO_LIST &&
 			!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) &&
-			!metadata.type().isGraphOutput();
+			(metadata.type().isGraphInput() || metadata.type().isCatalyst());
 	}
 
 	private static boolean isResultOnlyGroupOutput(BookmarkItemMetadata metadata) {
@@ -222,7 +222,7 @@ public final class BookmarkDisplayGenerator {
 	) {
 		RecipeChainItem chainItem = details.calculatedItems().get(sourceIndex);
 		if (chainItem == null) {
-			if (metadata.type().isCatalyst()) {
+			if (metadata.type().isCatalyst() || metadata.type() == BookmarkItemType.ITEM) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns, usableColumnsPerRow);
 			}
 			return;

@@ -1,6 +1,5 @@
 package mezz.jei.gui.overlay.bookmarks;
 
-import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
@@ -8,7 +7,6 @@ import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
-import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.gui.GuiGraphics;
@@ -100,20 +98,8 @@ public class BookmarkDrag<T> {
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		for (BookmarkDragSelection.PreviewSlot slot : selection.previewSlots()) {
 			ITypedIngredient<?> typedIngredient = slot.bookmark().getElement().getTypedIngredient();
-			drawIngredient(guiGraphics, ingredientManager, typedIngredient, mouseX - 8 + slot.relativeX(), mouseY - 8 + slot.relativeY());
+			BookmarkSortDragState.drawIngredient(guiGraphics, ingredientManager, typedIngredient, mouseX - 8 + slot.relativeX(), mouseY - 8 + slot.relativeY());
 		}
-	}
-
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private static <V> void drawIngredient(
-		GuiGraphics guiGraphics,
-		IIngredientManager ingredientManager,
-		ITypedIngredient<V> typedIngredient,
-		int x,
-		int y
-	) {
-		IIngredientRenderer<V> renderer = ingredientManager.getIngredientRenderer(typedIngredient.getType());
-		SafeIngredientUtil.render(guiGraphics, renderer, typedIngredient, x, y);
 	}
 
 	private void drawPreview(GuiGraphics guiGraphics, int mouseX, int mouseY) {
