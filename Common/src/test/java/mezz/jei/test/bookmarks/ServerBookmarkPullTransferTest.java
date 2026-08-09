@@ -110,6 +110,31 @@ public class ServerBookmarkPullTransferTest {
 		assertEquals(true, playerInventory.getItem(0).isEmpty());
 	}
 
+	@Test
+	public void doesNotUseArmorOrOffhandSlots() {
+		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
+		SimpleContainer playerInventory = new SimpleContainer(41);
+		for (int i = 0; i < 36; i++) {
+			playerInventory.setItem(i, new ItemStack(Items.DIAMOND, 64));
+		}
+		TestMenu menu = new TestMenu(7);
+		menu.addContainerSlots(container);
+		menu.addPlayerSlots(playerInventory);
+
+		int moved = ServerBookmarkPullTransfer.pull(
+			menu,
+			7,
+			playerInventory,
+			null,
+			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 10))
+		);
+
+		assertEquals(0, moved);
+		for (int i = 36; i < 41; i++) {
+			assertEquals(true, playerInventory.getItem(i).isEmpty());
+		}
+	}
+
 	private static SimpleContainer playerInventory(ItemStack... stacks) {
 		SimpleContainer inventory = new SimpleContainer(stacks.length);
 		for (int i = 0; i < stacks.length; i++) {

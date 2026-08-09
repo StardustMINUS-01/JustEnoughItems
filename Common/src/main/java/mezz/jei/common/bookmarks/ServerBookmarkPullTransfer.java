@@ -10,6 +10,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 public final class ServerBookmarkPullTransfer {
+	private static final int PLAYER_MAIN_INVENTORY_SIZE = 36;
+
 	private ServerBookmarkPullTransfer() {
 	}
 
@@ -64,7 +66,8 @@ public final class ServerBookmarkPullTransfer {
 
 	public static int getInsertableAmount(Container playerInventory, ItemStack targetStack, int amount) {
 		int remaining = amount;
-		for (int i = 0; i < playerInventory.getContainerSize() && remaining > 0; i++) {
+		int size = Math.min(playerInventory.getContainerSize(), PLAYER_MAIN_INVENTORY_SIZE);
+		for (int i = 0; i < size && remaining > 0; i++) {
 			ItemStack inventoryStack = playerInventory.getItem(i);
 			if (inventoryStack.isEmpty() || !CraftingStackMatcher.matchesExactStack(inventoryStack, targetStack)) {
 				continue;
@@ -76,7 +79,7 @@ public final class ServerBookmarkPullTransfer {
 			}
 		}
 
-		for (int i = 0; i < playerInventory.getContainerSize() && remaining > 0; i++) {
+		for (int i = 0; i < size && remaining > 0; i++) {
 			ItemStack inventoryStack = playerInventory.getItem(i);
 			if (!inventoryStack.isEmpty()) {
 				continue;
@@ -92,7 +95,8 @@ public final class ServerBookmarkPullTransfer {
 
 	public static int insertIntoPlayerInventory(Container playerInventory, ItemStack targetStack, int amount) {
 		int remaining = amount;
-		for (int i = 0; i < playerInventory.getContainerSize() && remaining > 0; i++) {
+		int size = Math.min(playerInventory.getContainerSize(), PLAYER_MAIN_INVENTORY_SIZE);
+		for (int i = 0; i < size && remaining > 0; i++) {
 			ItemStack inventoryStack = playerInventory.getItem(i);
 			if (inventoryStack.isEmpty() || !CraftingStackMatcher.matchesExactStack(inventoryStack, targetStack)) {
 				continue;
@@ -108,7 +112,7 @@ public final class ServerBookmarkPullTransfer {
 			remaining -= inserted;
 		}
 
-		for (int i = 0; i < playerInventory.getContainerSize() && remaining > 0; i++) {
+		for (int i = 0; i < size && remaining > 0; i++) {
 			ItemStack inventoryStack = playerInventory.getItem(i);
 			if (!inventoryStack.isEmpty()) {
 				continue;
