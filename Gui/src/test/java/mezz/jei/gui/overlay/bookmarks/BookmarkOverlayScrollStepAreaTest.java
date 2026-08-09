@@ -14,9 +14,9 @@ public class BookmarkOverlayScrollStepAreaTest {
 
 		assertEquals(72, area.getX());
 		assertEquals(100, area.getY());
-		assertEquals(122, area.getWidth());
+		assertEquals(123, area.getWidth());
 		assertEquals(20, area.getHeight());
-		assertEquals(194, area.getX() + area.getWidth());
+		assertEquals(195, area.getX() + area.getWidth());
 	}
 
 	@Test

@@ -429,7 +429,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	public static ImmutableRect2i calculateScrollStepArea(ImmutableRect2i favoriteButtonArea, int rightBoundary) {
 		int x = favoriteButtonArea.getX() + favoriteButtonArea.getWidth() + INNER_PADDING;
-		int width = rightBoundary - x;
+		int width = rightBoundary - x + 1;
 		return new ImmutableRect2i(x, favoriteButtonArea.getY(), Math.max(0, width), favoriteButtonArea.getHeight());
 	}
 
