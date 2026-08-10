@@ -88,7 +88,7 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 
 		List<Slot> craftingSlots = Collections.unmodifiableList(transferInfo.getRecipeSlots(container, recipe));
 		List<Slot> inventorySlots = Collections.unmodifiableList(transferInfo.getInventorySlots(container, recipe));
-		if (!validateTransferInfo(transferInfo, container, craftingSlots, inventorySlots, player)) {
+		if (!validateTransferInfo(transferInfo, container, craftingSlots, inventorySlots)) {
 			return handlerHelper.createInternalError();
 		}
 
@@ -170,29 +170,24 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		IRecipeTransferInfo<C, R> transferInfo,
 		C container,
 		List<Slot> craftingSlots,
-		List<Slot> inventorySlots,
-		Player player
+		List<Slot> inventorySlots
 	) {
 		for (Slot slot : craftingSlots) {
-			if (!slot.getItem().isEmpty()) {
-				if (!slot.mayPickup(player)) {
-					LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
-							"The Recipe Transfer Helper references crafting slot index [{}] but the player cannot pickup from it.",
-						transferInfo.getClass(), container.getClass(), slot.index
-					);
-					return false;
-				}
+			if (slot.isFake()) {
+				LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
+						"The Recipe Transfer Helper references crafting slot index [{}] but it is a fake (output) slot, which is not allowed.",
+					transferInfo.getClass(), container.getClass(), slot.index
+				);
+				return false;
 			}
 		}
 		for (Slot slot : inventorySlots) {
-			if (!slot.getItem().isEmpty()) {
-				if (!slot.mayPickup(player)) {
-					LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
-							"The Recipe Transfer Helper references inventory slot index [{}] but the player cannot pickup from it.",
-						transferInfo.getClass(), container.getClass(), slot.index
-					);
-					return false;
-				}
+			if (slot.isFake()) {
+				LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
+						"The Recipe Transfer Helper references inventory slot index [{}] but it is a fake (output) slot, which is not allowed.",
+					transferInfo.getClass(), container.getClass(), slot.index
+				);
+				return false;
 			}
 		}
 		Collection<Integer> craftingSlotIndexes = slotIndexes(craftingSlots);
@@ -258,7 +253,7 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		for (Slot slot : craftingSlots) {
 			final ItemStack stack = slot.getItem();
 			if (!stack.isEmpty()) {
-				if (!slot.mayPickup(player)) {
+				if (!slot.allowModification(player)) {
 					LOGGER.error(
 						"Recipe Transfer helper {} does not work for container {}. " +
 							"The Player is not able to move items out of Crafting Slot number {}",
@@ -274,16 +269,10 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		for (Slot slot : inventorySlots) {
 			final ItemStack stack = slot.getItem();
 			if (!stack.isEmpty()) {
-				if (!slot.mayPickup(player)) {
-					LOGGER.error(
-						"Recipe Transfer helper {} does not work for container {}. " +
-							"The Player is not able to move items out of Inventory Slot number {}",
-						transferInfo.getClass(), container.getClass(), slot.index
-					);
-					return null;
+				if (slot.allowModification(player)) {
+					availableItemStacks.put(slot, stack.copy());
 				}
-				availableItemStacks.put(slot, stack.copy());
-			} else {
+			} else if (slot.allowModification(player)) {
 				emptySlotCount++;
 			}
 		}
