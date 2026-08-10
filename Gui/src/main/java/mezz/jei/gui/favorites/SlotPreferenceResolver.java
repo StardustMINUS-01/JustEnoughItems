@@ -2,11 +2,9 @@ package mezz.jei.gui.favorites;
 
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.input.FocusedRecipe;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,16 +29,8 @@ public final class SlotPreferenceResolver implements SlotRuleResolver {
 		if (rules.isEmpty() || variants.isEmpty()) {
 			return Optional.empty();
 		}
-		List<RecipePreferenceIngredientInfo> variantInfos = new ArrayList<>(variants.size());
 		Map<FocusedRecipe, RecipePreferenceCandidate> merged = new LinkedHashMap<>();
 		for (BookmarkIngredientKey variant : variants) {
-			Optional<RecipePreferenceIngredientInfo> info = Optional.ofNullable(
-				scanner.getTargetInfoByOutput().get(variant)
-			);
-			if (info.isEmpty()) {
-				return Optional.empty();
-			}
-			variantInfos.add(info.get());
 			for (RecipePreferenceCandidate candidate : scanner.getCandidatesByOutput()
 				.getOrDefault(variant, List.of())) {
 				merged.putIfAbsent(candidate.recipe(), candidate);
@@ -49,6 +39,6 @@ public final class SlotPreferenceResolver implements SlotRuleResolver {
 		if (merged.isEmpty()) {
 			return Optional.empty();
 		}
-		return rules.resolvePreferredRecipeForSlot(variantInfos, List.copyOf(merged.values()));
+		return rules.resolvePreferredRecipe(List.copyOf(merged.values()));
 	}
 }

@@ -1,7 +1,6 @@
 package mezz.jei.test.gui.favorites.preferences;
 
 import mezz.jei.gui.favorites.preferences.RecipePreferenceConfigSerializer;
-import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -9,18 +8,17 @@ import java.util.List;
 
 public class RecipePreferenceConfigSerializerTest {
 	@Test
-	public void parsesTwoDimensionalInputAndRecipeTiers() {
+	public void parsesMultiLineExpressionsWithComments() {
 		List<String> lines = List.of(
 			"[[rules]]",
-			"name = \"GTM fine wires\"",
-			"target = \"#c:fine_wires\"",
-			"recipe_type = \"gtceu:wiremill\"",
-			"input = [[\"item:gtceu:polybenzimidazole_foil\", \"fluid:gtceu:rubber\"], [\"fluid:gtceu:latex\"]]",
-			"recipe = [",
-			"  [\"gtceu:wiremill/mill_*_wire_fine\"],",
-			"  [\"gtceu:wiremill/mill_*_wire_to_fine_wire\"]",
-			"]",
-			"fallback = \"default\""
+			"name = GTM fine wires",
+			"output = #c:fine_wires",
+			"input =",
+			"  gtceu:iron & gtceu:gold;",
+			"  #c:plates $ trailing line comment",
+			"recipe =",
+			"  gtceu:wiremill/mill_*_wire_fine;",
+			"  gtceu:wiremill/mill_*_wire_to_fine_wire"
 		);
 
 		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
@@ -28,47 +26,122 @@ public class RecipePreferenceConfigSerializerTest {
 		Assertions.assertEquals(1, rules.size());
 		var rule = rules.getFirst();
 		Assertions.assertEquals("GTM fine wires", rule.name());
-		Assertions.assertEquals(ResourceLocation.fromNamespaceAndPath("c", "fine_wires"), rule.target().tagId().orElseThrow());
-		Assertions.assertEquals(ResourceLocation.fromNamespaceAndPath("gtceu", "wiremill"), rule.recipeType().orElseThrow());
-		Assertions.assertEquals(2, rule.inputTiers().size());
-		Assertions.assertEquals(2, rule.inputTiers().getFirst().size());
-		Assertions.assertEquals(List.of(
-			List.of("gtceu:wiremill/mill_*_wire_fine"),
-			List.of("gtceu:wiremill/mill_*_wire_to_fine_wire")
-		), rule.recipeTiers());
+		Assertions.assertTrue(rule.input().isPresent());
+		Assertions.assertTrue(rule.recipe().isPresent());
 	}
 
 	@Test
-	public void skipsInvalidRulesInsteadOfThrowing() {
+	public void blockCommentsAreRemoved() {
+		List<String> lines = List.of(
+			"$$ block comment start",
+			"output = \"ignored\"",
+			"$$ block comment end",
+			"[[rules]]",
+			"output = minecraft:iron_ingot",
+			"input = minecraft:iron_ore"
+		);
+
+		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
+
+		Assertions.assertEquals(1, rules.size());
+	}
+
+	@Test
+	public void skipsRulesWithLegacyKeys() {
 		List<String> lines = List.of(
 			"[[rules]]",
-			"name = \"Missing target\"",
+			"name = Legacy",
+			"target = \"#c:fine_wires\"",
 			"recipe_type = \"gtceu:wiremill\"",
-			"recipe = [[\"gtceu:wiremill/mill_*_wire_fine\"]]",
+			"recipe = \"gtceu:wiremill/mill_*_wire_fine\""
+		);
+
+		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
+
+		Assertions.assertTrue(rules.isEmpty());
+	}
+
+	@Test
+	public void skipsRuleMissingOutput() {
+		List<String> lines = List.of(
+			"[[rules]]",
+			"name = Missing output",
+			"input = gtceu:iron"
+		);
+
+		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
+
+		Assertions.assertTrue(rules.isEmpty());
+	}
+
+	@Test
+	public void skipsRuleWithoutInputOrRecipe() {
+		List<String> lines = List.of(
+			"[[rules]]",
+			"output = minecraft:iron_ingot"
+		);
+
+		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
+
+		Assertions.assertTrue(rules.isEmpty());
+	}
+
+	@Test
+	public void skipsDuplicateOutput() {
+		List<String> lines = List.of(
+			"[[rules]]",
+			"output = minecraft:iron_ingot",
+			"output = minecraft:gold_ingot",
+			"input = minecraft:iron_ore"
+		);
+
+		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
+
+		Assertions.assertTrue(rules.isEmpty());
+	}
+
+	@Test
+	public void skipsInvalidExpressions() {
+		List<String> lines = List.of(
+			"[[rules]]",
+			"output = minecraft:iron_ingot",
+			"input = gtceu:iron &",
 			"",
 			"[[rules]]",
-			"name = \"Valid\"",
-			"target = \"test:cobalt_fine_wire\"",
-			"recipe = [[\"test:recipe\"]]"
+			"output = item:*:iron_ingot",
+			"input = gtceu:iron"
 		);
 
 		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
 
-		Assertions.assertEquals(1, rules.size());
-		Assertions.assertEquals("Valid", rules.getFirst().name());
+		Assertions.assertTrue(rules.isEmpty());
 	}
 
 	@Test
-	public void ignoresLegacyFallbackKey() {
+	public void defaultsNameWhenMissing() {
 		List<String> lines = List.of(
 			"[[rules]]",
-			"target = \"test:cobalt_fine_wire\"",
-			"recipe = [[\"test:recipe\"]]",
-			"fallback = \"custom\""
+			"output = minecraft:iron_ingot",
+			"input = minecraft:iron_ore"
 		);
 
 		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
 
 		Assertions.assertEquals(1, rules.size());
+		Assertions.assertEquals("unnamed", rules.getFirst().name());
+	}
+
+	@Test
+	public void skipsQuotedExpressions() {
+		List<String> lines = List.of(
+			"[[rules]]",
+			"name = \"quoted\"",
+			"output = minecraft:iron_ingot",
+			"input = minecraft:iron_ore"
+		);
+
+		var rules = RecipePreferenceConfigSerializer.deserialize(lines);
+
+		Assertions.assertTrue(rules.isEmpty());
 	}
 }

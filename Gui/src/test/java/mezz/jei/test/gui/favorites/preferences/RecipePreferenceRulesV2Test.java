@@ -1,6 +1,7 @@
 package mezz.jei.test.gui.favorites.preferences;
 
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceExpression;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
@@ -19,20 +20,24 @@ public class RecipePreferenceRulesV2Test {
 	private static final ResourceLocation ASSEMBLER = ResourceLocation.parse("gtceu:assembler");
 
 	@Test
-	public void selectsCandidateMatchingTheFirstCompleteInputTier() {
+	public void selectsCandidateMatchingTheFirstInputTier() {
 		RecipePreferenceRule rule = rule(
-			List.of(
-				List.of(selector("gtceu:soldering_alloy"), selector("fluid:gtceu:soldering_alloy")),
-				List.of(selector("fluid:gtceu:tin"))
-			),
-			List.of()
+			"gtceu:lv_circuit",
+			"gtceu:soldering_alloy & fluid:gtceu:soldering_alloy; fluid:gtceu:tin",
+			null
 		);
-		RecipePreferenceCandidate soldered = candidate("gtceu:assembler/soldered_circuit",
-			item("gtceu:soldering_alloy"), fluid("gtceu:soldering_alloy"));
-		RecipePreferenceCandidate tin = candidate("gtceu:assembler/tin_circuit", fluid("gtceu:tin"));
+		RecipePreferenceCandidate soldered = candidate(
+			"gtceu:assembler/soldered_circuit",
+			List.of(item("gtceu:soldering_alloy"), fluid("gtceu:soldering_alloy")),
+			List.of(item(CIRCUIT))
+		);
+		RecipePreferenceCandidate tin = candidate(
+			"gtceu:assembler/tin_circuit",
+			List.of(fluid("gtceu:tin")),
+			List.of(item(CIRCUIT))
+		);
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
-			item(CIRCUIT),
 			List.of(soldered, tin)
 		);
 
@@ -42,20 +47,22 @@ public class RecipePreferenceRulesV2Test {
 	@Test
 	public void returnsEmptyWhenInputAndRecipeRanksConflict() {
 		RecipePreferenceRule rule = rule(
-			List.of(
-				List.of(selector("gtceu:soldering_alloy")),
-				List.of(selector("fluid:gtceu:tin"))
-			),
-			List.of(
-				List.of("gtceu:assembler/tin_*"),
-				List.of("gtceu:assembler/soldered_*")
-			)
+			"gtceu:lv_circuit",
+			"gtceu:soldering_alloy; fluid:gtceu:tin",
+			"gtceu:assembler/tin_*; gtceu:assembler/soldered_*"
 		);
-		RecipePreferenceCandidate soldered = candidate("gtceu:assembler/soldered_circuit", item("gtceu:soldering_alloy"));
-		RecipePreferenceCandidate tin = candidate("gtceu:assembler/tin_circuit", fluid("gtceu:tin"));
+		RecipePreferenceCandidate soldered = candidate(
+			"gtceu:assembler/soldered_circuit",
+			List.of(item("gtceu:soldering_alloy")),
+			List.of(item(CIRCUIT))
+		);
+		RecipePreferenceCandidate tin = candidate(
+			"gtceu:assembler/tin_circuit",
+			List.of(fluid("gtceu:tin")),
+			List.of(item(CIRCUIT))
+		);
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
-			item(CIRCUIT),
 			List.of(soldered, tin)
 		);
 
@@ -71,20 +78,71 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void slotRuleCollapsesVariantsToSingleRecipe() {
-		RecipePreferenceRule rule = new RecipePreferenceRule(
-			"glass",
-			RecipePreferenceTarget.tag(ResourceLocation.parse("c:glass_blocks")),
-			Optional.empty(),
-			List.of(),
-			List.of()
+	public void tagWildcardMatchesAnyTagId() {
+		RecipePreferenceTarget target = selector("#c:*ingot");
+
+		Assertions.assertTrue(target.matches(itemWithTag("minecraft:iron_ingot", "c:iron_ingot")));
+		Assertions.assertFalse(target.matches(itemWithTag("minecraft:iron_nugget", "c:iron_nugget")));
+	}
+
+	@Test
+	public void parensAndNegationWork() {
+		RecipePreferenceRule rule = rule(
+			"gtceu:lv_circuit",
+			"gtceu:iron & !(#c:*ingot | fluid:gtceu:acid)",
+			null
 		);
+		RecipePreferenceCandidate ironOnly = candidate(
+			"test:iron_only",
+			List.of(item("gtceu:iron")),
+			List.of(item(CIRCUIT))
+		);
+		RecipePreferenceCandidate ironWithAcid = candidate(
+			"test:iron_acid",
+			List.of(item("gtceu:iron"), fluid("gtceu:acid")),
+			List.of(item(CIRCUIT))
+		);
+
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
+			List.of(ironOnly, ironWithAcid)
+		);
+
+		Assertions.assertEquals(Optional.of(ironOnly.recipe()), selected);
+	}
+
+	@Test
+	public void outputRankParticipatesInRanking() {
+		RecipePreferenceRule rule = rule(
+			"gtceu:lv_circuit; #c:circuits",
+			"gtceu:iron",
+			null
+		);
+		RecipePreferenceCandidate lvCircuit = candidate(
+			"test:lv_circuit",
+			List.of(item("gtceu:iron")),
+			List.of(item(CIRCUIT))
+		);
+		RecipePreferenceCandidate advancedCircuit = candidate(
+			"test:advanced_circuit",
+			List.of(item("gtceu:iron")),
+			List.of(itemWithTag("gtceu:advanced_circuit", "c:circuits"))
+		);
+
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
+			List.of(lvCircuit, advancedCircuit)
+		);
+
+		Assertions.assertEquals(Optional.of(lvCircuit.recipe()), selected);
+	}
+
+	@Test
+	public void slotRuleCollapsesVariantsToSingleRecipe() {
+		RecipePreferenceRule rule = rule("#c:glass_blocks", "#c:logs", null);
 		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
 		RecipePreferenceIngredientInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
-		RecipePreferenceCandidate shared = candidate("test:glass_recipe");
+		RecipePreferenceCandidate shared = candidate("test:glass_recipe", List.of(), List.of(glass, stained));
 
-		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipeForSlot(
-			List.of(glass, stained),
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
 			List.of(shared, shared)
 		);
 
@@ -92,57 +150,60 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void slotRuleReturnsEmptyWhenVariantsHaveConflictingCandidates() {
-		RecipePreferenceRule rule = new RecipePreferenceRule(
-			"glass",
-			RecipePreferenceTarget.tag(ResourceLocation.parse("c:glass_blocks")),
-			Optional.empty(),
-			List.of(),
-			List.of()
-		);
+	public void slotRuleReturnsEmptyWhenCandidatesConflictAndNoRuleMatches() {
+		RecipePreferenceRule rule = rule("#c:glass_blocks", "#c:logs", null);
 		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
-		RecipePreferenceIngredientInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
 
-		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipeForSlot(
-			List.of(glass, stained),
-			List.of(candidate("test:glass_recipe"), candidate("test:stained_recipe"))
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
+			List.of(
+				candidate("test:glass_recipe", List.of(), List.of(glass)),
+				candidate("test:stained_recipe", List.of(), List.of(glass))
+			)
 		);
 
 		Assertions.assertTrue(selected.isEmpty());
 	}
 
 	@Test
-	public void slotRuleDoesNotApplyWhenTargetMatchesNoVariant() {
-		RecipePreferenceRule rule = new RecipePreferenceRule(
-			"iron",
-			RecipePreferenceTarget.item(ResourceLocation.parse("minecraft:iron_ingot")),
-			Optional.empty(),
-			List.of(),
-			List.of()
-		);
+	public void ruleDoesNotApplyWhenOutputDoesNotMatch() {
+		RecipePreferenceRule rule = rule("minecraft:iron_ingot", "minecraft:iron_ore", null);
 		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
 
-		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipeForSlot(
-			List.of(glass),
-			List.of(candidate("test:glass_recipe"), candidate("test:stained_recipe"))
+		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
+			List.of(
+				candidate("test:glass_recipe", List.of(item("minecraft:iron_ore")), List.of(glass)),
+				candidate("test:stained_recipe", List.of(item("minecraft:iron_ore")), List.of(glass))
+			)
 		);
 
 		Assertions.assertTrue(selected.isEmpty());
 	}
 
-	private static RecipePreferenceRule rule(
-		List<List<RecipePreferenceTarget>> inputTiers,
-		List<List<String>> recipeTiers
-	) {
-		return new RecipePreferenceRule("test", selector("gtceu:lv_circuit"), Optional.of(ASSEMBLER), inputTiers, recipeTiers);
+	private static RecipePreferenceRule rule(String outputExpr, String inputExpr, String recipeExpr) {
+		RecipePreferenceExpression output = RecipePreferenceExpression.parseIngredient(outputExpr).orElseThrow();
+		Optional<RecipePreferenceExpression> input = inputExpr == null ?
+			Optional.empty() :
+			Optional.of(RecipePreferenceExpression.parseIngredient(inputExpr).orElseThrow());
+		Optional<RecipePreferenceExpression> recipe = recipeExpr == null ?
+			Optional.empty() :
+			Optional.of(RecipePreferenceExpression.parseUid(recipeExpr).orElseThrow());
+		return new RecipePreferenceRule("test", output, input, recipe);
 	}
 
 	private static RecipePreferenceTarget selector(String value) {
 		return RecipePreferenceTarget.parse(value).orElseThrow();
 	}
 
-	private static RecipePreferenceCandidate candidate(String recipeUid, RecipePreferenceIngredientInfo... inputs) {
-		return new RecipePreferenceCandidate(new FocusedRecipe(ASSEMBLER, ResourceLocation.parse(recipeUid)), List.of(inputs));
+	private static RecipePreferenceCandidate candidate(
+		String recipeUid,
+		List<RecipePreferenceIngredientInfo> inputs,
+		List<RecipePreferenceIngredientInfo> outputs
+	) {
+		return new RecipePreferenceCandidate(
+			new FocusedRecipe(ASSEMBLER, ResourceLocation.parse(recipeUid)),
+			inputs,
+			outputs
+		);
 	}
 
 	private static RecipePreferenceIngredientInfo item(String id) {

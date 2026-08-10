@@ -30,7 +30,7 @@ public final class GeneratedFavoriteRecipeScanner {
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
 	private final Map<BookmarkIngredientKey, List<RecipePreferenceCandidate>> candidatesByOutput = new LinkedHashMap<>();
-	private final Map<BookmarkIngredientKey, RecipePreferenceIngredientInfo> targetInfoByOutput = new LinkedHashMap<>();
+
 	public GeneratedFavoriteRecipeScanner(
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
@@ -44,19 +44,14 @@ public final class GeneratedFavoriteRecipeScanner {
 	public void rebuild(FavoriteRecipeStore store, RecipePreferenceRules recipePreferenceRules) {
 		store.clearGeneratedFavorites();
 		candidatesByOutput.clear();
-		targetInfoByOutput.clear();
 		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput = new LinkedHashMap<>();
 		recipeManager.createRecipeCategoryLookup()
 			.get()
 			.forEach(category -> collectCategoryRecipes(category, recipesByOutput));
 
 		recipesByOutput.forEach((target, candidates) -> {
-			candidatesByOutput.put(
-				target,
-				List.copyOf(candidates.recipes())
-			);
-			candidates.targetInfo().ifPresent(info -> targetInfoByOutput.put(target, info));
-			resolveGeneratedFavorite(candidates.targetInfo(), candidates.recipes(), recipePreferenceRules)
+			candidatesByOutput.put(target, candidates.recipes());
+			resolveGeneratedFavorite(candidates.recipes(), recipePreferenceRules)
 				.ifPresent(recipe -> store.setGeneratedFavorite(target, recipe));
 		});
 	}
@@ -65,19 +60,14 @@ public final class GeneratedFavoriteRecipeScanner {
 		return Map.copyOf(candidatesByOutput);
 	}
 
-	public Map<BookmarkIngredientKey, RecipePreferenceIngredientInfo> getTargetInfoByOutput() {
-		return Map.copyOf(targetInfoByOutput);
-	}
-
 	public static Optional<FocusedRecipe> resolveGeneratedFavorite(
-		Optional<RecipePreferenceIngredientInfo> target,
 		List<RecipePreferenceCandidate> recipes,
 		RecipePreferenceRules recipePreferenceRules
 	) {
 		if (recipes.size() == 1) {
 			return Optional.of(recipes.getFirst().recipe());
 		}
-		return target.flatMap(targetInfo -> recipePreferenceRules.resolvePreferredRecipe(targetInfo, recipes));
+		return recipePreferenceRules.resolvePreferredRecipe(recipes);
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -126,24 +116,33 @@ public final class GeneratedFavoriteRecipeScanner {
 			.map(RecipePreferenceIngredientInfo::fromIngredient)
 			.flatMap(Optional::stream)
 			.toList();
+		List<RecipePreferenceIngredientInfo> outputs = layout.get()
+			.getRecipeSlotsView()
+			.getSlotViews(RecipeIngredientRole.OUTPUT)
+			.stream()
+			.flatMap(slot -> slot.getAllIngredients())
+			.map(RecipePreferenceIngredientInfo::fromIngredient)
+			.flatMap(Optional::stream)
+			.toList();
 		layout.get()
 			.getRecipeSlotsView()
 			.getSlotViews(RecipeIngredientRole.OUTPUT)
-			.forEach(slot -> collectSlotOutputs(slot, focusedRecipe, inputs, recipesByOutput));
+			.forEach(slot -> collectSlotOutputs(slot, focusedRecipe, inputs, outputs, recipesByOutput));
 	}
 
 	private void collectSlotOutputs(
 		IRecipeSlotView slot,
 		FocusedRecipe focusedRecipe,
 		List<RecipePreferenceIngredientInfo> inputs,
+		List<RecipePreferenceIngredientInfo> outputs,
 		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput
 	) {
 		slot.getAllIngredients()
 			.forEach(ingredient -> {
 				BookmarkIngredientKey target = createKey(ingredient);
 				recipesByOutput
-					.computeIfAbsent(target, ignored -> new OutputRecipeCandidates(RecipePreferenceIngredientInfo.fromIngredient(ingredient)))
-					.add(focusedRecipe, inputs);
+					.computeIfAbsent(target, ignored -> new OutputRecipeCandidates())
+					.add(focusedRecipe, inputs, outputs);
 			});
 	}
 
@@ -152,23 +151,18 @@ public final class GeneratedFavoriteRecipeScanner {
 	}
 
 	private static final class OutputRecipeCandidates {
-		private final Optional<RecipePreferenceIngredientInfo> targetInfo;
 		private final Map<FocusedRecipe, RecipePreferenceCandidate> recipes = new LinkedHashMap<>();
-
-		private OutputRecipeCandidates(Optional<RecipePreferenceIngredientInfo> targetInfo) {
-			this.targetInfo = targetInfo;
-		}
-
-		private Optional<RecipePreferenceIngredientInfo> targetInfo() {
-			return targetInfo;
-		}
 
 		private List<RecipePreferenceCandidate> recipes() {
 			return List.copyOf(recipes.values());
 		}
 
-		private void add(FocusedRecipe recipe, List<RecipePreferenceIngredientInfo> inputs) {
-			recipes.putIfAbsent(recipe, new RecipePreferenceCandidate(recipe, inputs));
+		private void add(
+			FocusedRecipe recipe,
+			List<RecipePreferenceIngredientInfo> inputs,
+			List<RecipePreferenceIngredientInfo> outputs
+		) {
+			recipes.putIfAbsent(recipe, new RecipePreferenceCandidate(recipe, inputs, outputs));
 		}
 	}
 }

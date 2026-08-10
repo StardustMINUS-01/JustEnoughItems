@@ -12,7 +12,7 @@ import java.util.List;
 
 public class RecipePreferenceConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
-	private static final String FILE_NAME = "recipe-preferences.toml";
+	private static final String FILE_NAME = "recipe-preferences.txt";
 
 	private final Path path;
 
@@ -40,19 +40,30 @@ public class RecipePreferenceConfig {
 
 	private void writeDefaultFile() {
 		List<String> lines = List.of(
-			"# JEI recipe preference rules.",
-			"# These client-side rules help Shift+A and Shift+F choose a recipe when an ingredient has multiple recipe paths.",
-			"# target and input selectors accept item:/fluid: prefixes, tags, and path wildcards such as gtceu:*_single_wire.",
-			"# input and recipe are two-dimensional arrays: outer rows are priority tiers, input rows are AND, and recipe rows are OR.",
+			"$ JEI recipe preference rules.",
+			"$ output / input / recipe are boolean expressions:",
+			"$   ! not, & and, | or, ( ) grouping, ; priority (first = highest)",
+			"$ Selectors: item:id, fluid:id, id, #tag, path wildcards like gtceu:*_wire.",
+			"$ A value spans lines until the next \"key =\" or \"[[rules]]\".",
+			"$ \"$\" starts a line comment; \"$$ ... $$\" starts a block comment.",
+			"$ Rules are checked in order; a rule must uniquely select one recipe.",
 			"",
-			"# [[rules]]",
-			"# name = \"GTM fine wires\"",
-			"# target = \"#c:fine_wires\"",
-			"# recipe_type = \"gtceu:wiremill\"",
-			"# recipe = [",
-			"#   [\"gtceu:wiremill/mill_*_wire_fine\"],",
-			"#   [\"gtceu:wiremill/mill_*_wire_to_fine_wire\"]",
-			"# ]"
+			"$ [[rules]]",
+			"$ name = GTM fine wires",
+			"$ output = #c:fine_wires",
+			"$ input =",
+			"$   gtceu:iron & gtceu:gold;",
+			"$   #c:plates",
+			"$ recipe =",
+			"$   gtceu:wiremill/mill_*_wire_fine;",
+			"$   gtceu:wiremill/mill_*_wire_to_fine_wire",
+			"",
+			"$ [[rules]]",
+			"$ name = Planks and wire",
+			"$ output =",
+			"$   minecraft:*planks & gtceu:*wire",
+			"$ input =",
+			"$   #c:logs"
 		);
 		try {
 			Files.createDirectories(path.getParent());

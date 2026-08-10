@@ -2,44 +2,23 @@ package mezz.jei.gui.favorites.preferences;
 
 import mezz.jei.gui.input.FocusedRecipe;
 
-import java.util.List;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class RecipePreferenceRules {
+public final class RecipePreferenceRules {
 	public static final RecipePreferenceRules EMPTY = new RecipePreferenceRules(List.of());
 
-	private final List<CompiledRule> rules;
+	private final List<RecipePreferenceRule> rules;
 
 	public RecipePreferenceRules(List<RecipePreferenceRule> rules) {
-		this.rules = rules.stream()
-			.map(CompiledRule::new)
-			.toList();
+		this.rules = List.copyOf(rules);
 	}
 
-	public Optional<FocusedRecipe> resolvePreferredRecipe(
-		RecipePreferenceIngredientInfo target,
-		List<RecipePreferenceCandidate> candidates
-	) {
-		for (CompiledRule rule : rules) {
-			if (!rule.rule().target().matches(target)) {
-				continue;
-			}
-			Optional<FocusedRecipe> selected = rule.resolve(candidates);
-			if (selected.isPresent()) {
-				return selected;
-			}
-		}
-		return Optional.empty();
-	}
-
-	public Optional<FocusedRecipe> resolvePreferredRecipeForSlot(
-		List<RecipePreferenceIngredientInfo> variants,
-		List<RecipePreferenceCandidate> candidates
-	) {
+	public Optional<FocusedRecipe> resolvePreferredRecipe(List<RecipePreferenceCandidate> candidates) {
 		List<RecipePreferenceCandidate> uniqueCandidates = candidates.stream()
 			.collect(Collectors.toMap(
 				RecipePreferenceCandidate::recipe,
@@ -53,13 +32,8 @@ public class RecipePreferenceRules {
 		if (uniqueCandidates.size() == 1) {
 			return Optional.of(uniqueCandidates.getFirst().recipe());
 		}
-		for (CompiledRule rule : rules) {
-			boolean matchesVariant = variants.stream()
-				.anyMatch(rule.rule().target()::matches);
-			if (!matchesVariant) {
-				continue;
-			}
-			Optional<FocusedRecipe> selected = rule.resolve(uniqueCandidates);
+		for (RecipePreferenceRule rule : rules) {
+			Optional<FocusedRecipe> selected = resolve(rule, uniqueCandidates);
 			if (selected.isPresent()) {
 				return selected;
 			}
@@ -71,102 +45,73 @@ public class RecipePreferenceRules {
 		return rules.isEmpty();
 	}
 
-	private record CompiledRule(
+	private static Optional<FocusedRecipe> resolve(
 		RecipePreferenceRule rule,
-		List<List<Pattern>> recipeTiers
+		List<RecipePreferenceCandidate> candidates
 	) {
-		private CompiledRule(RecipePreferenceRule rule) {
-			this(rule, rule.recipeTiers().stream()
-				.map(tier -> tier.stream().map(CompiledRule::compileWildcard).toList())
-				.toList());
-		}
-
-		private Optional<FocusedRecipe> resolve(List<RecipePreferenceCandidate> candidates) {
-			List<RankedCandidate> ranked = candidates.stream()
-				.filter(candidate -> matchesRecipeType(candidate.recipe()))
-				.map(candidate -> new RankedCandidate(candidate, getInputRank(candidate), getRecipeRank(candidate)))
-				.toList();
-			boolean inputActive = ranked.stream().anyMatch(candidate -> candidate.inputRank().isPresent());
-			boolean recipeActive = ranked.stream().anyMatch(candidate -> candidate.recipeRank().isPresent());
-			if (!inputActive && !recipeActive) {
-				return Optional.empty();
+		List<RankedCandidate> ranked = new ArrayList<>();
+		for (RecipePreferenceCandidate candidate : candidates) {
+			OptionalInt outputRank = rule.output().rank(candidate.outputs());
+			if (outputRank.isEmpty()) {
+				continue;
 			}
-			List<RankedCandidate> eligible = ranked.stream()
-				.filter(candidate -> !inputActive || candidate.inputRank().isPresent())
-				.filter(candidate -> !recipeActive || candidate.recipeRank().isPresent())
-				.toList();
-			List<RankedCandidate> best = eligible.stream()
-				.filter(candidate -> eligible.stream().noneMatch(other -> dominates(other, candidate, inputActive, recipeActive)))
-				.toList();
-			return best.size() == 1 ? Optional.of(best.getFirst().candidate().recipe()) : Optional.empty();
+			OptionalInt inputRank = rule.input()
+				.map(expression -> expression.rank(candidate.inputs()))
+				.orElse(OptionalInt.empty());
+			OptionalInt recipeRank = rule.recipe()
+				.map(expression -> expression.rank(candidate.recipe().recipeUid()))
+				.orElse(OptionalInt.empty());
+			ranked.add(new RankedCandidate(candidate, outputRank, inputRank, recipeRank));
 		}
+		boolean inputActive = ranked.stream().anyMatch(candidate -> candidate.inputRank().isPresent());
+		boolean recipeActive = ranked.stream().anyMatch(candidate -> candidate.recipeRank().isPresent());
+		List<RankedCandidate> eligible = ranked.stream()
+			.filter(candidate -> !inputActive || candidate.inputRank().isPresent())
+			.filter(candidate -> !recipeActive || candidate.recipeRank().isPresent())
+			.toList();
+		List<RankedCandidate> best = eligible.stream()
+			.filter(candidate -> eligible.stream().noneMatch(other -> dominates(other, candidate, inputActive, recipeActive)))
+			.toList();
+		return best.size() == 1 ? Optional.of(best.getFirst().candidate().recipe()) : Optional.empty();
+	}
 
-		private boolean matchesRecipeType(FocusedRecipe recipe) {
-			return rule.recipeType()
-				.map(recipe.recipeTypeUid()::equals)
-				.orElse(true);
+	private static boolean dominates(
+		RankedCandidate first,
+		RankedCandidate second,
+		boolean inputActive,
+		boolean recipeActive
+	) {
+		if (first == second) {
+			return false;
 		}
-
-		private OptionalInt getInputRank(RecipePreferenceCandidate candidate) {
-			for (int i = 0; i < rule.inputTiers().size(); i++) {
-				List<RecipePreferenceTarget> tier = rule.inputTiers().get(i);
-				if (!tier.isEmpty() && tier.stream().allMatch(selector -> candidate.inputs().stream().anyMatch(selector::matches))) {
-					return OptionalInt.of(i);
-				}
-			}
-			return OptionalInt.empty();
+		boolean strictlyBetter = false;
+		int outputComparison = Integer.compare(first.outputRank().getAsInt(), second.outputRank().getAsInt());
+		if (outputComparison > 0) {
+			return false;
 		}
-
-		private OptionalInt getRecipeRank(RecipePreferenceCandidate candidate) {
-			for (int i = 0; i < recipeTiers.size(); i++) {
-				List<Pattern> tier = recipeTiers.get(i);
-				if (!tier.isEmpty() && tier.stream().anyMatch(pattern -> pattern.matcher(candidate.recipe().recipeUid().toString()).matches())) {
-					return OptionalInt.of(i);
-				}
-			}
-			return OptionalInt.empty();
-		}
-
-		private static boolean dominates(RankedCandidate first, RankedCandidate second, boolean inputActive, boolean recipeActive) {
-			if (first == second) {
+		strictlyBetter |= outputComparison < 0;
+		if (inputActive) {
+			int comparison = Integer.compare(first.inputRank().getAsInt(), second.inputRank().getAsInt());
+			if (comparison > 0) {
 				return false;
 			}
-			boolean strictlyBetter = false;
-			if (inputActive) {
-				int comparison = Integer.compare(first.inputRank().getAsInt(), second.inputRank().getAsInt());
-				if (comparison > 0) {
-					return false;
-				}
-				strictlyBetter |= comparison < 0;
-			}
-			if (recipeActive) {
-				int comparison = Integer.compare(first.recipeRank().getAsInt(), second.recipeRank().getAsInt());
-				if (comparison > 0) {
-					return false;
-				}
-				strictlyBetter |= comparison < 0;
-			}
-			return strictlyBetter;
+			strictlyBetter |= comparison < 0;
 		}
+		if (recipeActive) {
+			int comparison = Integer.compare(first.recipeRank().getAsInt(), second.recipeRank().getAsInt());
+			if (comparison > 0) {
+				return false;
+			}
+			strictlyBetter |= comparison < 0;
+		}
+		return strictlyBetter;
+	}
 
-		private static Pattern compileWildcard(String wildcard) {
-			StringBuilder regex = new StringBuilder();
-			for (int i = 0; i < wildcard.length(); i++) {
-				char c = wildcard.charAt(i);
-				if (c == '*') {
-					regex.append(".*");
-				} else {
-					regex.append(Pattern.quote(String.valueOf(c)));
-				}
-			}
-			return Pattern.compile(regex.toString());
-		}
-
-		private record RankedCandidate(
-			RecipePreferenceCandidate candidate,
-			OptionalInt inputRank,
-			OptionalInt recipeRank
-		) {
-		}
+	private record RankedCandidate(
+		RecipePreferenceCandidate candidate,
+		OptionalInt outputRank,
+		OptionalInt inputRank,
+		OptionalInt recipeRank
+	) {
 	}
 }

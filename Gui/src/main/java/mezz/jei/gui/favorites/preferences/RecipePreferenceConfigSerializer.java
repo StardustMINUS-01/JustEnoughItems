@@ -1,24 +1,29 @@
 package mezz.jei.gui.favorites.preferences;
 
-import net.minecraft.resources.ResourceLocation;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 public final class RecipePreferenceConfigSerializer {
+	private static final Logger LOGGER = LogManager.getLogger();
+
 	private RecipePreferenceConfigSerializer() {
 	}
 
 	public static List<RecipePreferenceRule> deserialize(List<String> lines) {
 		List<RuleBuilder> builders = new ArrayList<>();
 		RuleBuilder current = null;
-		for (int index = 0; index < lines.size(); index++) {
-			String line = stripComment(lines.get(index)).trim();
-			if (line.isEmpty()) {
+		List<String> strippedLines = List.of(stripComments(String.join("\n", lines)).split("\n", -1));
+		for (int i = 0; i < strippedLines.size(); i++) {
+			String line = strippedLines.get(i);
+			String trimmed = line.trim();
+			if (trimmed.isEmpty()) {
 				continue;
 			}
-			if ("[[rules]]".equals(line)) {
+			if ("[[rules]]".equals(trimmed)) {
 				current = new RuleBuilder();
 				builders.add(current);
 				continue;
@@ -26,26 +31,42 @@ public final class RecipePreferenceConfigSerializer {
 			if (current == null) {
 				continue;
 			}
-			int separator = line.indexOf('=');
+			int separator = findSeparator(line);
 			if (separator < 0) {
+				current.invalidate("expected key = value");
 				continue;
 			}
 			String key = line.substring(0, separator).trim();
-			String value = line.substring(separator + 1).trim();
-			if (value.startsWith("[")) {
-				StringBuilder arrayValue = new StringBuilder(value);
-				int balance = getSquareBracketBalance(value);
-				while (balance > 0 && ++index < lines.size()) {
-					String nextLine = stripComment(lines.get(index)).trim();
-					arrayValue.append(nextLine);
-					balance += getSquareBracketBalance(nextLine);
-				}
-				if (balance == 0) {
-					current.setMatrix(key, parseStringMatrix(arrayValue.toString()));
+			StringBuilder value = new StringBuilder(line.substring(separator + 1).trim());
+			if ("name".equals(key)) {
+				int j = i + 1;
+				while (j < strippedLines.size()) {
+					String next = strippedLines.get(j).trim();
+					if (next.isEmpty()) {
+						j++;
+						continue;
+					}
+					if (next.equals("[[rules]]") || findSeparator(strippedLines.get(j)) >= 0) {
+						break;
+					}
+					current.invalidate("name must be on a single line");
+					break;
 				}
 			} else {
-				current.setValue(key, unquote(value));
+				int j = i + 1;
+				while (j < strippedLines.size()) {
+					String next = strippedLines.get(j).trim();
+					if (next.equals("[[rules]]") || findSeparator(strippedLines.get(j)) >= 0) {
+						break;
+					}
+					if (!next.isEmpty()) {
+						value.append('\n').append(strippedLines.get(j));
+					}
+					j++;
+				}
+				i = j - 1;
 			}
+			current.setValue(key, value.toString().trim());
 		}
 		return builders.stream()
 			.map(RuleBuilder::build)
@@ -53,189 +74,146 @@ public final class RecipePreferenceConfigSerializer {
 			.toList();
 	}
 
-	private static int getSquareBracketBalance(String value) {
-		boolean quoted = false;
-		int balance = 0;
-		for (int index = 0; index < value.length(); index++) {
-			char character = value.charAt(index);
-			if (character == '"') {
-				quoted = !quoted;
-			} else if (!quoted && character == '[') {
-				balance++;
-			} else if (!quoted && character == ']') {
-				balance--;
+	private static String stripComments(String text) {
+		StringBuilder result = new StringBuilder();
+		boolean inQuotes = false;
+		boolean inBlockComment = false;
+		for (int i = 0; i < text.length(); i++) {
+			char c = text.charAt(i);
+			if (inBlockComment) {
+				if (c == '$' && i + 1 < text.length() && text.charAt(i + 1) == '$') {
+					inBlockComment = false;
+					i++;
+				}
+				continue;
+			}
+			if (c == '"') {
+				inQuotes = !inQuotes;
+				result.append(c);
+				continue;
+			}
+			if (!inQuotes && c == '$') {
+				if (i + 1 < text.length() && text.charAt(i + 1) == '$') {
+					inBlockComment = true;
+					i++;
+				} else {
+					while (i < text.length() && text.charAt(i) != '\n') {
+						i++;
+					}
+					result.append('\n');
+					continue;
+				}
+			} else {
+				result.append(c);
 			}
 		}
-		return balance;
+		return result.toString();
 	}
 
-	private static Optional<List<List<String>>> parseStringMatrix(String value) {
-		try {
-			return Optional.of(new MatrixParser(value).parse());
-		} catch (IllegalArgumentException e) {
-			return Optional.empty();
-		}
-	}
-
-	private static String stripComment(String line) {
-		boolean quoted = false;
-		for (int index = 0; index < line.length(); index++) {
-			char character = line.charAt(index);
-			if (character == '"') {
-				quoted = !quoted;
-			} else if (character == '#' && !quoted) {
-				return line.substring(0, index);
+	private static int findSeparator(String line) {
+		boolean inQuotes = false;
+		for (int i = 0; i < line.length(); i++) {
+			char c = line.charAt(i);
+			if (c == '"') {
+				inQuotes = !inQuotes;
+			} else if (c == '=' && !inQuotes) {
+				return i;
 			}
 		}
-		return line;
-	}
-
-	private static String unquote(String value) {
-		if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
-			return value.substring(1, value.length() - 1);
-		}
-		return value;
+		return -1;
 	}
 
 	private static final class RuleBuilder {
 		private String name = "unnamed";
-		private String target;
-		private String recipeType;
-		private List<List<String>> input = List.of();
-		private List<List<String>> recipe = List.of();
+		private String output;
+		private String input;
+		private String recipe;
+		private boolean hasName;
+		private boolean hasOutput;
+		private boolean hasInput;
+		private boolean hasRecipe;
+		private boolean valid = true;
 
 		private void setValue(String key, String value) {
 			switch (key) {
-				case "name" -> name = value;
-				case "target" -> target = value;
-				case "recipe_type" -> recipeType = value;
-				default -> {
+				case "name" -> {
+					if (hasName) {
+						invalidate("duplicate name");
+					} else if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+						invalidate("name must not be quoted");
+					} else {
+						hasName = true;
+						name = value;
+					}
 				}
+				case "output" -> {
+					if (hasOutput) {
+						invalidate("duplicate output");
+					} else {
+						hasOutput = true;
+						output = value;
+					}
+				}
+				case "input" -> {
+					if (hasInput) {
+						invalidate("duplicate input");
+					} else {
+						hasInput = true;
+						input = value;
+					}
+				}
+				case "recipe" -> {
+					if (hasRecipe) {
+						invalidate("duplicate recipe");
+					} else {
+						hasRecipe = true;
+						recipe = value;
+					}
+				}
+				default -> invalidate("unknown key '" + key + "' (target and recipe_type are removed; use output)");
 			}
 		}
 
-		private void setMatrix(String key, Optional<List<List<String>>> matrix) {
-			if (matrix.isEmpty()) {
-				return;
+		private void invalidate(String reason) {
+			if (valid) {
+				LOGGER.error("Skipping invalid recipe preference rule {}: {}", name, reason);
 			}
-			switch (key) {
-				case "input" -> input = matrix.get();
-				case "recipe" -> recipe = matrix.get();
-				default -> {
-				}
-			}
+			valid = false;
 		}
 
 		private Optional<RecipePreferenceRule> build() {
-			if (input.isEmpty() && recipe.isEmpty()) {
+			if (!valid) {
 				return Optional.empty();
 			}
-			Optional<RecipePreferenceTarget> parsedTarget = RecipePreferenceTarget.parse(target);
-			if (parsedTarget.isEmpty()) {
+			if (output == null || output.isBlank()) {
+				invalidate("missing output");
 				return Optional.empty();
 			}
-			Optional<ResourceLocation> parsedRecipeType = Optional.empty();
-			if (recipeType != null && !recipeType.isBlank()) {
-				try {
-					parsedRecipeType = Optional.of(ResourceLocation.parse(recipeType));
-				} catch (RuntimeException e) {
-					return Optional.empty();
-				}
-			}
-			List<List<RecipePreferenceTarget>> inputTiers = input.stream()
-				.map(tier -> tier.stream().map(RecipePreferenceTarget::parse).flatMap(Optional::stream).toList())
-				.filter(tier -> !tier.isEmpty())
-				.toList();
-			List<List<String>> recipeTiers = recipe.stream()
-				.map(tier -> tier.stream().filter(value -> !value.isBlank()).toList())
-				.filter(tier -> !tier.isEmpty())
-				.toList();
-			if (inputTiers.isEmpty() && recipeTiers.isEmpty()) {
+			if (input == null && recipe == null) {
+				invalidate("neither input nor recipe");
 				return Optional.empty();
 			}
-			return Optional.of(new RecipePreferenceRule(name, parsedTarget.get(), parsedRecipeType, inputTiers, recipeTiers));
-		}
-	}
-
-	private static final class MatrixParser {
-		private final String text;
-		private int index;
-
-		private MatrixParser(String text) {
-			this.text = text;
-		}
-
-		private List<List<String>> parse() {
-			skipWhitespace();
-			expect('[');
-			List<List<String>> result = new ArrayList<>();
-			while (true) {
-				skipWhitespace();
-				if (consume(']')) {
-					return List.copyOf(result);
-				}
-				result.add(parseRow());
-				skipWhitespace();
-				if (!consume(',')) {
-					expect(']');
-					return List.copyOf(result);
-				}
+			Optional<RecipePreferenceExpression> outputExpression = RecipePreferenceExpression.parseIngredient(output);
+			if (outputExpression.isEmpty()) {
+				invalidate("invalid output expression");
+				return Optional.empty();
 			}
+			Optional<RecipePreferenceExpression> inputExpression = input == null ?
+				Optional.empty() :
+				RecipePreferenceExpression.parseIngredient(input);
+			if (input != null && inputExpression.isEmpty()) {
+				invalidate("invalid input expression");
+				return Optional.empty();
+			}
+			Optional<RecipePreferenceExpression> recipeExpression = recipe == null ?
+				Optional.empty() :
+				RecipePreferenceExpression.parseUid(recipe);
+			if (recipe != null && recipeExpression.isEmpty()) {
+				invalidate("invalid recipe expression");
+				return Optional.empty();
+			}
+			return Optional.of(new RecipePreferenceRule(name, outputExpression.get(), inputExpression, recipeExpression));
 		}
 
-		private List<String> parseRow() {
-			skipWhitespace();
-			expect('[');
-			List<String> result = new ArrayList<>();
-			while (true) {
-				skipWhitespace();
-				if (consume(']')) {
-					return List.copyOf(result);
-				}
-				result.add(parseString());
-				skipWhitespace();
-				if (!consume(',')) {
-					expect(']');
-					return List.copyOf(result);
-				}
-			}
-		}
-
-		private String parseString() {
-			expect('"');
-			StringBuilder result = new StringBuilder();
-			while (index < text.length()) {
-				char character = text.charAt(index++);
-				if (character == '"') {
-					return result.toString();
-				}
-				if (character == '\\' && index < text.length()) {
-					result.append(text.charAt(index++));
-				} else {
-					result.append(character);
-				}
-			}
-			throw new IllegalArgumentException("Unterminated string");
-		}
-
-		private void skipWhitespace() {
-			while (index < text.length() && Character.isWhitespace(text.charAt(index))) {
-				index++;
-			}
-		}
-
-		private boolean consume(char expected) {
-			if (index < text.length() && text.charAt(index) == expected) {
-				index++;
-				return true;
-			}
-			return false;
-		}
-
-		private void expect(char expected) {
-			if (!consume(expected)) {
-				throw new IllegalArgumentException("Expected " + expected);
-			}
-		}
 	}
 }

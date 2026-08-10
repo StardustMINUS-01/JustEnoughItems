@@ -1,9 +1,9 @@
 package mezz.jei.test.gui.favorites;
 
 import mezz.jei.gui.favorites.GeneratedFavoriteRecipeScanner;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceExpression;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceTarget;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -24,10 +24,9 @@ public class GeneratedFavoriteRecipeScannerTest {
 	public void multipleRecipesCanResolveToRulePreferredFavorite() {
 		RecipePreferenceRules rules = new RecipePreferenceRules(List.of(new RecipePreferenceRule(
 			"fine wires",
-			RecipePreferenceTarget.tag(FINE_WIRES),
-			Optional.of(WIREMILL),
-			List.of(),
-			List.of(List.of("gtceu:wiremill/mill_*_wire_fine"))
+			RecipePreferenceExpression.parseIngredient("#c:fine_wires").orElseThrow(),
+			Optional.empty(),
+			Optional.of(RecipePreferenceExpression.parseUid("gtceu:wiremill/mill_*_wire_fine").orElseThrow())
 		)));
 		List<RecipePreferenceCandidate> candidates = List.of(
 			recipe("gtceu:wiremill/mill_cobalt_wire_fine"),
@@ -35,7 +34,6 @@ public class GeneratedFavoriteRecipeScannerTest {
 		);
 
 		Optional<FocusedRecipe> selected = GeneratedFavoriteRecipeScanner.resolveGeneratedFavorite(
-			Optional.of(target()),
 			candidates,
 			rules
 		);
@@ -51,7 +49,6 @@ public class GeneratedFavoriteRecipeScannerTest {
 		);
 
 		Optional<FocusedRecipe> selected = GeneratedFavoriteRecipeScanner.resolveGeneratedFavorite(
-			Optional.of(target()),
 			candidates,
 			RecipePreferenceRules.EMPTY
 		);
@@ -66,7 +63,6 @@ public class GeneratedFavoriteRecipeScannerTest {
 		);
 
 		Optional<FocusedRecipe> selected = GeneratedFavoriteRecipeScanner.resolveGeneratedFavorite(
-			Optional.empty(),
 			candidates,
 			RecipePreferenceRules.EMPTY
 		);
@@ -74,12 +70,9 @@ public class GeneratedFavoriteRecipeScannerTest {
 		Assertions.assertEquals(Optional.of(recipe("gtceu:wiremill/mill_cobalt_wire_fine").recipe()), selected);
 	}
 
-	private static RecipePreferenceIngredientInfo target() {
-		return RecipePreferenceIngredientInfo.item(COBALT_FINE_WIRE, Set.of(FINE_WIRES));
-	}
-
 	private static RecipePreferenceCandidate recipe(String recipeUid) {
 		FocusedRecipe recipe = new FocusedRecipe(WIREMILL, ResourceLocation.parse(recipeUid));
-		return new RecipePreferenceCandidate(recipe, List.of());
+		RecipePreferenceIngredientInfo output = RecipePreferenceIngredientInfo.item(COBALT_FINE_WIRE, Set.of(FINE_WIRES));
+		return new RecipePreferenceCandidate(recipe, List.of(), List.of(output));
 	}
 }

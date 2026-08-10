@@ -9,13 +9,15 @@ public record RecipePreferenceTarget(
 	Optional<RecipePreferenceIngredientInfo.Kind> kind,
 	Optional<ResourceLocation> ingredientId,
 	Optional<Pattern> ingredientIdPattern,
-	Optional<ResourceLocation> tagId
+	Optional<ResourceLocation> tagId,
+	Optional<Pattern> tagIdPattern
 ) {
 	public RecipePreferenceTarget {
 		kind = kind == null ? Optional.empty() : kind;
 		ingredientId = ingredientId == null ? Optional.empty() : ingredientId;
 		ingredientIdPattern = ingredientIdPattern == null ? Optional.empty() : ingredientIdPattern;
 		tagId = tagId == null ? Optional.empty() : tagId;
+		tagIdPattern = tagIdPattern == null ? Optional.empty() : tagIdPattern;
 	}
 
 	public static RecipePreferenceTarget item(ResourceLocation itemId) {
@@ -41,7 +43,11 @@ public record RecipePreferenceTarget(
 				trimmed = trimmed.substring("fluid:".length());
 			}
 			if (trimmed.startsWith("#")) {
-				return Optional.of(tag(kind, ResourceLocation.parse(trimmed.substring(1))));
+				String tagId = trimmed.substring(1);
+				if (tagId.contains("*")) {
+					return parseTagWildcard(kind, tagId);
+				}
+				return Optional.of(tag(kind, ResourceLocation.parse(tagId)));
 			}
 			if (trimmed.contains("*")) {
 				return parseWildcard(kind, trimmed);
@@ -58,32 +64,65 @@ public record RecipePreferenceTarget(
 		}
 		return ingredientId.map(id -> id.equals(target.id())).orElse(false) ||
 			ingredientIdPattern.map(pattern -> pattern.matcher(target.id().toString()).matches()).orElse(false) ||
-			tagId.map(id -> target.tagIds().contains(id)).orElse(false);
+			tagId.map(id -> target.tagIds().contains(id)).orElse(false) ||
+			tagIdPattern.map(pattern -> target.tagIds().stream()
+				.anyMatch(id -> pattern.matcher(id.toString()).matches()))
+				.orElse(false);
 	}
 
 	private static RecipePreferenceTarget exact(Optional<RecipePreferenceIngredientInfo.Kind> kind, ResourceLocation id) {
-		return new RecipePreferenceTarget(kind, Optional.of(id), Optional.empty(), Optional.empty());
+		return new RecipePreferenceTarget(kind, Optional.of(id), Optional.empty(), Optional.empty(), Optional.empty());
 	}
 
 	private static RecipePreferenceTarget tag(Optional<RecipePreferenceIngredientInfo.Kind> kind, ResourceLocation tagId) {
-		return new RecipePreferenceTarget(kind, Optional.empty(), Optional.empty(), Optional.of(tagId));
+		return new RecipePreferenceTarget(kind, Optional.empty(), Optional.empty(), Optional.of(tagId), Optional.empty());
 	}
 
-	private static Optional<RecipePreferenceTarget> parseWildcard(Optional<RecipePreferenceIngredientInfo.Kind> kind, String value) {
+	private static Optional<RecipePreferenceTarget> parseWildcard(
+		Optional<RecipePreferenceIngredientInfo.Kind> kind,
+		String value
+	) {
 		int separator = value.indexOf(':');
 		if (separator <= 0 || separator == value.length() - 1) {
 			return Optional.empty();
 		}
 		String namespace = value.substring(0, separator);
-		String path = value.substring(separator + 1);
 		if (namespace.contains("*")) {
 			return Optional.empty();
 		}
-		ResourceLocation.parse(namespace + ":" + path.replace('*', 'x'));
-		return Optional.of(new RecipePreferenceTarget(kind, Optional.empty(), Optional.of(compileWildcard(value)), Optional.empty()));
+		ResourceLocation.parse(namespace + ":" + value.substring(separator + 1).replace('*', 'x'));
+		return Optional.of(new RecipePreferenceTarget(
+			kind,
+			Optional.empty(),
+			Optional.of(compileWildcard(value)),
+			Optional.empty(),
+			Optional.empty()
+		));
 	}
 
-	private static Pattern compileWildcard(String wildcard) {
+	private static Optional<RecipePreferenceTarget> parseTagWildcard(
+		Optional<RecipePreferenceIngredientInfo.Kind> kind,
+		String tagId
+	) {
+		int separator = tagId.indexOf(':');
+		if (separator <= 0 || separator == tagId.length() - 1) {
+			return Optional.empty();
+		}
+		String namespace = tagId.substring(0, separator);
+		if (namespace.contains("*")) {
+			return Optional.empty();
+		}
+		ResourceLocation.parse(namespace + ":" + tagId.substring(separator + 1).replace('*', 'x'));
+		return Optional.of(new RecipePreferenceTarget(
+			kind,
+			Optional.empty(),
+			Optional.empty(),
+			Optional.empty(),
+			Optional.of(compileWildcard(tagId))
+		));
+	}
+
+	public static Pattern compileWildcard(String wildcard) {
 		StringBuilder regex = new StringBuilder();
 		for (int i = 0; i < wildcard.length(); i++) {
 			char c = wildcard.charAt(i);
