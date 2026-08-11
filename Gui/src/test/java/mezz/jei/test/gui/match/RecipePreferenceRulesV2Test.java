@@ -1,11 +1,11 @@
-package mezz.jei.test.gui.favorites.preferences;
+package mezz.jei.test.gui.match;
 
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceExpression;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceTarget;
+import mezz.jei.gui.match.IngredientExpression;
+import mezz.jei.gui.match.IngredientMatchInfo;
+import mezz.jei.gui.match.IngredientSelector;
 import mezz.jei.gui.input.FocusedRecipe;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
@@ -71,7 +71,7 @@ public class RecipePreferenceRulesV2Test {
 
 	@Test
 	public void fluidTargetMatchesFluidIngredient() {
-		RecipePreferenceTarget target = selector("fluid:gtceu:molten_*");
+		IngredientSelector target = selector("fluid:gtceu:molten_*");
 
 		Assertions.assertTrue(target.matches(fluid("gtceu:molten_tin")));
 		Assertions.assertFalse(target.matches(item("gtceu:molten_tin")));
@@ -79,7 +79,7 @@ public class RecipePreferenceRulesV2Test {
 
 	@Test
 	public void tagWildcardMatchesAnyTagId() {
-		RecipePreferenceTarget target = selector("#c:*ingot");
+		IngredientSelector target = selector("#c:*ingot");
 
 		Assertions.assertTrue(target.matches(itemWithTag("minecraft:iron_ingot", "c:iron_ingot")));
 		Assertions.assertFalse(target.matches(itemWithTag("minecraft:iron_nugget", "c:iron_nugget")));
@@ -111,6 +111,45 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
+	public void expressionMatchesSingleIngredient() {
+		IngredientExpression expression = IngredientExpression
+			.parseIngredient("#c:fine_wires | gtceu:*_wire")
+			.orElseThrow();
+		Assertions.assertTrue(expression.matches(itemWithTag("gtceu:cobalt_fine_wire", "c:fine_wires")));
+		Assertions.assertFalse(expression.matches(item("minecraft:dirt")));
+	}
+
+	@Test
+	public void itemNamespaceWildcardMatchesAnyNamespace() {
+		IngredientSelector selector = selector("*:item_storage_cell_*");
+		Assertions.assertTrue(selector.matches(item("ae2:item_storage_cell_1k")));
+		Assertions.assertTrue(selector.matches(item("test:item_storage_cell_4k")));
+		Assertions.assertFalse(selector.matches(item("ae2:energy_cell")));
+	}
+
+	@Test
+	public void bareNamespaceWildcardDoesNotMatchTags() {
+		IngredientSelector selector = selector("*:ingots");
+		Assertions.assertFalse(selector.matches(itemWithTag("minecraft:iron_ingot", "c:ingots")));
+	}
+
+	@Test
+	public void tagNamespaceWildcardRequiresExplicitHash() {
+		IngredientSelector selector = selector("#*:ingots");
+		Assertions.assertTrue(selector.matches(itemWithTag("minecraft:iron_ingot", "c:ingots")));
+		Assertions.assertTrue(selector.matches(itemWithTag("minecraft:gold_ingot", "gtceu:ingots")));
+		Assertions.assertFalse(selector.matches(item("minecraft:iron_ingot")));
+	}
+
+	@Test
+	public void partialNamespaceWildcardMatchesMatchingNamespaces() {
+		IngredientSelector selector = selector("ae2*:item_storage_cell_*");
+		Assertions.assertTrue(selector.matches(item("ae2:item_storage_cell_1k")));
+		Assertions.assertTrue(selector.matches(item("ae2x:item_storage_cell_4k")));
+		Assertions.assertFalse(selector.matches(item("test:item_storage_cell_1k")));
+	}
+
+	@Test
 	public void outputRankParticipatesInRanking() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit; #c:circuits",
@@ -138,8 +177,8 @@ public class RecipePreferenceRulesV2Test {
 	@Test
 	public void slotRuleCollapsesVariantsToSingleRecipe() {
 		RecipePreferenceRule rule = rule("#c:glass_blocks", "#c:logs", null);
-		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
-		RecipePreferenceIngredientInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
+		IngredientMatchInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
+		IngredientMatchInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
 		RecipePreferenceCandidate shared = candidate("test:glass_recipe", List.of(), List.of(glass, stained));
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
@@ -152,7 +191,7 @@ public class RecipePreferenceRulesV2Test {
 	@Test
 	public void slotRuleReturnsEmptyWhenCandidatesConflictAndNoRuleMatches() {
 		RecipePreferenceRule rule = rule("#c:glass_blocks", "#c:logs", null);
-		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
+		IngredientMatchInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
 			List.of(
@@ -167,7 +206,7 @@ public class RecipePreferenceRulesV2Test {
 	@Test
 	public void ruleDoesNotApplyWhenOutputDoesNotMatch() {
 		RecipePreferenceRule rule = rule("minecraft:iron_ingot", "minecraft:iron_ore", null);
-		RecipePreferenceIngredientInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
+		IngredientMatchInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
 			List.of(
@@ -180,24 +219,24 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	private static RecipePreferenceRule rule(String outputExpr, String inputExpr, String recipeExpr) {
-		RecipePreferenceExpression output = RecipePreferenceExpression.parseIngredient(outputExpr).orElseThrow();
-		Optional<RecipePreferenceExpression> input = inputExpr == null ?
+		IngredientExpression output = IngredientExpression.parseIngredient(outputExpr).orElseThrow();
+		Optional<IngredientExpression> input = inputExpr == null ?
 			Optional.empty() :
-			Optional.of(RecipePreferenceExpression.parseIngredient(inputExpr).orElseThrow());
-		Optional<RecipePreferenceExpression> recipe = recipeExpr == null ?
+			Optional.of(IngredientExpression.parseIngredient(inputExpr).orElseThrow());
+		Optional<IngredientExpression> recipe = recipeExpr == null ?
 			Optional.empty() :
-			Optional.of(RecipePreferenceExpression.parseUid(recipeExpr).orElseThrow());
-		return new RecipePreferenceRule("test", output, input, recipe);
+			Optional.of(IngredientExpression.parseUid(recipeExpr).orElseThrow());
+		return new RecipePreferenceRule(output, input, recipe);
 	}
 
-	private static RecipePreferenceTarget selector(String value) {
-		return RecipePreferenceTarget.parse(value).orElseThrow();
+	private static IngredientSelector selector(String value) {
+		return IngredientSelector.parse(value).orElseThrow();
 	}
 
 	private static RecipePreferenceCandidate candidate(
 		String recipeUid,
-		List<RecipePreferenceIngredientInfo> inputs,
-		List<RecipePreferenceIngredientInfo> outputs
+		List<IngredientMatchInfo> inputs,
+		List<IngredientMatchInfo> outputs
 	) {
 		return new RecipePreferenceCandidate(
 			new FocusedRecipe(ASSEMBLER, ResourceLocation.parse(recipeUid)),
@@ -206,22 +245,22 @@ public class RecipePreferenceRulesV2Test {
 		);
 	}
 
-	private static RecipePreferenceIngredientInfo item(String id) {
+	private static IngredientMatchInfo item(String id) {
 		return item(ResourceLocation.parse(id));
 	}
 
-	private static RecipePreferenceIngredientInfo item(ResourceLocation id) {
-		return RecipePreferenceIngredientInfo.item(id, Set.of());
+	private static IngredientMatchInfo item(ResourceLocation id) {
+		return IngredientMatchInfo.item(id, Set.of());
 	}
 
-	private static RecipePreferenceIngredientInfo itemWithTag(String id, String tagId) {
-		return RecipePreferenceIngredientInfo.item(
+	private static IngredientMatchInfo itemWithTag(String id, String tagId) {
+		return IngredientMatchInfo.item(
 			ResourceLocation.parse(id),
 			Set.of(ResourceLocation.parse(tagId))
 		);
 	}
 
-	private static RecipePreferenceIngredientInfo fluid(String id) {
-		return RecipePreferenceIngredientInfo.fluid(ResourceLocation.parse(id), Set.of());
+	private static IngredientMatchInfo fluid(String id) {
+		return IngredientMatchInfo.fluid(ResourceLocation.parse(id), Set.of());
 	}
 }

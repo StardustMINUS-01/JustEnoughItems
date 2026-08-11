@@ -1,18 +1,18 @@
-package mezz.jei.gui.favorites.preferences;
+package mezz.jei.gui.match;
 
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-public record RecipePreferenceTarget(
-	Optional<RecipePreferenceIngredientInfo.Kind> kind,
+public record IngredientSelector(
+	Optional<IngredientMatchInfo.Kind> kind,
 	Optional<ResourceLocation> ingredientId,
 	Optional<Pattern> ingredientIdPattern,
 	Optional<ResourceLocation> tagId,
 	Optional<Pattern> tagIdPattern
 ) {
-	public RecipePreferenceTarget {
+	public IngredientSelector {
 		kind = kind == null ? Optional.empty() : kind;
 		ingredientId = ingredientId == null ? Optional.empty() : ingredientId;
 		ingredientIdPattern = ingredientIdPattern == null ? Optional.empty() : ingredientIdPattern;
@@ -20,26 +20,26 @@ public record RecipePreferenceTarget(
 		tagIdPattern = tagIdPattern == null ? Optional.empty() : tagIdPattern;
 	}
 
-	public static RecipePreferenceTarget item(ResourceLocation itemId) {
-		return exact(Optional.of(RecipePreferenceIngredientInfo.Kind.ITEM), itemId);
+	public static IngredientSelector item(ResourceLocation itemId) {
+		return exact(Optional.of(IngredientMatchInfo.Kind.ITEM), itemId);
 	}
 
-	public static RecipePreferenceTarget tag(ResourceLocation tagId) {
-		return tag(Optional.of(RecipePreferenceIngredientInfo.Kind.ITEM), tagId);
+	public static IngredientSelector tag(ResourceLocation tagId) {
+		return tag(Optional.of(IngredientMatchInfo.Kind.ITEM), tagId);
 	}
 
-	public static Optional<RecipePreferenceTarget> parse(String value) {
+	public static Optional<IngredientSelector> parse(String value) {
 		if (value == null || value.isBlank()) {
 			return Optional.empty();
 		}
 		String trimmed = value.trim();
 		try {
-			Optional<RecipePreferenceIngredientInfo.Kind> kind = Optional.empty();
+			Optional<IngredientMatchInfo.Kind> kind = Optional.empty();
 			if (trimmed.startsWith("item:")) {
-				kind = Optional.of(RecipePreferenceIngredientInfo.Kind.ITEM);
+				kind = Optional.of(IngredientMatchInfo.Kind.ITEM);
 				trimmed = trimmed.substring("item:".length());
 			} else if (trimmed.startsWith("fluid:")) {
-				kind = Optional.of(RecipePreferenceIngredientInfo.Kind.FLUID);
+				kind = Optional.of(IngredientMatchInfo.Kind.FLUID);
 				trimmed = trimmed.substring("fluid:".length());
 			}
 			if (trimmed.startsWith("#")) {
@@ -58,7 +58,7 @@ public record RecipePreferenceTarget(
 		}
 	}
 
-	public boolean matches(RecipePreferenceIngredientInfo target) {
+	public boolean matches(IngredientMatchInfo target) {
 		if (kind.isPresent() && kind.get() != target.kind()) {
 			return false;
 		}
@@ -70,16 +70,16 @@ public record RecipePreferenceTarget(
 				.orElse(false);
 	}
 
-	private static RecipePreferenceTarget exact(Optional<RecipePreferenceIngredientInfo.Kind> kind, ResourceLocation id) {
-		return new RecipePreferenceTarget(kind, Optional.of(id), Optional.empty(), Optional.empty(), Optional.empty());
+	private static IngredientSelector exact(Optional<IngredientMatchInfo.Kind> kind, ResourceLocation id) {
+		return new IngredientSelector(kind, Optional.of(id), Optional.empty(), Optional.empty(), Optional.empty());
 	}
 
-	private static RecipePreferenceTarget tag(Optional<RecipePreferenceIngredientInfo.Kind> kind, ResourceLocation tagId) {
-		return new RecipePreferenceTarget(kind, Optional.empty(), Optional.empty(), Optional.of(tagId), Optional.empty());
+	private static IngredientSelector tag(Optional<IngredientMatchInfo.Kind> kind, ResourceLocation tagId) {
+		return new IngredientSelector(kind, Optional.empty(), Optional.empty(), Optional.of(tagId), Optional.empty());
 	}
 
-	private static Optional<RecipePreferenceTarget> parseWildcard(
-		Optional<RecipePreferenceIngredientInfo.Kind> kind,
+	private static Optional<IngredientSelector> parseWildcard(
+		Optional<IngredientMatchInfo.Kind> kind,
 		String value
 	) {
 		int separator = value.indexOf(':');
@@ -87,11 +87,9 @@ public record RecipePreferenceTarget(
 			return Optional.empty();
 		}
 		String namespace = value.substring(0, separator);
-		if (namespace.contains("*")) {
-			return Optional.empty();
-		}
-		ResourceLocation.parse(namespace + ":" + value.substring(separator + 1).replace('*', 'x'));
-		return Optional.of(new RecipePreferenceTarget(
+		String validationNamespace = namespace.replace('*', 'x');
+		ResourceLocation.parse(validationNamespace + ":" + value.substring(separator + 1).replace('*', 'x'));
+		return Optional.of(new IngredientSelector(
 			kind,
 			Optional.empty(),
 			Optional.of(compileWildcard(value)),
@@ -100,8 +98,8 @@ public record RecipePreferenceTarget(
 		));
 	}
 
-	private static Optional<RecipePreferenceTarget> parseTagWildcard(
-		Optional<RecipePreferenceIngredientInfo.Kind> kind,
+	private static Optional<IngredientSelector> parseTagWildcard(
+		Optional<IngredientMatchInfo.Kind> kind,
 		String tagId
 	) {
 		int separator = tagId.indexOf(':');
@@ -109,11 +107,9 @@ public record RecipePreferenceTarget(
 			return Optional.empty();
 		}
 		String namespace = tagId.substring(0, separator);
-		if (namespace.contains("*")) {
-			return Optional.empty();
-		}
-		ResourceLocation.parse(namespace + ":" + tagId.substring(separator + 1).replace('*', 'x'));
-		return Optional.of(new RecipePreferenceTarget(
+		String validationNamespace = namespace.replace('*', 'x');
+		ResourceLocation.parse(validationNamespace + ":" + tagId.substring(separator + 1).replace('*', 'x'));
+		return Optional.of(new IngredientSelector(
 			kind,
 			Optional.empty(),
 			Optional.empty(),

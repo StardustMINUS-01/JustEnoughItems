@@ -36,10 +36,9 @@ public final class IngredientClipboardText {
 			});
 	}
 
-	public static <T> String getIngredientTags(ITypedIngredient<T> typedIngredient) {
-		return typedIngredient.getIngredient(VanillaTypes.ITEM_STACK)
-			.map(IngredientClipboardText::getItemStackTags)
-			.orElse("");
+	public static <T> String getIngredientTags(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		return formatTagLocations(ingredientHelper.getTagStream(typedIngredient.getIngredient()));
 	}
 
 	public static String getItemStackName(ItemStack stack) {
@@ -51,15 +50,9 @@ public final class IngredientClipboardText {
 		return resourceLocation.toString();
 	}
 
-	public static String getItemStackTags(ItemStack stack) {
-		return formatTagLocations(stack.getItem()
-			.builtInRegistryHolder()
-			.tags()
-			.map(tag -> tag.location()));
-	}
-
 	public static String formatTagLocations(Stream<ResourceLocation> tags) {
 		return tags
+			.distinct()
 			.map(tag -> "#" + tag)
 			.sorted()
 			.collect(Collectors.joining(","));

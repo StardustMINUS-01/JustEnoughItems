@@ -1,4 +1,4 @@
-package mezz.jei.gui.favorites.preferences;
+package mezz.jei.gui.match;
 
 import net.minecraft.resources.ResourceLocation;
 
@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.regex.Pattern;
 
-public final class RecipePreferenceExpression {
+public final class IngredientExpression {
 	private final List<Expr> tiers;
 	private final Kind kind;
 
@@ -17,20 +17,20 @@ public final class RecipePreferenceExpression {
 		UID
 	}
 
-	private RecipePreferenceExpression(List<Expr> tiers, Kind kind) {
+	private IngredientExpression(List<Expr> tiers, Kind kind) {
 		this.tiers = tiers;
 		this.kind = kind;
 	}
 
-	public static Optional<RecipePreferenceExpression> parseIngredient(String text) {
+	public static Optional<IngredientExpression> parseIngredient(String text) {
 		return parse(text, Kind.INGREDIENT);
 	}
 
-	public static Optional<RecipePreferenceExpression> parseUid(String text) {
+	public static Optional<IngredientExpression> parseUid(String text) {
 		return parse(text, Kind.UID);
 	}
 
-	public OptionalInt rank(List<RecipePreferenceIngredientInfo> ingredients) {
+	public OptionalInt rank(List<IngredientMatchInfo> ingredients) {
 		if (kind != Kind.INGREDIENT) {
 			throw new IllegalStateException("Cannot rank a uid expression with ingredients");
 		}
@@ -54,7 +54,23 @@ public final class RecipePreferenceExpression {
 		return OptionalInt.empty();
 	}
 
-	private static Optional<RecipePreferenceExpression> parse(String text, Kind kind) {
+	/**
+	 * Matches a single ingredient against any tier of this expression.
+	 * Avoids the list allocation of {@link #rank(List)}.
+	 */
+	public boolean matches(IngredientMatchInfo info) {
+		if (kind != Kind.INGREDIENT) {
+			throw new IllegalStateException("Cannot match a uid expression with an ingredient");
+		}
+		for (Expr tier : tiers) {
+			if (eval(tier, info)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static Optional<IngredientExpression> parse(String text, Kind kind) {
 		if (text == null || text.isBlank()) {
 			return Optional.empty();
 		}
@@ -70,7 +86,7 @@ public final class RecipePreferenceExpression {
 			}
 			tiers.add(expr.get());
 		}
-		return Optional.of(new RecipePreferenceExpression(List.copyOf(tiers), kind));
+		return Optional.of(new IngredientExpression(List.copyOf(tiers), kind));
 	}
 
 	private static List<String> splitTiers(String text) {
@@ -101,7 +117,7 @@ public final class RecipePreferenceExpression {
 			.toList();
 	}
 
-	private boolean eval(Expr expr, List<RecipePreferenceIngredientInfo> ingredients) {
+	private boolean eval(Expr expr, List<IngredientMatchInfo> ingredients) {
 		if (expr instanceof IngredientAtom atom) {
 			return ingredients.stream().anyMatch(atom.target()::matches);
 		}
@@ -113,6 +129,22 @@ public final class RecipePreferenceExpression {
 		}
 		if (expr instanceof Or or) {
 			return eval(or.left(), ingredients) || eval(or.right(), ingredients);
+		}
+		throw new IllegalStateException("Unexpected expression node: " + expr);
+	}
+
+	private boolean eval(Expr expr, IngredientMatchInfo info) {
+		if (expr instanceof IngredientAtom atom) {
+			return atom.target().matches(info);
+		}
+		if (expr instanceof Not not) {
+			return !eval(not.inner(), info);
+		}
+		if (expr instanceof And and) {
+			return eval(and.left(), info) && eval(and.right(), info);
+		}
+		if (expr instanceof Or or) {
+			return eval(or.left(), info) || eval(or.right(), info);
 		}
 		throw new IllegalStateException("Unexpected expression node: " + expr);
 	}
@@ -136,7 +168,7 @@ public final class RecipePreferenceExpression {
 	private sealed interface Expr permits IngredientAtom, UidAtom, Not, And, Or {
 	}
 
-	private record IngredientAtom(RecipePreferenceTarget target) implements Expr {
+	private record IngredientAtom(IngredientSelector target) implements Expr {
 	}
 
 	private record UidAtom(Pattern pattern) implements Expr {
@@ -224,10 +256,10 @@ public final class RecipePreferenceExpression {
 				throw new IllegalArgumentException("Expected selector");
 			}
 			return switch (kind) {
-				case INGREDIENT -> RecipePreferenceTarget.parse(atom)
+				case INGREDIENT -> IngredientSelector.parse(atom)
 					.map(IngredientAtom::new)
 					.orElseThrow(() -> new IllegalArgumentException("Invalid selector: " + atom));
-				case UID -> new UidAtom(RecipePreferenceTarget.compileWildcard(atom));
+				case UID -> new UidAtom(IngredientSelector.compileWildcard(atom));
 			};
 		}
 

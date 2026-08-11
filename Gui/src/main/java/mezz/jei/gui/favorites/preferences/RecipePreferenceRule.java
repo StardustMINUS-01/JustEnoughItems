@@ -1,15 +1,15 @@
 package mezz.jei.gui.favorites.preferences;
 
+import mezz.jei.gui.match.IngredientExpression;
+
 import java.util.Optional;
 
 public record RecipePreferenceRule(
-	String name,
-	RecipePreferenceExpression output,
-	Optional<RecipePreferenceExpression> input,
-	Optional<RecipePreferenceExpression> recipe
+	IngredientExpression output,
+	Optional<IngredientExpression> input,
+	Optional<IngredientExpression> recipe
 ) {
 	public RecipePreferenceRule {
-		name = name == null || name.isBlank() ? "unnamed" : name;
 		input = input == null ? Optional.empty() : input;
 		recipe = recipe == null ? Optional.empty() : recipe;
 	}

@@ -1,12 +1,12 @@
 package mezz.jei.test.gui.favorites;
 
 import mezz.jei.gui.favorites.GeneratedFavoriteRecipeScanner;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceExpression;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.gui.match.IngredientExpression;
+import mezz.jei.gui.match.IngredientMatchInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -23,10 +23,9 @@ public class GeneratedFavoriteRecipeScannerTest {
 	@Test
 	public void multipleRecipesCanResolveToRulePreferredFavorite() {
 		RecipePreferenceRules rules = new RecipePreferenceRules(List.of(new RecipePreferenceRule(
-			"fine wires",
-			RecipePreferenceExpression.parseIngredient("#c:fine_wires").orElseThrow(),
+			IngredientExpression.parseIngredient("#c:fine_wires").orElseThrow(),
 			Optional.empty(),
-			Optional.of(RecipePreferenceExpression.parseUid("gtceu:wiremill/mill_*_wire_fine").orElseThrow())
+			Optional.of(IngredientExpression.parseUid("gtceu:wiremill/mill_*_wire_fine").orElseThrow())
 		)));
 		List<RecipePreferenceCandidate> candidates = List.of(
 			recipe("gtceu:wiremill/mill_cobalt_wire_fine"),
@@ -72,7 +71,7 @@ public class GeneratedFavoriteRecipeScannerTest {
 
 	private static RecipePreferenceCandidate recipe(String recipeUid) {
 		FocusedRecipe recipe = new FocusedRecipe(WIREMILL, ResourceLocation.parse(recipeUid));
-		RecipePreferenceIngredientInfo output = RecipePreferenceIngredientInfo.item(COBALT_FINE_WIRE, Set.of(FINE_WIRES));
+		IngredientMatchInfo output = IngredientMatchInfo.item(COBALT_FINE_WIRE, Set.of(FINE_WIRES));
 		return new RecipePreferenceCandidate(recipe, List.of(), List.of(output));
 	}
 }

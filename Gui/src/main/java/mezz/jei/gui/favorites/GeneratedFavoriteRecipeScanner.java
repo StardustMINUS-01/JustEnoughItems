@@ -12,7 +12,7 @@ import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceIngredientInfo;
+import mezz.jei.gui.match.IngredientMatchInfo;
 import mezz.jei.gui.input.FocusedRecipe;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
@@ -108,20 +108,20 @@ public final class GeneratedFavoriteRecipeScanner {
 		}
 
 		FocusedRecipe focusedRecipe = new FocusedRecipe(recipeCategory.getRecipeType().getUid(), recipeUid);
-		List<RecipePreferenceIngredientInfo> inputs = layout.get()
+		List<IngredientMatchInfo> inputs = layout.get()
 			.getRecipeSlotsView()
 			.getSlotViews(RecipeIngredientRole.INPUT)
 			.stream()
 			.flatMap(slot -> slot.getAllIngredients())
-			.map(RecipePreferenceIngredientInfo::fromIngredient)
+			.map(IngredientMatchInfo::fromIngredient)
 			.flatMap(Optional::stream)
 			.toList();
-		List<RecipePreferenceIngredientInfo> outputs = layout.get()
+		List<IngredientMatchInfo> outputs = layout.get()
 			.getRecipeSlotsView()
 			.getSlotViews(RecipeIngredientRole.OUTPUT)
 			.stream()
 			.flatMap(slot -> slot.getAllIngredients())
-			.map(RecipePreferenceIngredientInfo::fromIngredient)
+			.map(IngredientMatchInfo::fromIngredient)
 			.flatMap(Optional::stream)
 			.toList();
 		layout.get()
@@ -133,8 +133,8 @@ public final class GeneratedFavoriteRecipeScanner {
 	private void collectSlotOutputs(
 		IRecipeSlotView slot,
 		FocusedRecipe focusedRecipe,
-		List<RecipePreferenceIngredientInfo> inputs,
-		List<RecipePreferenceIngredientInfo> outputs,
+		List<IngredientMatchInfo> inputs,
+		List<IngredientMatchInfo> outputs,
 		Map<BookmarkIngredientKey, OutputRecipeCandidates> recipesByOutput
 	) {
 		slot.getAllIngredients()
@@ -159,8 +159,8 @@ public final class GeneratedFavoriteRecipeScanner {
 
 		private void add(
 			FocusedRecipe recipe,
-			List<RecipePreferenceIngredientInfo> inputs,
-			List<RecipePreferenceIngredientInfo> outputs
+			List<IngredientMatchInfo> inputs,
+			List<IngredientMatchInfo> outputs
 		) {
 			recipes.putIfAbsent(recipe, new RecipePreferenceCandidate(recipe, inputs, outputs));
 		}

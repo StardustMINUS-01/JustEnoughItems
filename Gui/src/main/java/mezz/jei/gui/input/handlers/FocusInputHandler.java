@@ -246,7 +246,7 @@ public class FocusInputHandler implements IUserInputHandler {
 		Minecraft minecraft = Minecraft.getInstance();
 		String text = switch (action) {
 			case COPY_NAME -> IngredientClipboardText.getIngredientName(typedIngredient, ingredientManager);
-			case COPY_OREDICT -> IngredientClipboardText.getIngredientTags(typedIngredient);
+			case COPY_OREDICT -> IngredientClipboardText.getIngredientTags(typedIngredient, ingredientManager);
 			case COPY_ID -> IngredientClipboardText.getIngredientId(typedIngredient, ingredientManager);
 			default -> "";
 		};
