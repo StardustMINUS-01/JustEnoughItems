@@ -430,5 +430,7 @@
   "description.jei.debug.formatting.3": "%s nested",
   "jei.alias.panda.spawn.egg": "endangered",
   "jei.alias.villager.spawn.egg": "HMMM",
-  "jei.bookmark.scrollStep.oneStack": "One Stack"
+  "jei.bookmark.scrollStep.oneStack": "One Stack",
+  "jei.collapsible.group.tooltip": "Grouped (%s items)",
+  "jei.collapsible.toggle.hint": "Alt + Left Click to expand/collapse"
 }

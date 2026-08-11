@@ -407,6 +407,13 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return this.ingredientGrid.getSlots();
 	}
 
+	public List<IngredientListSlot> getAllSlots() {
+		if (!this.active) {
+			return List.of();
+		}
+		return this.ingredientGrid.getAllSlots();
+	}
+
 	public void setSlotVisualsResolver(Function<IngredientListSlotContext, Optional<BookmarkSlotVisuals>> slotVisualsResolver) {
 		this.ingredientGrid.setSlotVisualsResolver(slotVisualsResolver);
 	}

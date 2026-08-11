@@ -20,6 +20,7 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
+import mezz.jei.gui.collapsible.CollapsedGroupElement;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -52,6 +53,8 @@ public class IngredientListRenderer {
 	private final boolean searchable;
 	private Function<IngredientListSlotContext, Optional<BookmarkSlotVisuals>> slotVisualsResolver = context -> Optional.empty();
 	private Optional<IngredientListSlot> hoveredSlot = Optional.empty();
+	private int layoutVersion = 0;
+	private int columnCount = 0;
 
 	private int blocked = 0;
 
@@ -85,6 +88,14 @@ public class IngredientListRenderer {
 	private void addRenderElement(IngredientListSlot ingredientListSlot) {
 		ingredientListSlot.getOptionalElement()
 			.ifPresent(element -> {
+				if (element instanceof CollapsedGroupElement<?> groupElement && groupElement.isCollapsed()) {
+					IDrawable doubleStack = groupElement.createDoubleStackDrawable();
+					if (doubleStack != null) {
+						ImmutableRect2i renderArea = ingredientListSlot.getRenderArea();
+						renderOverlays.add(OffsetDrawable.create(doubleStack, renderArea.x(), renderArea.y()));
+						return;
+					}
+				}
 				ITypedIngredient<?> typedIngredient = element.getTypedIngredient();
 				IIngredientType<?> ingredientType = typedIngredient.getType();
 				ImmutableRect2i renderArea = ingredientListSlot.getRenderArea();
@@ -103,17 +114,27 @@ public class IngredientListRenderer {
 	}
 
 	public int getColumnCount() {
-		return slots.stream()
-			.filter(slot -> !slot.isBlocked())
-			.findFirst()
-			.map(first -> (int) slots.stream()
-				.filter(slot -> !slot.isBlocked())
-				.filter(slot -> slot.getArea().getY() == first.getArea().getY())
-				.count())
-			.orElse(0);
+		int count = 0;
+		Integer firstRowY = null;
+		for (IngredientListSlot slot : slots) {
+			if (slot.isBlocked()) {
+				continue;
+			}
+			int y = slot.getArea().getY();
+			if (firstRowY == null) {
+				firstRowY = y;
+			}
+			if (y == firstRowY) {
+				count++;
+			} else {
+				break;
+			}
+		}
+		return count;
 	}
 
 	public void set(final int startIndex, List<IElement<?>> ingredientList) {
+		this.layoutVersion = 31 * System.identityHashCode(ingredientList) + startIndex;
 		blocked = 0;
 		renderElementsByType.clear();
 		renderOverlays.clear();
@@ -153,6 +174,7 @@ public class IngredientListRenderer {
 
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		this.hoveredSlot = findHoveredSlot(mouseX, mouseY);
+		this.columnCount = getColumnCount();
 		renderSlotBackgrounds(guiGraphics);
 		renderSlotBorders(guiGraphics);
 
@@ -314,9 +336,16 @@ public class IngredientListRenderer {
 			slotIndex,
 			hoveredSlotIndex,
 			getRowIndex(slot),
-			hoveredSlot.map(this::getRowIndex).orElse(-1)
+			hoveredSlot.map(this::getRowIndex).orElse(-1),
+			columnCount,
+			slots.size(),
+			layoutVersion
 		);
 		return slotVisualsResolver.apply(context);
+	}
+
+	public List<IngredientListSlot> getAllSlots() {
+		return List.copyOf(slots);
 	}
 
 	private int getRowIndex(IngredientListSlot slot) {

@@ -10,7 +10,10 @@ public record IngredientListSlotContext(
 	int slotIndex,
 	int hoveredSlotIndex,
 	int rowIndex,
-	int hoveredRowIndex
+	int hoveredRowIndex,
+	int columnCount,
+	int slotCount,
+	int layoutVersion
 ) {
 	public IngredientListSlotContext {
 		hoveredElement = hoveredElement == null ? Optional.empty() : hoveredElement;

@@ -412,5 +412,7 @@
   "description.jei.debug.formatting.3": "%s嵌套测试",
   "jei.alias.panda.spawn.egg": "濒危物种",
   "jei.alias.villager.spawn.egg": "HMMM",
-  "jei.bookmark.scrollStep.oneStack": "一组"
+  "jei.bookmark.scrollStep.oneStack": "一组",
+  "jei.collapsible.group.tooltip": "组内 %s 件物品",
+  "jei.collapsible.toggle.hint": "Alt + 左键 展开/折叠"
 }
