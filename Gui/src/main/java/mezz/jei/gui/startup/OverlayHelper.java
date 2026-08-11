@@ -16,12 +16,16 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.collapsible.CollapsibleGridSource;
+import mezz.jei.gui.collapsible.CollapsibleManager;
+import mezz.jei.gui.collapsible.CollapsibleSlotVisualsProvider;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipeGridSource;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
+import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.ingredients.IngredientGrid;
 import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
@@ -99,11 +103,13 @@ public final class OverlayHelper {
 		IConnectionToServer serverConnection,
 		IIngredientFilterConfig ingredientFilterConfig,
 		Textures textures,
-		IColorHelper colorHelper
+		IColorHelper colorHelper,
+		CollapsibleManager collapsibleManager
 	) {
+		CollapsibleGridSource collapsibleGridSource = new CollapsibleGridSource(ingredientFilter, collapsibleManager);
 		IngredientGridWithNavigation ingredientListGridNavigation = createIngredientGridWithNavigation(
 			"IngredientListOverlay",
-			ingredientFilter,
+			collapsibleGridSource,
 			ingredientManager,
 			ingredientGridConfig,
 			textures.getIngredientListBackground(),
@@ -118,6 +124,21 @@ public final class OverlayHelper {
 			screenHelper,
 			true
 		);
+		CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider =
+			new CollapsibleSlotVisualsProvider(
+				ingredientListGridNavigation::getAllSlots,
+				collapsibleManager::settings
+			);
+		ingredientListGridNavigation.setSlotVisualsResolver(collapsibleSlotVisualsProvider::apply);
+		collapsibleGridSource.addSourceListChangedListener(collapsibleSlotVisualsProvider::invalidate);
+		collapsibleManager.state().addListener(() -> {
+			collapsibleSlotVisualsProvider.invalidate();
+			String groupId = collapsibleManager.getLastToggledGroupId();
+			if (groupId != null) {
+				IElement<?> anchor = collapsibleGridSource.getAnchorElementForGroup(groupId);
+				ingredientListGridNavigation.updateLayoutKeepingPageAnchorVisible(anchor);
+			}
+		});
 
 		LookupHistoryOverlay lookupHistoryOverlay = new LookupHistoryOverlay(
 			ingredientManager,
@@ -137,7 +158,7 @@ public final class OverlayHelper {
 		);
 
 		return new IngredientListOverlay(
-			ingredientFilter,
+			collapsibleGridSource,
 			filterTextSource,
 			screenHelper,
 			ingredientListGridNavigation,

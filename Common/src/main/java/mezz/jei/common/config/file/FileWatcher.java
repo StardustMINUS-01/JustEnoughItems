@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Predicate;
 
 public class FileWatcher {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -34,6 +35,18 @@ public class FileWatcher {
 	public void addCallback(Path path, Runnable callback) {
 		if (thread != null) {
 			thread.addCallback(path, callback);
+		}
+	}
+
+	/**
+	 * @param directory      a config directory to watch
+	 * @param filenameFilter a filter for file names inside the directory
+	 * @param callback       a callback to call when a matching file changes.
+	 *                       Callbacks must be thread-safe, they will be called from a watcher callback thread.
+	 */
+	public void addDirectoryCallback(Path directory, Predicate<Path> filenameFilter, Runnable callback) {
+		if (thread != null) {
+			thread.addDirectoryCallback(directory, filenameFilter, callback);
 		}
 	}
 
