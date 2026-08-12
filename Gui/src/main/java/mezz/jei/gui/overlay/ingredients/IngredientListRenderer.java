@@ -117,9 +117,6 @@ public class IngredientListRenderer {
 		int count = 0;
 		Integer firstRowY = null;
 		for (IngredientListSlot slot : slots) {
-			if (slot.isBlocked()) {
-				continue;
-			}
 			int y = slot.getArea().getY();
 			if (firstRowY == null) {
 				firstRowY = y;
@@ -133,8 +130,16 @@ public class IngredientListRenderer {
 		return count;
 	}
 
+	public int getLayoutVersion() {
+		return layoutVersion;
+	}
+
 	public void set(final int startIndex, List<IElement<?>> ingredientList) {
-		this.layoutVersion = 31 * System.identityHashCode(ingredientList) + startIndex;
+		// This is the only entry point that assigns elements to slots.
+		// CollapsibleSlotVisualsProvider relies on the layout version changing
+		// whenever elements are reassigned; any new path that changes slot
+		// elements must bump the version here as well.
+		this.layoutVersion++;
 		blocked = 0;
 		renderElementsByType.clear();
 		renderOverlays.clear();
