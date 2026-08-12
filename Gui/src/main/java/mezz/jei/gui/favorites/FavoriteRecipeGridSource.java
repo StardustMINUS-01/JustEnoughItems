@@ -139,9 +139,13 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	private List<IElement<?>> createRecipeRows(RecipeRowsKey key) {
 		List<IElement<?>> rows = new ArrayList<>();
+		BookmarkRowLayout.RowLayout rowLayout = BookmarkRowLayout.RowLayout.create(
+			key.columns(),
+			key.usableColumnsPerRow()
+		);
 		int position = 0;
 		for (FavoriteRecipeStore.Entry entry : store.entries()) {
-			position = createRecipeRow(entry, key.columns(), key.usableColumnsPerRow(), rows, position);
+			position = createRecipeRow(entry, rowLayout, rows, position);
 		}
 		return List.copyOf(rows);
 	}
@@ -215,8 +219,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	private int createRecipeRow(
 		FavoriteRecipeStore.Entry entry,
-		int columns,
-		List<Integer> usableColumnsPerRow,
+		BookmarkRowLayout.RowLayout rowLayout,
 		List<IElement<?>> rows,
 		int position
 	) {
@@ -224,12 +227,12 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		if (target.isEmpty()) {
 			return position;
 		}
-		position = BookmarkRowLayout.rowStart(position, columns, usableColumnsPerRow);
+		position = BookmarkRowLayout.rowStart(position, rowLayout);
 		IElement<?> targetElement = target.get().element();
 		rows.add(targetElement);
 		position++;
 		if (panelState.isRecipeRowCollapsed(entry.recipe())) {
-			int rowEnd = BookmarkRowLayout.nextRowStart(position - 1, columns, usableColumnsPerRow);
+			int rowEnd = BookmarkRowLayout.nextRowStart(position - 1, rowLayout);
 			while (position < rowEnd) {
 				rows.add(LayoutPlaceholderElement.INSTANCE);
 				position++;
@@ -248,7 +251,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			rows.add(inputElement);
 			position++;
 		}
-		while (!BookmarkRowLayout.isRowStart(position, columns, usableColumnsPerRow)) {
+		while (!BookmarkRowLayout.isRowStart(position, rowLayout)) {
 			rows.add(LayoutPlaceholderElement.INSTANCE);
 			position++;
 		}

@@ -45,6 +45,7 @@ public final class BookmarkDisplayGenerator {
 	) {
 		List<BookmarkDisplaySlot<T>> displaySlots = new ArrayList<>();
 		Set<ResourceLocation> emittedBlocks = new java.util.HashSet<>();
+		BookmarkRowLayout.RowLayout rowLayout = BookmarkRowLayout.RowLayout.create(columns, usableColumnsPerRow);
 		for (int sourceIndex = 0; sourceIndex < orderedItems.size(); sourceIndex++) {
 			T item = orderedItems.get(sourceIndex);
 			BookmarkItemMetadata metadata = metadataGetter.apply(item);
@@ -58,7 +59,7 @@ public final class BookmarkDisplayGenerator {
 				ResourceLocation blockRoot = details.itemToRecipe().get(sourceIndex);
 				if (blockRoot != null) {
 					if (emittedBlocks.add(blockRoot)) {
-						addCollapsedBlock(displaySlots, orderedItems, blockRoot, details, group, columns, usableColumnsPerRow);
+						addCollapsedBlock(displaySlots, orderedItems, blockRoot, details, group, rowLayout);
 					}
 					continue;
 				}
@@ -68,22 +69,21 @@ public final class BookmarkDisplayGenerator {
 				if (isCatalystInCollapsedClosure(group, details, metadata)) {
 					continue;
 				}
-				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, columns, usableColumnsPerRow);
+				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, rowLayout);
 			} else if (group == null || group.viewMode() != BookmarkViewMode.COLLAPSED ||
 				BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns, usableColumnsPerRow);
+				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			} else if (isResultOnlyGroupOutput(metadata)) {
-				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns, usableColumnsPerRow);
+				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			}
 		}
-		return attachBorders(displaySlots, groups, columns, usableColumnsPerRow);
+		return attachBorders(displaySlots, groups, rowLayout);
 	}
 
 	private static <T> List<BookmarkDisplaySlot<T>> attachBorders(
 		List<BookmarkDisplaySlot<T>> displaySlots,
 		Map<String, BookmarkGroup> groups,
-		int columns,
-		List<Integer> usableColumnsPerRow
+		BookmarkRowLayout.RowLayout rowLayout
 	) {
 		if (displaySlots.isEmpty()) {
 			return List.copyOf(displaySlots);
@@ -106,14 +106,14 @@ public final class BookmarkDisplayGenerator {
 				borderedSlots.add(slot);
 				continue;
 			}
-			int above = BookmarkRowLayout.above(slotIndex, columns, usableColumnsPerRow);
-			int below = BookmarkRowLayout.below(slotIndex, columns, usableColumnsPerRow);
+			int above = BookmarkRowLayout.above(slotIndex, rowLayout);
+			int below = BookmarkRowLayout.below(slotIndex, rowLayout);
 			BookmarkDisplayEntry<T> entry = slot.entry().withBorder(new BookmarkSlotBorder(
 				getBorderColor(slot.entry(), groups),
-				!key.equals(borderKeys.get(slotIndex - 1)),
-				!key.equals(borderKeys.get(slotIndex + 1)),
-				columns > 0 && !key.equals(above >= 0 ? borderKeys.get(above) : null),
-				columns > 0 && !key.equals(below >= 0 ? borderKeys.get(below) : null)
+				(rowLayout.columns() > 0 && BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) || !key.equals(borderKeys.get(slotIndex - 1)),
+				(rowLayout.columns() > 0 && BookmarkRowLayout.isRowEnd(slotIndex, rowLayout)) || !key.equals(borderKeys.get(slotIndex + 1)),
+				rowLayout.columns() > 0 && !key.equals(above >= 0 ? borderKeys.get(above) : null),
+				rowLayout.columns() > 0 && !key.equals(below >= 0 ? borderKeys.get(below) : null)
 			));
 			borderedSlots.add(new BookmarkDisplaySlot<>(slotIndex, entry, slot.shadow(), slot.firstOutput()));
 		}
@@ -164,8 +164,7 @@ public final class BookmarkDisplayGenerator {
 		ResourceLocation blockRoot,
 		RecipeChainDetails details,
 		BookmarkGroup group,
-		int columns,
-		List<Integer> usableColumnsPerRow
+		BookmarkRowLayout.RowLayout rowLayout
 	) {
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(blockRoot);
 		if (block == null) {
@@ -194,7 +193,7 @@ public final class BookmarkDisplayGenerator {
 				blockRoot,
 				null
 			);
-			addDisplaySlot(displaySlots, entry, !anchor, columns, usableColumnsPerRow);
+			addDisplaySlot(displaySlots, entry, !anchor, rowLayout);
 		}
 	}
 
@@ -217,41 +216,39 @@ public final class BookmarkDisplayGenerator {
 		BookmarkItemMetadata metadata,
 		BookmarkGroup group,
 		RecipeChainDetails details,
-		int columns,
-		List<Integer> usableColumnsPerRow
+		BookmarkRowLayout.RowLayout rowLayout
 	) {
 		RecipeChainItem chainItem = details.calculatedItems().get(sourceIndex);
 		if (chainItem == null) {
 			if (metadata.type().isCatalyst() || metadata.type() == BookmarkItemType.ITEM) {
-				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, columns, usableColumnsPerRow);
+				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			}
 			return;
 		}
 		if (group.viewMode() != BookmarkViewMode.TODO_LIST && metadata.type().isGraphInput()) {
 			return;
 		}
-		addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem), false, columns, usableColumnsPerRow);
+		addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem), false, rowLayout);
 	}
 
 	private static <T> void addDisplaySlot(
 		List<BookmarkDisplaySlot<T>> displaySlots,
 		BookmarkDisplayEntry<T> entry,
 		boolean shadow,
-		int columns,
-		List<Integer> usableColumnsPerRow
+		BookmarkRowLayout.RowLayout rowLayout
 	) {
 		if (!displaySlots.isEmpty()) {
-			int slotIndex = nextSlotIndex(displaySlots, entry, columns, usableColumnsPerRow);
-			if (entry.viewMode() == BookmarkViewMode.COLLAPSED && columns > 0) {
+			int slotIndex = nextSlotIndex(displaySlots, entry, rowLayout);
+			if (entry.viewMode() == BookmarkViewMode.COLLAPSED && rowLayout.columns() > 0) {
 				BookmarkDisplaySlot<T> previousSlot = displaySlots.get(displaySlots.size() - 1);
 				boolean sameGroup = previousSlot.entry().metadata().groupId().equals(entry.metadata().groupId());
-				if (sameGroup && BookmarkRowLayout.isRowStart(slotIndex, columns, usableColumnsPerRow)) {
+				if (sameGroup && BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
 					return;
 				}
 			}
 		}
 		displaySlots.add(new BookmarkDisplaySlot<>(
-			nextSlotIndex(displaySlots, entry, columns, usableColumnsPerRow),
+			nextSlotIndex(displaySlots, entry, rowLayout),
 			entry,
 			shadow,
 			isFirstOutput(displaySlots, entry)
@@ -261,8 +258,7 @@ public final class BookmarkDisplayGenerator {
 	private static <T> int nextSlotIndex(
 		List<BookmarkDisplaySlot<T>> displaySlots,
 		BookmarkDisplayEntry<T> entry,
-		int columns,
-		List<Integer> usableColumnsPerRow
+		BookmarkRowLayout.RowLayout rowLayout
 	) {
 		if (displaySlots.isEmpty()) {
 			return 0;
@@ -270,19 +266,19 @@ public final class BookmarkDisplayGenerator {
 		BookmarkDisplaySlot<T> previousSlot = displaySlots.get(displaySlots.size() - 1);
 		BookmarkDisplayEntry<T> previous = previousSlot.entry();
 		int slotIndex = previousSlot.slotIndex() + 1;
-		if (columns <= 0) {
+		if (rowLayout.columns() <= 0) {
 			return slotIndex;
 		}
 		String previousGroupId = previous.metadata().groupId();
 		String groupId = entry.metadata().groupId();
-		if (!previousGroupId.equals(groupId) && !BookmarkRowLayout.isRowStart(slotIndex, columns, usableColumnsPerRow)) {
-			slotIndex = BookmarkRowLayout.nextRowStart(slotIndex, columns, usableColumnsPerRow);
+		if (!previousGroupId.equals(groupId) && !BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
+			slotIndex = BookmarkRowLayout.nextRowStart(slotIndex, rowLayout);
 		}
 		if (entry.viewMode() != BookmarkViewMode.TODO_LIST) {
 			return slotIndex;
 		}
 		while (true) {
-			boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, columns, usableColumnsPerRow);
+			boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, rowLayout);
 			if (firstColumn && startsRecipeRow(previous, entry)) {
 				return slotIndex;
 			}

@@ -1,11 +1,13 @@
 package mezz.jei.test.gui.bookmarks;
 
 import mezz.jei.gui.bookmarks.BookmarkDisplayGenerator;
+import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
@@ -16,6 +18,8 @@ import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -456,6 +460,65 @@ public class BookmarkDisplayGeneratorTest {
 
 		Assertions.assertEquals(List.of("plate"), slots.stream().map(slot -> slot.entry().item()).toList());
 		Assertions.assertNull(slots.get(0).entry().border());
+	}
+
+	@Test
+	public void collapsedBlockBorderFollowsLShapedRows() {
+		ResourceLocation recipeA = ResourceLocation.parse("test:a");
+		List<String> orderedItems = new ArrayList<>(List.of("out_a"));
+		Map<String, BookmarkItemMetadata> metadata = new HashMap<>();
+		metadata.put("out_a", metadata(BookmarkItemType.RESULT, recipeA, "out_a", 1, 1));
+		for (int i = 1; i <= 10; i++) {
+			String item = "in_" + i;
+			orderedItems.add(item);
+			metadata.put(item, metadata(BookmarkItemType.INGREDIENT, recipeA, item, 1, 1));
+		}
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
+		List<Integer> usableColumnsPerRow = List.of(2, 2, 3, 3, 3);
+
+		var slots = BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details),
+			3,
+			usableColumnsPerRow
+		);
+
+		List<BookmarkDisplaySlot<String>> bordered = slots.stream()
+			.filter(slot -> slot.entry().border() != null)
+			.toList();
+		Assertions.assertFalse(bordered.isEmpty());
+		for (BookmarkDisplaySlot<String> slot : bordered) {
+			int index = slot.slotIndex();
+			BookmarkSlotBorder border = slot.entry().border();
+			boolean left = BookmarkRowLayout.isRowStart(index, 3, usableColumnsPerRow) ||
+				!bordered.contains(slotAt(slots, index - 1));
+			boolean right = BookmarkRowLayout.isRowEnd(index, 3, usableColumnsPerRow) ||
+				!bordered.contains(slotAt(slots, index + 1));
+			int above = BookmarkRowLayout.above(index, 3, usableColumnsPerRow);
+			int below = BookmarkRowLayout.below(index, 3, usableColumnsPerRow);
+			Assertions.assertEquals(left, border.left(), "left of slot " + index);
+			Assertions.assertEquals(right, border.right(), "right of slot " + index);
+			Assertions.assertEquals(
+				above < 0 || !bordered.contains(slotAt(slots, above)),
+				border.top(),
+				"top of slot " + index
+			);
+			Assertions.assertEquals(
+				below < 0 || !bordered.contains(slotAt(slots, below)),
+				border.bottom(),
+				"bottom of slot " + index
+			);
+		}
+	}
+
+	private static BookmarkDisplaySlot<String> slotAt(List<BookmarkDisplaySlot<String>> slots, int index) {
+		return slots.stream()
+			.filter(slot -> slot.slotIndex() == index)
+			.findFirst()
+			.orElse(null);
 	}
 
 	@Test
