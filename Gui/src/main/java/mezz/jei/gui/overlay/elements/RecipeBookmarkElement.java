@@ -202,10 +202,13 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			return false;
 		}
 
+		if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) {
+			return false;
+		}
 		return BookmarkGhostOverlayActivator.activate(
 			input,
 			recipeLayout,
-			BookmarkGhostOverlayActivator.getCurrentOrParentContainerMenu(screen),
+			containerScreen,
 			() -> BookmarkGhostOverlayActivator.closeRecipeGui(screen),
 			getBookmarkQuantity()
 		);

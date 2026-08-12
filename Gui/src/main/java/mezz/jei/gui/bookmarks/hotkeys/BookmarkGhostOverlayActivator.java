@@ -65,6 +65,28 @@ public final class BookmarkGhostOverlayActivator {
 	public static boolean activate(
 		UserInput input,
 		IRecipeLayoutDrawable<?> recipeLayout,
+		AbstractContainerScreen<?> containerScreen,
+		Runnable onActivated,
+		OptionalInt bookmarkQuantity
+	) {
+		IConnectionToServer serverConnection = Internal.getServerConnection();
+		return activate(
+			input,
+			recipeLayout,
+			containerScreen,
+			onActivated,
+			bookmarkQuantity,
+			InputModifiers.hasShift(input),
+			InputModifiers.hasControl(input),
+			JeiClientSoundUtil::playClickSound,
+			serverConnection::sendPacketToServer,
+			serverConnection.isJeiOnServer()
+		);
+	}
+
+	public static boolean activate(
+		UserInput input,
+		IRecipeLayoutDrawable<?> recipeLayout,
 		@Nullable AbstractContainerMenu containerMenu,
 		Runnable onActivated,
 		boolean hasShift,
@@ -88,8 +110,64 @@ public final class BookmarkGhostOverlayActivator {
 		if (containerMenu == null) {
 			return false;
 		}
+		return activate(
+			input,
+			recipeLayout,
+			BookmarkGhostOverlayTargetSlots.fromMenu(containerMenu),
+			containerMenu,
+			onActivated,
+			bookmarkQuantity,
+			hasShift,
+			hasControl,
+			playClickSound,
+			packetSender,
+			hasServerSupport
+		);
+	}
 
-		List<BookmarkGhostOverlay.TargetSlot> targetSlots = BookmarkGhostOverlayTargetSlots.fromMenu(containerMenu);
+	public static boolean activate(
+		UserInput input,
+		IRecipeLayoutDrawable<?> recipeLayout,
+		AbstractContainerScreen<?> containerScreen,
+		Runnable onActivated,
+		OptionalInt bookmarkQuantity,
+		boolean hasShift,
+		boolean hasControl,
+		Runnable playClickSound,
+		Consumer<PlayToServerPacket> packetSender,
+		boolean hasServerSupport
+	) {
+		if (containerScreen == null) {
+			return false;
+		}
+		return activate(
+			input,
+			recipeLayout,
+			BookmarkGhostOverlayTargetSlots.fromScreen(containerScreen),
+			containerScreen.getMenu(),
+			onActivated,
+			bookmarkQuantity,
+			hasShift,
+			hasControl,
+			playClickSound,
+			packetSender,
+			hasServerSupport
+		);
+	}
+
+	private static boolean activate(
+		UserInput input,
+		IRecipeLayoutDrawable<?> recipeLayout,
+		List<BookmarkGhostOverlay.TargetSlot> targetSlots,
+		AbstractContainerMenu containerMenu,
+		Runnable onActivated,
+		OptionalInt bookmarkQuantity,
+		boolean hasShift,
+		boolean hasControl,
+		Runnable playClickSound,
+		Consumer<PlayToServerPacket> packetSender,
+		boolean hasServerSupport
+	) {
 		if (targetSlots.isEmpty()) {
 			return false;
 		}
