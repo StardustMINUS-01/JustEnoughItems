@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class FavoriteRecipeStoreTest {
 	private static final BookmarkIngredientKey IRON_PICKAXE = target("minecraft:iron_pickaxe");
@@ -110,6 +111,30 @@ public class FavoriteRecipeStoreTest {
 
 		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getFavorite(IRON_PICKAXE).orElseThrow());
 		Assertions.assertTrue(store.getManualFavorite(IRON_PICKAXE).isEmpty());
+	}
+
+	@Test
+	public void generatedFavoriteResolverIsConsultedOnMissAndResultIsStored() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		int[] invocations = {0};
+		store.setGeneratedFavoriteResolver(key -> {
+			invocations[0]++;
+			return Optional.of(IRON_PICKAXE_RECIPE);
+		});
+
+		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getGeneratedFavorite(IRON_PICKAXE).orElseThrow());
+		Assertions.assertEquals(IRON_PICKAXE_RECIPE, store.getGeneratedFavorite(IRON_PICKAXE).orElseThrow());
+
+		Assertions.assertEquals(1, invocations[0]);
+	}
+
+	@Test
+	public void generatedFavoriteResolverEmptyResultIsNotStored() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		store.setGeneratedFavoriteResolver(key -> Optional.empty());
+
+		Assertions.assertTrue(store.getGeneratedFavorite(IRON_PICKAXE).isEmpty());
+		Assertions.assertTrue(store.getFavorite(IRON_PICKAXE).isEmpty());
 	}
 
 	@Test

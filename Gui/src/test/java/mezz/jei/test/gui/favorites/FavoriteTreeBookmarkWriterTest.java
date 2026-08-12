@@ -37,12 +37,12 @@ public class FavoriteTreeBookmarkWriterTest {
 		store.setGeneratedFavorite(key("dust"), DUST_RECIPE);
 		Map<FocusedRecipe, FavoriteTreeBuilder.ResolvedRecipe> graph = new LinkedHashMap<>();
 		graph.put(ROOT, resolved(ROOT, rootLayout,
-			new FavoriteTreeBuilder.ResolvedInput(0, key("ingot"), List.of(key("ingot"))),
-			new FavoriteTreeBuilder.ResolvedInput(1, key("stained"), List.of(key("stained"), key("glass"), key("stained")))
+			new FavoriteTreeBuilder.ResolvedInput(0, key("ingot"), List.of(key("ingot")), List.of()),
+			new FavoriteTreeBuilder.ResolvedInput(1, key("stained"), List.of(key("stained"), key("glass"), key("stained")), List.of())
 		));
 		graph.put(PLATE, resolved(PLATE, plateLayout,
-			new FavoriteTreeBuilder.ResolvedInput(0, key("dust"), List.of(key("dust"))),
-			new FavoriteTreeBuilder.ResolvedInput(1, key("stained"), List.of(key("stained"), key("glass"), key("stained")))
+			new FavoriteTreeBuilder.ResolvedInput(0, key("dust"), List.of(key("dust")), List.of()),
+			new FavoriteTreeBuilder.ResolvedInput(1, key("stained"), List.of(key("stained"), key("glass"), key("stained")), List.of())
 		));
 		graph.put(WHITE_RECIPE, resolved(WHITE_RECIPE, whiteLayout));
 		graph.put(DUST_RECIPE, resolved(DUST_RECIPE, dustLayout));

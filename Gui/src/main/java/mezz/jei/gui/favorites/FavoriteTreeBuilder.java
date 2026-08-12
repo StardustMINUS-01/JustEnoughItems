@@ -1,6 +1,7 @@
 package mezz.jei.gui.favorites;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.FocusedRecipe;
 import org.jetbrains.annotations.Nullable;
@@ -137,9 +138,7 @@ public final class FavoriteTreeBuilder {
 				selectedKey = Optional.of(manualKey);
 				selectedRecipe = favoriteRecipes.getManualFavorite(manualKey);
 			} else {
-				Optional<FocusedRecipe> ruleRecipe = slotRuleResolver == null ?
-					Optional.empty() :
-					slotRuleResolver.resolveSlot(permutations);
+				Optional<FocusedRecipe> ruleRecipe = resolveSlotRule(input);
 				if (ruleRecipe.isPresent()) {
 					selectedKey = Optional.of(displayedKey);
 					selectedRecipe = ruleRecipe;
@@ -166,6 +165,21 @@ public final class FavoriteTreeBuilder {
 		);
 	}
 
+	private Optional<FocusedRecipe> resolveSlotRule(ResolvedInput input) {
+		if (slotRuleResolver == null) {
+			return Optional.empty();
+		}
+		List<BookmarkIngredientKey> permutations = input.normalizedPermutationKeys();
+		List<ITypedIngredient<?>> ingredients = input.permutationIngredients();
+		List<SlotVariant> slotVariants = new ArrayList<>(permutations.size());
+		for (int i = 0; i < permutations.size(); i++) {
+			if (i < ingredients.size()) {
+				slotVariants.add(new SlotVariant(permutations.get(i), ingredients.get(i)));
+			}
+		}
+		return slotRuleResolver.resolveSlot(slotVariants);
+	}
+
 	@FunctionalInterface
 	public interface RecipeResolver {
 		Optional<ResolvedRecipe> resolve(FocusedRecipe recipe);
@@ -189,11 +203,13 @@ public final class FavoriteTreeBuilder {
 	public record ResolvedInput(
 		int inputSlotIndex,
 		BookmarkIngredientKey displayedKey,
-		List<BookmarkIngredientKey> permutationKeys
+		List<BookmarkIngredientKey> permutationKeys,
+		List<ITypedIngredient<?>> permutationIngredients
 	) {
 		public ResolvedInput {
 			inputSlotIndex = Math.max(0, inputSlotIndex);
 			permutationKeys = permutationKeys == null ? List.of() : List.copyOf(permutationKeys);
+			permutationIngredients = permutationIngredients == null ? List.of() : List.copyOf(permutationIngredients);
 		}
 
 		private List<BookmarkIngredientKey> normalizedPermutationKeys() {

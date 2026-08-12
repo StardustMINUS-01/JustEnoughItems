@@ -82,7 +82,12 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 		List<BookmarkIngredientKey> permutationKeys = ingredients.stream()
 			.map(this::createKey)
 			.toList();
-		return Optional.of(new FavoriteTreeBuilder.ResolvedInput(inputSlotIndex, displayedKey, permutationKeys));
+		return Optional.of(new FavoriteTreeBuilder.ResolvedInput(
+			inputSlotIndex,
+			displayedKey,
+			permutationKeys,
+			ingredients
+		));
 	}
 
 	private BookmarkIngredientKey createKey(ITypedIngredient<?> ingredient) {

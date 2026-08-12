@@ -54,7 +54,7 @@ import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
 import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
-import mezz.jei.gui.favorites.GeneratedFavoriteRecipeScanner;
+import mezz.jei.gui.favorites.RecipePreferenceCandidateResolver;
 import mezz.jei.gui.favorites.SlotPreferenceResolver;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.filter.FilterTextSource;
@@ -293,24 +293,24 @@ public class JeiGuiStarter {
 			focusFactory,
 			ingredientManager
 		);
-		GeneratedFavoriteRecipeScanner generatedFavoriteRecipeScanner = new GeneratedFavoriteRecipeScanner(
+		AtomicReference<RecipePreferenceRules> recipePreferenceRulesRef = new AtomicReference<>(recipePreferenceRules);
+		RecipePreferenceCandidateResolver recipePreferenceCandidateResolver = RecipePreferenceCandidateResolver.create(
 			recipeManager,
 			focusFactory,
-			ingredientManager
+			ingredientManager,
+			recipePreferenceRulesRef::get
 		);
-		AtomicReference<RecipePreferenceRules> recipePreferenceRulesRef = new AtomicReference<>(recipePreferenceRules);
-		// The first scan must run after the JEI runtime is created (Internal.setRuntime happens
-		// after the registerRuntime callback returns). Building recipe layouts earlier fails with
-		// "Jei Runtime has not been created yet", which empties the generated favorites.
-		Minecraft.getInstance().execute(() ->
-			generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, recipePreferenceRulesRef.get())
-		);
+		// Recipe preference data used to require a delayed first full scan after the JEI runtime
+		// was created (Internal.setRuntime happens after the registerRuntime callback returns);
+		// it is now resolved on demand, so no scan is needed.
+		favoriteRecipes.setGeneratedFavoriteResolver(recipePreferenceCandidateResolver::resolveGeneratedFavorite);
 		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
 			recipePreferenceConfig::loadRules,
 			minecraft::execute,
 			rules -> {
 				recipePreferenceRulesRef.set(rules);
-				generatedFavoriteRecipeScanner.rebuild(favoriteRecipes, rules);
+				favoriteRecipes.clearGeneratedFavorites();
+				recipePreferenceCandidateResolver.invalidateGeneratedFavorites();
 			}
 		);
 		Internal.getFileWatcher().addCallback(
@@ -340,7 +340,7 @@ public class JeiGuiStarter {
 			new FavoriteTreeBuilder(
 				favoriteRecipes,
 				favoriteTreeRecipeResolver,
-				new SlotPreferenceResolver(generatedFavoriteRecipeScanner, recipePreferenceRulesRef::get)
+				new SlotPreferenceResolver(recipePreferenceCandidateResolver, recipePreferenceRulesRef::get)
 			),
 			favoriteTreeRecipeResolver::resolveLayout,
 			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
@@ -415,7 +415,11 @@ public class JeiGuiStarter {
 		);
 		ResourceReloadHandler resourceReloadHandler = new ResourceReloadHandler(
 			ingredientListOverlay,
-			ingredientFilter
+			ingredientFilter,
+			() -> {
+				favoriteRecipes.clearGeneratedFavorites();
+				recipePreferenceCandidateResolver.invalidateAll();
+			}
 		);
 
 		return new JeiEventHandlers(

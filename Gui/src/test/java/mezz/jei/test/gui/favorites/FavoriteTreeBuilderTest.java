@@ -603,7 +603,7 @@ public class FavoriteTreeBuilderTest {
 			List.of(permutations).stream()
 				.map(FavoriteTreeBuilderTest::key)
 				.toList();
-		return new FavoriteTreeBuilder.ResolvedInput(inputSlotIndex, key(displayed), permutationKeys);
+		return new FavoriteTreeBuilder.ResolvedInput(inputSlotIndex, key(displayed), permutationKeys, List.of());
 	}
 
 	private static List<FocusedRecipe> recipes(FavoriteTreeBuilder.FavoriteTreeResult result) {

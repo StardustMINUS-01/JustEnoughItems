@@ -3,12 +3,14 @@ package mezz.jei.gui.favorites;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.input.FocusedRecipe;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 public class FavoriteRecipeStore {
 	private final Map<BookmarkIngredientKey, FocusedRecipe> recipesByTarget = new LinkedHashMap<>();
@@ -17,6 +19,13 @@ public class FavoriteRecipeStore {
 	private final Map<BookmarkIngredientKey, FocusedRecipe> generatedRecipesByTarget = new LinkedHashMap<>();
 	private final Map<FocusedRecipe, BookmarkIngredientKey> generatedTargetsByRecipe = new LinkedHashMap<>();
 	private final List<IIngredientGridSource.SourceListChangedListener> listeners = new ArrayList<>();
+	private @Nullable Function<BookmarkIngredientKey, Optional<FocusedRecipe>> generatedFavoriteResolver;
+
+	public void setGeneratedFavoriteResolver(
+		@Nullable Function<BookmarkIngredientKey, Optional<FocusedRecipe>> generatedFavoriteResolver
+	) {
+		this.generatedFavoriteResolver = generatedFavoriteResolver;
+	}
 
 	public void setFavorite(BookmarkIngredientKey target, FocusedRecipe recipe, Map<Integer, FavoriteSlotInput> inputs) {
 		removeFavorite(target);
@@ -81,7 +90,18 @@ public class FavoriteRecipeStore {
 	}
 
 	public Optional<FocusedRecipe> getGeneratedFavorite(BookmarkIngredientKey target) {
-		return Optional.ofNullable(generatedRecipesByTarget.get(target));
+		Optional<FocusedRecipe> cached = Optional.ofNullable(generatedRecipesByTarget.get(target));
+		if (cached.isPresent()) {
+			return cached;
+		}
+		if (generatedFavoriteResolver == null) {
+			return Optional.empty();
+		}
+		Optional<FocusedRecipe> resolved = generatedFavoriteResolver.apply(target);
+		if (resolved.isPresent()) {
+			setGeneratedFavorite(target, resolved.get());
+		}
+		return resolved;
 	}
 
 	public Optional<FocusedRecipe> getFavorite(BookmarkIngredientKey target) {
