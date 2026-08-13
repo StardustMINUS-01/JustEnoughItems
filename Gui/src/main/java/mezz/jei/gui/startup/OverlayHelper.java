@@ -38,6 +38,7 @@ import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.bookmarks.FavoriteRecipeSlotVisuals;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
 import net.minecraft.client.gui.screens.Screen;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -104,12 +105,17 @@ public final class OverlayHelper {
 		IIngredientFilterConfig ingredientFilterConfig,
 		Textures textures,
 		IColorHelper colorHelper,
-		CollapsibleManager collapsibleManager
+		@Nullable CollapsibleManager collapsibleManager
 	) {
-		CollapsibleGridSource collapsibleGridSource = new CollapsibleGridSource(ingredientFilter, collapsibleManager);
+		IIngredientGridSource gridSource = ingredientFilter;
+		CollapsibleGridSource collapsibleGridSource = null;
+		if (collapsibleManager != null) {
+			collapsibleGridSource = new CollapsibleGridSource(ingredientFilter, collapsibleManager);
+			gridSource = collapsibleGridSource;
+		}
 		IngredientGridWithNavigation ingredientListGridNavigation = createIngredientGridWithNavigation(
 			"IngredientListOverlay",
-			collapsibleGridSource,
+			gridSource,
 			ingredientManager,
 			ingredientGridConfig,
 			textures.getIngredientListBackground(),
@@ -124,21 +130,24 @@ public final class OverlayHelper {
 			screenHelper,
 			true
 		);
-		CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider =
-			new CollapsibleSlotVisualsProvider(
-				ingredientListGridNavigation::getAllSlots,
-				collapsibleManager::settings
-			);
-		ingredientListGridNavigation.setSlotVisualsResolver(collapsibleSlotVisualsProvider::apply);
-		collapsibleGridSource.addSourceListChangedListener(collapsibleSlotVisualsProvider::invalidate);
-		collapsibleManager.state().addListener(() -> {
-			collapsibleSlotVisualsProvider.invalidate();
-			String groupId = collapsibleManager.getLastToggledGroupId();
-			if (groupId != null) {
-				IElement<?> anchor = collapsibleGridSource.getAnchorElementForGroup(groupId);
-				ingredientListGridNavigation.updateLayoutKeepingPageAnchorVisible(anchor);
-			}
-		});
+		if (collapsibleManager != null && collapsibleGridSource != null) {
+			CollapsibleGridSource activeCollapsibleGridSource = collapsibleGridSource;
+			CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider =
+				new CollapsibleSlotVisualsProvider(
+					ingredientListGridNavigation::getAllSlots,
+					collapsibleManager::settings
+				);
+			ingredientListGridNavigation.setSlotVisualsResolver(collapsibleSlotVisualsProvider::apply);
+			activeCollapsibleGridSource.addSourceListChangedListener(collapsibleSlotVisualsProvider::invalidate);
+			collapsibleManager.state().addListener(() -> {
+				collapsibleSlotVisualsProvider.invalidate();
+				String groupId = collapsibleManager.getLastToggledGroupId();
+				if (groupId != null) {
+					IElement<?> anchor = activeCollapsibleGridSource.getAnchorElementForGroup(groupId);
+					ingredientListGridNavigation.updateLayoutKeepingPageAnchorVisible(anchor);
+				}
+			});
+		}
 
 		LookupHistoryOverlay lookupHistoryOverlay = new LookupHistoryOverlay(
 			ingredientManager,
@@ -158,7 +167,7 @@ public final class OverlayHelper {
 		);
 
 		return new IngredientListOverlay(
-			collapsibleGridSource,
+			gridSource,
 			filterTextSource,
 			screenHelper,
 			ingredientListGridNavigation,

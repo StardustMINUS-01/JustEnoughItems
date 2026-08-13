@@ -25,6 +25,7 @@ import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
+import mezz.jei.common.platform.Services;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.LoggedTimer;
@@ -145,23 +146,27 @@ public class JeiGuiStarter {
 		CollapsibleStateStore collapsibleStateStore = configData.collapsibleStateStore();
 		ILookupHistoryConfig lookupHistoryConfig = configData.lookupHistoryConfig();
 
+		boolean collapsibleGroupsInstalled = Services.PLATFORM.getModHelper().isModLoaded("collapsible_groups");
 		ConfigFileImporter configFileImporter = new ConfigFileImporter(configData.configDir());
 		recipePreferenceConfig.ensureDefaultFile();
-		collapsibleConfig.ensureDefaultFile();
 		configFileImporter.importFiles("recipe-preferences-", recipePreferenceConfig.getPath());
-		configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath());
 
 		RecipePreferenceRules recipePreferenceRules = recipePreferenceConfig.loadRules();
-		CollapsibleState collapsibleState = new CollapsibleState();
-		collapsibleState.load(collapsibleStateStore.load());
-		CollapsibleRules collapsibleRules = collapsibleConfig.loadRules();
-		CollapsibleSettings collapsibleSettings = collapsibleConfig.loadSettings();
-		CollapsibleManager collapsibleManager = new CollapsibleManager(
-			collapsibleRules,
-			collapsibleSettings,
-			collapsibleState
-		);
-		collapsibleState.addListener(() -> collapsibleStateStore.save(collapsibleState.toMap()));
+		CollapsibleManager collapsibleManager = null;
+		if (!collapsibleGroupsInstalled) {
+			collapsibleConfig.ensureDefaultFile();
+			configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath());
+			CollapsibleState collapsibleState = new CollapsibleState();
+			collapsibleState.load(collapsibleStateStore.load());
+			CollapsibleRules collapsibleRules = collapsibleConfig.loadRules();
+			CollapsibleSettings collapsibleSettings = collapsibleConfig.loadSettings();
+			collapsibleManager = new CollapsibleManager(
+				collapsibleRules,
+				collapsibleSettings,
+				collapsibleState
+			);
+			collapsibleState.addListener(() -> collapsibleStateStore.save(collapsibleState.toMap()));
+		}
 
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
@@ -319,24 +324,27 @@ public class JeiGuiStarter {
 			recipePreferenceConfig.getPath(),
 			recipePreferenceRulesReloadController::onConfigFileChanged
 		);
-		CollapsibleRulesReloadController collapsibleRulesReloadController = new CollapsibleRulesReloadController(
-			collapsibleConfig::loadRules,
-			minecraft::execute,
-			rules -> collapsibleManager.reload(rules, collapsibleConfig.loadSettings())
-		);
-		Internal.getFileWatcher().addCallback(
-			collapsibleConfig.getPath(),
-			collapsibleRulesReloadController::onConfigFileChanged
-		);
+		if (collapsibleManager != null) {
+			CollapsibleManager activeCollapsibleManager = collapsibleManager;
+			CollapsibleRulesReloadController collapsibleRulesReloadController = new CollapsibleRulesReloadController(
+				collapsibleConfig::loadRules,
+				minecraft::execute,
+				rules -> activeCollapsibleManager.reload(rules, collapsibleConfig.loadSettings())
+			);
+			Internal.getFileWatcher().addCallback(
+				collapsibleConfig.getPath(),
+				collapsibleRulesReloadController::onConfigFileChanged
+			);
+			Internal.getFileWatcher().addDirectoryCallback(
+				configData.configDir(),
+				path -> path.getFileName().toString().startsWith("collapsible-items-"),
+				() -> configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath())
+			);
+		}
 		Internal.getFileWatcher().addDirectoryCallback(
 			configData.configDir(),
 			path -> path.getFileName().toString().startsWith("recipe-preferences-"),
 			() -> configFileImporter.importFiles("recipe-preferences-", recipePreferenceConfig.getPath())
-		);
-		Internal.getFileWatcher().addDirectoryCallback(
-			configData.configDir(),
-			path -> path.getFileName().toString().startsWith("collapsible-items-"),
-			() -> configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath())
 		);
 		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
 			new FavoriteTreeBuilder(
