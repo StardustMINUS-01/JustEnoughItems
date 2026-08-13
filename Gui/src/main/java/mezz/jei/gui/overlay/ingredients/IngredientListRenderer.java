@@ -21,6 +21,7 @@ import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.collapsible.CollapsedGroupElement;
+import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -177,8 +178,8 @@ public class IngredientListRenderer {
 			!element.reservesInvisibleSpace();
 	}
 
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		this.hoveredSlot = findHoveredSlot(mouseX, mouseY);
+	public void render(GuiGraphics guiGraphics) {
+		this.hoveredSlot = findHoveredSlot((int) MouseUtil.getX(), (int) MouseUtil.getY());
 		this.columnCount = getColumnCount();
 		renderSlotBackgrounds(guiGraphics);
 		renderSlotBorders(guiGraphics);

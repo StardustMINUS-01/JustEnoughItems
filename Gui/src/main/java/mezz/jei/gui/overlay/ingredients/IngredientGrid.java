@@ -187,7 +187,7 @@ public class IngredientGrid implements IIngredientGrid {
 
 		Optional<IngredientListSlot> highlightedSlot = getHighlightedSlot(minecraft, mouseX, mouseY);
 
-		this.ingredientListRenderer.render(guiGraphics, mouseX, mouseY);
+		this.ingredientListRenderer.render(guiGraphics);
 
 		highlightedSlot.ifPresent(s -> drawHighlight(guiGraphics, s.getArea()));
 	}
