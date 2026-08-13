@@ -7,4 +7,11 @@ import java.util.Optional;
  */
 public interface IRecipeCandidateFactory {
 	Optional<RecipeCandidateResult> create(RecipeCandidateReference reference);
+
+	default Optional<RecipeCandidateResult> create(
+		RecipeCandidateReference reference,
+		RecipeLayoutBuildCache layoutCache
+	) {
+		return create(reference);
+	}
 }

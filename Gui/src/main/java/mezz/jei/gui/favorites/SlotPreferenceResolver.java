@@ -24,13 +24,21 @@ public final class SlotPreferenceResolver implements SlotRuleResolver {
 
 	@Override
 	public Optional<FocusedRecipe> resolveSlot(List<SlotVariant> variants) {
+		return resolveSlot(variants, new RecipeLayoutBuildCache());
+	}
+
+	@Override
+	public Optional<FocusedRecipe> resolveSlot(
+		List<SlotVariant> variants,
+		RecipeLayoutBuildCache layoutCache
+	) {
 		RecipePreferenceRules rules = rulesSupplier.get();
 		if (rules.isEmpty() || variants.isEmpty()) {
 			return Optional.empty();
 		}
 		Map<FocusedRecipe, RecipePreferenceCandidate> merged = new LinkedHashMap<>();
 		for (SlotVariant variant : variants) {
-			for (RecipePreferenceCandidate candidate : resolver.getCandidates(variant.key(), variant.ingredient())) {
+			for (RecipePreferenceCandidate candidate : resolver.getCandidates(variant.key(), variant.ingredient(), layoutCache)) {
 				merged.putIfAbsent(candidate.recipe(), candidate);
 			}
 		}

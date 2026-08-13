@@ -82,13 +82,24 @@ public final class RecipePreferenceCandidateResolver {
 	}
 
 	public List<RecipePreferenceCandidate> getCandidates(BookmarkIngredientKey target, ITypedIngredient<?> output) {
-		List<RecipeCandidateReference> references = variantRecipesCache.computeIfAbsent(target, key -> findVerifiedRecipes(key, output));
+		return getCandidates(target, output, new RecipeLayoutBuildCache());
+	}
+
+	public List<RecipePreferenceCandidate> getCandidates(
+		BookmarkIngredientKey target,
+		ITypedIngredient<?> output,
+		RecipeLayoutBuildCache layoutCache
+	) {
+		List<RecipeCandidateReference> references = variantRecipesCache.computeIfAbsent(
+			target,
+			key -> findVerifiedRecipes(key, output, layoutCache)
+		);
 		if (references.isEmpty()) {
 			return List.of();
 		}
 		List<RecipePreferenceCandidate> candidates = new ArrayList<>(references.size());
 		for (RecipeCandidateReference reference : references) {
-			Optional<RecipeCandidateResult> result = getCandidateResult(reference);
+			Optional<RecipeCandidateResult> result = getCandidateResult(reference, layoutCache);
 			if (result.isPresent()) {
 				candidates.add(result.get().candidate());
 			}
@@ -97,21 +108,31 @@ public final class RecipePreferenceCandidateResolver {
 	}
 
 	public Optional<FocusedRecipe> resolveGeneratedFavorite(BookmarkIngredientKey target) {
+		return resolveGeneratedFavorite(target, new RecipeLayoutBuildCache());
+	}
+
+	public Optional<FocusedRecipe> resolveGeneratedFavorite(
+		BookmarkIngredientKey target,
+		RecipeLayoutBuildCache layoutCache
+	) {
 		Optional<FocusedRecipe> cached = generatedFavoriteCache.get(target);
 		if (cached != null) {
 			return cached;
 		}
-		Optional<FocusedRecipe> resolved = resolveGeneratedFavoriteUncached(target);
+		Optional<FocusedRecipe> resolved = resolveGeneratedFavoriteUncached(target, layoutCache);
 		generatedFavoriteCache.put(target, resolved);
 		return resolved;
 	}
 
-	private Optional<FocusedRecipe> resolveGeneratedFavoriteUncached(BookmarkIngredientKey target) {
+	private Optional<FocusedRecipe> resolveGeneratedFavoriteUncached(
+		BookmarkIngredientKey target,
+		RecipeLayoutBuildCache layoutCache
+	) {
 		Optional<ITypedIngredient<?>> typed = typedIngredientResolver.apply(target);
 		if (typed.isEmpty()) {
 			return Optional.empty();
 		}
-		List<RecipePreferenceCandidate> candidates = getCandidates(target, typed.get());
+		List<RecipePreferenceCandidate> candidates = getCandidates(target, typed.get(), layoutCache);
 		if (candidates.size() == 1) {
 			return Optional.of(candidates.getFirst().recipe());
 		}
@@ -120,12 +141,13 @@ public final class RecipePreferenceCandidateResolver {
 
 	private List<RecipeCandidateReference> findVerifiedRecipes(
 		BookmarkIngredientKey target,
-		ITypedIngredient<?> output
+		ITypedIngredient<?> output,
+		RecipeLayoutBuildCache layoutCache
 	) {
 		Set<FocusedRecipe> seen = new LinkedHashSet<>();
 		List<RecipeCandidateReference> result = new ArrayList<>();
 		for (RecipeCandidateReference reference : recipeFinder.findRecipes(output)) {
-			Optional<RecipeCandidateResult> candidateResult = getCandidateResult(reference);
+			Optional<RecipeCandidateResult> candidateResult = getCandidateResult(reference, layoutCache);
 			if (candidateResult.isEmpty()) {
 				continue;
 			}
@@ -139,12 +161,15 @@ public final class RecipePreferenceCandidateResolver {
 		return List.copyOf(result);
 	}
 
-	private Optional<RecipeCandidateResult> getCandidateResult(RecipeCandidateReference reference) {
+	private Optional<RecipeCandidateResult> getCandidateResult(
+		RecipeCandidateReference reference,
+		RecipeLayoutBuildCache layoutCache
+	) {
 		Optional<RecipeCandidateResult> cached = candidateCache.get(reference.focusedRecipe());
 		if (cached != null) {
 			return cached;
 		}
-		Optional<RecipeCandidateResult> created = candidateFactory.create(reference);
+		Optional<RecipeCandidateResult> created = candidateFactory.create(reference, layoutCache);
 		candidateCache.put(reference.focusedRecipe(), created);
 		return created;
 	}
@@ -229,13 +254,24 @@ public final class RecipePreferenceCandidateResolver {
 		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Override
 		public Optional<RecipeCandidateResult> create(RecipeCandidateReference reference) {
+			return create(reference, new RecipeLayoutBuildCache());
+		}
+
+		@Override
+		public Optional<RecipeCandidateResult> create(
+			RecipeCandidateReference reference,
+			RecipeLayoutBuildCache layoutCache
+		) {
 			FocusedRecipe focusedRecipe = reference.focusedRecipe();
 			Optional<RecipeType<?>> recipeType = recipeManager.getRecipeType(focusedRecipe.recipeTypeUid());
 			if (recipeType.isEmpty()) {
 				return Optional.empty();
 			}
 			IRecipeCategory recipeCategory = recipeManager.getRecipeCategory(recipeType.get());
-			Optional<IRecipeLayoutDrawable<?>> layout = createLayout(recipeCategory, reference.recipe());
+			Optional<IRecipeLayoutDrawable<?>> layout = layoutCache.getOrBuild(
+				focusedRecipe,
+				() -> createLayout(recipeCategory, reference.recipe())
+			);
 			if (layout.isEmpty()) {
 				return Optional.empty();
 			}

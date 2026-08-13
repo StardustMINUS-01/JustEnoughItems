@@ -7,6 +7,7 @@ import mezz.jei.gui.favorites.IRecipeCandidateFactory;
 import mezz.jei.gui.favorites.IRecipeCandidateFinder;
 import mezz.jei.gui.favorites.RecipeCandidateReference;
 import mezz.jei.gui.favorites.RecipeCandidateResult;
+import mezz.jei.gui.favorites.RecipeLayoutBuildCache;
 import mezz.jei.gui.favorites.RecipePreferenceCandidateResolver;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
@@ -91,6 +92,23 @@ public class RecipePreferenceCandidateResolverTest {
 		resolver.getCandidates(outputKey, typed("out"));
 
 		Assertions.assertEquals(1, finder.invocations());
+	}
+
+	@Test
+	public void getCandidatesPassesBuildCacheToFactory() {
+		BookmarkIngredientKey outputKey = key("out");
+		FocusedRecipe recipe = recipe("cached_layout");
+		FakeRecipeFinder finder = new FakeRecipeFinder(
+			new RecipeCandidateReference(recipe, new Object())
+		);
+		FakeCandidateFactory factory = new FakeCandidateFactory()
+			.result(recipe, result(recipe, outputKey));
+		RecipePreferenceCandidateResolver resolver = resolver(finder, factory, Map.of(outputKey, typed("out")), () -> RecipePreferenceRules.EMPTY);
+		RecipeLayoutBuildCache layoutCache = new RecipeLayoutBuildCache();
+
+		resolver.getCandidates(outputKey, typed("out"), layoutCache);
+
+		Assertions.assertSame(layoutCache, factory.lastLayoutCache);
 	}
 
 	@Test
@@ -305,6 +323,7 @@ public class RecipePreferenceCandidateResolverTest {
 
 	private static final class FakeCandidateFactory implements IRecipeCandidateFactory {
 		private final Map<FocusedRecipe, RecipeCandidateResult> results = new HashMap<>();
+		private RecipeLayoutBuildCache lastLayoutCache;
 
 		private FakeCandidateFactory result(FocusedRecipe recipe, RecipeCandidateResult result) {
 			results.put(recipe, result);
@@ -314,6 +333,15 @@ public class RecipePreferenceCandidateResolverTest {
 		@Override
 		public Optional<RecipeCandidateResult> create(RecipeCandidateReference reference) {
 			return Optional.ofNullable(results.get(reference.focusedRecipe()));
+		}
+
+		@Override
+		public Optional<RecipeCandidateResult> create(
+			RecipeCandidateReference reference,
+			RecipeLayoutBuildCache layoutCache
+		) {
+			this.lastLayoutCache = layoutCache;
+			return create(reference);
 		}
 	}
 }

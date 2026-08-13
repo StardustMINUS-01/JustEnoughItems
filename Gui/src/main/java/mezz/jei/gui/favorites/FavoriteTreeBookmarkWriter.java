@@ -36,7 +36,13 @@ public final class FavoriteTreeBookmarkWriter {
 		Optional<BookmarkIngredientKey> selectedRootOutputKey,
 		Map<Integer, BookmarkIngredientKey> selectedRootInputKeys
 	) {
-		FavoriteTreeBuilder.FavoriteTreeResult result = treeBuilder.build(root, depth, selectedRootInputKeys);
+		RecipeLayoutBuildCache layoutCache = new RecipeLayoutBuildCache();
+		FavoriteTreeBuilder.FavoriteTreeResult result = treeBuilder.build(
+			root,
+			depth,
+			selectedRootInputKeys,
+			layoutCache
+		);
 		if (result.recipes().isEmpty()) {
 			return Optional.empty();
 		}
@@ -44,6 +50,7 @@ public final class FavoriteTreeBookmarkWriter {
 		List<RecipeLayoutProjection> layouts = new ArrayList<>();
 		for (FavoriteTreeBuilder.FavoriteTreeRecipe recipe : result.recipes()) {
 			Optional<IRecipeLayoutDrawable<?>> layout = recipe.layout()
+				.or(() -> layoutCache.get(recipe.recipe()))
 				.or(() -> layoutResolver.resolve(recipe.recipe()));
 			if (layout.isEmpty()) {
 				if (recipe.recipe().equals(root)) {

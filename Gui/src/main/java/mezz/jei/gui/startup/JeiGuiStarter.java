@@ -303,7 +303,9 @@ public class JeiGuiStarter {
 		// Recipe preference data used to require a delayed first full scan after the JEI runtime
 		// was created (Internal.setRuntime happens after the registerRuntime callback returns);
 		// it is now resolved on demand, so no scan is needed.
-		favoriteRecipes.setGeneratedFavoriteResolver(recipePreferenceCandidateResolver::resolveGeneratedFavorite);
+		favoriteRecipes.setGeneratedFavoriteResolver(
+			(target, layoutCache) -> recipePreferenceCandidateResolver.resolveGeneratedFavorite(target, layoutCache)
+		);
 		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
 			recipePreferenceConfig::loadRules,
 			minecraft::execute,

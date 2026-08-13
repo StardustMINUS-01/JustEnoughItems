@@ -8,4 +8,11 @@ import java.util.Optional;
 @FunctionalInterface
 public interface SlotRuleResolver {
 	Optional<FocusedRecipe> resolveSlot(List<SlotVariant> variants);
+
+	default Optional<FocusedRecipe> resolveSlot(
+		List<SlotVariant> variants,
+		RecipeLayoutBuildCache layoutCache
+	) {
+		return resolveSlot(variants);
+	}
 }

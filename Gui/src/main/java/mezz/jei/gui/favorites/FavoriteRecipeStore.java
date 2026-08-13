@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class FavoriteRecipeStore {
@@ -19,10 +20,18 @@ public class FavoriteRecipeStore {
 	private final Map<BookmarkIngredientKey, FocusedRecipe> generatedRecipesByTarget = new LinkedHashMap<>();
 	private final Map<FocusedRecipe, BookmarkIngredientKey> generatedTargetsByRecipe = new LinkedHashMap<>();
 	private final List<IIngredientGridSource.SourceListChangedListener> listeners = new ArrayList<>();
-	private @Nullable Function<BookmarkIngredientKey, Optional<FocusedRecipe>> generatedFavoriteResolver;
+	private @Nullable BiFunction<BookmarkIngredientKey, RecipeLayoutBuildCache, Optional<FocusedRecipe>> generatedFavoriteResolver;
 
 	public void setGeneratedFavoriteResolver(
 		@Nullable Function<BookmarkIngredientKey, Optional<FocusedRecipe>> generatedFavoriteResolver
+	) {
+		this.generatedFavoriteResolver = generatedFavoriteResolver == null ?
+			null :
+			(key, layoutCache) -> generatedFavoriteResolver.apply(key);
+	}
+
+	public void setGeneratedFavoriteResolver(
+		@Nullable BiFunction<BookmarkIngredientKey, RecipeLayoutBuildCache, Optional<FocusedRecipe>> generatedFavoriteResolver
 	) {
 		this.generatedFavoriteResolver = generatedFavoriteResolver;
 	}
@@ -90,6 +99,13 @@ public class FavoriteRecipeStore {
 	}
 
 	public Optional<FocusedRecipe> getGeneratedFavorite(BookmarkIngredientKey target) {
+		return getGeneratedFavorite(target, new RecipeLayoutBuildCache());
+	}
+
+	public Optional<FocusedRecipe> getGeneratedFavorite(
+		BookmarkIngredientKey target,
+		RecipeLayoutBuildCache layoutCache
+	) {
 		Optional<FocusedRecipe> cached = Optional.ofNullable(generatedRecipesByTarget.get(target));
 		if (cached.isPresent()) {
 			return cached;
@@ -97,7 +113,7 @@ public class FavoriteRecipeStore {
 		if (generatedFavoriteResolver == null) {
 			return Optional.empty();
 		}
-		Optional<FocusedRecipe> resolved = generatedFavoriteResolver.apply(target);
+		Optional<FocusedRecipe> resolved = generatedFavoriteResolver.apply(target, layoutCache);
 		if (resolved.isPresent()) {
 			setGeneratedFavorite(target, resolved.get());
 		}
@@ -105,8 +121,15 @@ public class FavoriteRecipeStore {
 	}
 
 	public Optional<FocusedRecipe> getFavorite(BookmarkIngredientKey target) {
+		return getFavorite(target, new RecipeLayoutBuildCache());
+	}
+
+	public Optional<FocusedRecipe> getFavorite(
+		BookmarkIngredientKey target,
+		RecipeLayoutBuildCache layoutCache
+	) {
 		return getManualFavorite(target)
-			.or(() -> getGeneratedFavorite(target));
+			.or(() -> getGeneratedFavorite(target, layoutCache));
 	}
 
 	public boolean containsFavorite(BookmarkIngredientKey target) {

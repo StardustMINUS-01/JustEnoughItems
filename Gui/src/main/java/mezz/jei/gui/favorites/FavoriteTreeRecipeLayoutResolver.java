@@ -36,7 +36,15 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 
 	@Override
 	public Optional<FavoriteTreeBuilder.ResolvedRecipe> resolve(FocusedRecipe recipe) {
-		return resolveLayout(recipe)
+		return resolve(recipe, new RecipeLayoutBuildCache());
+	}
+
+	@Override
+	public Optional<FavoriteTreeBuilder.ResolvedRecipe> resolve(
+		FocusedRecipe recipe,
+		RecipeLayoutBuildCache layoutCache
+	) {
+		return layoutCache.getOrBuild(recipe, () -> resolveLayout(recipe))
 			.map(layout -> new FavoriteTreeBuilder.ResolvedRecipe(
 				recipe,
 				resolveInputs(layout),
