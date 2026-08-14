@@ -26,6 +26,8 @@ public interface IClientConfig {
 
 	boolean isAddingBookmarksToFrontEnabled();
 
+	int getFavoriteTreeDepth();
+
 	boolean isBookmarkOutputAsRecipeEnabled();
 
 	boolean isLookupFluidContentsEnabled();

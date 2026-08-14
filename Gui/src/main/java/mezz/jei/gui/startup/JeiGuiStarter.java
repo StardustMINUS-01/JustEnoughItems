@@ -33,6 +33,11 @@ import mezz.jei.gui.config.ModNameSortingConfig;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.filter.FilterTextSource;
 import mezz.jei.gui.filter.IFilterTextSource;
+import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
+import mezz.jei.gui.favorites.FavoriteTreeBuilder;
+import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
+import mezz.jei.gui.favorites.GeneratedFavoriteResolver;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import mezz.jei.gui.ingredients.IngredientFilter;
@@ -189,6 +194,20 @@ public class JeiGuiStarter {
 		);
 		registration.setBookmarkOverlay(bookmarkOverlay);
 
+		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
+			recipeManager,
+			focusFactory,
+			ingredientManager
+		);
+		FavoriteRecipeStore favoriteRecipes = new FavoriteRecipeStore();
+		GeneratedFavoriteResolver generatedFavoriteResolver = new GeneratedFavoriteResolver(recipeManager, focusFactory, ingredientManager);
+		favoriteRecipes.setGeneratedFavoriteResolver(generatedFavoriteResolver::resolve);
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
+			new FavoriteTreeBuilder(favoriteRecipes, favoriteTreeRecipeResolver),
+			favoriteTreeRecipeResolver::resolveLayout,
+			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
+		);
+
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,
 			bookmarkOverlay,
@@ -226,7 +245,10 @@ public class JeiGuiStarter {
 			ingredientListOverlay.createInputHandler(),
 			bookmarkOverlay.createInputHandler(),
 			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, toggleState, serverConnection),
-			new BookmarkInputHandler(recipeFocusSource, bookmarkList, bookmarkOverlay, clientConfig, recipesGui),
+			new BookmarkInputHandler(recipeFocusSource, bookmarkList, bookmarkOverlay, clientConfig, recipesGui,
+				ingredientManager,
+				favoriteRecipes::getFavorite,
+				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.getFavoriteTreeDepth())),
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);

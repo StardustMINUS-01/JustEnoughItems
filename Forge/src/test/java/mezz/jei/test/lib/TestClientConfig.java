@@ -59,6 +59,11 @@ public class TestClientConfig implements IClientConfig {
 	}
 
 	@Override
+	public int getFavoriteTreeDepth() {
+		return 9;
+	}
+
+	@Override
 	public boolean isBookmarkOutputAsRecipeEnabled() {
 		return true;
 	}

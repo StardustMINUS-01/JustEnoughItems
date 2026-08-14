@@ -117,6 +117,17 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		return contents.hasRoom();
 	}
 
+	/**
+	 * Port of JEI 1.21.1 {@code BookmarkOverlay.showBookmarkPanel()}.
+	 * 1.20.1 has no separate favorite-recipes panel, so this only enables the
+	 * bookmark overlay if there is room for it on screen.
+	 */
+	public void showBookmarkPanel() {
+		if (hasRoom()) {
+			toggleState.setBookmarkEnabled(true);
+		}
+	}
+
 	public ScreenPropertiesCache.Updater getScreenPropertiesUpdater() {
 		return this.screenPropertiesCache.getUpdater(this::onScreenPropertiesChanged);
 	}

@@ -29,6 +29,7 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
 import mezz.jei.common.transfer.RecipeTransferUtil;
 import mezz.jei.common.util.SafeIngredientUtil;
+import mezz.jei.gui.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.input.UserInput;
@@ -77,7 +78,14 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	@Override
 	public IDrawable createRenderOverlay() {
 		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
-		return new RecipeBookmarkIcon(recipeCategory);
+		RecipeBookmarkIcon icon = new RecipeBookmarkIcon(recipeCategory);
+		long amount = recipeBookmark.getAmount();
+		if (amount > 1) {
+			ITypedIngredient<I> recipeOutput = recipeBookmark.getRecipeOutput();
+			String amountText = BookmarkAmountFormatter.formatTypedAmount(amount, recipeOutput.getType().getUid());
+			return new RecipeBookmarkIconWithAmount(icon, amountText);
+		}
+		return icon;
 	}
 
 	@Override
@@ -330,6 +338,47 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 				icon.draw(guiGraphics);
 			}
 			poseStack.popPose();
+		}
+	}
+
+	/**
+	 * Draws the recipe-category icon together with an aggregated amount text
+	 * in the bottom-right corner (vanilla item-count style), mirroring the
+	 * JEI 1.21.1 bookmark amount display. Only used when the bookmarked
+	 * amount is {@code > 1}.
+	 */
+	private static class RecipeBookmarkIconWithAmount implements IDrawable {
+		private final RecipeBookmarkIcon icon;
+		private final String amountText;
+
+		public RecipeBookmarkIconWithAmount(RecipeBookmarkIcon icon, String amountText) {
+			this.icon = icon;
+			this.amountText = amountText;
+		}
+
+		@Override
+		public int getWidth() {
+			return 16;
+		}
+
+		@Override
+		public int getHeight() {
+			return 16;
+		}
+
+		@Override
+		public void draw(GuiGraphics guiGraphics) {
+			draw(guiGraphics, 0, 0);
+		}
+
+		@Override
+		public void draw(GuiGraphics guiGraphics, int xOffset, int yOffset) {
+			icon.draw(guiGraphics, xOffset, yOffset);
+			var font = Minecraft.getInstance().font;
+			int textWidth = font.width(amountText);
+			int x = xOffset + 16 - textWidth - 1;
+			int y = yOffset + 16 - font.lineHeight + 1;
+			guiGraphics.drawString(font, amountText, x, y, 0xFFFFFFFF, true);
 		}
 	}
 }

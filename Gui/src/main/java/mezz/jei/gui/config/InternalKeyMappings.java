@@ -34,6 +34,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping nextPage;
 
 	private final IJeiKeyMapping bookmark;
+	private final IJeiKeyMapping favoriteRecipe;
 	private final IJeiKeyMapping toggleBookmarkOverlay;
 	private final IJeiKeyMapping transferRecipeBookmark;
 	private final IJeiKeyMapping maxTransferRecipeBookmark;
@@ -131,6 +132,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		bookmark = mouseHover.createMapping("key.jei.bookmark")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.buildKeyboardKey(GLFW.GLFW_KEY_A)
+			.register(registerMethod);
+
+		favoriteRecipe = mouseHover.createMapping("key.jei.favoriteRecipe")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildKeyboardKey(GLFW.GLFW_KEY_F)
 			.register(registerMethod);
 
 		showRecipe1 = mouseHover.createMapping("key.jei.showRecipe")
@@ -397,6 +403,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getBookmark() {
 		return bookmark;
+	}
+
+	@Override
+	public IJeiKeyMapping getFavoriteRecipe() {
+		return favoriteRecipe;
 	}
 
 	@Override

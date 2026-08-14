@@ -20,6 +20,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	private final ResourceLocation recipeUid;
 	private final ITypedIngredient<I> recipeOutput;
 	private final RecipeIngredientRole displayRole;
+	private final long amount;
 	private boolean visible = true;
 
 	@Nullable
@@ -75,12 +76,24 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		ITypedIngredient<I> recipeOutput,
 		RecipeIngredientRole displayRole
 	) {
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, 1);
+	}
+
+	public RecipeBookmark(
+		IRecipeCategory<R> recipeCategory,
+		R recipe,
+		ResourceLocation recipeUid,
+		ITypedIngredient<I> recipeOutput,
+		RecipeIngredientRole displayRole,
+		long amount
+	) {
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
 		this.recipeOutput = recipeOutput;
 		this.element = new RecipeBookmarkElement<>(this);
 		this.displayRole = displayRole;
+		this.amount = Math.max(1, amount);
 	}
 
 	public IRecipeCategory<R> getRecipeCategory() {
@@ -97,6 +110,15 @@ public class RecipeBookmark<R, I> implements IBookmark {
 
 	public ITypedIngredient<I> getRecipeOutput() {
 		return recipeOutput;
+	}
+
+	/**
+	 * The display amount of the bookmarked ingredient, ported from JEI 1.21.1.
+	 * Aggregated per unique ingredient across all slots of the recipe that
+	 * contain it. Always {@code >= 1}.
+	 */
+	public long getAmount() {
+		return amount;
 	}
 
 	@Override
