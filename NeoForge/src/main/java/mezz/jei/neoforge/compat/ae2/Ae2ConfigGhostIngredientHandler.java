@@ -13,7 +13,7 @@ import java.util.List;
 public class Ae2ConfigGhostIngredientHandler<T extends AEBaseScreen<?>> implements IGhostIngredientHandler<T> {
 	@Override
 	public <I> List<Target<I>> getTargetsTyped(T gui, ITypedIngredient<I> ingredient, boolean doStart) {
-		GenericStack stack = Ae2GroupDropCompat.toGenericStack(ingredient);
+		GenericStack stack = Ae2GroupDropCompatInternal.toGenericStack(ingredient);
 		if (stack == null) {
 			return List.of();
 		}
@@ -35,7 +35,7 @@ public class Ae2ConfigGhostIngredientHandler<T extends AEBaseScreen<?>> implemen
 
 		@Override
 		public void accept(I ignored) {
-			GenericStack stack = Ae2GroupDropCompat.toGenericStack(ingredient);
+			GenericStack stack = Ae2GroupDropCompatInternal.toGenericStack(ingredient);
 			if (stack != null) {
 				dropTarget.drop(stack);
 			}
