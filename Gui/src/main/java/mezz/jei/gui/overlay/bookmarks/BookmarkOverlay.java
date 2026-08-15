@@ -99,6 +99,7 @@ import java.util.stream.Stream;
 
 public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, ICharTypedHandler {
 	private static @Nullable GroupDropHandler groupDropHandler;
+	private static @Nullable GroupDropAvailabilityProvider groupDropAvailabilityProvider;
 	private static @Nullable GroupDropHighlightProvider groupDropHighlightProvider;
 	private static final int BORDER_MARGIN = 6;
 	private static final int INNER_PADDING = 2;
@@ -122,6 +123,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		BookmarkOverlay.groupDropHandler = groupDropHandler;
 	}
 
+	public static void setGroupDropAvailabilityProvider(@Nullable GroupDropAvailabilityProvider groupDropAvailabilityProvider) {
+		BookmarkOverlay.groupDropAvailabilityProvider = groupDropAvailabilityProvider;
+	}
+
 	public static void setGroupDropHighlightProvider(@Nullable GroupDropHighlightProvider groupDropHighlightProvider) {
 		BookmarkOverlay.groupDropHighlightProvider = groupDropHighlightProvider;
 	}
@@ -129,6 +134,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	@FunctionalInterface
 	public interface GroupDropHandler {
 		boolean dropGroup(List<ITypedIngredient<?>> ingredients, double mouseX, double mouseY);
+	}
+
+	@FunctionalInterface
+	public interface GroupDropAvailabilityProvider {
+		boolean hasDropTargets(List<ITypedIngredient<?>> ingredients);
 	}
 
 	@FunctionalInterface
@@ -566,7 +576,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 		JeiTooltip tooltip = new JeiTooltip();
 		addRecipeChainTooltip(tooltip, groupId);
-		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, keyBindings, Screen.hasAltDown(), grouped, craftingMode, canEncodeAe2Patterns());
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, keyBindings, Screen.hasAltDown(), grouped, craftingMode, canEncodeAe2Patterns(), canStartGroupDrop(groupId));
 		tooltip.draw(guiGraphics, mouseX, mouseY);
 		return true;
 	}
@@ -811,9 +821,14 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.favoriteContents.createDragHandler()
 		);
 		final IDragHandler sortDragHandler = createSortDragHandler();
+		final IDragHandler contentsDragHandler = new ProxyDragHandler(() ->
+			groupPanelDrag != null && groupPanelDrag.isDropMode()
+				? NullDragHandler.INSTANCE
+				: this.contents.createDragHandler()
+		);
 		final IDragHandler combinedDragHandlers = new CombinedDragHandler(
 			sortDragHandler,
-			this.contents.createDragHandler(),
+			contentsDragHandler,
 			historyDragHandler,
 			this.bookmarkDragManager.createDragHandler()
 		);
@@ -1028,6 +1043,14 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			}
 		}
 		return List.copyOf(ingredients);
+	}
+
+	private boolean canStartGroupDrop(String groupId) {
+		if (groupDropHandler == null || groupDropAvailabilityProvider == null) {
+			return false;
+		}
+		List<ITypedIngredient<?>> ingredients = getGroupDropIngredients(groupId);
+		return !ingredients.isEmpty() && groupDropAvailabilityProvider.hasDropTargets(ingredients);
 	}
 
 	private boolean isGroupDropBookmark(String groupId, IBookmark bookmark) {
@@ -1431,7 +1454,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 					context,
 					hotkeyMouseButton,
 					InputModifiers.hasShift(input),
-					InputModifiers.hasAlt(input)
+					InputModifiers.hasAlt(input),
+					InputModifiers.hasControl(input)
 				);
 				if (action.isEmpty()) {
 					return Optional.empty();
@@ -1454,7 +1478,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				context,
 				hotkeyMouseButton,
 				InputModifiers.hasShift(input),
-				InputModifiers.hasAlt(input)
+				InputModifiers.hasAlt(input),
+				InputModifiers.hasControl(input)
 			);
 			if (action.isEmpty()) {
 				return Optional.empty();
@@ -1470,13 +1495,18 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			}
 
 			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE ||
-				action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING) {
+				action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING ||
+				action.get() == BookmarkHotkeyAction.GROUP_DROP_DRAG) {
 				if (input.getInputType() == InputType.SIMULATE) {
+					BookmarkHotkeyAction resolvedAction = action.get();
+					if (resolvedAction == BookmarkHotkeyAction.GROUP_DROP_DRAG && !canStartGroupDrop(slot.get().groupId())) {
+						resolvedAction = BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE;
+					}
 					groupPanelDrag = new GroupPanelDrag(
 						slot.get(),
-						action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING,
-						action.get(),
-						action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE
+						resolvedAction == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING,
+						resolvedAction,
+						resolvedAction == BookmarkHotkeyAction.GROUP_DROP_DRAG
 					);
 					return Optional.of(this);
 				}
@@ -2346,6 +2376,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.startY = MouseUtil.getY();
 			this.dragOffsetX = startSlot.area().getX() - (int) Math.round(this.startX);
 			this.dragOffsetY = startSlot.area().getY() - (int) Math.round(this.startY);
+		}
+
+		public boolean isDropMode() {
+			return dropMode;
 		}
 
 		public List<GroupPanelSlot> getPreviewGroupPanelSlots(

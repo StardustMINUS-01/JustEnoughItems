@@ -81,6 +81,7 @@ public final class BookmarkHotkeyPlanner {
 		}
 		add(actions, BookmarkHotkeyAction.GROUP_EXCLUDE_DRAG, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_MOVE_DRAG, BookmarkHotkeySupport.SUPPORTED);
+		add(actions, BookmarkHotkeyAction.GROUP_DROP_DRAG, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING, BookmarkHotkeySupport.SUPPORTED);

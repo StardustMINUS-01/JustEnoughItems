@@ -71,7 +71,8 @@ public final class BookmarkHotkeyTooltipUtil {
 		boolean altDown,
 		boolean grouped,
 		boolean craftingMode,
-		boolean canEncodeAe2Patterns
+		boolean canEncodeAe2Patterns,
+		boolean canBatchMarkAe2
 	) {
 		tooltip.add(Component.translatable("jei.tooltip.bookmarks.group").withStyle(ChatFormatting.GREEN));
 		if (!addAltHotkeySection(tooltip, altDown)) {
@@ -98,6 +99,9 @@ public final class BookmarkHotkeyTooltipUtil {
 			HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("SHIFT + ", keyBindings.getBookmark().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.group.hotkeys.remove");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.ctrl_alt_scroll"), "jei.tooltip.bookmarks.group.hotkeys.quantity_step");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.shift_left_drag"), "jei.tooltip.bookmarks.group.hotkeys.sort");
+			if (canBatchMarkAe2) {
+				HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.ctrl_left_drag"), "jei.tooltip.bookmarks.group.hotkeys.batch_mark_ae2");
+			}
 		} else {
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.left_drag"), "jei.tooltip.bookmarks.group.hotkeys.include");
 		}
