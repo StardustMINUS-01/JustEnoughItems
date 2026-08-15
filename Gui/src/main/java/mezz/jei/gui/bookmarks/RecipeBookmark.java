@@ -25,6 +25,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	private final RecipeIngredientRole displayRole;
 	@Nullable
 	private final Object equalityScope;
+	private final I ingredientIdentity;
 	private boolean visible = true;
 
 	@Nullable
@@ -110,6 +111,16 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		this.element = new RecipeBookmarkElement<>(this);
 		this.displayRole = displayRole;
 		this.equalityScope = equalityScope;
+		this.ingredientIdentity = createIngredientIdentity(recipeOutput);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <I> I createIngredientIdentity(ITypedIngredient<I> recipeOutput) {
+		Object ingredient = recipeOutput.getIngredient();
+		if (ingredient instanceof ItemStack stack) {
+			return (I) stack.copy();
+		}
+		return (I) ingredient;
 	}
 
 	public RecipeBookmark(
@@ -185,7 +196,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(equalityScope, recipeUid, displayRole, recipeOutput.getType(), getIngredientHash(recipeOutput.getIngredient()));
+		return Objects.hash(equalityScope, recipeUid, displayRole, recipeOutput.getType(), getIngredientHash(ingredientIdentity));
 	}
 
 	@Override
@@ -195,7 +206,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 				recipeBookmark.recipeUid.equals(recipeUid) &&
 				recipeBookmark.displayRole == displayRole &&
 				recipeBookmark.recipeOutput.getType().equals(recipeOutput.getType()) &&
-				ingredientsEqual(recipeBookmark.recipeOutput.getIngredient(), recipeOutput.getIngredient());
+				ingredientsEqual(recipeBookmark.ingredientIdentity, ingredientIdentity);
 		}
 		return false;
 	}
