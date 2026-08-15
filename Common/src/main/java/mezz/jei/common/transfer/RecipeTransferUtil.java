@@ -48,8 +48,6 @@ public final class RecipeTransferUtil {
 			.orElse(true);
 	}
 
-	// This exact signature (6 parameters, Optional return) is a mixin contract for third-party mods
-	// (e.g. DataEnergistics wraps it with @WrapMethod by its erased descriptor). Do not change it.
 	private static <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipe(
 		IRecipeTransferManager recipeTransferManager,
 		C container,

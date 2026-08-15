@@ -32,7 +32,7 @@ public class RecipeTransferUtilMixinContractTest {
 		assertEquals(
 			Optional.class,
 			transferRecipe.getReturnType(),
-			"RecipeTransferUtil.transferRecipe must keep returning Optional; third-party mixins (e.g. DataEnergistics) target this descriptor"
+			"RecipeTransferUtil.transferRecipe must keep returning Optional; third-party mixins may target this descriptor"
 		);
 		assertEquals(
 			IRecipeTransferError.class,
