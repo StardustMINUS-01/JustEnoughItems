@@ -58,6 +58,10 @@ ${modDescription}
     type="required" #mandatory
     versionRange="${neoforgeVersionRange}" #mandatory
     # An ordering relationship for the dependency - BEFORE or AFTER required if the relationship is not mandatory
+
+[[mixins]]
+config = "jei-ae2.mixins.json"
+
     ordering="NONE"
     # Side this dependency is applied on - BOTH, CLIENT or SERVER
     side="BOTH"

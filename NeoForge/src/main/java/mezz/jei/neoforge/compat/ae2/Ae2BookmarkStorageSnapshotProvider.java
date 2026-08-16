@@ -41,6 +41,11 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 			.map(entries -> BookmarkExternalStorageSnapshots.createSnapshot(entries, keyFactory));
 	}
 
+	@Override
+	public Optional<List<BookmarkExternalStorageSnapshots.Entry>> readEntries(Object menu) {
+		return entryReader.readEntries(menu);
+	}
+
 	@FunctionalInterface
 	public interface EntryReader {
 		Optional<List<BookmarkExternalStorageSnapshots.Entry>> readEntries(Object menu);

@@ -7,6 +7,8 @@ import mezz.jei.common.gui.IngredientTooltipComponent;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.config.InternalKeyMappings;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
@@ -18,6 +20,8 @@ import mezz.jei.neoforge.chat.JeiChatTooltipEventHandler;
 import mezz.jei.neoforge.chat.JeiInternalShowCommand;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
 import mezz.jei.neoforge.compat.ae2.Ae2BookmarkStorageSnapshotProvider;
+import mezz.jei.neoforge.compat.ae2.Ae2AvailableStacksProvider;
+import mezz.jei.neoforge.compat.ae2.Ae2CraftingGridTargetSlotProvider;
 import mezz.jei.neoforge.compat.ae2.Ae2GroupDropCompat;
 import mezz.jei.neoforge.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.neoforge.compat.ae2.Ae2JeiSearchTextCompat;
@@ -88,6 +92,10 @@ public class JustEnoughItemsClient {
 
 		Ae2BookmarkStorageSnapshotProvider.createIfLoaded()
 			.ifPresent(BookmarkExternalStorageSnapshots::registerProvider);
+		Ae2AvailableStacksProvider.createIfLoaded()
+			.ifPresent(BookmarkAvailableStacksProviders::registerProvider);
+		Ae2CraftingGridTargetSlotProvider.createIfLoaded()
+			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
 		Ae2RecipeChainPatternEncodingBridge.createIfLoaded()
 			.ifPresent(Ae2RecipeChainPatternEncodingBridgeRegistry::register);
 		Ae2JeiSearchTextCompat.register();

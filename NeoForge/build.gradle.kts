@@ -162,6 +162,7 @@ dependencies {
 	modShadeImplementation("net.mezzdev:suffixtree:${suffixtreeVersion}") {
 		isTransitive = false
 	}
+	compileOnly("org.spongepowered:mixin:0.8.5")
 	compileOnly("maven.modrinth:ae2:19.2.17")
 	testImplementation("maven.modrinth:ae2:19.2.17")
 	"gameTestImplementation"("net.neoforged:testframework:${neoforgeVersion}") {

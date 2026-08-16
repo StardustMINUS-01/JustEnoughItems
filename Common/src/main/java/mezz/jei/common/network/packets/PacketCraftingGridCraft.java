@@ -1,7 +1,7 @@
 package mezz.jei.common.network.packets;
 
 import mezz.jei.api.constants.ModIds;
-import mezz.jei.common.bookmarks.ServerBookmarkCraftingGridCraft;
+import mezz.jei.common.bookmarks.CraftingGridCraftExecutors;
 import mezz.jei.common.network.IConnectionToClient;
 import mezz.jei.common.network.ServerPacketContext;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -68,7 +68,7 @@ public class PacketCraftingGridCraft extends PlayToServerPacket<PacketCraftingGr
 	@Override
 	public void process(ServerPacketContext context) {
 		IConnectionToClient connection = context.connection();
-		int crafted = ServerBookmarkCraftingGridCraft.craft(context.player(), containerId, targetStacks, multiplier);
+		int crafted = CraftingGridCraftExecutors.craft(context.player(), containerId, targetStacks, multiplier);
 		if (requestId > 0) {
 			connection.sendPacketToClient(new PacketCraftingGridCraftAck(taskId, requestId, crafted), context.player());
 		}

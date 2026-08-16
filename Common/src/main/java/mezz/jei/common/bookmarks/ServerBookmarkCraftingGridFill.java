@@ -29,6 +29,15 @@ public final class ServerBookmarkCraftingGridFill {
 	private ServerBookmarkCraftingGridFill() {
 	}
 
+	@FunctionalInterface
+	public interface ExternalIngredientSource {
+		ItemStack extract(int slotIndex, ItemStack template, int amount);
+
+		default long countAvailable(int slotIndex, ItemStack template) {
+			return 0;
+		}
+	}
+
 	public static int fill(ServerPlayer player, int containerId, List<ItemStack> targetStacks, int multiplier) {
 		return fill(player.containerMenu, containerId, player.getInventory(), player, targetStacks, multiplier);
 	}
@@ -41,11 +50,23 @@ public final class ServerBookmarkCraftingGridFill {
 		List<ItemStack> targetStacks,
 		int multiplier
 	) {
+		return fill(menu, containerId, playerInventory, player, targetStacks, multiplier, VanillaCraftingGridSlots.getCraftingSlots(menu), null);
+	}
+
+	public static int fill(
+		AbstractContainerMenu menu,
+		int containerId,
+		Container playerInventory,
+		@Nullable ServerPlayer player,
+		List<ItemStack> targetStacks,
+		int multiplier,
+		List<Slot> craftingSlots,
+		@Nullable ExternalIngredientSource externalSource
+	) {
 		if (menu.containerId != containerId || targetStacks.isEmpty()) {
 			return 0;
 		}
 
-		List<Slot> craftingSlots = VanillaCraftingGridSlots.getCraftingSlots(menu);
 		if (craftingSlots.isEmpty()) {
 			return 0;
 		}
@@ -60,13 +81,13 @@ public final class ServerBookmarkCraftingGridFill {
 			return 0;
 		}
 
-		int craftCount = calculateCraftCount(playerSlots, craftingSlots, recipeStacks, multiplier);
+		int craftCount = calculateCraftCount(playerSlots, craftingSlots, recipeStacks, multiplier, externalSource);
 		if (craftCount <= 0) {
 			return 0;
 		}
 
 		stowCraftingGrid(craftingSlots, playerSlots);
-		int filled = fillCraftingSlots(playerSlots, craftingSlots, recipeStacks, craftCount, player);
+		int filled = fillCraftingSlots(playerSlots, craftingSlots, recipeStacks, craftCount, player, externalSource);
 		if (filled <= 0) {
 			return 0;
 		}
@@ -137,13 +158,24 @@ public final class ServerBookmarkCraftingGridFill {
 		return remaining <= 0;
 	}
 
-	private static int calculateCraftCount(List<Slot> playerSlots, List<Slot> craftingSlots, List<ItemStack> recipeStacks, int multiplier) {
+	private static int calculateCraftCount(
+		List<Slot> playerSlots,
+		List<Slot> craftingSlots,
+		List<ItemStack> recipeStacks,
+		int multiplier,
+		@Nullable ExternalIngredientSource externalSource
+	) {
 		int craftCount = multiplier == 0 ? MAX_MULTIPLIER : Math.min(MAX_MULTIPLIER, Math.max(1, multiplier));
-		for (ItemStack recipeStack : recipeStacks) {
+		for (int i = 0; i < recipeStacks.size(); i++) {
+			ItemStack recipeStack = recipeStacks.get(i);
 			if (recipeStack.isEmpty()) {
 				continue;
 			}
 			int available = countAvailable(playerSlots, craftingSlots, recipeStack);
+			if (externalSource != null) {
+				long externalAvailable = externalSource.countAvailable(i, recipeStack);
+				available = (int) Math.min(Integer.MAX_VALUE, (long) available + externalAvailable);
+			}
 			int requiredPerCraft = countRequiredPerCraft(recipeStacks, recipeStack);
 			int stackLimit = Math.min(recipeStack.getMaxStackSize(), minTargetSlotLimit(craftingSlots, recipeStacks, recipeStack));
 			int slotCapacity = stackLimit / recipeStack.getCount();
@@ -202,7 +234,14 @@ public final class ServerBookmarkCraftingGridFill {
 		}
 	}
 
-	private static int fillCraftingSlots(List<Slot> playerSlots, List<Slot> craftingSlots, List<ItemStack> recipeStacks, int craftCount, @Nullable ServerPlayer player) {
+	private static int fillCraftingSlots(
+		List<Slot> playerSlots,
+		List<Slot> craftingSlots,
+		List<ItemStack> recipeStacks,
+		int craftCount,
+		@Nullable ServerPlayer player,
+		@Nullable ExternalIngredientSource externalSource
+	) {
 		int filled = 0;
 		for (int i = 0; i < recipeStacks.size(); i++) {
 			ItemStack recipeStack = recipeStacks.get(i);
@@ -215,6 +254,17 @@ public final class ServerBookmarkCraftingGridFill {
 			}
 			int amount = recipeStack.getCount() * craftCount;
 			ItemStack moved = extract(playerSlots, recipeStack, amount, player);
+			if (moved.getCount() < amount && externalSource != null) {
+				ItemStack external = externalSource.extract(i, recipeStack, amount - moved.getCount());
+				if (!external.isEmpty()) {
+					if (moved.isEmpty()) {
+						moved = external;
+					} else if (ItemStack.isSameItemSameComponents(moved, external)) {
+						moved.grow(external.getCount());
+					}
+					// Different variants cannot share one slot; keep the player-inventory portion only.
+				}
+			}
 			if (moved.isEmpty()) {
 				continue;
 			}

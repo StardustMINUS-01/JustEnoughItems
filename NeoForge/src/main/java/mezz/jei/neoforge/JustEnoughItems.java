@@ -1,11 +1,13 @@
 package mezz.jei.neoforge;
 
 import mezz.jei.api.constants.ModIds;
+import mezz.jei.common.bookmarks.CraftingGridCraftExecutors;
 import mezz.jei.common.bookmarks.ServerBookmarkPullTransfers;
 import mezz.jei.common.config.IServerConfig;
 import mezz.jei.common.util.MinecraftLocaleSupplier;
 import mezz.jei.common.util.Translator;
 import mezz.jei.neoforge.compat.ae2.Ae2BookmarkPullTransferHandler;
+import mezz.jei.neoforge.compat.ae2.Ae2CraftingGridCraftExecutor;
 import mezz.jei.neoforge.config.ServerConfig;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
 import mezz.jei.neoforge.network.NetworkHandler;
@@ -30,6 +32,8 @@ public class JustEnoughItems {
 		networkHandler.registerPacketHandlers(subscriptions);
 		Ae2BookmarkPullTransferHandler.createIfLoaded()
 			.ifPresent(ServerBookmarkPullTransfers::registerHandler);
+		Ae2CraftingGridCraftExecutor.createIfLoaded()
+			.ifPresent(CraftingGridCraftExecutors::registerExecutor);
 
 		JustEnoughItemsClientSafeRunner clientSafeRunner = new JustEnoughItemsClientSafeRunner(networkHandler, subscriptions);
 		if (dist.isClient()) {

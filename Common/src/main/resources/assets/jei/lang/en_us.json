@@ -434,5 +434,7 @@
   "jei.alias.villager.spawn.egg": "HMMM",
   "jei.bookmark.scrollStep.oneStack": "One Stack",
   "jei.collapsible.group.tooltip": "Grouped (%s items)",
-  "jei.collapsible.toggle.hint": "Alt + Left Click to expand/collapse"
+  "jei.collapsible.toggle.hint": "Alt + Left Click to expand/collapse",
+  "jei.ae2.crafting.grid_full": "AE2 network is full, could not store the crafting grid contents",
+  "jei.ae2.crafting.unsupported": "AE2 terminal auto-crafting is unavailable due to a conflicting addon"
 }

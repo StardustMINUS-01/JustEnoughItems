@@ -5,6 +5,7 @@ import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +35,27 @@ public final class BookmarkExternalStorageSnapshots {
 			}
 		}
 		return Optional.empty();
+	}
+
+	public static Optional<List<Entry>> readEntries(Object menu) {
+		for (Provider provider : PROVIDERS) {
+			Optional<List<Entry>> entries = provider.readEntries(menu);
+			if (entries.isPresent()) {
+				return entries;
+			}
+		}
+		return Optional.empty();
+	}
+
+	public static List<ItemStack> toAvailableStacks(List<Entry> entries) {
+		List<ItemStack> stacks = new ArrayList<>();
+		for (Entry entry : entries) {
+			if (entry.amount() <= 0 || entry.stack().isEmpty()) {
+				continue;
+			}
+			stacks.add(entry.stack().copyWithCount((int) Math.min(entry.amount(), Integer.MAX_VALUE)));
+		}
+		return stacks;
 	}
 
 	public static BookmarkContainerStorageScanner.StorageSnapshot createSnapshot(
@@ -77,5 +99,9 @@ public final class BookmarkExternalStorageSnapshots {
 			Object screen,
 			Function<ItemStack, Optional<BookmarkIngredientKey>> keyFactory
 		);
+
+		default Optional<List<Entry>> readEntries(Object menu) {
+			return Optional.empty();
+		}
 	}
 }

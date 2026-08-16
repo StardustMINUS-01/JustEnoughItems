@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "mezz.jei.neoforge.compat.ae2.mixin",
+  "plugin": "mezz.jei.neoforge.compat.ae2.mixin.Ae2MixinConfigPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CraftingTermSlotMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
