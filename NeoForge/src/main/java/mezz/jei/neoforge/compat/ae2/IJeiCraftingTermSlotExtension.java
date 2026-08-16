@@ -9,5 +9,5 @@ import net.minecraft.world.item.ItemStack;
  * so normal AE2 terminal behavior is never changed.
  */
 public interface IJeiCraftingTermSlotExtension {
-	boolean jei$craftOnce(AbstractContainerMenu menu, Player player, ItemStack result);
+	int jei$craftBatch(AbstractContainerMenu menu, Player player, ItemStack result, int times);
 }

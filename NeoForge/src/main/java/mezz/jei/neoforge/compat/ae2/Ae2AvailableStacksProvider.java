@@ -1,6 +1,7 @@
 package mezz.jei.neoforge.compat.ae2;
 
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
+import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -16,7 +17,7 @@ import appeng.menu.me.items.CraftingTermMenu;
  * available stacks used by bookmark auto-crafting material calculation.
  */
 public class Ae2AvailableStacksProvider implements BookmarkAvailableStacksProviders.Provider {
-	private static final long REFRESH_INTERVAL_MILLIS = 500;
+	private static final long REFRESH_INTERVAL_MILLIS = 200;
 
 	private final AvailableStacksAccess availableStacksAccess;
 	private @Nullable AbstractContainerMenu cachedMenu;
@@ -36,16 +37,19 @@ public class Ae2AvailableStacksProvider implements BookmarkAvailableStacksProvid
 
 	@Override
 	public Optional<List<ItemStack>> getAvailableStacks(AbstractContainerMenu menu) {
-		if (cachedMenu == menu && cachedStacks != null &&
+		boolean scoped = !BookmarkCraftingScope.getInterests().isEmpty();
+		if (!scoped && cachedMenu == menu && cachedStacks != null &&
 			System.currentTimeMillis() - cachedAtMillis < REFRESH_INTERVAL_MILLIS) {
 			return Optional.of(cachedStacks);
 		}
 		Optional<List<ItemStack>> stacks = availableStacksAccess.getAvailableStacks(menu);
-		stacks.ifPresent(result -> {
-			cachedMenu = menu;
-			cachedStacks = result;
-			cachedAtMillis = System.currentTimeMillis();
-		});
+		if (!scoped) {
+			stacks.ifPresent(result -> {
+				cachedMenu = menu;
+				cachedStacks = result;
+				cachedAtMillis = System.currentTimeMillis();
+			});
+		}
 		return stacks;
 	}
 

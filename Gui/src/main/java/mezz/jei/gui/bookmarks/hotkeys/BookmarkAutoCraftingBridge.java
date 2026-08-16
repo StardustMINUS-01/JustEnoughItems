@@ -10,18 +10,24 @@ package mezz.jei.gui.bookmarks.hotkeys;
 
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.gui.bookmarks.chain.AutoCraftingManager;
+import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
+import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -299,11 +305,12 @@ public final class BookmarkAutoCraftingBridge {
 
 		public boolean start() {
 			if (!active || !stillValid.getAsBoolean()) {
-				active = false;
+				deactivate();
 				return false;
 			}
+			BookmarkCraftingScope.setInterests(buildInterestStacks());
 			if (!dispatchNext()) {
-				active = false;
+				deactivate();
 				return false;
 			}
 			return true;
@@ -311,13 +318,13 @@ public final class BookmarkAutoCraftingBridge {
 
 		public boolean tick() {
 			if (!active || !stillValid.getAsBoolean()) {
-				active = false;
+				deactivate();
 				return false;
 			}
 			if (waitingForAck) {
 				waitTicks++;
 				if (waitTicks > MAX_WAIT_TICKS) {
-					active = false;
+					deactivate();
 					return false;
 				}
 				return true;
@@ -325,7 +332,7 @@ public final class BookmarkAutoCraftingBridge {
 			if (waitingForClientFallback) {
 				waitTicks++;
 				if (waitTicks > MAX_WAIT_TICKS) {
-					active = false;
+					deactivate();
 					return false;
 				}
 				Optional<Boolean> result = clientFallbackResult.get();
@@ -335,7 +342,7 @@ public final class BookmarkAutoCraftingBridge {
 				waitingForClientFallback = false;
 				waitTicks = 0;
 				if (!result.get()) {
-					active = false;
+					deactivate();
 					return false;
 				}
 				return true;
@@ -344,7 +351,7 @@ public final class BookmarkAutoCraftingBridge {
 				waitTicks++;
 				if (!inventoryHasExpectedResultIncreaseSinceDispatch()) {
 					if (waitTicks > MAX_WAIT_TICKS) {
-						active = false;
+						deactivate();
 						return false;
 					}
 					return true;
@@ -353,10 +360,45 @@ public final class BookmarkAutoCraftingBridge {
 				waitTicks = 0;
 			}
 			if (!dispatchNext()) {
-				active = false;
+				deactivate();
 				return false;
 			}
 			return true;
+		}
+
+		private void deactivate() {
+			active = false;
+			BookmarkCraftingScope.clear();
+		}
+
+		private List<ItemStack> buildInterestStacks() {
+			Set<ResourceLocation> recipeUids = new LinkedHashSet<>();
+			for (RecipeChainInput chainInput : chainInputs) {
+				ResourceLocation recipeUid = chainInput.metadata().recipeUid();
+				if (recipeUid != null) {
+					recipeUids.add(recipeUid);
+				}
+			}
+			Set<Item> items = new LinkedHashSet<>();
+			for (ResourceLocation recipeUid : recipeUids) {
+				recipeLayoutResolver.apply(recipeUid).ifPresent(layout -> {
+					IRecipeSlotsView slotsView = layout.getRecipeSlotsView();
+					addSlotInterests(items, slotsView.getSlotViews(RecipeIngredientRole.INPUT));
+					addSlotInterests(items, slotsView.getSlotViews(RecipeIngredientRole.OUTPUT));
+				});
+			}
+			return items.stream()
+				.map(ItemStack::new)
+				.toList();
+		}
+
+		private static void addSlotInterests(Set<Item> items, List<IRecipeSlotView> slots) {
+			for (IRecipeSlotView slot : slots) {
+				slot.getItemStacks()
+					.filter(stack -> !stack.isEmpty())
+					.map(ItemStack::getItem)
+					.forEach(items::add);
+			}
 		}
 
 		public void handleAck(int requestId, int craftedCount) {
@@ -364,7 +406,7 @@ public final class BookmarkAutoCraftingBridge {
 				return;
 			}
 			if (craftedCount <= 0) {
-				active = false;
+				deactivate();
 				waitingForAck = false;
 				return;
 			}

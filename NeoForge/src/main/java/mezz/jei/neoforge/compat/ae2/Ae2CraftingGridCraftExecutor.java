@@ -103,16 +103,13 @@ public class Ae2CraftingGridCraftExecutor implements ICraftingGridCraftExecutor 
 					break;
 				}
 				menu.slotsChanged(player.getInventory());
-				for (int i = 0; i < filled && remaining > 0; i++) {
-					if (!extension.jei$craftOnce(menu, player, resultSlot.getItem())) {
-						return crafted;
-					}
-					crafted++;
-					remaining--;
-					// Sync the grid and inventory after each craft so the terminal shows
-					// the same fill-and-consume feedback as the vanilla crafting table.
-					menu.broadcastChanges();
+				int done = extension.jei$craftBatch(menu, player, resultSlot.getItem(), Math.min(filled, remaining));
+				if (done <= 0) {
+					return crafted;
 				}
+				crafted += done;
+				remaining -= done;
+				menu.broadcastChanges();
 			}
 			if (crafted > 0) {
 				player.getInventory().setChanged();

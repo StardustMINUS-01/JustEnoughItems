@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import org.jetbrains.annotations.Nullable;
 
 public final class BookmarkAutoCraftingRunner {
@@ -42,6 +43,7 @@ public final class BookmarkAutoCraftingRunner {
 
 	public void stop() {
 		activeTask = null;
+		BookmarkCraftingScope.clear();
 	}
 
 	public boolean hasActiveTask() {

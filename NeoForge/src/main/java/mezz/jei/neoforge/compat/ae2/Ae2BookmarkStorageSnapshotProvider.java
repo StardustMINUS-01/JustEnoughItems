@@ -2,7 +2,9 @@ package mezz.jei.neoforge.compat.ae2;
 
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.chain.BookmarkContainerStorageScanner;
+import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,6 +63,7 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 		private final Class<?> itemKeyClass;
 		private final Method getClientRepoMethod;
 		private final Method getAllEntriesMethod;
+		private final Method getByIngredientMethod;
 		private final Method getWhatMethod;
 		private final Method getStoredAmountMethod;
 		private final Method toStackMethod;
@@ -73,6 +76,7 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 
 			this.getClientRepoMethod = menuClass.getMethod("getClientRepo");
 			this.getAllEntriesMethod = clientRepoClass.getMethod("getAllEntries");
+			this.getByIngredientMethod = clientRepoClass.getMethod("getByIngredient", Ingredient.class);
 			this.getWhatMethod = entryClass.getMethod("getWhat");
 			this.getStoredAmountMethod = entryClass.getMethod("getStoredAmount");
 			this.toStackMethod = itemKeyClass.getMethod("toStack", int.class);
@@ -88,7 +92,14 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 				if (clientRepo == null) {
 					return Optional.of(List.of());
 				}
-				Object allEntries = getAllEntriesMethod.invoke(clientRepo);
+				List<ItemStack> interests = BookmarkCraftingScope.getInterests();
+				Object allEntries;
+				if (interests.isEmpty()) {
+					allEntries = getAllEntriesMethod.invoke(clientRepo);
+				} else {
+					Ingredient ingredient = Ingredient.of(interests.toArray(ItemStack[]::new));
+					allEntries = getByIngredientMethod.invoke(clientRepo, ingredient);
+				}
 				if (!(allEntries instanceof Collection<?> entries)) {
 					return Optional.of(List.of());
 				}
