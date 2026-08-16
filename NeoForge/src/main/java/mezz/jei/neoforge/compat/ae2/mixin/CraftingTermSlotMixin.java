@@ -37,12 +37,30 @@ public abstract class CraftingTermSlotMixin implements IJeiCraftingTermSlotExten
 					actualTimes = Math.min(actualTimes, count);
 				}
 			}
-			if (actualTimes <= 0) {
-				return 0;
-			}
-			List<ItemStack> consumed = new ArrayList<>(grid.size());
-			for (int i = 0; i < grid.size(); i++) {
-				if (grid.getStackInSlot(i).isEmpty()) {
+		if (actualTimes <= 0) {
+			return 0;
+		}
+
+		// Simulate placement before consuming anything: only craft as many results as the player
+		// inventory and the ME network can fully hold. Creative-only networks accept nothing that is
+		// not configured, so this clamps the batch instead of failing it (and never duplicates items).
+		int totalCount = result.getCount() * actualTimes;
+		ItemStack totalResult = result.copyWithCount(totalCount);
+		int playerRoom = getInsertableCount(player.getInventory(), totalResult);
+		long networkRoom = getNetworkRoom(menu, totalResult, totalCount - playerRoom);
+		int maxTimes = (int) Math.min(actualTimes, (playerRoom + networkRoom) / result.getCount());
+		if (maxTimes <= 0) {
+			return 0;
+		}
+		actualTimes = maxTimes;
+		totalCount = result.getCount() * actualTimes;
+		totalResult = result.copyWithCount(totalCount);
+		playerRoom = getInsertableCount(player.getInventory(), totalResult);
+		int remainderCount = totalCount - playerRoom;
+
+		List<ItemStack> consumed = new ArrayList<>(grid.size());
+		for (int i = 0; i < grid.size(); i++) {
+			if (grid.getStackInSlot(i).isEmpty()) {
 					consumed.add(ItemStack.EMPTY);
 					continue;
 				}
@@ -51,43 +69,44 @@ public abstract class CraftingTermSlotMixin implements IJeiCraftingTermSlotExten
 					restoreConsumed(grid, consumed);
 					return 0;
 				}
-				consumed.add(extracted);
-			}
+			consumed.add(extracted);
+		}
 
-			int totalCount = result.getCount() * actualTimes;
-			ItemStack totalResult = result.copyWithCount(totalCount);
-			int insertable = getInsertableCount(player.getInventory(), totalResult);
-			if (insertable > 0) {
-				player.getInventory().add(totalResult.copyWithCount(insertable));
-			}
-			int remainderCount = totalCount - insertable;
-			if (remainderCount > 0) {
-				ItemStack remainder = totalResult.copyWithCount(remainderCount);
-				if (menu instanceof CraftingTermMenu craftingTermMenu && craftingTermMenu.getLinkStatus().connected()) {
-					// Player inventory is full: put the remainder into the ME network instead.
-					MEStorage storage = craftingTermMenu.getHost().getInventory();
-					long inserted = storage.insert(
-						AEItemKey.of(remainder),
-						remainderCount,
-						Actionable.MODULATE,
-						craftingTermMenu.getActionSource()
-					);
-					if (inserted >= remainderCount) {
-						remainderCount = 0;
-					}
-				}
-			}
-			if (remainderCount > 0) {
+		// Insert the network portion before touching the player inventory, so a network failure
+		// can restore the grid without leaving duplicated items behind.
+		if (remainderCount > 0) {
+			long inserted = insertIntoNetwork(menu, totalResult.copyWithCount(remainderCount), remainderCount);
+			if (inserted < remainderCount) {
 				restoreConsumed(grid, consumed);
 				return 0;
 			}
-			if (menu instanceof CraftingTermMenu craftingTermMenu) {
-				craftingTermMenu.slotsChanged(grid.toContainer());
+		}
+		if (playerRoom > 0) {
+			player.getInventory().add(totalResult.copyWithCount(playerRoom));
+		}
+		if (menu instanceof CraftingTermMenu craftingTermMenu) {
+			craftingTermMenu.slotsChanged(grid.toContainer());
 			}
 			return actualTimes;
 		} catch (RuntimeException e) {
 			return 0;
 		}
+	}
+
+	private static long getNetworkRoom(AbstractContainerMenu menu, ItemStack totalResult, int requested) {
+		if (requested <= 0 || !(menu instanceof CraftingTermMenu craftingTermMenu) || !craftingTermMenu.getLinkStatus().connected()) {
+			return 0;
+		}
+		MEStorage storage = craftingTermMenu.getHost().getInventory();
+		return storage.insert(AEItemKey.of(totalResult), requested, Actionable.SIMULATE, craftingTermMenu.getActionSource());
+	}
+
+	private static long insertIntoNetwork(AbstractContainerMenu menu, ItemStack remainder, int amount) {
+		if (!(menu instanceof CraftingTermMenu craftingTermMenu) || !craftingTermMenu.getLinkStatus().connected()) {
+			return 0;
+		}
+		MEStorage storage = craftingTermMenu.getHost().getInventory();
+		return storage.insert(AEItemKey.of(remainder), amount, Actionable.MODULATE, craftingTermMenu.getActionSource());
 	}
 
 	private static void restoreConsumed(InternalInventory grid, List<ItemStack> consumed) {
