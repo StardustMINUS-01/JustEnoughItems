@@ -1,7 +1,6 @@
 package mezz.jei.gui.input.handlers;
 
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
-import mezz.jei.gui.util.GiveAmount;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.Item;
@@ -19,28 +18,6 @@ public class FocusInputHandlerAmountTest {
 	public static void bootStrap() {
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
-	}
-
-	@Test
-	public void defaultOneAndMaxKeepBehavior() {
-		assertEquals(1, FocusInputHandler.resolveGiveAmount(GiveAmount.ONE, stack(), Optional.empty()));
-		assertEquals(64, FocusInputHandler.resolveGiveAmount(GiveAmount.MAX, stack(), Optional.empty()));
-	}
-
-	@Test
-	public void customAmountWinsForOneAndMax() {
-		assertEquals(65, FocusInputHandler.resolveGiveAmount(GiveAmount.ONE, stack(), Optional.of(65L)));
-		assertEquals(65, FocusInputHandler.resolveGiveAmount(GiveAmount.MAX, stack(), Optional.of(65L)));
-	}
-
-	@Test
-	public void customAmountClampsToIntMax() {
-		assertEquals(Integer.MAX_VALUE, FocusInputHandler.resolveGiveAmount(GiveAmount.ONE, stack(), Optional.of(3_000_000_000L)));
-	}
-
-	@Test
-	public void nonPositiveCustomAmountFallsBackToOne() {
-		assertEquals(1, FocusInputHandler.resolveGiveAmount(GiveAmount.MAX, stack(), Optional.of(0L)));
 	}
 
 	@Test

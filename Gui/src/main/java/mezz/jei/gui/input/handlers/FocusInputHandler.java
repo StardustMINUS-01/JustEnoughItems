@@ -327,7 +327,7 @@ public class FocusInputHandler implements IUserInputHandler {
 			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
 				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
 				if (!itemStack.isEmpty()) {
-					int amount = resolveGiveAmount(giveAmount, itemStack, clicked.getCheatGiveAmount());
+					int amount = giveAmount.getAmountForStack(itemStack);
 					if (!input.isSimulate()) {
 						commandUtil.giveStack(itemStack, amount);
 					}
@@ -355,14 +355,6 @@ public class FocusInputHandler implements IUserInputHandler {
 				}
 			})
 			.findFirst();
-	}
-
-	static int resolveGiveAmount(GiveAmount giveAmount, ItemStack itemStack, Optional<Long> cheatGiveAmount) {
-		if (cheatGiveAmount.isPresent()) {
-			long amount = Math.max(1, cheatGiveAmount.get());
-			return (int) Math.min(Integer.MAX_VALUE, amount);
-		}
-		return giveAmount.getAmountForStack(itemStack);
 	}
 
 	static int resolveFastPickupAmount(ItemStack itemStack, Optional<Long> cheatGiveAmount, ScrollStep scrollStep) {
