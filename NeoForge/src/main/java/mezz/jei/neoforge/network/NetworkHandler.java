@@ -20,7 +20,7 @@ import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
 import mezz.jei.common.network.packets.PlayToClientPacket;
 import mezz.jei.common.network.packets.PlayToServerPacket;
-import mezz.jei.neoforge.compat.ae2.Ae2CompatUtil;
+import mezz.jei.neoforge.compat.CompatUtil;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
 import mezz.jei.neoforge.compat.ae2.patternencoding.PacketEncodeRecipeChainPatterns;
 import net.minecraft.client.player.LocalPlayer;
@@ -63,7 +63,7 @@ public class NetworkHandler {
 			.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
 			.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
 			.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
-			if (Ae2CompatUtil.isLoaded()) {
+			if (CompatUtil.isModLoaded("ae2")) {
 				registrar.playToServer(PacketEncodeRecipeChainPatterns.TYPE, PacketEncodeRecipeChainPatterns.STREAM_CODEC, wrapServerHandler(PacketEncodeRecipeChainPatterns::process));
 			}
 		});

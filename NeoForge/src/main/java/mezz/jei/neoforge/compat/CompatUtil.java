@@ -1,16 +1,16 @@
-package mezz.jei.neoforge.compat.ae2;
+package mezz.jei.neoforge.compat;
 
 import net.neoforged.fml.ModList;
 
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public final class Ae2CompatUtil {
-	private Ae2CompatUtil() {
+public final class CompatUtil {
+	private CompatUtil() {
 	}
 
-	public static boolean isLoaded() {
-		return ModList.get().isLoaded("ae2");
+	public static boolean isModLoaded(String modId) {
+		return ModList.get().isLoaded(modId);
 	}
 
 	/**
@@ -19,7 +19,7 @@ public final class Ae2CompatUtil {
 	 */
 	public static boolean isClassPresent(String className) {
 		String resourceName = className.replace('.', '/') + ".class";
-		return Ae2CompatUtil.class.getClassLoader().getResource(resourceName) != null;
+		return CompatUtil.class.getClassLoader().getResource(resourceName) != null;
 	}
 
 	public static <T> Optional<T> createIfLoaded(String className, Supplier<T> factory) {

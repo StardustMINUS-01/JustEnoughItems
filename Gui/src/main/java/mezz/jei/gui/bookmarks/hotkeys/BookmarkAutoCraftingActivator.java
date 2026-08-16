@@ -11,8 +11,10 @@ import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -126,7 +128,8 @@ public final class BookmarkAutoCraftingActivator {
 				if (!input.isSimulate()) {
 					List<ItemStack> targetStacks = fill.targetStacks();
 					if (hasServerSupport) {
-						packetSender.accept(new PacketCraftingGridCraft(containerMenu.containerId, fill.multiplier(), targetStacks));
+						ResourceLocation recipeId = recipeLayout.getRecipe() instanceof RecipeHolder<?> holder ? holder.id() : null;
+						packetSender.accept(new PacketCraftingGridCraft(containerMenu.containerId, recipeId, fill.multiplier(), targetStacks));
 					} else if (!clientFallbackStarter.start(containerMenu, targetStacks)) {
 						return false;
 					}

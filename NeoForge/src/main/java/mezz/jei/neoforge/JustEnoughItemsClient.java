@@ -25,6 +25,8 @@ import mezz.jei.neoforge.compat.ae2.Ae2CraftingGridTargetSlotProvider;
 import mezz.jei.neoforge.compat.ae2.Ae2GroupDropCompat;
 import mezz.jei.neoforge.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.neoforge.compat.ae2.Ae2JeiSearchTextCompat;
+import mezz.jei.neoforge.compat.sophisticated.SophisticatedAvailableStacksProvider;
+import mezz.jei.neoforge.compat.sophisticated.SophisticatedCraftingGridTargetSlotProvider;
 import mezz.jei.neoforge.network.NetworkHandler;
 import mezz.jei.neoforge.plugins.neoforge.NeoForgeGuiPlugin;
 import mezz.jei.neoforge.startup.ForgePluginFinder;
@@ -94,7 +96,11 @@ public class JustEnoughItemsClient {
 			.ifPresent(BookmarkExternalStorageSnapshots::registerProvider);
 		Ae2AvailableStacksProvider.createIfLoaded()
 			.ifPresent(BookmarkAvailableStacksProviders::registerProvider);
+		SophisticatedAvailableStacksProvider.createIfLoaded()
+			.ifPresent(BookmarkAvailableStacksProviders::registerProvider);
 		Ae2CraftingGridTargetSlotProvider.createIfLoaded()
+			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
+		SophisticatedCraftingGridTargetSlotProvider.createIfLoaded()
 			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
 		Ae2RecipeChainPatternEncodingBridge.createIfLoaded()
 			.ifPresent(Ae2RecipeChainPatternEncodingBridgeRegistry::register);

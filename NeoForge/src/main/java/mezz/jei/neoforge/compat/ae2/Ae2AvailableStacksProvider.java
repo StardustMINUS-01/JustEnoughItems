@@ -3,6 +3,7 @@ package mezz.jei.neoforge.compat.ae2;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
 import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
+import mezz.jei.neoforge.compat.CompatUtil;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +26,7 @@ public class Ae2AvailableStacksProvider implements BookmarkAvailableStacksProvid
 	private long cachedAtMillis;
 
 	public static Optional<Ae2AvailableStacksProvider> createIfLoaded() {
-		return Ae2CompatUtil.createIfLoaded(
+		return CompatUtil.createIfLoaded(
 			"appeng.menu.me.items.CraftingTermMenu",
 			() -> new Ae2AvailableStacksProvider(new DirectAvailableStacksAccess())
 		);

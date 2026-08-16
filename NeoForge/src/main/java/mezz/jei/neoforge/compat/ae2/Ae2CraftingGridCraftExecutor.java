@@ -2,11 +2,14 @@ package mezz.jei.neoforge.compat.ae2;
 
 import mezz.jei.common.bookmarks.ICraftingGridCraftExecutor;
 import mezz.jei.common.bookmarks.ServerBookmarkCraftingGridFill;
+import mezz.jei.neoforge.compat.CompatUtil;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +32,7 @@ public class Ae2CraftingGridCraftExecutor implements ICraftingGridCraftExecutor 
 	private final CraftingAccess craftingAccess;
 
 	public static Optional<Ae2CraftingGridCraftExecutor> createIfLoaded() {
-		return Ae2CompatUtil.createIfLoaded(
+		return CompatUtil.createIfLoaded(
 			"appeng.menu.me.items.CraftingTermMenu",
 			() -> new Ae2CraftingGridCraftExecutor(new DirectCraftingAccess())
 		);
@@ -45,7 +48,7 @@ public class Ae2CraftingGridCraftExecutor implements ICraftingGridCraftExecutor 
 	}
 
 	@Override
-	public int craft(ServerPlayer player, int containerId, List<ItemStack> targetStacks, int multiplier) {
+	public int craft(ServerPlayer player, int containerId, @Nullable ResourceLocation recipeId, List<ItemStack> targetStacks, int multiplier) {
 		return craftingAccess.craft(player, containerId, targetStacks, multiplier);
 	}
 

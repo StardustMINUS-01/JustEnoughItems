@@ -10,8 +10,10 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Optional;
 
 public class PacketCraftingGridCraft extends PlayToServerPacket<PacketCraftingGridCraft> {
 	private static final int MAX_TARGET_STACKS = 9;
@@ -23,6 +25,8 @@ public class PacketCraftingGridCraft extends PlayToServerPacket<PacketCraftingGr
 		p -> p.taskId,
 		ByteBufCodecs.VAR_INT,
 		p -> p.requestId,
+		ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC),
+		p -> p.recipeId,
 		ByteBufCodecs.VAR_INT,
 		p -> p.multiplier,
 		ItemStack.OPTIONAL_STREAM_CODEC.apply(ByteBufCodecs.list(MAX_TARGET_STACKS)),
@@ -33,21 +37,31 @@ public class PacketCraftingGridCraft extends PlayToServerPacket<PacketCraftingGr
 	private final int containerId;
 	private final int taskId;
 	private final int requestId;
+	private final Optional<ResourceLocation> recipeId;
 	private final int multiplier;
 	private final List<ItemStack> targetStacks;
 
 	public PacketCraftingGridCraft(int containerId, int multiplier, List<ItemStack> targetStacks) {
-		this(containerId, 0, 0, multiplier, targetStacks);
+		this(containerId, 0, 0, Optional.empty(), multiplier, targetStacks);
 	}
 
 	public PacketCraftingGridCraft(int containerId, int requestId, int multiplier, List<ItemStack> targetStacks) {
-		this(containerId, 0, requestId, multiplier, targetStacks);
+		this(containerId, 0, requestId, Optional.empty(), multiplier, targetStacks);
 	}
 
-	public PacketCraftingGridCraft(int containerId, int taskId, int requestId, int multiplier, List<ItemStack> targetStacks) {
+	public PacketCraftingGridCraft(int containerId, @Nullable ResourceLocation recipeId, int multiplier, List<ItemStack> targetStacks) {
+		this(containerId, 0, 0, Optional.ofNullable(recipeId), multiplier, targetStacks);
+	}
+
+	public PacketCraftingGridCraft(int containerId, int taskId, int requestId, ResourceLocation recipeId, int multiplier, List<ItemStack> targetStacks) {
+		this(containerId, taskId, requestId, Optional.ofNullable(recipeId), multiplier, targetStacks);
+	}
+
+	private PacketCraftingGridCraft(int containerId, int taskId, int requestId, Optional<ResourceLocation> recipeId, int multiplier, List<ItemStack> targetStacks) {
 		this.containerId = containerId;
 		this.taskId = Math.max(0, taskId);
 		this.requestId = Math.max(0, requestId);
+		this.recipeId = recipeId;
 		this.multiplier = Math.max(0, multiplier);
 		this.targetStacks = targetStacks.stream()
 			.limit(MAX_TARGET_STACKS)
@@ -68,7 +82,7 @@ public class PacketCraftingGridCraft extends PlayToServerPacket<PacketCraftingGr
 	@Override
 	public void process(ServerPacketContext context) {
 		IConnectionToClient connection = context.connection();
-		int crafted = CraftingGridCraftExecutors.craft(context.player(), containerId, targetStacks, multiplier);
+		int crafted = CraftingGridCraftExecutors.craft(context.player(), containerId, recipeId.orElse(null), targetStacks, multiplier);
 		if (requestId > 0) {
 			connection.sendPacketToClient(new PacketCraftingGridCraftAck(taskId, requestId, crafted), context.player());
 		}

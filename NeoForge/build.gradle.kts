@@ -164,6 +164,7 @@ dependencies {
 	}
 	compileOnly("org.spongepowered:mixin:0.8.5")
 	compileOnly("maven.modrinth:ae2:19.2.17")
+	compileOnly("maven.modrinth:sophisticated-core:1.21.1-1.4.87.2270")
 	testImplementation("maven.modrinth:ae2:19.2.17")
 	"gameTestImplementation"("net.neoforged:testframework:${neoforgeVersion}") {
 		isTransitive = false

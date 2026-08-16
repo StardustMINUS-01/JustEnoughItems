@@ -1,6 +1,7 @@
 package mezz.jei.neoforge.compat.ae2;
 
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
+import mezz.jei.neoforge.compat.CompatUtil;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
@@ -18,7 +19,7 @@ public class Ae2CraftingGridTargetSlotProvider implements BookmarkGhostOverlayTa
 	private final TargetSlotAccess targetSlotAccess;
 
 	public static Optional<Ae2CraftingGridTargetSlotProvider> createIfLoaded() {
-		return Ae2CompatUtil.createIfLoaded(
+		return CompatUtil.createIfLoaded(
 			"appeng.menu.me.items.CraftingTermMenu",
 			() -> new Ae2CraftingGridTargetSlotProvider(new DirectTargetSlotAccess())
 		);

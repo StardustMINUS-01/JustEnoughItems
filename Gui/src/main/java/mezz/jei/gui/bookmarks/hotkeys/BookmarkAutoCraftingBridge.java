@@ -621,7 +621,7 @@ public final class BookmarkAutoCraftingBridge {
 		craftedOnePacket.set(true);
 		afterCraftAccepted.run();
 		if (!simulate) {
-			packetSender.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, fill.get().multiplier(), fill.get().targetStacks()));
+			packetSender.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, recipeUid, fill.get().multiplier(), fill.get().targetStacks()));
 		}
 		return true;
 	}

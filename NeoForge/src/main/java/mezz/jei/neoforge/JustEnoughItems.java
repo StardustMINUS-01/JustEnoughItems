@@ -1,6 +1,7 @@
 package mezz.jei.neoforge;
 
 import mezz.jei.api.constants.ModIds;
+import mezz.jei.common.bookmarks.CraftingGridFillExecutors;
 import mezz.jei.common.bookmarks.CraftingGridCraftExecutors;
 import mezz.jei.common.bookmarks.ServerBookmarkPullTransfers;
 import mezz.jei.common.config.IServerConfig;
@@ -8,6 +9,8 @@ import mezz.jei.common.util.MinecraftLocaleSupplier;
 import mezz.jei.common.util.Translator;
 import mezz.jei.neoforge.compat.ae2.Ae2BookmarkPullTransferHandler;
 import mezz.jei.neoforge.compat.ae2.Ae2CraftingGridCraftExecutor;
+import mezz.jei.neoforge.compat.sophisticated.SophisticatedCraftingGridCraftExecutor;
+import mezz.jei.neoforge.compat.sophisticated.SophisticatedCraftingGridFillExecutor;
 import mezz.jei.neoforge.config.ServerConfig;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
 import mezz.jei.neoforge.network.NetworkHandler;
@@ -34,6 +37,10 @@ public class JustEnoughItems {
 			.ifPresent(ServerBookmarkPullTransfers::registerHandler);
 		Ae2CraftingGridCraftExecutor.createIfLoaded()
 			.ifPresent(CraftingGridCraftExecutors::registerExecutor);
+		SophisticatedCraftingGridCraftExecutor.createIfLoaded()
+			.ifPresent(CraftingGridCraftExecutors::registerExecutor);
+		SophisticatedCraftingGridFillExecutor.createIfLoaded()
+			.ifPresent(CraftingGridFillExecutors::registerExecutor);
 
 		JustEnoughItemsClientSafeRunner clientSafeRunner = new JustEnoughItemsClientSafeRunner(networkHandler, subscriptions);
 		if (dist.isClient()) {

@@ -1,6 +1,6 @@
 package mezz.jei.neoforge.compat.ae2.mixin;
 
-import mezz.jei.neoforge.compat.ae2.Ae2CompatUtil;
+import mezz.jei.neoforge.compat.CompatUtil;
 import org.objectweb.asm.tree.ClassNode;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
@@ -16,7 +16,7 @@ public class Ae2MixinConfigPlugin implements IMixinConfigPlugin {
 	private static final boolean AE2_PRESENT = isAe2Present();
 
 	public static boolean isAe2Present() {
-		return Ae2CompatUtil.isClassPresent("appeng.menu.me.items.CraftingTermMenu");
+		return CompatUtil.isClassPresent("appeng.menu.me.items.CraftingTermMenu");
 	}
 
 	@Override

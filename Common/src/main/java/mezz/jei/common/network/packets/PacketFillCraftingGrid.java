@@ -1,7 +1,7 @@
 package mezz.jei.common.network.packets;
 
 import mezz.jei.api.constants.ModIds;
-import mezz.jei.common.bookmarks.ServerBookmarkCraftingGridFill;
+import mezz.jei.common.bookmarks.CraftingGridFillExecutors;
 import mezz.jei.common.network.ServerPacketContext;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -50,6 +50,6 @@ public class PacketFillCraftingGrid extends PlayToServerPacket<PacketFillCraftin
 
 	@Override
 	public void process(ServerPacketContext context) {
-		ServerBookmarkCraftingGridFill.fill(context.player(), containerId, targetStacks, multiplier);
+		CraftingGridFillExecutors.fill(context.player(), containerId, targetStacks, multiplier);
 	}
 }
