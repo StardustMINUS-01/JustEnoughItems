@@ -1,6 +1,6 @@
 package mezz.jei.test.bench;
 
-import mezz.jei.gui.bookmarks.BookmarkAmountFormatter;
+import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

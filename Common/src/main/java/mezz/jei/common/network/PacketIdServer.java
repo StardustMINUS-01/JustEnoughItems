@@ -6,7 +6,10 @@ public enum PacketIdServer implements IPacketId {
 	GIVE_ITEM,
 	SET_HOTBAR_ITEM,
 	CHEAT_PERMISSION_REQUEST,
-	RECIPE_TRANSFER_COUNTED;
+	RECIPE_TRANSFER_COUNTED,
+	PULL_BOOKMARK_ITEMS,
+	CRAFTING_GRID_CRAFT,
+	FILL_CRAFTING_GRID;
 
 	public static final PacketIdServer[] VALUES = values();
 }

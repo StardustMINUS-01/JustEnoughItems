@@ -26,6 +26,8 @@ public interface IClientConfig {
 
 	boolean isAddingBookmarksToFrontEnabled();
 
+	boolean isShowRecipeHandlerIconEnabled();
+
 	int getFavoriteTreeDepth();
 
 	boolean isBookmarkOutputAsRecipeEnabled();
@@ -43,6 +45,8 @@ public interface IClientConfig {
 	boolean isHoldShiftToShowBookmarkTooltipFeaturesEnabled();
 
 	boolean isDragToRearrangeBookmarksEnabled();
+
+	BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode();
 
 	boolean isLookupHistoryEnabled();
 

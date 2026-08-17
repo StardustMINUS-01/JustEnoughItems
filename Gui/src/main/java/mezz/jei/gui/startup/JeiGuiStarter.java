@@ -23,21 +23,39 @@ import mezz.jei.common.config.IJeiClientConfigs;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
+import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.LoggedTimer;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
+import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
+import mezz.jei.gui.collapsible.CollapsibleManager;
+import mezz.jei.gui.collapsible.CollapsibleRules;
+import mezz.jei.gui.collapsible.CollapsibleSettings;
+import mezz.jei.gui.collapsible.CollapsibleState;
+import mezz.jei.gui.config.CollapsibleConfig;
+import mezz.jei.gui.config.CollapsibleRulesReloadController;
+import mezz.jei.gui.config.CollapsibleStateStore;
+import mezz.jei.gui.config.ConfigFileImporter;
+import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
 import mezz.jei.gui.config.ModNameSortingConfig;
+import mezz.jei.gui.config.RecipePreferenceConfig;
+import mezz.jei.gui.config.RecipePreferenceRulesReloadController;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.filter.FilterTextSource;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
 import mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver;
-import mezz.jei.gui.favorites.GeneratedFavoriteResolver;
+import mezz.jei.gui.favorites.RecipePreferenceCandidateResolver;
+import mezz.jei.gui.favorites.SlotPreferenceResolver;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import mezz.jei.gui.ingredients.IngredientFilter;
@@ -69,7 +87,9 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.nio.file.Path;
 
 public class JeiGuiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -113,8 +133,35 @@ public class JeiGuiStarter {
 		ModNameSortingConfig modNameSortingConfig = configData.modNameSortingConfig();
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = configData.ingredientTypeSortingConfig();
 		IClientToggleState toggleState = Internal.getClientToggleState();
+		ScrollStep scrollStep = new ScrollStep();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
 		ILookupHistoryConfig lookupHistoryConfig = configData.lookupHistoryConfig();
+
+		CollapsibleConfig collapsibleConfig = configData.collapsibleConfig();
+		CollapsibleStateStore collapsibleStateStore = configData.collapsibleStateStore();
+
+		RecipePreferenceConfig recipePreferenceConfig = new RecipePreferenceConfig(configData.configDir());
+		recipePreferenceConfig.ensureDefaultFile();
+
+		boolean collapsibleGroupsInstalled = Services.PLATFORM.getModHelper().isModLoaded("collapsible_groups");
+		ConfigFileImporter configFileImporter = new ConfigFileImporter(configData.configDir());
+		configFileImporter.importFiles("recipe-preferences-", recipePreferenceConfig.getPath());
+		RecipePreferenceRules recipePreferenceRules = recipePreferenceConfig.loadRules();
+		CollapsibleManager collapsibleManager = null;
+		if (!collapsibleGroupsInstalled) {
+			collapsibleConfig.ensureDefaultFile();
+			configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath());
+			CollapsibleState collapsibleState = new CollapsibleState();
+			collapsibleState.load(collapsibleStateStore.load());
+			CollapsibleRules collapsibleRules = collapsibleConfig.loadRules();
+			CollapsibleSettings collapsibleSettings = collapsibleConfig.loadSettings();
+			collapsibleManager = new CollapsibleManager(
+				collapsibleRules,
+				collapsibleSettings,
+				collapsibleState
+			);
+			collapsibleState.addListener(() -> collapsibleStateStore.save(collapsibleState.toMap()));
+		}
 
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
@@ -171,17 +218,27 @@ public class JeiGuiStarter {
 			serverConnection,
 			ingredientFilterConfig,
 			textures,
-			colorHelper
+			colorHelper,
+			collapsibleManager
 		);
 		registration.setIngredientListOverlay(ingredientListOverlay);
 
+		// 1.20.1 has no GuiConfigData.favoriteRecipeConfig(), so a FavoriteRecipeConfig is created here
+		// from the same config directory that GuiConfigData uses (1.21.1 uses configData.favoriteRecipeConfig())
+		Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
+		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(configDir);
+		FavoriteRecipeStore favoriteRecipes = favoriteRecipeConfig.loadFavorites();
+		favoriteRecipes.addSourceListChangedListener(() -> favoriteRecipeConfig.saveFavorites(favoriteRecipes));
 		BookmarkList bookmarkList = new BookmarkList(recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkConfig, clientConfig, guiHelper);
 		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
 
 		BookmarkOverlay bookmarkOverlay = OverlayHelper.createBookmarkOverlay(
 			ingredientManager,
+			recipeManager,
+			focusFactory,
 			screenHelper,
 			bookmarkList,
+			favoriteRecipes,
 			lookupHistory,
 			keyMappings,
 			bookmarkListConfig,
@@ -189,6 +246,7 @@ public class JeiGuiStarter {
 			clientConfig,
 			toggleState,
 			serverConnection,
+			scrollStep,
 			textures,
 			colorHelper
 		);
@@ -199,19 +257,72 @@ public class JeiGuiStarter {
 			focusFactory,
 			ingredientManager
 		);
-		FavoriteRecipeStore favoriteRecipes = new FavoriteRecipeStore();
-		GeneratedFavoriteResolver generatedFavoriteResolver = new GeneratedFavoriteResolver(recipeManager, focusFactory, ingredientManager);
-		favoriteRecipes.setGeneratedFavoriteResolver(generatedFavoriteResolver::resolve);
+		AtomicReference<RecipePreferenceRules> recipePreferenceRulesRef = new AtomicReference<>(recipePreferenceRules);
+		RecipePreferenceCandidateResolver recipePreferenceCandidateResolver = RecipePreferenceCandidateResolver.create(
+			recipeManager,
+			focusFactory,
+			ingredientManager,
+			recipePreferenceRulesRef::get
+		);
+		favoriteRecipes.setGeneratedFavoriteResolver(
+			(target, layoutCache) -> recipePreferenceCandidateResolver.resolveGeneratedFavorite(target, layoutCache)
+		);
+		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
+			recipePreferenceConfig::loadRules,
+			minecraft::execute,
+			rules -> {
+				recipePreferenceRulesRef.set(rules);
+				favoriteRecipes.clearGeneratedFavorites();
+				recipePreferenceCandidateResolver.invalidateGeneratedFavorites();
+			}
+		);
+		Internal.getFileWatcher().addCallback(
+			recipePreferenceConfig.getPath(),
+			recipePreferenceRulesReloadController::onConfigFileChanged
+		);
+		Internal.getFileWatcher().addDirectoryCallback(
+			configData.configDir(),
+			path -> path.getFileName().toString().startsWith("recipe-preferences-"),
+			() -> configFileImporter.importFiles("recipe-preferences-", recipePreferenceConfig.getPath())
+		);
 		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter = new FavoriteTreeBookmarkWriter(
-			new FavoriteTreeBuilder(favoriteRecipes, favoriteTreeRecipeResolver),
+			new FavoriteTreeBuilder(
+				favoriteRecipes,
+				favoriteTreeRecipeResolver,
+				new SlotPreferenceResolver(recipePreferenceCandidateResolver, recipePreferenceRulesRef::get)
+			),
 			favoriteTreeRecipeResolver::resolveLayout,
 			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
 		);
 
+		if (collapsibleManager != null) {
+			CollapsibleManager activeCollapsibleManager = collapsibleManager;
+			CollapsibleRulesReloadController collapsibleRulesReloadController = new CollapsibleRulesReloadController(
+				collapsibleConfig::loadRules,
+				minecraft::execute,
+				rules -> activeCollapsibleManager.reload(rules, collapsibleConfig.loadSettings())
+			);
+			Internal.getFileWatcher().addCallback(
+				collapsibleConfig.getPath(),
+				collapsibleRulesReloadController::onConfigFileChanged
+			);
+			Internal.getFileWatcher().addDirectoryCallback(
+				configData.configDir(),
+				path -> path.getFileName().toString().startsWith("collapsible-items-"),
+				() -> configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath())
+			);
+		}
+
+		ClientCraftingGridClickRunner clientCraftingGridClickRunner = new ClientCraftingGridClickRunner();
+		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
+		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));
+
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,
 			bookmarkOverlay,
-			ingredientListOverlay
+			ingredientListOverlay,
+			bookmarkAutoCraftingRunner,
+			clientCraftingGridClickRunner
 		);
 
 		RecipesGui recipesGui = new RecipesGui(
@@ -222,7 +333,13 @@ public class JeiGuiStarter {
 			focusFactory,
 			bookmarkList,
 			lookupHistory,
-			guiHelper
+			guiHelper,
+			favoriteRecipes,
+			favoriteRecipeConfig,
+			favoriteTreeBookmarkWriter,
+			clientCraftingGridClickRunner,
+			bookmarkOverlay::showBookmarkPanel,
+			bookmarkOverlay::showFavoritePanel
 		);
 		registration.setRecipesGui(recipesGui);
 
@@ -244,11 +361,15 @@ public class JeiGuiStarter {
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
 			ingredientListOverlay.createInputHandler(),
 			bookmarkOverlay.createInputHandler(),
-			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, toggleState, serverConnection),
-			new BookmarkInputHandler(recipeFocusSource, bookmarkList, bookmarkOverlay, clientConfig, recipesGui,
-				ingredientManager,
+			new BookmarkInputHandler(recipeFocusSource, bookmarkList, bookmarkOverlay, ingredientManager,
+				serverConnection,
+				bookmarkAutoCraftingRunner,
+				clientCraftingGridClickRunner,
+				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.getFavoriteTreeDepth()),
 				favoriteRecipes::getFavorite,
-				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.getFavoriteTreeDepth())),
+				clientConfig,
+				recipesGui),
+			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection),
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);

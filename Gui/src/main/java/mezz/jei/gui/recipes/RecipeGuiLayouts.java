@@ -5,11 +5,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.input.ClickableIngredientInternal;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.input.handlers.NullInputHandler;
 import mezz.jei.gui.input.handlers.ProxyInputHandler;
@@ -156,6 +158,28 @@ public class RecipeGuiLayouts {
 				inputHandler.handleMouseMoved(mouseX, mouseY);
 			}
 		}
+	}
+
+	public boolean bookmarkRecipeUnderMouse(UserInput input, boolean preserveAmount) {
+		double mouseX = input.getMouseX();
+		double mouseY = input.getMouseY();
+		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
+			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
+			if (recipeLayout.isMouseOver(mouseX, mouseY) && isOutputSlotUnderMouse(recipeLayout, mouseX, mouseY)) {
+				if (recipeLayoutWithButtons instanceof RecipeLayoutWithButtons<?> recipeLayoutWithForkExtras) {
+					return recipeLayoutWithForkExtras.addRecipeBookmarkGroup(input, preserveAmount);
+				}
+				return false;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isOutputSlotUnderMouse(IRecipeLayoutDrawable<?> recipeLayout, double mouseX, double mouseY) {
+		return recipeLayout.getSlotUnderMouse(mouseX, mouseY)
+			.map(RecipeSlotUnderMouse::slot)
+			.map(slot -> slot.getRole() == RecipeIngredientRole.OUTPUT)
+			.orElse(false);
 	}
 
 	public Optional<IRecipeLayoutDrawable<?>> draw(GuiGraphics guiGraphics, int mouseX, int mouseY) {

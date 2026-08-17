@@ -81,6 +81,13 @@ public class BookmarkConfig implements IBookmarkConfig {
 		return getPath(jeiConfigurationDir, "bookmarks.ini");
 	}
 
+	/**
+	 * Returns the legacy bookmarks.ini config path, used when migrating to the json format.
+	 */
+	public static Optional<Path> getPath(Path jeiConfigurationDir) {
+		return getLegacyPath(jeiConfigurationDir);
+	}
+
 	public BookmarkConfig(Path jeiConfigurationDir) {
 		this.jeiConfigurationDir = jeiConfigurationDir;
 	}

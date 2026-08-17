@@ -8,6 +8,7 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.TextHistory;
 import mezz.jei.gui.input.focus.ScreenFocusHandler;
 import mezz.jei.gui.input.handlers.TextFieldInputHandler;
+import mezz.jei.gui.overlay.ISearchField;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -18,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
-public class GuiTextFieldFilter extends EditBox {
+public class GuiTextFieldFilter extends EditBox implements ISearchField {
 	private static final int maxSearchLength = 128;
 	private static final TextHistory history = new TextHistory();
 	private final BooleanSupplier filterEmpty;
@@ -41,6 +42,7 @@ public class GuiTextFieldFilter extends EditBox {
 		setBordered(false);
 	}
 
+	@Override
 	public void updateBounds(ImmutableRect2i area) {
 		this.backgroundBounds = area;
 		setX(area.getX() + 4);
@@ -51,7 +53,7 @@ public class GuiTextFieldFilter extends EditBox {
 	}
 
 	@Override
-	public void setValue(String filterText) {
+	public void setSearchText(String filterText) {
 		if (!filterText.equals(getValue())) {
 			super.setValue(filterText);
 		}
@@ -74,7 +76,7 @@ public class GuiTextFieldFilter extends EditBox {
 	}
 
 	@Override
-	public void setFocused(boolean keyboardFocus) {
+	public void setSearchFieldFocused(boolean keyboardFocus) {
 		final boolean previousFocus = isFocused();
 		super.setFocused(keyboardFocus);
 
@@ -102,10 +104,18 @@ public class GuiTextFieldFilter extends EditBox {
 
 	@Override
 	public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		drawBackground(guiGraphics);
+		drawForeground(guiGraphics, mouseX, mouseY, partialTicks);
+	}
+
+	public void drawBackground(GuiGraphics guiGraphics) {
 		if (this.isVisible()) {
 			RenderSystem.setShaderColor(1, 1, 1, 1);
 			background.draw(guiGraphics, this.backgroundBounds);
 		}
+	}
+
+	public void drawForeground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		super.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
 	}
 }

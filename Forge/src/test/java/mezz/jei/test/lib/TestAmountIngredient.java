@@ -49,4 +49,26 @@ public class TestAmountIngredient {
 	public String toString() {
 		return "TestAmountIngredient#" + number;
 	}
+
+	/**
+	 * Value semantics like real ingredients (e.g. ItemStack): two instances
+	 * with the same number and amount represent the same ingredient. This is
+	 * required by the 1.20.1 port of the JEI 1.21.1
+	 * {@code RecipeBookmark.equals} ingredient comparison.
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof TestAmountIngredient other)) {
+			return false;
+		}
+		return number == other.number && amount == other.amount;
+	}
+
+	@Override
+	public int hashCode() {
+		return 31 * number + amount;
+	}
 }

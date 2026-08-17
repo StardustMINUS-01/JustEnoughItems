@@ -84,17 +84,6 @@ public abstract class TypedItemStack implements ITypedIngredient<ItemStack> {
 		return VanillaTypes.ITEM_STACK;
 	}
 
-	@Override
-	@Nullable
-	public final <V> ITypedIngredient<V> cast(IIngredientType<V> ingredientType) {
-		if (getType().equals(ingredientType)) {
-			@SuppressWarnings("unchecked")
-			ITypedIngredient<V> cast = (ITypedIngredient<V>) this;
-			return cast;
-		}
-		return null;
-	}
-
 	protected abstract Item getItem();
 
 	protected abstract TypedItemStack getNormalized();

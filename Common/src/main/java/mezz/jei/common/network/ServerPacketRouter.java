@@ -1,8 +1,11 @@
 package mezz.jei.common.network;
 
 import mezz.jei.common.network.packets.IServerPacketHandler;
+import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
+import mezz.jei.common.network.packets.PacketFillCraftingGrid;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
+import mezz.jei.common.network.packets.PacketPullBookmarkItems;
 import mezz.jei.common.network.packets.PacketRecipeTransfer;
 import mezz.jei.common.network.packets.PacketRecipeTransferCounted;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
@@ -32,6 +35,9 @@ public class ServerPacketRouter {
 		handlers.put(PacketIdServer.SET_HOTBAR_ITEM, PacketSetHotbarItemStack::readPacketData);
 		handlers.put(PacketIdServer.CHEAT_PERMISSION_REQUEST, PacketRequestCheatPermission::readPacketData);
 		handlers.put(PacketIdServer.RECIPE_TRANSFER_COUNTED, PacketRecipeTransferCounted::readPacketData);
+		handlers.put(PacketIdServer.PULL_BOOKMARK_ITEMS, PacketPullBookmarkItems::readPacketData);
+		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT, PacketCraftingGridCraft::readPacketData);
+		handlers.put(PacketIdServer.FILL_CRAFTING_GRID, PacketFillCraftingGrid::readPacketData);
 	}
 
 	public void onPacket(FriendlyByteBuf packetBuffer, ServerPlayer player) {

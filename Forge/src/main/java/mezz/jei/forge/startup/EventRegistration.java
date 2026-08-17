@@ -39,6 +39,12 @@ public class EventRegistration {
 			}
 		});
 
+		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> {
+			Screen screen = event.getScreen();
+			UserInput input = ForgeUserInput.fromEvent(event);
+			handler.onKeyboardKeyReleased(input);
+		});
+
 		subscriptions.register(ScreenEvent.CharacterTyped.Pre.class, event -> {
 			Screen screen = event.getScreen();
 			char codePoint = event.getCodePoint();

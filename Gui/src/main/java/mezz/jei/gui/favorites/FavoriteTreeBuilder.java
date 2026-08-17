@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class FavoriteTreeBuilder {
+
 	private final FavoriteRecipeStore favoriteRecipes;
 	private final RecipeResolver recipeResolver;
 	private final @Nullable SlotRuleResolver slotRuleResolver;
@@ -138,17 +139,19 @@ public final class FavoriteTreeBuilder {
 			favoriteRecipes.getManualEntry(recipe.recipe())
 				.flatMap(entry -> Optional.ofNullable(entry.inputs().get(input.inputSlotIndex())))
 				.orElse(null);
-		if (storedInput != null && permutations.contains(storedInput.selected())) {
+		if (storedInput != null &&
+			(permutations.contains(storedInput.selected()) ||
+				permutations.stream().anyMatch(key -> key.matches(storedInput.selected())))) {
 			selectedKey = Optional.of(storedInput.selected());
-			selectedRecipe = favoriteRecipes.getFavorite(storedInput.selected(), layoutCache);
+			selectedRecipe = favoriteRecipes.getManualFavoriteRelaxed(storedInput.selected());
 		} else if (permutations.size() > 1) {
 			List<BookmarkIngredientKey> manualKeys = permutations.stream()
-				.filter(key -> favoriteRecipes.getManualFavorite(key).isPresent())
+				.filter(key -> favoriteRecipes.containsFavoriteRelaxed(key))
 				.toList();
 			if (manualKeys.size() == 1) {
 				BookmarkIngredientKey manualKey = manualKeys.get(0);
 				selectedKey = Optional.of(manualKey);
-				selectedRecipe = favoriteRecipes.getManualFavorite(manualKey);
+				selectedRecipe = favoriteRecipes.getManualFavoriteRelaxed(manualKey);
 			} else {
 				Optional<FocusedRecipe> ruleRecipe = resolveSlotRule(input, layoutCache);
 				if (ruleRecipe.isPresent()) {
@@ -156,7 +159,7 @@ public final class FavoriteTreeBuilder {
 					selectedRecipe = ruleRecipe;
 				} else if (recipe.recipe().equals(root)) {
 					selectedKey = Optional.of(displayedKey);
-					selectedRecipe = favoriteRecipes.getFavorite(displayedKey, layoutCache);
+					selectedRecipe = favoriteRecipes.getManualFavoriteRelaxed(displayedKey);
 				} else {
 					selectedKey = Optional.empty();
 					selectedRecipe = Optional.empty();
@@ -167,7 +170,7 @@ public final class FavoriteTreeBuilder {
 				displayedKey :
 				permutations.get(0);
 			selectedKey = Optional.of(singleKey);
-			selectedRecipe = favoriteRecipes.getFavorite(singleKey, layoutCache);
+			selectedRecipe = favoriteRecipes.getManualFavoriteRelaxed(singleKey);
 		}
 
 		return new FavoriteTreeInput(

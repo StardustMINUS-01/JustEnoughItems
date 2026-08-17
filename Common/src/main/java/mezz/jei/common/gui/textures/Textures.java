@@ -31,16 +31,20 @@ public class Textures {
 	private final DrawableNineSliceTexture searchBackground;
 	private final DrawableNineSliceTexture scrollbarBackground;
 	private final DrawableNineSliceTexture scrollbarMarker;
+	private final DrawableNineSliceTexture exclusionAreaShadow;
 
 	private final HighResolutionDrawable shapelessIcon;
 	private final IDrawableStatic arrowPrevious;
 	private final IDrawableStatic arrowNext;
 	private final IDrawableStatic recipeTransfer;
 	private final DrawableSprite recipeBookmark;
+	private final DrawableSprite recipeFavorite;
 	private final IDrawableStatic configButtonIcon;
 	private final IDrawableStatic configButtonCheatIcon;
 	private final IDrawableStatic bookmarkButtonDisabledIcon;
 	private final IDrawableStatic bookmarkButtonEnabledIcon;
+	private final IDrawableStatic favoriteButtonDisabledIcon;
+	private final IDrawableStatic favoriteButtonEnabledIcon;
 	private final IDrawableStatic historyButtonDisabledIcon;
 	private final IDrawableStatic historyButtonEnabledICon;
 	private final IDrawableStatic infoIcon;
@@ -82,6 +86,7 @@ public class Textures {
 		this.searchBackground = createNineSliceGuiSprite("search_background", 20, 20, 6, 6, 6, 6);
 		this.scrollbarBackground = createNineSliceGuiSprite("scrollbar_background", 14, 50, 6, 6, 6, 6);
 		this.scrollbarMarker = createNineSliceGuiSprite("scrollbar_marker", 12, 15, 2, 2, 2, 1);
+		this.exclusionAreaShadow = createNineSliceGuiSprite("exclusion_area_shadow", 16, 16, 4, 4, 4, 4);
 		this.catalystTab = createNineSliceGuiSprite("catalyst_tab", 28, 28, 8, 9, 8, 8);
 		this.recipeOptionsTab = createNineSliceGuiSprite("recipe_options_tab", 28, 28, 8, 9, 8, 8);
 		this.recipeArrow = createGuiSprite("recipe_arrow", 22, 16);
@@ -103,10 +108,13 @@ public class Textures {
 			.trim(0, 0, 1, 1);
 		this.recipeTransfer = createGuiSprite("icons/recipe_transfer", 7, 7);
 		this.recipeBookmark = createGuiSprite("icons/recipe_bookmark", 9, 9);
+		this.recipeFavorite = createGuiSprite("icons/recipe_favorite", 9, 9);
 		this.configButtonIcon = createGuiSprite("icons/config_button", 16, 16);
 		this.configButtonCheatIcon = createGuiSprite("icons/config_button_cheat", 16, 16);
 		this.bookmarkButtonDisabledIcon = createGuiSprite("icons/bookmark_button_disabled", 16, 16);
 		this.bookmarkButtonEnabledIcon = createGuiSprite("icons/bookmark_button_enabled", 16, 16);
+		this.favoriteButtonDisabledIcon = createGuiSprite("icons/favorite_button_disabled", 16, 16);
+		this.favoriteButtonEnabledIcon = createGuiSprite("icons/favorite_button_enabled", 16, 16);
 		this.historyButtonDisabledIcon = createGuiSprite("icons/history_button_disabled", 16, 16);
 		this.historyButtonEnabledICon = createGuiSprite("icons/history_button_enabled", 16, 16);
 		this.infoIcon = createGuiSprite("icons/info", 16, 16);
@@ -184,6 +192,14 @@ public class Textures {
 
 	public IDrawableStatic getBookmarkButtonEnabledIcon() {
 		return bookmarkButtonEnabledIcon;
+	}
+
+	public IDrawableStatic getFavoriteButtonDisabledIcon() {
+		return favoriteButtonDisabledIcon;
+	}
+
+	public IDrawableStatic getFavoriteButtonEnabledIcon() {
+		return favoriteButtonEnabledIcon;
 	}
 
 	public IDrawableStatic getHistoryButtonDisabledIcon() {
@@ -278,8 +294,16 @@ public class Textures {
 		return recipeBookmark;
 	}
 
+	public IDrawable getRecipeFavorite() {
+		return recipeFavorite;
+	}
+
 	public DrawableNineSliceTexture getScrollbarMarker() {
 		return scrollbarMarker;
+	}
+
+	public DrawableNineSliceTexture getExclusionAreaShadow() {
+		return exclusionAreaShadow;
 	}
 
 	public DrawableNineSliceTexture getScrollbarBackground() {

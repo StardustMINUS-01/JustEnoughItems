@@ -34,9 +34,21 @@ public interface IElement<T> {
 
 	boolean isVisible();
 
+	default boolean reservesInvisibleSpace() {
+		return getBookmark().isPresent();
+	}
+
+	default boolean isLayoutPlaceholder() {
+		return false;
+	}
+
 	void tick();
 
 	default boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 		return false;
+	}
+
+	default Optional<Long> getCheatGiveAmount() {
+		return Optional.empty();
 	}
 }

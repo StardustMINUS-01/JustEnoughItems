@@ -14,6 +14,7 @@ public final class DebugConfig {
 		instance = new DebugConfig(schema);
 	}
 
+	private final Supplier<Boolean> debugModeEnabled;
 	private final Supplier<Boolean> debugIngredientsEnabled;
 	private final Supplier<Boolean> debugGuisEnabled;
 	private final Supplier<Boolean> debugInputsEnabled;
@@ -22,11 +23,23 @@ public final class DebugConfig {
 
 	private DebugConfig(IConfigSchemaBuilder schema) {
 		IConfigCategoryBuilder advanced = schema.addCategory("debug");
+		// Master switch for the temporary diagnostic logs ([Bug5]/[Bug6]/[FavTree]...).
+		// Default OFF for releases; enable in the debug config category when investigating.
+		debugModeEnabled = advanced.addBoolean("debugMode", false);
 		debugIngredientsEnabled = advanced.addBoolean("debugIngredientsEnabled", false);
 		debugGuisEnabled = advanced.addBoolean("debugGuis", false);
 		debugInputsEnabled = advanced.addBoolean("debugInputs", false);
 		debugInfoTooltipsEnabled = advanced.addBoolean("debugInfoTooltipsEnabled", false);
 		logSuffixTreeStats = advanced.addBoolean("logSuffixTreeStats", false);
+	}
+
+	public static boolean isDebugModeEnabled() {
+		if (instance == null) {
+			// Config not loaded yet (early startup, or dedicated server without client config).
+			// Default to OFF so release builds never spam diagnostic logs.
+			return false;
+		}
+		return instance.debugModeEnabled.get();
 	}
 
 	public static boolean isDebugIngredientsEnabled() {

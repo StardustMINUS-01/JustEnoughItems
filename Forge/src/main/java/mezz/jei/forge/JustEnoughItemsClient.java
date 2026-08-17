@@ -8,6 +8,15 @@ import mezz.jei.common.gui.IngredientTooltipComponent;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.network.ClientPacketRouter;
 import mezz.jei.forge.chat.JeiChatEventHandler;
+import mezz.jei.forge.compat.ae2.Ae2AvailableStacksProvider;
+import mezz.jei.forge.compat.ae2.Ae2BookmarkStorageSnapshotProvider;
+import mezz.jei.forge.compat.ae2.Ae2CraftingGridTargetSlotProvider;
+import mezz.jei.forge.compat.sophisticated.SophisticatedAvailableStacksProvider;
+import mezz.jei.forge.compat.sophisticated.SophisticatedCraftingGridTargetSlotProvider;
+import mezz.jei.forge.compat.tconstruct.TinkerCraftingGridTargetSlotProvider;
+import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import mezz.jei.forge.chat.JeiChatTooltipEventHandler;
 import mezz.jei.forge.chat.JeiInternalShowCommand;
 import mezz.jei.forge.events.PermanentEventSubscriptions;
@@ -19,6 +28,7 @@ import mezz.jei.forge.startup.StartEventObserver;
 import mezz.jei.gui.config.InternalKeyMappings;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
+import mezz.jei.gui.overlay.bookmarks.RecipeChainPreviewTooltipComponent;
 import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
 import mezz.jei.library.recipes.RecipeSerializers;
@@ -54,6 +64,7 @@ public class JustEnoughItemsClient {
 		IServerConfig serverConfig
 	) {
 		this.subscriptions = subscriptions;
+		registerCompatProviders();
 
 		ConnectionToServer serverConnection = new ConnectionToServer(networkHandler);
 		Internal.setServerConnection(serverConnection);
@@ -94,6 +105,24 @@ public class JustEnoughItemsClient {
 		RecipeSerializers.register(jeiShaped);
 	}
 
+	private static void registerCompatProviders() {
+		// AE2 crafting terminals: network contents as available stacks + crafting grid target slots.
+		Ae2BookmarkStorageSnapshotProvider.createIfLoaded()
+			.ifPresent(BookmarkExternalStorageSnapshots::registerProvider);
+		Ae2AvailableStacksProvider.createIfLoaded()
+			.ifPresent(BookmarkAvailableStacksProviders::registerProvider);
+		Ae2CraftingGridTargetSlotProvider.createIfLoaded()
+			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
+		// Sophisticated Backpacks / Storage: backpack contents + crafting upgrade grid.
+		SophisticatedAvailableStacksProvider.createIfLoaded()
+			.ifPresent(BookmarkAvailableStacksProviders::registerProvider);
+		SophisticatedCraftingGridTargetSlotProvider.createIfLoaded()
+			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
+		// Tinkers' Construct workstations: CraftingStation 3x3 grid / TinkerStation input slots.
+		TinkerCraftingGridTargetSlotProvider.createIfLoaded()
+			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
+	}
+
 	private void onGameShuttingDown() {
 		jeiStarter.stop();
 		Internal.onClientStopping();
@@ -116,6 +145,7 @@ public class JustEnoughItemsClient {
 		event.register(IngredientTooltipComponent.class, Function.identity());
 		event.register(IngredientsTooltipComponent.class, Function.identity());
 		event.register(PreviewTooltipComponent.class, Function.identity());
+		event.register(RecipeChainPreviewTooltipComponent.class, Function.identity());
 		event.register(TagContentTooltipComponent.class, Function.identity());
 	}
 
@@ -131,4 +161,5 @@ public class JustEnoughItemsClient {
 		subscriptions.register(RegisterKeyMappingsEvent.class, e -> keysToRegister.forEach(e::register));
 		return new InternalKeyMappings(keysToRegister::add);
 	}
+
 }

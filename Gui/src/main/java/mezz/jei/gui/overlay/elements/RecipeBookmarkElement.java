@@ -29,7 +29,6 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
 import mezz.jei.common.transfer.RecipeTransferUtil;
 import mezz.jei.common.util.SafeIngredientUtil;
-import mezz.jei.gui.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.input.UserInput;
@@ -54,7 +53,7 @@ import java.util.Optional;
 
 public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	private final RecipeBookmark<R, I> recipeBookmark;
-	private final IClientConfig clientConfig;
+	private @Nullable IClientConfig clientConfig;
 	private @Nullable PreviewTooltipComponent<R> previewTooltipComponent;
 	private @Nullable IngredientsTooltipComponent ingredientsTooltipComponent;
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -62,7 +61,6 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	public RecipeBookmarkElement(RecipeBookmark<R, I> recipeBookmark) {
 		this.recipeBookmark = recipeBookmark;
-		this.clientConfig = Internal.getJeiClientConfigs().getClientConfig();
 	}
 
 	@Override
@@ -77,15 +75,12 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public IDrawable createRenderOverlay() {
-		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
-		RecipeBookmarkIcon icon = new RecipeBookmarkIcon(recipeCategory);
-		long amount = recipeBookmark.getAmount();
-		if (amount > 1) {
-			ITypedIngredient<I> recipeOutput = recipeBookmark.getRecipeOutput();
-			String amountText = BookmarkAmountFormatter.formatTypedAmount(amount, recipeOutput.getType().getUid());
-			return new RecipeBookmarkIconWithAmount(icon, amountText);
+		boolean showRecipeHandlerIcon = getClientConfig().isShowRecipeHandlerIconEnabled();
+		if (!showRecipeHandlerIcon) {
+			return null;
 		}
-		return icon;
+		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
+		return new RecipeBookmarkIcon(recipeCategory);
 	}
 
 	@Override
@@ -159,15 +154,19 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		}
 	}
 
+	public void addRecipeTooltipFeatures(JeiTooltip tooltip) {
+		addBookmarkTooltipFeaturesIfEnabled(tooltip);
+	}
+
 	private void addBookmarkTooltipFeaturesIfEnabled(JeiTooltip tooltip) {
 		JeiTooltip transferComponents = createTransferComponents();
-		List<BookmarkTooltipFeature> bookmarkTooltipFeatures = clientConfig.getBookmarkTooltipFeatures();
+		List<BookmarkTooltipFeature> bookmarkTooltipFeatures = getClientConfig().getBookmarkTooltipFeatures();
 
 		if (bookmarkTooltipFeatures.isEmpty() && transferComponents.isEmpty()) {
 			return;
 		}
 
-		if (clientConfig.isHoldShiftToShowBookmarkTooltipFeaturesEnabled()) {
+		if (getClientConfig().isHoldShiftToShowBookmarkTooltipFeaturesEnabled()) {
 			IJeiKeyMappingInternal showBookmarkTooltipFeatures = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
 			if (showBookmarkTooltipFeatures.isDown()) {
 				addBookmarkTooltipFeatures(tooltip, bookmarkTooltipFeatures);
@@ -228,6 +227,13 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 		tooltip.add(component);
 		return true;
+	}
+
+	private IClientConfig getClientConfig() {
+		if (clientConfig == null) {
+			clientConfig = Internal.getJeiClientConfigs().getClientConfig();
+		}
+		return clientConfig;
 	}
 
 	private JeiTooltip createTransferComponents() {
@@ -301,6 +307,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	}
 
 	private static class RecipeBookmarkIcon implements IDrawable {
+		private static final float SCALE = 0.5f;
 		private final IDrawable icon;
 
 		public RecipeBookmarkIcon(IRecipeCategory<?> recipeCategory) {
@@ -330,55 +337,19 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			var poseStack = guiGraphics.pose();
 			poseStack.pushPose();
 			{
-				// this z level seems to be the sweet spot so that
-				// 2D icons draw above the items, and
-				// 3D icons draw still draw under tooltips.
-				poseStack.translate(8 + xOffset, 8 + yOffset, 200);
-				poseStack.scale(0.5f, 0.5f, 0.5f);
+				Offset offset = getTopRightOffset(getWidth(), SCALE);
+				poseStack.translate(offset.x() + xOffset, offset.y() + yOffset, 200);
+				poseStack.scale(SCALE, SCALE, SCALE);
 				icon.draw(guiGraphics);
 			}
 			poseStack.popPose();
 		}
-	}
 
-	/**
-	 * Draws the recipe-category icon together with an aggregated amount text
-	 * in the bottom-right corner (vanilla item-count style), mirroring the
-	 * JEI 1.21.1 bookmark amount display. Only used when the bookmarked
-	 * amount is {@code > 1}.
-	 */
-	private static class RecipeBookmarkIconWithAmount implements IDrawable {
-		private final RecipeBookmarkIcon icon;
-		private final String amountText;
-
-		public RecipeBookmarkIconWithAmount(RecipeBookmarkIcon icon, String amountText) {
-			this.icon = icon;
-			this.amountText = amountText;
+		private static Offset getTopRightOffset(int width, float scale) {
+			return new Offset(Math.round(width - width * scale), 0);
 		}
 
-		@Override
-		public int getWidth() {
-			return 16;
-		}
-
-		@Override
-		public int getHeight() {
-			return 16;
-		}
-
-		@Override
-		public void draw(GuiGraphics guiGraphics) {
-			draw(guiGraphics, 0, 0);
-		}
-
-		@Override
-		public void draw(GuiGraphics guiGraphics, int xOffset, int yOffset) {
-			icon.draw(guiGraphics, xOffset, yOffset);
-			var font = Minecraft.getInstance().font;
-			int textWidth = font.width(amountText);
-			int x = xOffset + 16 - textWidth - 1;
-			int y = yOffset + 16 - font.lineHeight + 1;
-			guiGraphics.drawString(font, amountText, x, y, 0xFFFFFFFF, true);
-		}
+		private record Offset(int x, int y) {}
 	}
 }
+

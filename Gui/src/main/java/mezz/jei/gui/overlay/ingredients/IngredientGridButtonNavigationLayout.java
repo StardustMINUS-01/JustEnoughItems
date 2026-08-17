@@ -73,8 +73,8 @@ public final class IngredientGridButtonNavigationLayout {
 	) {
 		ImmutableRect2i effectiveArea = availableArea;
 		ImmutableRect2i availableGridArea = IngredientGridWithNavigationLayout.getAvailableGridArea(gridConfig, effectiveArea);
-		ImmutableRect2i ingredientGridArea = IngredientGrid.calculateBounds(gridConfig, availableGridArea);
-		int availableSlotCount = IngredientGrid.calculateAvailableSlotCount(
+		ImmutableRect2i ingredientGridArea = IngredientGridLayout.calculateBounds(gridConfig, availableGridArea);
+		int availableSlotCount = IngredientGridLayout.calculateAvailableSlotCount(
 			ingredientGridArea,
 			guiExclusionAreas,
 			mouseExclusionPoint
@@ -96,8 +96,8 @@ public final class IngredientGridButtonNavigationLayout {
 					effectiveArea.width(), effectiveAreaBottom - shiftY
 				);
 				availableGridArea = IngredientGridWithNavigationLayout.getAvailableGridArea(gridConfig, effectiveArea);
-				ingredientGridArea = IngredientGrid.calculateBounds(gridConfig, availableGridArea);
-				availableSlotCount = IngredientGrid.calculateAvailableSlotCount(
+				ingredientGridArea = IngredientGridLayout.calculateBounds(gridConfig, availableGridArea);
+				availableSlotCount = IngredientGridLayout.calculateAvailableSlotCount(
 					ingredientGridArea, guiExclusionAreas, mouseExclusionPoint
 				);
 				slotBackgroundArea = IngredientGridWithNavigationLayout.calculateSlotBackgroundArea(ingredientGridArea, gridConfig);

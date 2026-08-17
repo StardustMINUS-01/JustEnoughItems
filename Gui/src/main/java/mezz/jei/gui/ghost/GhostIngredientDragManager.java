@@ -25,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public class GhostIngredientDragManager {
 	private final IRecipeFocusSource source;
@@ -36,7 +37,14 @@ public class GhostIngredientDragManager {
 	private GhostIngredientDrag<?> ghostIngredientDrag;
 	@Nullable
 	private ITypedIngredient<?> hoveredIngredient;
+	@Nullable
+	private Screen hoveredScreen;
+	private @Nullable Supplier<Optional<ITypedIngredient<?>>> extraHoveredIngredientSource;
 	private List<Rect2i> hoveredTargetAreas = List.of();
+
+	public void setExtraHoveredIngredientSource(@Nullable Supplier<Optional<ITypedIngredient<?>>> extraHoveredIngredientSource) {
+		this.extraHoveredIngredientSource = extraHoveredIngredientSource;
+	}
 
 	public GhostIngredientDragManager(
 		IRecipeFocusSource source,
@@ -69,11 +77,16 @@ public class GhostIngredientDragManager {
 		if (this.ghostIngredientDrag != null) {
 			this.ghostIngredientDrag.drawTargets(guiGraphics, mouseX, mouseY);
 		} else {
+			Screen currentScreen = Minecraft.getInstance().screen;
 			ITypedIngredient<?> hovered = this.source.getIngredientUnderMouse(mouseX, mouseY)
 				.map(IClickableIngredientInternal::getTypedIngredient)
 				.findFirst()
 				.orElse(null);
-			if (!equals(hovered, this.hoveredIngredient)) {
+			if (hovered == null && extraHoveredIngredientSource != null) {
+				hovered = extraHoveredIngredientSource.get().orElse(null);
+			}
+			if (shouldRefreshHoveredTargets(this.hoveredScreen, currentScreen, this.hoveredIngredient, hovered)) {
+				this.hoveredScreen = currentScreen;
 				this.hoveredIngredient = hovered;
 				this.hoveredTargetAreas = getHoveredTargetAreas(hovered);
 			}
@@ -107,6 +120,15 @@ public class GhostIngredientDragManager {
 		return targetAreas;
 	}
 
+	public static boolean shouldRefreshHoveredTargets(
+		@Nullable Screen previousScreen,
+		@Nullable Screen currentScreen,
+		@Nullable ITypedIngredient<?> previousHovered,
+		@Nullable ITypedIngredient<?> currentHovered
+	) {
+		return previousScreen != currentScreen || !equals(currentHovered, previousHovered);
+	}
+
 	private static boolean equals(@Nullable ITypedIngredient<?> a, @Nullable ITypedIngredient<?> b) {
 		if (a == b) {
 			return true;
@@ -122,6 +144,7 @@ public class GhostIngredientDragManager {
 			this.ghostIngredientDrag.stop();
 			this.ghostIngredientDrag = null;
 		}
+		this.hoveredScreen = null;
 		this.hoveredIngredient = null;
 		this.hoveredTargetAreas = List.of();
 	}

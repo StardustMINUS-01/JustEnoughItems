@@ -31,14 +31,20 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
 import mezz.jei.common.util.StringUtil;
 import mezz.jei.gui.GuiProperties;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
+import mezz.jei.gui.config.FavoriteRecipeConfig;
+import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.elements.GuiIconButton;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.InputType;
+import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.UserInputRouter;
@@ -51,10 +57,13 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -72,6 +81,13 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
 	private final List<IRecipeButtonControllerFactory> recipeButtonControllerFactories;
+	private final FavoriteRecipeStore favoriteRecipes;
+	private final FavoriteRecipeConfig favoriteRecipeConfig;
+	private final FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter;
+	private final ClientFallbackStarter clientFallbackStarter;
+	private final Runnable showBookmarkPanel;
+	private final Runnable showFavoritePanel;
+	private final Map<FocusedRecipe, Map<Integer, FavoriteRecipeStore.FavoriteSlotInput>> pendingFavoriteInputs = new HashMap<>();
 
 	private int headerHeight;
 
@@ -120,13 +136,25 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		IFocusFactory focusFactory,
 		BookmarkList bookmarks,
 		LookupHistory lookupHistory,
-		IGuiHelper guiHelper
+		IGuiHelper guiHelper,
+		FavoriteRecipeStore favoriteRecipes,
+		FavoriteRecipeConfig favoriteRecipeConfig,
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter,
+		ClientFallbackStarter clientFallbackStarter,
+		Runnable showBookmarkPanel,
+		Runnable showFavoritePanel
 	) {
 		super(Component.literal("Recipes"));
 		this.bookmarks = bookmarks;
 		this.ingredientManager = ingredientManager;
 		this.recipeButtonControllerFactories = recipeManager.getRecipeButtonControllerFactories();
 		this.keyBindings = keyBindings;
+		this.favoriteRecipes = favoriteRecipes;
+		this.favoriteRecipeConfig = favoriteRecipeConfig;
+		this.favoriteTreeBookmarkWriter = favoriteTreeBookmarkWriter;
+		this.clientFallbackStarter = clientFallbackStarter;
+		this.showBookmarkPanel = showBookmarkPanel;
+		this.showFavoritePanel = showFavoritePanel;
 		this.logic = new RecipeGuiLogic(
 			recipeManager,
 			ingredientManager,
@@ -502,6 +530,23 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		}
 	}
 
+	public <T> void showRecipesWithFavoriteInputs(
+		IRecipeCategory<T> recipeCategory,
+		List<T> recipes,
+		List<IFocus<?>> focuses,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs
+	) {
+		if (!recipes.isEmpty()) {
+			T recipe = recipes.get(0);
+			ResourceLocation recipeUid = recipeCategory.getRegistryName(recipe);
+			if (recipeUid != null) {
+				FocusedRecipe focusedRecipe = new FocusedRecipe(recipeCategory.getRecipeType().getUid(), recipeUid);
+				pendingFavoriteInputs.put(focusedRecipe, Map.copyOf(inputs));
+			}
+		}
+		showRecipes(recipeCategory, recipes, focuses);
+	}
+
 	@Override
 	public <T> Optional<T> getIngredientUnderMouse(IIngredientType<T> ingredientType) {
 		double x = MouseUtil.getX();
@@ -574,36 +619,68 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
 		@Nullable RecipeBookmark<?, ?> recipeBookmark
 	) {
-		RecipeTransferButton transferButton = RecipeTransferButton.create(
-			recipeLayoutDrawable,
-			this::onClose
-		);
-
-		RecipeBookmarkButton bookmarkButton;
-		if (recipeBookmark == null) {
-			bookmarkButton = RecipeBookmarkButton.create(
-				recipeLayoutDrawable,
-				ingredientManager,
-				bookmarks
-			);
-		} else {
-			bookmarkButton = RecipeBookmarkButton.create(
-				recipeLayoutDrawable,
-				bookmarks,
-				recipeBookmark
-			);
-		}
-
 		return RecipeLayoutWithButtons.create(
 			recipeLayoutDrawable,
-			transferButton,
-			bookmarkButton,
+			recipeBookmark,
+			bookmarks,
+			this,
 			recipeButtonControllerFactories
 		);
 	}
 
+	RecipeLayoutForkExtras createRecipeLayoutForkExtras(IRecipeLayoutDrawable<?> recipeLayoutDrawable) {
+		InputSlotSelectionState inputSlotSelectionState = new InputSlotSelectionState(ingredientManager);
+		Optional.ofNullable(getFocusedRecipe(recipeLayoutDrawable))
+			.map(pendingFavoriteInputs::remove)
+			.ifPresent(inputs -> {
+				Map<Integer, BookmarkIngredientKey> selectedKeys = new HashMap<>();
+				inputs.forEach((index, slotInput) -> selectedKeys.put(index, slotInput.selected()));
+				inputSlotSelectionState.setSelectedKeys(selectedKeys);
+				inputSlotSelectionState.apply(recipeLayoutDrawable);
+			});
+		RecipeFavoriteButton favoriteButton = RecipeFavoriteButton.create(
+			recipeLayoutDrawable,
+			ingredientManager,
+			favoriteTreeBookmarkWriter,
+			favoriteRecipes,
+			favoriteRecipeConfig,
+			showBookmarkPanel,
+			showFavoritePanel,
+			inputSlotSelectionState
+		);
+		return new RecipeLayoutForkExtras(
+			favoriteButton,
+			inputSlotSelectionState,
+			clientFallbackStarter,
+			this::showBookmarkPanel
+		);
+	}
+
+	private static <R> @Nullable FocusedRecipe getFocusedRecipe(IRecipeLayoutDrawable<R> recipeLayoutDrawable) {
+		ResourceLocation recipeUid = recipeLayoutDrawable.getRecipeCategory().getRegistryName(recipeLayoutDrawable.getRecipe());
+		if (recipeUid == null) {
+			return null;
+		}
+		return new FocusedRecipe(recipeLayoutDrawable.getRecipeCategory().getRecipeType().getUid(), recipeUid);
+	}
+
+	void showBookmarkPanel() {
+		showBookmarkPanel.run();
+	}
+
+	public boolean bookmarkRecipeUnderMouse(UserInput input, boolean preserveAmount) {
+		return isOpen() && layouts.bookmarkRecipeUnderMouse(input, preserveAmount);
+	}
+
+	record RecipeLayoutForkExtras(
+		RecipeFavoriteButton favoriteButton,
+		InputSlotSelectionState inputSlotSelectionState,
+		ClientFallbackStarter clientFallbackStarter,
+		Runnable showBookmarkPanel
+	) {}
+
 	@Nullable
-	private AbstractContainerMenu getParentContainerMenu() {
+	public AbstractContainerMenu getParentContainerMenu() {
 		Screen screen;
 		if (parentScreen == null) {
 			screen = Minecraft.getInstance().screen;

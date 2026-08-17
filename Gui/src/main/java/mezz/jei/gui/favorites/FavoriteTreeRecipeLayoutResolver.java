@@ -2,21 +2,18 @@ package mezz.jei.gui.favorites;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
-import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -30,7 +27,6 @@ import java.util.Set;
 public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuilder.RecipeResolver {
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
-	private final TypedIngredientSerializer ingredientSerializer;
 	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 
 	public FavoriteTreeRecipeLayoutResolver(
@@ -40,7 +36,6 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 	) {
 		this.focusFactory = focusFactory;
 		this.ingredientManager = ingredientManager;
-		this.ingredientSerializer = new TypedIngredientSerializer(ingredientManager);
 		this.focusedRecipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 	}
 
@@ -105,23 +100,6 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 	}
 
 	private BookmarkIngredientKey createKey(ITypedIngredient<?> ingredient) {
-		try {
-			String typeUid = ingredient.getType().getUid();
-			@SuppressWarnings("unchecked")
-			IIngredientHelper<Object> ingredientHelper = (IIngredientHelper<Object>) ingredientManager.getIngredientHelper(ingredient.getType());
-			@SuppressWarnings("unchecked")
-			ITypedIngredient<Object> typedIngredient = (ITypedIngredient<Object>) ingredient;
-			String ingredientUid = Objects.toString(ingredientHelper.getUid(typedIngredient, UidContext.Ingredient));
-			try {
-				// Store the serialized ingredient so that the GeneratedFavoriteResolver
-				// can deserialize it back and look up a recipe that outputs it.
-				String serializedIngredient = ingredientSerializer.serialize(ingredient);
-				return new BookmarkIngredientKey(typeUid, ingredientUid, serializedIngredient);
-			} catch (RuntimeException e) {
-				return BookmarkIngredientKey.of(typeUid, ingredientUid);
-			}
-		} catch (RuntimeException e) {
-			return BookmarkIngredientKey.fallback("fallback:" + Objects.toString(ingredient.getIngredient()));
-		}
+		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
 	}
 }

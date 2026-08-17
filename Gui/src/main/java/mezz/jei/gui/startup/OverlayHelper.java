@@ -1,6 +1,8 @@
 package mezz.jei.gui.startup;
 
 import mezz.jei.api.helpers.IColorHelper;
+import mezz.jei.api.recipe.IFocusFactory;
+import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.config.HistoryDisplaySide;
@@ -12,14 +14,33 @@ import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.collapsible.CollapsibleGridSource;
+import mezz.jei.gui.collapsible.CollapsibleManager;
+import mezz.jei.gui.collapsible.CollapsibleSlotVisualsProvider;
+import mezz.jei.gui.favorites.FavoriteRecipeElement;
+import mezz.jei.gui.favorites.FavoriteRecipeGridSource;
+import mezz.jei.gui.favorites.FavoriteRecipePanelState;
+import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.filter.IFilterTextSource;
+import mezz.jei.gui.overlay.IngredientListSlotContext;
+import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
+import mezz.jei.gui.overlay.bookmarks.BookmarkSlotDisplayMode;
+import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisualContext;
+import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.ingredients.IngredientGrid;
 import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
+import mezz.jei.gui.overlay.bookmarks.FavoriteRecipeSlotVisuals;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
+import net.minecraft.client.gui.screens.Screen;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Optional;
 
 public final class OverlayHelper {
 	private OverlayHelper() {
@@ -32,6 +53,7 @@ public final class OverlayHelper {
 		IIngredientGridConfig ingredientGridConfig,
 		DrawableNineSliceTexture background,
 		DrawableNineSliceTexture slotBackground,
+		DrawableNineSliceTexture exclusionAreaShadow,
 		IInternalKeyMappings keyMappings,
 		IIngredientFilterConfig ingredientFilterConfig,
 		IClientConfig clientConfig,
@@ -63,6 +85,7 @@ public final class OverlayHelper {
 			ingredientGridConfig,
 			background,
 			slotBackground,
+			exclusionAreaShadow,
 			screenHelper,
 			ingredientManager
 		);
@@ -81,15 +104,23 @@ public final class OverlayHelper {
 		IConnectionToServer serverConnection,
 		IIngredientFilterConfig ingredientFilterConfig,
 		Textures textures,
-		IColorHelper colorHelper
+		IColorHelper colorHelper,
+		@Nullable CollapsibleManager collapsibleManager
 	) {
+		IIngredientGridSource gridSource = ingredientFilter;
+		CollapsibleGridSource collapsibleGridSource = null;
+		if (collapsibleManager != null) {
+			collapsibleGridSource = new CollapsibleGridSource(ingredientFilter, collapsibleManager);
+			gridSource = collapsibleGridSource;
+		}
 		IngredientGridWithNavigation ingredientListGridNavigation = createIngredientGridWithNavigation(
 			"IngredientListOverlay",
-			ingredientFilter,
+			gridSource,
 			ingredientManager,
 			ingredientGridConfig,
 			textures.getIngredientListBackground(),
 			textures.getIngredientListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			keyMappings,
 			ingredientFilterConfig,
 			clientConfig,
@@ -99,6 +130,24 @@ public final class OverlayHelper {
 			screenHelper,
 			true
 		);
+		if (collapsibleManager != null && collapsibleGridSource != null) {
+			CollapsibleGridSource activeCollapsibleGridSource = collapsibleGridSource;
+			CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider =
+				new CollapsibleSlotVisualsProvider(
+					ingredientListGridNavigation::getAllSlots,
+					collapsibleManager::settings
+				);
+			ingredientListGridNavigation.setSlotVisualsResolver(collapsibleSlotVisualsProvider::apply);
+			activeCollapsibleGridSource.addSourceListChangedListener(collapsibleSlotVisualsProvider::invalidate);
+			collapsibleManager.state().addListener(() -> {
+				collapsibleSlotVisualsProvider.invalidate();
+				String groupId = collapsibleManager.getLastToggledGroupId();
+				if (groupId != null) {
+					IElement<?> anchor = activeCollapsibleGridSource.getAnchorElementForGroup(groupId);
+					ingredientListGridNavigation.updateLayoutKeepingPageAnchorVisible(anchor);
+				}
+			});
+		}
 
 		LookupHistoryOverlay lookupHistoryOverlay = new LookupHistoryOverlay(
 			ingredientManager,
@@ -108,6 +157,7 @@ public final class OverlayHelper {
 			ingredientFilterConfig,
 			textures.getIngredientListBackground(),
 			textures.getIngredientListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			clientConfig,
 			HistoryDisplaySide.RIGHT,
 			toggleState,
@@ -117,7 +167,7 @@ public final class OverlayHelper {
 		);
 
 		return new IngredientListOverlay(
-			ingredientFilter,
+			gridSource,
 			filterTextSource,
 			screenHelper,
 			ingredientListGridNavigation,
@@ -131,8 +181,11 @@ public final class OverlayHelper {
 
 	public static BookmarkOverlay createBookmarkOverlay(
 		IIngredientManager ingredientManager,
+		IRecipeManager recipeManager,
+		IFocusFactory focusFactory,
 		IScreenHelper screenHelper,
 		BookmarkList bookmarkList,
+		FavoriteRecipeStore favoriteRecipes,
 		IIngredientGridSource lookupHistory,
 		IInternalKeyMappings keyMappings,
 		IIngredientGridConfig bookmarkListConfig,
@@ -140,6 +193,7 @@ public final class OverlayHelper {
 		IClientConfig clientConfig,
 		IClientToggleState toggleState,
 		IConnectionToServer serverConnection,
+		ScrollStep scrollStep,
 		Textures textures,
 		IColorHelper colorHelper
 	) {
@@ -150,6 +204,7 @@ public final class OverlayHelper {
 			bookmarkListConfig,
 			textures.getBookmarkListBackground(),
 			textures.getBookmarkListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			keyMappings,
 			ingredientFilterConfig,
 			clientConfig,
@@ -158,6 +213,50 @@ public final class OverlayHelper {
 			colorHelper,
 			screenHelper,
 			false
+		);
+		bookmarkListGridNavigation.setSlotVisualsResolver(element ->
+			element.element()
+				.getBookmark()
+				.flatMap(bookmarkList::getDisplayEntry)
+				.flatMap(entry -> BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
+					getBookmarkSlotDisplayMode(),
+					getHoveredBookmarkDisplayEntry(bookmarkList, element),
+					element.rowIndex(),
+					element.hoveredRowIndex(),
+					clientConfig.getBookmarkRecipeMarkerMode()
+				)))
+		);
+
+		FavoriteRecipePanelState favoritePanelState = new FavoriteRecipePanelState();
+		FavoriteRecipeGridSource favoriteRecipeGridSource = new FavoriteRecipeGridSource(
+			favoriteRecipes,
+			favoritePanelState,
+			ingredientManager,
+			recipeManager,
+			focusFactory
+		);
+		IngredientGridWithNavigation favoriteRecipeGridNavigation = createIngredientGridWithNavigation(
+			"FavoriteRecipeOverlay",
+			favoriteRecipeGridSource,
+			ingredientManager,
+			bookmarkListConfig,
+			textures.getBookmarkListBackground(),
+			textures.getBookmarkListSlotBackground(),
+			textures.getExclusionAreaShadow(),
+			keyMappings,
+			ingredientFilterConfig,
+			clientConfig,
+			toggleState,
+			serverConnection,
+			colorHelper,
+			screenHelper,
+			false
+		);
+		favoriteRecipeGridNavigation.setSlotVisualsResolver(context ->
+			Optional.of(context.element())
+				.filter(FavoriteRecipeElement.class::isInstance)
+				.map(FavoriteRecipeElement.class::cast)
+				.flatMap(FavoriteRecipeSlotVisuals::create)
 		);
 
 		LookupHistoryOverlay lookupHistoryOverlay = new LookupHistoryOverlay(
@@ -168,6 +267,7 @@ public final class OverlayHelper {
 			ingredientFilterConfig,
 			textures.getBookmarkListBackground(),
 			textures.getBookmarkListSlotBackground(),
+			textures.getExclusionAreaShadow(),
 			clientConfig,
 			HistoryDisplaySide.LEFT,
 			toggleState,
@@ -179,12 +279,33 @@ public final class OverlayHelper {
 		return new BookmarkOverlay(
 			bookmarkList,
 			bookmarkListGridNavigation,
+			favoriteRecipes,
+			favoritePanelState,
+			favoriteRecipeGridNavigation,
 			lookupHistoryOverlay,
 			toggleState,
 			clientConfig,
 			bookmarkListConfig,
 			screenHelper,
-			keyMappings
+			keyMappings,
+			scrollStep
 		);
+	}
+
+	private static BookmarkSlotDisplayMode getBookmarkSlotDisplayMode() {
+		if (Screen.hasShiftDown()) {
+			return BookmarkSlotDisplayMode.SHIFT;
+		}
+		if (Screen.hasControlDown()) {
+			return BookmarkSlotDisplayMode.REAL;
+		}
+		return BookmarkSlotDisplayMode.DEFAULT;
+	}
+
+	private static Optional<BookmarkDisplayEntry<?>> getHoveredBookmarkDisplayEntry(BookmarkList bookmarkList, IngredientListSlotContext context) {
+		return context.hoveredElement()
+			.flatMap(hoveredElement -> hoveredElement.getBookmark()
+				.flatMap(bookmarkList::getDisplayEntry)
+				.map(entry -> (BookmarkDisplayEntry<?>) entry));
 	}
 }

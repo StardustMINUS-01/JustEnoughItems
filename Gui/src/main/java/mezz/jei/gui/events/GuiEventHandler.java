@@ -9,6 +9,10 @@ import mezz.jei.common.platform.IPlatformScreenHelper;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.RectDebugger;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayRenderer;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayState;
+import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import net.minecraft.client.Minecraft;
@@ -26,18 +30,27 @@ public class GuiEventHandler {
 	private final IngredientListOverlay ingredientListOverlay;
 	private final IScreenHelper screenHelper;
 	private final BookmarkOverlay bookmarkOverlay;
+	private final BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner;
+	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
 
 	public GuiEventHandler(
 		IScreenHelper screenHelper,
 		BookmarkOverlay bookmarkOverlay,
-		IngredientListOverlay ingredientListOverlay
+		IngredientListOverlay ingredientListOverlay,
+		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner,
+		ClientCraftingGridClickRunner clientCraftingGridClickRunner
 	) {
 		this.screenHelper = screenHelper;
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.ingredientListOverlay = ingredientListOverlay;
+		this.bookmarkAutoCraftingRunner = bookmarkAutoCraftingRunner;
+		this.clientCraftingGridClickRunner = clientCraftingGridClickRunner;
 	}
 
 	public void onGuiInit(Screen screen) {
+		BookmarkGhostOverlayState.INSTANCE.clear();
+		bookmarkAutoCraftingRunner.stop();
+		clientCraftingGridClickRunner.stop();
 		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
 			.map(ImmutableRect2i::new)
 			.collect(Collectors.toUnmodifiableSet());
@@ -52,6 +65,9 @@ public class GuiEventHandler {
 	}
 
 	public void onGuiOpen(Screen screen) {
+		BookmarkGhostOverlayState.INSTANCE.clear();
+		bookmarkAutoCraftingRunner.stop();
+		clientCraftingGridClickRunner.stop();
 		ingredientListOverlay.getScreenPropertiesUpdater()
 			.updateScreen(screen)
 			.update();
@@ -63,6 +79,8 @@ public class GuiEventHandler {
 	public void onClientTick() {
 		ingredientListOverlay.tick();
 		bookmarkOverlay.tick();
+		bookmarkAutoCraftingRunner.tick();
+		clientCraftingGridClickRunner.tick();
 	}
 
 	/**
@@ -74,6 +92,8 @@ public class GuiEventHandler {
 		{
 			IPlatformScreenHelper screenHelper = Services.PLATFORM.getScreenHelper();
 			poseStack.translate(-screenHelper.getGuiLeft(screen), -screenHelper.getGuiTop(screen), 0);
+			BookmarkGhostOverlayState.INSTANCE.getActive(screen.getMenu())
+				.ifPresent(overlay -> BookmarkGhostOverlayRenderer.render(guiGraphics, overlay));
 			bookmarkOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 			ingredientListOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}

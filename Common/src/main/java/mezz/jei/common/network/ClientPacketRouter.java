@@ -3,6 +3,7 @@ package mezz.jei.common.network;
 import mezz.jei.common.config.IServerConfig;
 import mezz.jei.common.network.packets.IClientPacketHandler;
 import mezz.jei.common.network.packets.PacketCheatPermission;
+import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.FriendlyByteBuf;
 import org.apache.logging.log4j.LogManager;
@@ -22,6 +23,7 @@ public class ClientPacketRouter {
 		this.connection = connection;
 		this.serverConfig = serverConfig;
 		clientHandlers.put(PacketIdClient.CHEAT_PERMISSION, PacketCheatPermission::readPacketData);
+		clientHandlers.put(PacketIdClient.CRAFTING_GRID_CRAFT_ACK, PacketCraftingGridCraftAck::readPacketData);
 	}
 
 	public void onPacket(FriendlyByteBuf packetBuffer, LocalPlayer player) {

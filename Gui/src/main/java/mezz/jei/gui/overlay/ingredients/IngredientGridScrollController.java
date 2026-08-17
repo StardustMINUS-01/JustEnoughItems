@@ -61,7 +61,7 @@ public final class IngredientGridScrollController {
 			ingredientGrid.getRowCount(),
 			ingredientGrid.size(),
 			isSmoothScrolling(),
-			IngredientGrid.INGREDIENT_HEIGHT
+			IngredientGridLayout.INGREDIENT_HEIGHT
 		);
 		updateGridFromScrollState(ingredientList);
 	}
@@ -95,7 +95,7 @@ public final class IngredientGridScrollController {
 	public int getVisibleScrollAmount() {
 		int visibleRows = getVisibleScrollRows();
 		if (isSmoothScrolling()) {
-			return visibleRows * IngredientGrid.INGREDIENT_HEIGHT;
+			return visibleRows * IngredientGridLayout.INGREDIENT_HEIGHT;
 		}
 		return visibleRows;
 	}
@@ -103,7 +103,7 @@ public final class IngredientGridScrollController {
 	public int getHiddenScrollAmount() {
 		int hiddenRows = getHiddenScrollRows();
 		if (isSmoothScrolling()) {
-			return hiddenRows * IngredientGrid.INGREDIENT_HEIGHT;
+			return hiddenRows * IngredientGridLayout.INGREDIENT_HEIGHT;
 		}
 		return hiddenRows;
 	}
@@ -156,12 +156,12 @@ public final class IngredientGridScrollController {
 		if (isSmoothScrolling()) {
 			int scrollPixelOffset = IngredientGridScrollState.getSmoothScrollPixelOffset(
 				getHiddenScrollRows(),
-				IngredientGrid.INGREDIENT_HEIGHT,
+				IngredientGridLayout.INGREDIENT_HEIGHT,
 				this.scrollState.getScrollOffsetY()
 			);
 			return IngredientGridScrollState.getFirstRowForSmoothScrollPixelOffset(
 				scrollPixelOffset,
-				IngredientGrid.INGREDIENT_HEIGHT
+				IngredientGridLayout.INGREDIENT_HEIGHT
 			);
 		}
 		return IngredientGridScrollState.getFirstRowForScrollOffset(getHiddenScrollRows(), this.scrollState.getScrollOffsetY());
@@ -174,7 +174,7 @@ public final class IngredientGridScrollController {
 
 	private float getMouseWheelScrollAmount(double scrollDeltaY) {
 		if (isSmoothScrolling()) {
-			int totalHeight = getTotalScrollRows() * IngredientGrid.INGREDIENT_HEIGHT;
+			int totalHeight = getTotalScrollRows() * IngredientGridLayout.INGREDIENT_HEIGHT;
 			if (totalHeight == 0) {
 				return 0;
 			}
@@ -237,12 +237,12 @@ public final class IngredientGridScrollController {
 		if (isSmoothScrolling()) {
 			int scrollPixelOffset = IngredientGridScrollState.getSmoothScrollPixelOffset(
 				hiddenRows,
-				IngredientGrid.INGREDIENT_HEIGHT,
+				IngredientGridLayout.INGREDIENT_HEIGHT,
 				scrollOffsetY
 			);
 			int firstRow = IngredientGridScrollState.getFirstRowForSmoothScrollPixelOffset(
 				scrollPixelOffset,
-				IngredientGrid.INGREDIENT_HEIGHT
+				IngredientGridLayout.INGREDIENT_HEIGHT
 			);
 			int firstItemIndex = IngredientGridScrollState.getFirstItemIndexForRow(firstRow, ingredientList.size(), columnCount);
 			int maxFirstItemIndex = IngredientGridScrollState.getMaxFirstItemIndex(
@@ -258,7 +258,7 @@ public final class IngredientGridScrollController {
 			}
 			int rowPixelOffset = IngredientGridScrollState.getRowPixelOffset(
 				scrollPixelOffset,
-				IngredientGrid.INGREDIENT_HEIGHT
+				IngredientGridLayout.INGREDIENT_HEIGHT
 			);
 			return new ScrollRenderPosition(firstItemIndex, rowPixelOffset);
 		}
@@ -289,10 +289,10 @@ public final class IngredientGridScrollController {
 			return 0;
 		}
 
-		int visibleHeight = rowCount * IngredientGrid.INGREDIENT_HEIGHT;
+		int visibleHeight = rowCount * IngredientGridLayout.INGREDIENT_HEIGHT;
 		int anchorRow = anchorIndex / columnCount;
 		int scrollPixelOffset = getCurrentScrollPixelOffset(ingredientList);
-		int anchorTopY = (anchorRow * IngredientGrid.INGREDIENT_HEIGHT) - scrollPixelOffset;
+		int anchorTopY = (anchorRow * IngredientGridLayout.INGREDIENT_HEIGHT) - scrollPixelOffset;
 		return clamp(anchorTopY / (float) visibleHeight, 0, 1);
 	}
 
@@ -304,12 +304,12 @@ public final class IngredientGridScrollController {
 		if (isSmoothScrolling()) {
 			return IngredientGridScrollState.getSmoothScrollPixelOffset(
 				hiddenRows,
-				IngredientGrid.INGREDIENT_HEIGHT,
+				IngredientGridLayout.INGREDIENT_HEIGHT,
 				scrollOffsetY
 			);
 		}
 		int firstRow = IngredientGridScrollState.getFirstRowForScrollOffset(hiddenRows, scrollOffsetY);
-		return firstRow * IngredientGrid.INGREDIENT_HEIGHT;
+		return firstRow * IngredientGridLayout.INGREDIENT_HEIGHT;
 	}
 
 	private static float clamp(float value, float min, float max) {

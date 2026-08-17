@@ -411,8 +411,8 @@ public class IngredientGridWithNavigationLayoutTest {
 			0
 		);
 		ImmutableRect2i firstSlot = unobstructedLayout.ingredientGridArea()
-			.keepTop(IngredientGrid.INGREDIENT_HEIGHT)
-			.keepLeft(IngredientGrid.INGREDIENT_WIDTH);
+			.keepTop(IngredientGridLayout.INGREDIENT_HEIGHT)
+			.keepLeft(IngredientGridLayout.INGREDIENT_WIDTH);
 		ImmutableRect2i negativeExclusion = new ImmutableRect2i(
 			-10,
 			firstSlot.y(),
@@ -654,8 +654,8 @@ public class IngredientGridWithNavigationLayoutTest {
 		return new ImmutableRect2i(
 			0,
 			0,
-			16 * IngredientGrid.INGREDIENT_WIDTH,
-			12 * IngredientGrid.INGREDIENT_HEIGHT
+			16 * IngredientGridLayout.INGREDIENT_WIDTH,
+			12 * IngredientGridLayout.INGREDIENT_HEIGHT
 		);
 	}
 

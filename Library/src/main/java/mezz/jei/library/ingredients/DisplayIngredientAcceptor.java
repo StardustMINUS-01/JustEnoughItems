@@ -212,5 +212,28 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 				results.add(i);
 			}
 		}
+
+		// No exact Ingredient-context match: subtype interpreters (e.g. TConstruct tool
+		// materials) may produce a more specific subtype for the ingredient list than for
+		// recipe slots (where the subtype is usually generic/none). Retry with the broader
+		// Recipe UID context so the focused item stays pinned to the recipe input slot
+		// instead of the slot cycling through every candidate (e.g. all tconstruct tools).
+		if (results.isEmpty()) {
+			Object focusRecipeUid = ingredientHelper.getUid(focusValue, UidContext.Recipe);
+			for (int i = 0; i < ingredients.size(); i++) {
+				@Nullable ITypedIngredient<?> typedIngredient = ingredients.get(i);
+				if (typedIngredient == null) {
+					continue;
+				}
+				@Nullable ITypedIngredient<T> ingredient = typedIngredient.cast(ingredientType);
+				if (ingredient == null) {
+					continue;
+				}
+				Object uniqueId = ingredientHelper.getUid(ingredient, UidContext.Recipe);
+				if (focusRecipeUid.equals(uniqueId)) {
+					results.add(i);
+				}
+			}
+		}
 	}
 }

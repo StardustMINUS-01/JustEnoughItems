@@ -106,13 +106,17 @@ public interface IRecipeLayoutDrawable<R> {
 	 * Get the position of the recipe transfer button area, relative to the recipe layout drawable.
 	 * @since 11.5.0
 	 */
-	Rect2i getRecipeTransferButtonArea();
+	default Rect2i getRecipeTransferButtonArea() {
+		return getSideButtonArea(0);
+	}
 
 	/**
 	 * Get the position of the recipe bookmark button area, relative to the recipe layout drawable.
 	 * @since 15.5.0
 	 */
-	Rect2i getRecipeBookmarkButtonArea();
+	default Rect2i getRecipeBookmarkButtonArea() {
+		return getSideButtonArea(1);
+	}
 
 	/**
 	 * Get the position of a side button area, relative to the recipe layout drawable.
@@ -120,20 +124,7 @@ public interface IRecipeLayoutDrawable<R> {
 	 *
 	 * @since 15.38.0
 	 */
-	default Rect2i getSideButtonArea(int buttonIndex) {
-		if (buttonIndex == 0) {
-			return getRecipeTransferButtonArea();
-		}
-		if (buttonIndex == 1) {
-			return getRecipeBookmarkButtonArea();
-		}
-		Rect2i buttonArea = getRecipeTransferButtonArea();
-		buttonArea.setPosition(
-			buttonArea.getX(),
-			buttonArea.getY() - buttonIndex * (buttonArea.getHeight() + 2)
-		);
-		return buttonArea;
-	}
+	Rect2i getSideButtonArea(int buttonIndex);
 
 	/**
 	 * Get a view of the recipe slots for this recipe layout.
