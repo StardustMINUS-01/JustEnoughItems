@@ -6,10 +6,12 @@ import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.TooltipFlag;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface IPlatformFluidHelperInternal<T> extends IPlatformFluidHelper<T> {
 
@@ -22,6 +24,10 @@ public interface IPlatformFluidHelperInternal<T> extends IPlatformFluidHelper<T>
 	int getColorTint(T ingredient);
 
 	long getAmount(T ingredient);
+
+	ResourceLocation getFluidId(T ingredient);
+
+	Set<ResourceLocation> getFluidTags(T ingredient);
 
 	Optional<CompoundTag> getTag(T ingredient);
 

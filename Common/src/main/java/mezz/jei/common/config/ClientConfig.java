@@ -31,10 +31,13 @@ public final class ClientConfig implements IClientConfig {
 
 	// bookmarks
 	private final Supplier<Boolean> addBookmarksToFrontEnabled;
+	private final Supplier<Boolean> showRecipeHandlerIconEnabled;
 	private final Supplier<Boolean> bookmarkOutputAsRecipe;
+	private final Supplier<Integer> favoriteTreeDepth;
 	private final Supplier<List<BookmarkTooltipFeature>> bookmarkTooltipFeatures;
 	private final Supplier<Boolean> holdShiftToShowBookmarkTooltipFeaturesEnabled;
 	private final Supplier<Boolean> dragToRearrangeBookmarksEnabled;
+	private final Supplier<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode;
 
 	// lookup history
 	private final ConfigValue<Boolean> lookupHistoryEnabled;
@@ -88,8 +91,11 @@ public final class ClientConfig implements IClientConfig {
 
 		IConfigCategoryBuilder bookmarks = schema.addCategory("bookmarks");
 		addBookmarksToFrontEnabled = bookmarks.addBoolean("addBookmarksToFrontEnabled", false);
+		showRecipeHandlerIconEnabled = bookmarks.addBoolean("showRecipeHandlerIcon", true);
 		bookmarkOutputAsRecipe = bookmarks.addBoolean("bookmarkOutputAsRecipe", true);
+		favoriteTreeDepth = bookmarks.addInteger("favoriteTreeDepth", 9, 0, 100);
 		dragToRearrangeBookmarksEnabled = bookmarks.addBoolean("dragToRearrangeBookmarksEnabled", true);
+		bookmarkRecipeMarkerMode = bookmarks.addEnum("recipeMarkerMode", BookmarkRecipeMarkerMode.NONE);
 
 		IConfigCategoryBuilder tooltips = schema.addCategory("tooltips");
 		bookmarkTooltipFeatures = tooltips.addList(
@@ -196,6 +202,16 @@ public final class ClientConfig implements IClientConfig {
 	}
 
 	@Override
+	public boolean isShowRecipeHandlerIconEnabled() {
+		return showRecipeHandlerIconEnabled.get();
+	}
+
+	@Override
+	public int getFavoriteTreeDepth() {
+		return favoriteTreeDepth.get();
+	}
+
+	@Override
 	public boolean isBookmarkOutputAsRecipeEnabled() {
 		return bookmarkOutputAsRecipe.get();
 	}
@@ -233,6 +249,11 @@ public final class ClientConfig implements IClientConfig {
 	@Override
 	public boolean isDragToRearrangeBookmarksEnabled() {
 		return dragToRearrangeBookmarksEnabled.get();
+	}
+
+	@Override
+	public BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode() {
+		return bookmarkRecipeMarkerMode.get();
 	}
 
 	@Override

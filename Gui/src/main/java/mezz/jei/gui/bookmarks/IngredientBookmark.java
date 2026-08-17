@@ -21,6 +21,12 @@ public class IngredientBookmark<T> implements IBookmark {
 		return new IngredientBookmark<>(typedIngredient, uniqueId);
 	}
 
+	public static <T> IngredientBookmark<T> createPreservingAmount(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		Object uniqueId = ingredientHelper.getUniqueId(typedIngredient.getIngredient(), UidContext.Ingredient);
+		return new IngredientBookmark<>(typedIngredient, uniqueId);
+	}
+
 	private IngredientBookmark(ITypedIngredient<T> typedIngredient, Object uid) {
 		this.typedIngredient = typedIngredient;
 		this.uid = uid;
@@ -60,7 +66,8 @@ public class IngredientBookmark<T> implements IBookmark {
 			if (typedIngredient.getIngredient() instanceof ItemStack stackA && ingredientBookmark.typedIngredient.getIngredient() instanceof ItemStack stackB) {
 				return ItemStack.matches(stackA, stackB);
 			}
-			return ingredientBookmark.uid.equals(uid);
+			return ingredientBookmark.uid.equals(uid) &&
+				ingredientBookmark.typedIngredient.getType().equals(typedIngredient.getType());
 		}
 		return false;
 	}

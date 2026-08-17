@@ -4,6 +4,7 @@ import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.Internal;
+import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.textures.Textures;
@@ -14,8 +15,12 @@ import mezz.jei.gui.input.UserInput;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class BookmarkButton extends GuiIconToggleButton {
+	private static final Logger LOGGER = LogManager.getLogger();
+
 	public static BookmarkButton create(BookmarkOverlay bookmarkOverlay, BookmarkList bookmarkList, IClientToggleState toggleState, IInternalKeyMappings keyBindings) {
 		Textures textures = Internal.getTextures();
 		IDrawableStatic offIcon = textures.getBookmarkButtonDisabledIcon();
@@ -61,12 +66,10 @@ public class BookmarkButton extends GuiIconToggleButton {
 
 	@Override
 	protected boolean onMouseClicked(UserInput input) {
-		if (!bookmarkList.isEmpty() && bookmarkOverlay.hasRoom()) {
-			if (!input.isSimulate()) {
-				toggleState.toggleBookmarkEnabled();
-			}
-			return true;
+		if (DebugConfig.isDebugModeEnabled()) {
+			LOGGER.info("[FavTree] BookmarkButton.onMouseClicked simulate={} mouseX={} mouseY={}",
+				input.isSimulate(), input.getMouseX(), input.getMouseY());
 		}
-		return false;
+		return bookmarkOverlay.toggleBookmarkPanel(input.isSimulate());
 	}
 }

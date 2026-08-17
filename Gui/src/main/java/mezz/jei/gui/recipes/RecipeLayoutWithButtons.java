@@ -7,8 +7,11 @@ import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
@@ -28,52 +31,99 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 
-public record RecipeLayoutWithButtons<R>(
-	IRecipeLayoutDrawable<R> recipeLayout,
-	RecipeTransferButton transferButton,
-	RecipeBookmarkButton bookmarkButton,
-	List<IconButton> extraButtons
-) implements IRecipeLayoutWithButtons<R> {
+public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButtons<R> {
+
 	public static <T> IRecipeLayoutWithButtons<T> create(
 		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
-		RecipeTransferButton transferButton,
-		RecipeBookmarkButton bookmarkButton,
+		@Nullable RecipeBookmark<?, ?> recipeBookmark,
+		BookmarkList bookmarks,
+		RecipesGui recipesGui,
 		List<IRecipeButtonControllerFactory> extraButtonControllerFactories
 	) {
-		List<IconButton> extraButtons = new ArrayList<>();
+		RecipeTransferButtonController transferButton = new RecipeTransferButtonController(recipeLayoutDrawable, recipesGui);
+		RecipeBookmarkButtonController bookmarkButton = new RecipeBookmarkButtonController(bookmarks, recipeLayoutDrawable, recipeBookmark);
+
+		List<IconButton> buttons = new ArrayList<>();
+		buttons.add(new IconButton(transferButton));
+		buttons.add(new IconButton(bookmarkButton));
 		for (IRecipeButtonControllerFactory buttonControllerFactory : extraButtonControllerFactories) {
 			IIconButtonController buttonController = buttonControllerFactory.createButtonController(recipeLayoutDrawable);
 			if (buttonController != null) {
-				extraButtons.add(new IconButton(buttonController));
+				buttons.add(new IconButton(buttonController));
 			}
 		}
 
-		return new RecipeLayoutWithButtons<>(recipeLayoutDrawable, transferButton, bookmarkButton, extraButtons);
+		RecipesGui.RecipeLayoutForkExtras forkExtras = recipesGui.createRecipeLayoutForkExtras(recipeLayoutDrawable);
+		return new RecipeLayoutWithButtons<>(
+			recipeLayoutDrawable,
+			transferButton,
+			recipeBookmark,
+			bookmarks,
+			buttons,
+			forkExtras.favoriteButton(),
+			forkExtras.inputSlotSelectionState(),
+			forkExtras.clientFallbackStarter(),
+			forkExtras.showBookmarkPanel()
+		);
 	}
 
-	public RecipeLayoutWithButtons {
-		extraButtons = List.copyOf(extraButtons);
+	private final IRecipeLayoutDrawable<R> recipeLayout;
+	private final RecipeTransferButtonController transferButton;
+	private final @Nullable RecipeBookmark<?, ?> recipeBookmark;
+	private final BookmarkList bookmarks;
+	private final List<IconButton> buttons;
+	private final @Nullable RecipeFavoriteButton favoriteButton;
+	private final @Nullable InputSlotSelectionState inputSlotSelectionState;
+	private final @Nullable ClientFallbackStarter clientFallbackStarter;
+	private final Runnable showBookmarkPanel;
+	private ImmutableRect2i transferButtonArea = ImmutableRect2i.EMPTY;
+	private ImmutableRect2i bookmarkButtonArea = ImmutableRect2i.EMPTY;
+
+	private RecipeLayoutWithButtons(
+		IRecipeLayoutDrawable<R> recipeLayout,
+		RecipeTransferButtonController transferButton,
+		@Nullable RecipeBookmark<?, ?> recipeBookmark,
+		BookmarkList bookmarks,
+		List<IconButton> buttons,
+		@Nullable RecipeFavoriteButton favoriteButton,
+		@Nullable InputSlotSelectionState inputSlotSelectionState,
+		@Nullable ClientFallbackStarter clientFallbackStarter,
+		Runnable showBookmarkPanel
+	) {
+		this.recipeLayout = recipeLayout;
+		this.transferButton = transferButton;
+		this.recipeBookmark = recipeBookmark;
+		this.bookmarks = bookmarks;
+		this.buttons = buttons;
+		this.favoriteButton = favoriteButton;
+		this.inputSlotSelectionState = inputSlotSelectionState;
+		this.clientFallbackStarter = clientFallbackStarter;
+		this.showBookmarkPanel = showBookmarkPanel;
 	}
 
 	@Override
 	public void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		recipeLayout.drawRecipe(guiGraphics, mouseX, mouseY);
-		transferButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
-		bookmarkButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
-		for (IconButton button : extraButtons) {
+
+		for (IconButton button : buttons) {
 			if (button.isVisible()) {
 				button.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			}
 		}
+		if (favoriteButton != null && favoriteButton.isVisible()) {
+			favoriteButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
+		}
 	}
 
 	private ImmutableRect2i getAbsoluteButtonArea(int buttonIndex) {
-		Rect2i layoutArea = recipeLayout.getRect();
+		Rect2i recipeLayoutRect = recipeLayout.getRect();
 		Rect2i buttonArea = recipeLayout.getSideButtonArea(buttonIndex);
 		return new ImmutableRect2i(
-			buttonArea.getX() + layoutArea.getX(),
-			buttonArea.getY() + layoutArea.getY(),
+			buttonArea.getX() + recipeLayoutRect.getX(),
+			buttonArea.getY() + recipeLayoutRect.getY(),
 			buttonArea.getWidth(),
 			buttonArea.getHeight()
 		);
@@ -88,24 +138,35 @@ public record RecipeLayoutWithButtons<R>(
 			recipeYOffset - rectWithBorder.getY() + rect.getY()
 		);
 
-		int buttonIndex = 0;
-		if (transferButton.isVisible()) {
-			transferButton.updateBounds(getAbsoluteButtonArea(buttonIndex));
-			buttonIndex++;
-		}
-		if (bookmarkButton.isVisible()) {
-			bookmarkButton.updateBounds(getAbsoluteButtonArea(buttonIndex));
-			buttonIndex++;
-		}
-		for (IconButton button : extraButtons) {
+		int i = 0;
+		for (IconButton button : buttons) {
 			if (button.isVisible()) {
-				ImmutableRect2i buttonArea = getAbsoluteButtonArea(buttonIndex);
-				if (!buttonArea.isEmpty()) {
+				ImmutableRect2i buttonArea = getAbsoluteButtonArea(i);
+				if (buttonArea.getWidth() * buttonArea.getHeight() > 0) {
 					button.updateBounds(buttonArea);
 				}
-				buttonIndex++;
+				i++;
 			}
 		}
+		Rect2i layoutRect = recipeLayout.getRect();
+		this.transferButtonArea = toImmutable(offset(recipeLayout.getRecipeTransferButtonArea(), layoutRect));
+		this.bookmarkButtonArea = toImmutable(offset(recipeLayout.getRecipeBookmarkButtonArea(), layoutRect));
+		if (favoriteButton != null) {
+			favoriteButton.updateBounds(toImmutable(offset(recipeLayout.getSideButtonArea(i), layoutRect)));
+		}
+	}
+
+	private static ImmutableRect2i toImmutable(Rect2i rect2i) {
+		return new ImmutableRect2i(rect2i.getX(), rect2i.getY(), rect2i.getWidth(), rect2i.getHeight());
+	}
+
+	private static Rect2i offset(Rect2i area, Rect2i offset) {
+		return new Rect2i(
+			area.getX() + offset.getX(),
+			area.getY() + offset.getY(),
+			area.getWidth(),
+			area.getHeight()
+		);
 	}
 
 	@Override
@@ -115,28 +176,19 @@ public record RecipeLayoutWithButtons<R>(
 		int leftBorderWidth = area.getX() - areaWithBorder.getX();
 		int rightAreaWidth = areaWithBorder.getWidth() - leftBorderWidth;
 
-		int buttonIndex = 0;
-		if (transferButton.isVisible()) {
-			Rect2i buttonArea = recipeLayout.getSideButtonArea(buttonIndex);
-			int buttonRight = buttonArea.getX() + buttonArea.getWidth();
-			rightAreaWidth = Math.max(buttonRight, rightAreaWidth);
-			buttonIndex++;
-		}
-
-		if (bookmarkButton.isVisible()) {
-			Rect2i buttonArea = recipeLayout.getSideButtonArea(buttonIndex);
-			int buttonRight = buttonArea.getX() + buttonArea.getWidth();
-			rightAreaWidth = Math.max(buttonRight, rightAreaWidth);
-			buttonIndex++;
-		}
-
-		for (IconButton button : extraButtons) {
+		int i = 0;
+		for (IconButton button : buttons) {
 			if (button.isVisible()) {
-				Rect2i buttonArea = recipeLayout.getSideButtonArea(buttonIndex);
+				Rect2i buttonArea = recipeLayout.getSideButtonArea(i);
 				int buttonRight = buttonArea.getX() + buttonArea.getWidth();
 				rightAreaWidth = Math.max(buttonRight, rightAreaWidth);
-				buttonIndex++;
+				i++;
 			}
+		}
+		if (favoriteButton != null && favoriteButton.isVisible()) {
+			Rect2i buttonArea = recipeLayout.getRecipeBookmarkButtonArea();
+			int buttonRight = buttonArea.getX() + buttonArea.getWidth();
+			rightAreaWidth = Math.max(buttonRight, rightAreaWidth);
 		}
 
 		return leftBorderWidth + rightAreaWidth;
@@ -145,29 +197,79 @@ public record RecipeLayoutWithButtons<R>(
 	@Override
 	public IUserInputHandler createUserInputHandler() {
 		List<IUserInputHandler> inputHandlers = new ArrayList<>();
-		inputHandlers.add(transferButton.createInputHandler());
-		inputHandlers.add(bookmarkButton.createInputHandler());
-		for (IconButton button : extraButtons) {
+		for (IconButton button : buttons) {
 			inputHandlers.add(button.createInputHandler());
 		}
-		inputHandlers.add(new RecipeLayoutUserInputHandler<>(recipeLayout));
+		if (favoriteButton != null) {
+			inputHandlers.add(favoriteButton.createInputHandler());
+		}
+		if (inputSlotSelectionState != null && recipeBookmark != null) {
+			BiPredicate<Double, Double> bookmarkButtonIsMouseOver = (mouseX, mouseY) -> this.bookmarkButtonArea.contains(mouseX, mouseY);
+			BiPredicate<Double, Double> transferButtonIsMouseOver = (mouseX, mouseY) -> this.transferButtonArea.contains(mouseX, mouseY);
+			BiFunction<UserInput, Boolean, Boolean> addRecipeBookmarkGroup = this::addRecipeBookmarkGroup;
+			inputHandlers.add(new RecipeBookmarkButtonHotkeyInputHandler(
+				bookmarkButtonIsMouseOver,
+				addRecipeBookmarkGroup,
+				JeiClientSoundUtil::playClickSound
+			));
+			inputHandlers.add(new RecipeBookmarkButtonHotkeyInputHandler(
+				transferButtonIsMouseOver,
+				addRecipeBookmarkGroup,
+				JeiClientSoundUtil::playClickSound
+			));
+			inputHandlers.add(new RecipeGhostOverlayInputHandler(recipeLayout, recipeLayout::isMouseOver));
+			inputHandlers.add(new RecipeGhostOverlayInputHandler(recipeLayout, transferButtonIsMouseOver));
+			inputHandlers.add(new RecipeAutoCraftingInputHandler(recipeLayout, clientFallbackStarter));
+		}
+		inputHandlers.add(new RecipeLayoutUserInputHandler<>(recipeLayout, inputSlotSelectionState));
 
 		return new CombinedInputHandler("RecipeLayoutWithButtons", inputHandlers);
 	}
 
 	@Override
 	public void tick(@Nullable AbstractContainerMenu parentContainer, @Nullable Player player) {
+		tick();
+		if (inputSlotSelectionState != null) {
+			inputSlotSelectionState.apply(recipeLayout);
+		}
+		if (favoriteButton != null) {
+			favoriteButton.tick();
+		}
+	}
+
+	// 1.20.1 only: the interface IRecipeLayoutWithButtons declares tick(AbstractContainerMenu, Player),
+	// so this no-arg tick is not an override (1.21.1 declares tick() and tick(AbstractContainerMenu, Player) is extra).
+	public void tick() {
 		recipeLayout.tick();
-		transferButton.update(parentContainer, player);
-		bookmarkButton.tick();
-		for (IconButton button : extraButtons) {
+		for (IconButton button : buttons) {
 			button.tick();
 		}
 	}
 
+	// 1.20.1 only: the transfer button state is updated by IconButton.tick() in tick(),
+	// so there is nothing extra to do here (1.21.1 has no updateTransferButton).
 	@Override
 	public void updateTransferButton(@Nullable AbstractContainerMenu parentContainer, @Nullable Player player) {
-		transferButton.update(parentContainer, player);
+	}
+
+	// 1.20.1 only: a recipe bookmark is present if the recipe layout was opened from a bookmark.
+	@Override
+	public boolean isBookmarked() {
+		return recipeBookmark != null;
+	}
+
+	boolean addRecipeBookmarkGroup(UserInput input, boolean preserveAmount) {
+		if (inputSlotSelectionState == null) {
+			return false;
+		}
+		if (!input.isSimulate()) {
+			boolean added = bookmarks.addRecipeBookmarks(recipeLayout, preserveAmount, inputSlotSelectionState.selectedKeys());
+			if (added) {
+				showBookmarkPanel.run();
+			}
+			return added;
+		}
+		return recipeBookmark != null;
 	}
 
 	@Override
@@ -176,16 +278,13 @@ public record RecipeLayoutWithButtons<R>(
 	}
 
 	@Override
+	public @Nullable RecipeBookmark<?, ?> getRecipeBookmark() {
+		return recipeBookmark;
+	}
+
+	@Override
 	public void drawTooltips(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		if (transferButton.isVisible() && transferButton.isMouseOver(mouseX, mouseY)) {
-			transferButton.drawTooltips(guiGraphics, mouseX, mouseY);
-			return;
-		}
-		if (bookmarkButton.isVisible() && bookmarkButton.isMouseOver(mouseX, mouseY)) {
-			bookmarkButton.drawTooltips(guiGraphics, mouseX, mouseY);
-			return;
-		}
-		for (IconButton button : extraButtons) {
+		for (IconButton button : buttons) {
 			if (button.isVisible() && button.isMouseOver(mouseX, mouseY)) {
 				button.drawTooltips(guiGraphics, mouseX, mouseY);
 				return;
@@ -194,21 +293,14 @@ public record RecipeLayoutWithButtons<R>(
 	}
 
 	@Override
-	public @Nullable RecipeBookmark<?, ?> getRecipeBookmark() {
-		return bookmarkButton.getRecipeBookmark();
-	}
-
-	@Override
-	public boolean isBookmarked() {
-		return bookmarkButton.isBookmarked();
-	}
-
-	@Override
 	public int getMissingCountHint() {
 		return transferButton.getMissingCountHint();
 	}
 
-	private record RecipeLayoutUserInputHandler<R>(IRecipeLayoutDrawable<R> recipeLayout) implements IUserInputHandler {
+	private record RecipeLayoutUserInputHandler<R>(
+		IRecipeLayoutDrawable<R> recipeLayout,
+		@Nullable InputSlotSelectionState inputSlotSelectionState
+	) implements IUserInputHandler {
 
 		@Override
 		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
@@ -258,8 +350,14 @@ public record RecipeLayoutWithButtons<R>(
 			return true;
 		}
 
+		// 1.20.1 only: IUserInputHandler has a 3-parameter handleMouseScrolled (1.21.1 has 4 with scrollDeltaX).
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+			if (inputSlotSelectionState != null &&
+				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDelta, Screen.hasControlDown())
+			) {
+				return Optional.of(this);
+			}
 			if (recipeLayout.isMouseOver(mouseX, mouseY) &&
 				recipeLayout.getInputHandler().handleMouseScrolled(mouseX, mouseY, scrollDelta)
 			) {

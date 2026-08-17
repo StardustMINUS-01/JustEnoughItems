@@ -1,5 +1,6 @@
 package mezz.jei.test.lib;
 
+import mezz.jei.common.config.BookmarkRecipeMarkerMode;
 import mezz.jei.common.config.BookmarkTooltipFeature;
 import mezz.jei.common.config.GiveMode;
 import mezz.jei.common.config.HistoryDisplaySide;
@@ -59,6 +60,16 @@ public class TestClientConfig implements IClientConfig {
 	}
 
 	@Override
+	public boolean isShowRecipeHandlerIconEnabled() {
+		return true;
+	}
+
+	@Override
+	public int getFavoriteTreeDepth() {
+		return 9;
+	}
+
+	@Override
 	public boolean isBookmarkOutputAsRecipeEnabled() {
 		return true;
 	}
@@ -96,6 +107,11 @@ public class TestClientConfig implements IClientConfig {
 	@Override
 	public boolean isDragToRearrangeBookmarksEnabled() {
 		return false;
+	}
+
+	@Override
+	public BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode() {
+		return BookmarkRecipeMarkerMode.NONE;
 	}
 
 	@Override

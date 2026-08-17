@@ -9,6 +9,8 @@ import net.minecraft.client.KeyMapping;
 public class InputHelper implements IPlatformInputHelper {
 	@Override
 	public boolean isActiveAndMatches(KeyMapping keyMapping, InputConstants.Key key) {
+		// Delegate to Forge's KeyMapping so its KeyModifier system is respected:
+		// e.g. a plain key (KeyModifier.NONE) only matches when no modifier is active.
 		return keyMapping.isActiveAndMatches(key);
 	}
 

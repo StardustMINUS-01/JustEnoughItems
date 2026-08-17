@@ -13,6 +13,12 @@ public interface IIngredientGrid extends IRecipeFocusSource {
 
 	int getColumnCount();
 
+	int getUsableColumnCount();
+
+	default List<Integer> getUsableColumnsPerRow() {
+		return List.of(getUsableColumnCount());
+	}
+
 	int getRowCount();
 
 	void set(int firstItemIndex, List<IElement<?>> ingredientList);

@@ -44,7 +44,7 @@ public record IngredientGridWithNavigationLayout(
 			availableGridArea = availableGridArea.insetBy(BORDER_PADDING + INNER_PADDING);
 		}
 
-		ImmutableRect2i estimatedGridArea = IngredientGrid.calculateBounds(gridConfig, availableGridArea);
+		ImmutableRect2i estimatedGridArea = IngredientGridLayout.calculateBounds(gridConfig, availableGridArea);
 		if (estimatedGridArea.isEmpty()) {
 			return ImmutableRect2i.EMPTY;
 		}
@@ -62,7 +62,7 @@ public record IngredientGridWithNavigationLayout(
 		return fromGridArea(
 			gridConfig,
 			ingredientGridArea,
-			IngredientGrid.calculateAvailableSlotCount(ingredientGridArea, Set.of(), null),
+			IngredientGridLayout.calculateAvailableSlotCount(ingredientGridArea, Set.of(), null),
 			navigationArea,
 			navigationEnabled,
 			ImmutableRect2i.EMPTY,

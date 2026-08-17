@@ -109,6 +109,42 @@ public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<Recip
 		return createBookmark(string, recipeCategory, recipeUid, output, displayRole);
 	}
 
+	public Optional<RecipeBookmark<?, ?>> createBookmark(
+		ResourceLocation recipeTypeUid,
+		ResourceLocation recipeUid,
+		ITypedIngredient<?> output,
+		RecipeIngredientRole displayRole
+	) {
+		Optional<RecipeType<?>> recipeTypeResult = recipeManager.getRecipeType(recipeTypeUid);
+		if (recipeTypeResult.isEmpty()) {
+			return Optional.empty();
+		}
+		IRecipeCategory<?> recipeCategory = recipeManager.getRecipeCategory(recipeTypeResult.get());
+		return createBookmark(recipeCategory, recipeUid, output, displayRole);
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public Optional<RecipeBookmark<?, ?>> createBookmark(
+		IRecipeCategory<?> recipeCategory,
+		ResourceLocation recipeUid,
+		ITypedIngredient<?> output,
+		RecipeIngredientRole displayRole
+	) {
+		IFocus<?> focus = focusFactory.createFocus(displayRole, output);
+		RecipeType<?> recipeType = recipeCategory.getRecipeType();
+		IRecipeCategory<Object> rawCategory = (IRecipeCategory<Object>) recipeCategory;
+		long total = recipeManager.createRecipeLookup((RecipeType<Object>) recipeType).get().count();
+		List<?> focused = recipeManager.createRecipeLookup((RecipeType<Object>) recipeType)
+			.limitFocus(List.of(focus))
+			.get()
+			.toList();
+		Optional<RecipeBookmark<?, ?>> result = focused.stream()
+			.filter(recipe -> Objects.equals(rawCategory.getRegistryName(recipe), recipeUid))
+			.findFirst()
+			.map(recipe -> new RecipeBookmark(rawCategory, recipe, recipeUid, output, displayRole));
+		return result;
+	}
+
 	private <T> DeserializeResult<RecipeBookmark<?, ?>> createBookmark(String string, IRecipeCategory<T> recipeCategory, ResourceLocation recipeUid, ITypedIngredient<?> output, RecipeIngredientRole displayRole) {
 		IFocus<?> focus = focusFactory.createFocus(displayRole, output);
 

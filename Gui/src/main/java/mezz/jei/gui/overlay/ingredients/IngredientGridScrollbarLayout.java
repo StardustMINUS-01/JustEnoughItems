@@ -75,9 +75,9 @@ public final class IngredientGridScrollbarLayout {
 		if (scrollbarEnabled) {
 			ingredientGridArea = calculateScrollbarGridArea(gridConfig, availableGridArea);
 		} else {
-			ingredientGridArea = IngredientGrid.calculateBounds(gridConfig, availableGridArea);
+			ingredientGridArea = IngredientGridLayout.calculateBounds(gridConfig, availableGridArea);
 		}
-		int availableSlotCount = IngredientGrid.calculateAvailableSlotCount(
+		int availableSlotCount = IngredientGridLayout.calculateAvailableSlotCount(
 			ingredientGridArea,
 			guiExclusionAreas,
 			mouseExclusionPoint
@@ -107,7 +107,7 @@ public final class IngredientGridScrollbarLayout {
 		}
 
 		ImmutableRect2i availableAreaWithoutScrollbar = availableGridArea.cropRight(calculateScrollbarReservedGridWidth(gridConfig));
-		ImmutableSize2i ingredientGridSize = IngredientGrid.calculateSize(
+		ImmutableSize2i ingredientGridSize = IngredientGridLayout.calculateSize(
 			gridConfig,
 			availableAreaWithoutScrollbar
 		);

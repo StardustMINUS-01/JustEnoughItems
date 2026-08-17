@@ -11,10 +11,10 @@ import java.util.List;
 
 import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getFirstItemIndexForScrollOffset;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getFirstRowForSmoothScrollPixelOffset;
-import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getHiddenRows;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getRowPixelOffset;
-import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getScrollOffsetYKeepingAnchorVisible;
+import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getHiddenRows;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getSmoothScrollPixelOffset;
+import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getScrollOffsetYKeepingAnchorVisible;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getTotalRows;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridScrollState.getValidScrollOffsetY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -101,7 +101,7 @@ public class IngredientGridScrollStateTest {
 	public void smoothScrollOffsetKeepsSubRowPixels() {
 		// Setup: smooth scroll has moved six pixels into a row.
 		int hiddenRows = 2;
-		int rowHeight = IngredientGrid.INGREDIENT_HEIGHT;
+		int rowHeight = IngredientGridLayout.INGREDIENT_HEIGHT;
 		float scrollOffsetY = 6 / (float) (hiddenRows * rowHeight);
 
 		// Operation: calculate the rendered row and pixel offset.
@@ -131,7 +131,7 @@ public class IngredientGridScrollStateTest {
 			visibleRows,
 			anchorPositionY,
 			false,
-			IngredientGrid.INGREDIENT_HEIGHT
+			IngredientGridLayout.INGREDIENT_HEIGHT
 		);
 		int hiddenRows = getHiddenRows(itemCount, columns, visibleRows);
 		int firstRow = IngredientGridScrollState.getFirstRowForScrollOffset(hiddenRows, scrollOffsetY);
@@ -186,7 +186,7 @@ public class IngredientGridScrollStateTest {
 			visibleRows,
 			visibleIngredientCount,
 			false,
-			IngredientGrid.INGREDIENT_HEIGHT
+			IngredientGridLayout.INGREDIENT_HEIGHT
 		);
 
 		// Assertions: the reopen/layout pass keeps the current scroll position instead of resetting to top.
@@ -210,7 +210,7 @@ public class IngredientGridScrollStateTest {
 			visibleRows,
 			anchorPositionY,
 			false,
-			IngredientGrid.INGREDIENT_HEIGHT
+			IngredientGridLayout.INGREDIENT_HEIGHT
 		);
 		int hiddenRows = getHiddenRows(itemCount, columns, visibleRows);
 		int firstRow = IngredientGridScrollState.getFirstRowForScrollOffset(hiddenRows, scrollOffsetY);
@@ -250,16 +250,6 @@ public class IngredientGridScrollStateTest {
 		@Override
 		public Integer getIngredient() {
 			return ingredient;
-		}
-
-		@Override
-		public <V> ITypedIngredient<V> cast(IIngredientType<V> ingredientType) {
-			if (getType().equals(ingredientType)) {
-				@SuppressWarnings("unchecked")
-				ITypedIngredient<V> cast = (ITypedIngredient<V>) this;
-				return cast;
-			}
-			return null;
 		}
 	}
 }

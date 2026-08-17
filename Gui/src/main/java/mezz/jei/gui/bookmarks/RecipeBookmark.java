@@ -11,7 +11,10 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.RecipeBookmarkElement;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
 
 public class RecipeBookmark<R, I> implements IBookmark {
 	private final IElement<I> element;
@@ -20,6 +23,8 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	private final ResourceLocation recipeUid;
 	private final ITypedIngredient<I> recipeOutput;
 	private final RecipeIngredientRole displayRole;
+	@Nullable
+	private final Object equalityScope;
 	private boolean visible = true;
 
 	@Nullable
@@ -75,12 +80,24 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		ITypedIngredient<I> recipeOutput,
 		RecipeIngredientRole displayRole
 	) {
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, null);
+	}
+
+	public RecipeBookmark(
+		IRecipeCategory<R> recipeCategory,
+		R recipe,
+		ResourceLocation recipeUid,
+		ITypedIngredient<I> recipeOutput,
+		RecipeIngredientRole displayRole,
+		@Nullable Object equalityScope
+	) {
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
 		this.recipeOutput = recipeOutput;
 		this.element = new RecipeBookmarkElement<>(this);
 		this.displayRole = displayRole;
+		this.equalityScope = equalityScope;
 	}
 
 	public IRecipeCategory<R> getRecipeCategory() {
@@ -118,6 +135,27 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		return displayRole;
 	}
 
+	public BookmarkItemMetadata createDefaultMetadata(String groupId) {
+		BookmarkItemType type = BookmarkItemType.fromRecipeRole(displayRole);
+		return new BookmarkItemMetadata(
+			groupId,
+			type,
+			1,
+			getIngredientFactor(),
+			BookmarkItemMetadata.CHANCE_FULL,
+			recipeCategory.getRecipeType().getUid(),
+			recipeUid,
+			java.util.Set.of()
+		);
+	}
+
+	private long getIngredientFactor() {
+		if (recipeOutput.getIngredient() instanceof ItemStack stack) {
+			return Math.max(1, stack.getCount());
+		}
+		return 1;
+	}
+
 	public <T> boolean isRecipe(RecipeType<T> otherType, T otherRecipe) {
 		RecipeType<R> recipeType = recipeCategory.getRecipeType();
 		if (recipeType.equals(otherType)) {
@@ -133,14 +171,57 @@ public class RecipeBookmark<R, I> implements IBookmark {
 
 	@Override
 	public int hashCode() {
-		return recipeUid.hashCode();
+		return Objects.hash(
+			equalityScope,
+			recipeUid,
+			displayRole,
+			recipeOutput.getType(),
+			getIngredientHash(recipeOutput.getIngredient())
+		);
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof RecipeBookmark<?, ?> recipeBookmark) {
-			return recipeBookmark.recipeUid.equals(recipeUid);
+			return Objects.equals(recipeBookmark.equalityScope, equalityScope) &&
+				recipeBookmark.recipeUid.equals(recipeUid) &&
+				recipeBookmark.displayRole == displayRole &&
+				recipeBookmark.recipeOutput.getType().equals(recipeOutput.getType()) &&
+				ingredientsEqual(recipeBookmark.recipeOutput.getIngredient(), recipeOutput.getIngredient());
 		}
 		return false;
+	}
+
+	/**
+	 * Returns a copy of this bookmark sharing the given equality scope,
+	 * mirroring the 1.21.1
+	 * {@code BookmarkList#ensureRecipeBookmarkScope} behaviour: bookmarks of
+	 * the same recipe tree share one scope object so that equal ingredients
+	 * across recipes of the tree de-duplicate.
+	 */
+	public RecipeBookmark<R, I> withEqualityScope(@Nullable Object equalityScope) {
+		return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope);
+	}
+
+	@Nullable
+	Object getEqualityScope() {
+		return equalityScope;
+	}
+
+	private static boolean ingredientsEqual(Object first, Object second) {
+		if (first instanceof ItemStack firstStack && second instanceof ItemStack secondStack) {
+			return ItemStack.matches(firstStack, secondStack);
+		}
+		return Objects.equals(first, second);
+	}
+
+	private static int getIngredientHash(Object ingredient) {
+		if (ingredient instanceof ItemStack stack) {
+			// 1.20.1 equivalent of 1.21.1's ItemStack.hashItemAndComponents:
+			// hash on item + tag so that equal stacks (per ItemStack.matches)
+			// hash the same.
+			return Objects.hash(stack.getItem(), stack.getTag());
+		}
+		return Objects.hashCode(ingredient);
 	}
 }

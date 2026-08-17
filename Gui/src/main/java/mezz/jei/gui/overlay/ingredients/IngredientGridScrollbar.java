@@ -17,16 +17,14 @@ public class IngredientGridScrollbar implements IUserInputHandler {
 	public static final int SCROLLBAR_WIDTH = 14;
 	private static final int MIN_SCROLL_MARKER_HEIGHT = 14;
 
-	private final IngredientGridScrollController controller;
-	private final Runnable onLayoutChanged;
+	private final IngredientGridWithNavigationController controller;
 	private final DrawableNineSliceTexture scrollbarMarker;
 	private final DrawableNineSliceTexture scrollbarBackground;
 	private ImmutableRect2i area = ImmutableRect2i.EMPTY;
 	private double dragOriginY = -1;
 
-	public IngredientGridScrollbar(IngredientGridScrollController controller, Runnable onLayoutChanged) {
+	public IngredientGridScrollbar(IngredientGridWithNavigationController controller) {
 		this.controller = controller;
-		this.onLayoutChanged = onLayoutChanged;
 		Textures textures = Internal.getTextures();
 		this.scrollbarMarker = textures.getScrollbarMarker();
 		this.scrollbarBackground = textures.getScrollbarBackground();
@@ -125,9 +123,7 @@ public class IngredientGridScrollbar implements IUserInputHandler {
 		int totalSpace = maxY - minY;
 		if (totalSpace > 0) {
 			float scrollOffsetY = (float) (relativeY / (float) totalSpace);
-			if (controller.setScrollOffsetY(scrollOffsetY)) {
-				this.onLayoutChanged.run();
-			}
+			controller.setScrollOffsetY(scrollOffsetY);
 		}
 	}
 }

@@ -14,6 +14,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
@@ -28,6 +29,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	@Override
@@ -50,6 +53,18 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	@Override
 	public long getAmount(FluidStack ingredient) {
 		return ingredient.getAmount();
+	}
+
+	@Override
+	public ResourceLocation getFluidId(FluidStack ingredient) {
+		return ForgeRegistries.FLUIDS.getKey(ingredient.getFluid());
+	}
+
+	@Override
+	public Set<ResourceLocation> getFluidTags(FluidStack ingredient) {
+		return ingredient.getFluid().builtInRegistryHolder().tags()
+			.map(TagKey::location)
+			.collect(Collectors.toUnmodifiableSet());
 	}
 
 	@Override

@@ -95,6 +95,15 @@ fun Configuration.singleFileContents(): Provider<String> =
 		.map { elements -> elements.single() }
 		.map { it.asFile.readText() }
 
+repositories {
+	maven("https://api.modrinth.com/maven") {
+		name = "Modrinth"
+		content {
+			includeGroup("maven.modrinth")
+		}
+	}
+}
+
 dependencies {
 	dependencyProjects.forEach {
 		implementation(it)
@@ -105,6 +114,12 @@ dependencies {
 	modShadeImplementation("net.mezzdev:suffixtree:${suffixtreeVersion}") {
 		isTransitive = false
 	}
+	// Optional mod integrations (compile-only; guarded by CompatUtil.createIfLoaded at runtime).
+	modCompileOnly("maven.modrinth:ae2:15.4.10")
+	modCompileOnly("maven.modrinth:sophisticated-core:1.20.1-1.3.80.2267")
+	modCompileOnly("maven.modrinth:sophisticated-backpacks:1.20.1-3.24.66.2095")
+	modCompileOnly("maven.modrinth:mantle:1.11.104")
+	modCompileOnly("maven.modrinth:tinkers-construct:3.11.2.166")
 	changelogHtml(project(":Changelog"))
 	changelogMarkdown(project(":Changelog"))
 	testImplementation(

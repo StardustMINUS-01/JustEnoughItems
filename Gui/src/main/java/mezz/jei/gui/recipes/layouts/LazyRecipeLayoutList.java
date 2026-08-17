@@ -6,6 +6,7 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
+import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.RecipeSorterStage;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -115,10 +116,13 @@ public class LazyRecipeLayoutList<T> implements IRecipeLayoutList {
 	private boolean calculateNextResult(@Nullable AbstractContainerMenu container) {
 		boolean matchingCraftable = isMatchingCraftable(container);
 		Player player = Minecraft.getInstance().player;
+		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 
 		while (unsortedIterator.hasNext()) {
 			T recipe = unsortedIterator.next();
-			IRecipeLayoutWithButtons<T> next = createRecipeLayoutWithButtons(recipe, null);
+			IRecipeLayoutDrawable<T> recipeLayout = recipeManager.createRecipeLayoutDrawableOrShowError(recipeCategory, recipe, focusGroup);
+			RecipeBookmark<?, ?> recipeBookmark = RecipeBookmark.create(recipeLayout, ingredientManager);
+			IRecipeLayoutWithButtons<T> next = recipeLayoutFactory.create(recipeLayout, recipeBookmark);
 
 			if (matchingCraftable) {
 				next.updateTransferButton(container, player);

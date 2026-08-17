@@ -20,6 +20,14 @@ public final class ForgeUserInput {
 		return new UserInput(input, mouseX, mouseY, modifiers, InputType.IMMEDIATE);
 	}
 
+	public static UserInput fromEvent(ScreenEvent.KeyReleased keyEvent) {
+		InputConstants.Key input = InputConstants.getKey(keyEvent.getKeyCode(), keyEvent.getScanCode());
+		double mouseX = MouseUtil.getX();
+		double mouseY = MouseUtil.getY();
+		int modifiers = keyEvent.getModifiers();
+		return new UserInput(input, mouseX, mouseY, modifiers, InputType.EXECUTE);
+	}
+
 	public static Optional<UserInput> fromEvent(ScreenEvent.MouseButtonPressed event) {
 		int button = event.getButton();
 		if (button < 0) {

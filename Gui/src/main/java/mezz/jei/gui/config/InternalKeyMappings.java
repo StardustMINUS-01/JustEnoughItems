@@ -34,6 +34,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping nextPage;
 
 	private final IJeiKeyMapping bookmark;
+	private final IJeiKeyMapping favoriteRecipe;
+	private final IJeiKeyMapping bookmarkPullItems;
+	private final IJeiKeyMapping overlayRecipe;
+	private final IJeiKeyMapping craftItems;
+	private final IJeiKeyMapping encodeRecipeChainPatterns;
 	private final IJeiKeyMapping toggleBookmarkOverlay;
 	private final IJeiKeyMapping transferRecipeBookmark;
 	private final IJeiKeyMapping maxTransferRecipeBookmark;
@@ -43,6 +48,9 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 
 	private final IJeiKeyMapping showRecipe;
 	private final IJeiKeyMapping showUses;
+	private final IJeiKeyMapping copyIngredientName;
+	private final IJeiKeyMapping copyIngredientTags;
+	private final IJeiKeyMapping copyIngredientId;
 
 	private final IJeiKeyMapping cheatOneItem;
 	private final IJeiKeyMapping cheatItemStack;
@@ -133,6 +141,32 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.buildKeyboardKey(GLFW.GLFW_KEY_A)
 			.register(registerMethod);
 
+		favoriteRecipe = mouseHover.createMapping("key.jei.favoriteRecipe")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildKeyboardKey(GLFW.GLFW_KEY_F)
+			.register(registerMethod);
+
+		bookmarkPullItems = mouseHover.createMapping("key.jei.bookmarkPullItems")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildKeyboardKey(GLFW.GLFW_KEY_V)
+			.register(registerMethod);
+
+		overlayRecipe = mouseHover.createMapping("key.jei.overlayRecipe")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildKeyboardKey(GLFW.GLFW_KEY_S)
+			.register(registerMethod);
+
+		craftItems = mouseHover.createMapping("key.jei.craftItems")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildKeyboardKey(GLFW.GLFW_KEY_C)
+			.register(registerMethod);
+
+		encodeRecipeChainPatterns = mouseHover.createMapping("key.jei.encodeRecipeChainPatterns")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_Q)
+			.register(registerMethod);
+
 		showRecipe1 = mouseHover.createMapping("key.jei.showRecipe")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.buildKeyboardKey(GLFW.GLFW_KEY_R)
@@ -151,6 +185,24 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		showUses2 = mouseHover.createMapping("key.jei.showUses2")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.buildMouseRight()
+			.register(registerMethod);
+
+		copyIngredientName = mouseHover.createMapping("key.jei.copyIngredientName")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_C)
+			.register(registerMethod);
+
+		copyIngredientTags = mouseHover.createMapping("key.jei.copyIngredientTags")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_D)
+			.register(registerMethod);
+
+		copyIngredientId = mouseHover.createMapping("key.jei.copyIngredientId")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_X)
 			.register(registerMethod);
 
 		transferRecipeBookmark = mouseHover.createMapping("key.jei.transferRecipeBookmark")
@@ -290,7 +342,8 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		// Dev Tools
 		copyRecipeId = devTools.createMapping("key.jei.copy.recipe.id")
 			.setContext(JeiKeyConflictContext.GUI)
-			.buildUnbound()
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_T)
 			.register(registerMethod);
 
 		showRecipe = new JeiMultiKeyMapping(showRecipe1, showRecipe2);
@@ -400,6 +453,31 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	}
 
 	@Override
+	public IJeiKeyMapping getFavoriteRecipe() {
+		return favoriteRecipe;
+	}
+
+	@Override
+	public IJeiKeyMapping getBookmarkPullItems() {
+		return bookmarkPullItems;
+	}
+
+	@Override
+	public IJeiKeyMapping getOverlayRecipe() {
+		return overlayRecipe;
+	}
+
+	@Override
+	public IJeiKeyMapping getCraftItems() {
+		return craftItems;
+	}
+
+	@Override
+	public IJeiKeyMapping getEncodeRecipeChainPatterns() {
+		return encodeRecipeChainPatterns;
+	}
+
+	@Override
 	public IJeiKeyMapping getToggleBookmarkOverlay() {
 		return toggleBookmarkOverlay;
 	}
@@ -412,6 +490,21 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getShowUses() {
 		return showUses;
+	}
+
+	@Override
+	public IJeiKeyMapping getCopyIngredientName() {
+		return copyIngredientName;
+	}
+
+	@Override
+	public IJeiKeyMapping getCopyIngredientTags() {
+		return copyIngredientTags;
+	}
+
+	@Override
+	public IJeiKeyMapping getCopyIngredientId() {
+		return copyIngredientId;
 	}
 
 	@Override

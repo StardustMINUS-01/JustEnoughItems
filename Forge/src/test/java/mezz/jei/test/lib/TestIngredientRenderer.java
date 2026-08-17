@@ -7,7 +7,7 @@ import net.minecraft.world.item.TooltipFlag;
 
 import java.util.List;
 
-class TestIngredientRenderer implements IIngredientRenderer<TestIngredient> {
+public class TestIngredientRenderer implements IIngredientRenderer<TestIngredient> {
 	@Override
 	public void render(GuiGraphics guiGraphics, TestIngredient ingredient) {
 

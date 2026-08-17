@@ -16,8 +16,11 @@ import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributes;
 import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
 import org.jetbrains.annotations.Nullable;
@@ -25,6 +28,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("UnstableApiUsage")
 public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngredient> {
@@ -80,6 +85,18 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 	@Override
 	public long getAmount(IJeiFluidIngredient ingredient) {
 		return ingredient.getAmount();
+	}
+
+	@Override
+	public ResourceLocation getFluidId(IJeiFluidIngredient ingredient) {
+		return BuiltInRegistries.FLUID.getKey(ingredient.getFluid());
+	}
+
+	@Override
+	public Set<ResourceLocation> getFluidTags(IJeiFluidIngredient ingredient) {
+		return ingredient.getFluid().builtInRegistryHolder().tags()
+			.map(TagKey::location)
+			.collect(Collectors.toUnmodifiableSet());
 	}
 
 	@Override

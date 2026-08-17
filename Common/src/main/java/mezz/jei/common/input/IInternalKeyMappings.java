@@ -25,6 +25,11 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getCloseRecipeGui();
 
 	IJeiKeyMapping getBookmark();
+	IJeiKeyMapping getFavoriteRecipe();
+	IJeiKeyMapping getBookmarkPullItems();
+	IJeiKeyMapping getOverlayRecipe();
+	IJeiKeyMapping getCraftItems();
+	IJeiKeyMapping getEncodeRecipeChainPatterns();
 	IJeiKeyMapping getToggleBookmarkOverlay();
 
 	@Override
@@ -32,6 +37,10 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 
 	@Override
 	IJeiKeyMapping getShowUses();
+
+	IJeiKeyMapping getCopyIngredientName();
+	IJeiKeyMapping getCopyIngredientTags();
+	IJeiKeyMapping getCopyIngredientId();
 
 	IJeiKeyMapping getTransferRecipeBookmark();
 	IJeiKeyMapping getMaxTransferRecipeBookmark();

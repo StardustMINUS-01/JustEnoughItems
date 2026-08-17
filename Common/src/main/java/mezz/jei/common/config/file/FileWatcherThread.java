@@ -13,6 +13,7 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @ThreadSafe
@@ -38,10 +40,12 @@ public class FileWatcherThread extends Thread {
 
 	private final WatchService watchService;
 	private final Map<Path, Runnable> callbacks;
+	private final List<DirectoryCallback> directoryCallbacks = new ArrayList<>();
 	private final Set<Path> directoriesToWatch;
 
 	private final Map<WatchKey, Path> watchedDirectories = new HashMap<>();
 	private final Set<Path> changedPaths = new HashSet<>();
+	private final Set<Runnable> changedDirectoryCallbacks = new HashSet<>();
 	private long nextDirectoryCheckTime = System.currentTimeMillis();
 
 	/**
@@ -67,6 +71,21 @@ public class FileWatcherThread extends Thread {
 			this.nextDirectoryCheckTime = System.currentTimeMillis();
 		}
 	}
+
+	/**
+	 * @param directory     a config directory to watch
+	 * @param filenameFilter a filter for file names inside the directory
+	 * @param callback      a callback to call when a matching file changes.
+	 *                      Callbacks must be thread-safe, they will be called from a watcher callback thread.
+	 */
+	public synchronized void addDirectoryCallback(Path directory, Predicate<Path> filenameFilter, Runnable callback) {
+		this.directoryCallbacks.add(new DirectoryCallback(directory, filenameFilter, callback));
+		if (this.directoriesToWatch.add(directory)) {
+			this.nextDirectoryCheckTime = System.currentTimeMillis();
+		}
+	}
+
+	public record DirectoryCallback(Path directory, Predicate<Path> filenameFilter, Runnable callback) {}
 
 	@Override
 	public void run() {
@@ -118,11 +137,22 @@ public class FileWatcherThread extends Thread {
 				callbacks.keySet().stream()
 					.filter(path -> path.getParent().equals(watchedDirectory))
 					.forEach(changedPaths::add);
+				directoryCallbacks.stream()
+					.filter(directoryCallback -> directoryCallback.directory().equals(watchedDirectory))
+					.map(DirectoryCallback::callback)
+					.forEach(changedDirectoryCallbacks::add);
 				break;
 			} else if (event.context() instanceof Path eventPath) {
 				Path fullPath = watchedDirectory.resolve(eventPath);
 				if (callbacks.containsKey(fullPath)) {
 					changedPaths.add(fullPath);
+				} else {
+					for (DirectoryCallback directoryCallback : directoryCallbacks) {
+						if (fullPath.getParent().equals(directoryCallback.directory()) &&
+							directoryCallback.filenameFilter().test(fullPath)) {
+							changedDirectoryCallbacks.add(directoryCallback.callback());
+						}
+					}
 				}
 			}
 		}
@@ -134,17 +164,20 @@ public class FileWatcherThread extends Thread {
 	}
 
 	private synchronized void notifyChanges() {
-		if (changedPaths.isEmpty()) {
+		if (changedPaths.isEmpty() && changedDirectoryCallbacks.isEmpty()) {
 			return;
 		}
 		LOGGER.debug("Detected changes in files:\n{}", changedPaths.stream().map(Path::toString).collect(Collectors.joining("\n")));
 
-		List<Runnable> runnables = changedPaths.stream()
+		List<Runnable> runnables = new ArrayList<>();
+		changedPaths.stream()
 			.map(callbacks::get)
 			.filter(Objects::nonNull)
-			.toList();
+			.forEach(runnables::add);
+		runnables.addAll(changedDirectoryCallbacks);
 
 		changedPaths.clear();
+		changedDirectoryCallbacks.clear();
 
 		// The FileWatcherThread is a daemon thread, so it can stop suddenly
 		// when the JVM exits.

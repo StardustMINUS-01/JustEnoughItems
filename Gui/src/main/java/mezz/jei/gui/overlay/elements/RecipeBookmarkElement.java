@@ -53,7 +53,7 @@ import java.util.Optional;
 
 public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	private final RecipeBookmark<R, I> recipeBookmark;
-	private final IClientConfig clientConfig;
+	private @Nullable IClientConfig clientConfig;
 	private @Nullable PreviewTooltipComponent<R> previewTooltipComponent;
 	private @Nullable IngredientsTooltipComponent ingredientsTooltipComponent;
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -61,7 +61,6 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	public RecipeBookmarkElement(RecipeBookmark<R, I> recipeBookmark) {
 		this.recipeBookmark = recipeBookmark;
-		this.clientConfig = Internal.getJeiClientConfigs().getClientConfig();
 	}
 
 	@Override
@@ -76,6 +75,10 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public IDrawable createRenderOverlay() {
+		boolean showRecipeHandlerIcon = getClientConfig().isShowRecipeHandlerIconEnabled();
+		if (!showRecipeHandlerIcon) {
+			return null;
+		}
 		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
 		return new RecipeBookmarkIcon(recipeCategory);
 	}
@@ -151,15 +154,19 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		}
 	}
 
+	public void addRecipeTooltipFeatures(JeiTooltip tooltip) {
+		addBookmarkTooltipFeaturesIfEnabled(tooltip);
+	}
+
 	private void addBookmarkTooltipFeaturesIfEnabled(JeiTooltip tooltip) {
 		JeiTooltip transferComponents = createTransferComponents();
-		List<BookmarkTooltipFeature> bookmarkTooltipFeatures = clientConfig.getBookmarkTooltipFeatures();
+		List<BookmarkTooltipFeature> bookmarkTooltipFeatures = getClientConfig().getBookmarkTooltipFeatures();
 
 		if (bookmarkTooltipFeatures.isEmpty() && transferComponents.isEmpty()) {
 			return;
 		}
 
-		if (clientConfig.isHoldShiftToShowBookmarkTooltipFeaturesEnabled()) {
+		if (getClientConfig().isHoldShiftToShowBookmarkTooltipFeaturesEnabled()) {
 			IJeiKeyMappingInternal showBookmarkTooltipFeatures = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
 			if (showBookmarkTooltipFeatures.isDown()) {
 				addBookmarkTooltipFeatures(tooltip, bookmarkTooltipFeatures);
@@ -220,6 +227,13 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 		tooltip.add(component);
 		return true;
+	}
+
+	private IClientConfig getClientConfig() {
+		if (clientConfig == null) {
+			clientConfig = Internal.getJeiClientConfigs().getClientConfig();
+		}
+		return clientConfig;
 	}
 
 	private JeiTooltip createTransferComponents() {
@@ -293,6 +307,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	}
 
 	private static class RecipeBookmarkIcon implements IDrawable {
+		private static final float SCALE = 0.5f;
 		private final IDrawable icon;
 
 		public RecipeBookmarkIcon(IRecipeCategory<?> recipeCategory) {
@@ -322,14 +337,19 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			var poseStack = guiGraphics.pose();
 			poseStack.pushPose();
 			{
-				// this z level seems to be the sweet spot so that
-				// 2D icons draw above the items, and
-				// 3D icons draw still draw under tooltips.
-				poseStack.translate(8 + xOffset, 8 + yOffset, 200);
-				poseStack.scale(0.5f, 0.5f, 0.5f);
+				Offset offset = getTopRightOffset(getWidth(), SCALE);
+				poseStack.translate(offset.x() + xOffset, offset.y() + yOffset, 200);
+				poseStack.scale(SCALE, SCALE, SCALE);
 				icon.draw(guiGraphics);
 			}
 			poseStack.popPose();
 		}
+
+		private static Offset getTopRightOffset(int width, float scale) {
+			return new Offset(Math.round(width - width * scale), 0);
+		}
+
+		private record Offset(int x, int y) {}
 	}
 }
+

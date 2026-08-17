@@ -7,11 +7,13 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
+import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.search.SearchMode;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
@@ -46,6 +48,27 @@ public final class IngredientGridTooltipHelper {
 		IIngredientRenderer<T> ingredientRenderer,
 		IIngredientHelper<T> ingredientHelper
 	) {
+		getIngredientTooltip(tooltip, typedIngredient, ingredientRenderer, ingredientHelper, true);
+	}
+
+	public <T> void getIngredientTooltip(
+		JeiTooltip tooltip,
+		ITypedIngredient<T> typedIngredient,
+		IIngredientRenderer<T> ingredientRenderer,
+		IIngredientHelper<T> ingredientHelper,
+		boolean includeHotkeys
+	) {
+		getIngredientTooltip(tooltip, typedIngredient, ingredientRenderer, ingredientHelper, includeHotkeys, false);
+	}
+
+	public <T> void getIngredientTooltip(
+		JeiTooltip tooltip,
+		ITypedIngredient<T> typedIngredient,
+		IIngredientRenderer<T> ingredientRenderer,
+		IIngredientHelper<T> ingredientHelper,
+		boolean includeHotkeys,
+		boolean showToggleInputCatalyst
+	) {
 		SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient);
 
 		if (ingredientFilterConfig.getColorSearchMode() != SearchMode.DISABLED) {
@@ -58,6 +81,17 @@ public final class IngredientGridTooltipHelper {
 
 		if (toggleState.isEditModeEnabled()) {
 			addEditModeInfoToTooltip(tooltip, keyBindings);
+		}
+
+		if (includeHotkeys) {
+			BookmarkHotkeyTooltipUtil.addIngredientHotkeys(
+				tooltip,
+				keyBindings,
+				Screen.hasAltDown(),
+				false,
+				false,
+				showToggleInputCatalyst
+			);
 		}
 	}
 
