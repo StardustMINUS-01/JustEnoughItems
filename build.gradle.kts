@@ -46,6 +46,7 @@ val modId: String by extra
 val modJavaVersion: String by extra
 val modName: String by extra
 val specificationVersion: String by extra
+val homepageUrl: String by extra
 
 spotless {
 	java {
@@ -70,7 +71,7 @@ subprojects {
     //adds the build number to the end of the version string if on a build server
     var buildNumber = project.findProperty("BUILD_NUMBER")
     if (buildNumber == null) {
-        buildNumber = "9999"
+        buildNumber = "181"
     }
 
     version = "${specificationVersion}.${buildNumber}"
@@ -104,6 +105,7 @@ subprojects {
     tasks.withType<ProcessResources> {
         val properties = mapOf(
             "curseHomepageUrl" to curseHomepageUrl,
+            "homepageUrl" to homepageUrl,
             "fabricApiVersion" to fabricApiVersion,
             "fabricLoaderVersion" to fabricLoaderVersion,
             "forgeVersionRange" to forgeVersionRange,

@@ -13,7 +13,7 @@ loaderVersion="${forgeLoaderVersionRange}" #mandatory
 issueTrackerURL="${githubUrl}/issues?q=is%3Aissue" #optional
 
 # License
-license="The MIT License (MIT)"
+license="MIT AND LGPL-3.0-or-later"
 
 # A text field displayed in the mod UI
 #credits="Thanks for this example mod goes to Java" #optional
@@ -31,7 +31,7 @@ version="${version}" #mandatory
 displayName="${modName}" #mandatory
 
 # A URL for the "homepage" for this mod, displayed in the mod UI
-displayURL="${curseHomepageUrl}" #optional
+displayURL="${homepageUrl}" #optional
 
 # A URL to query for updates for this mod. See the JSON update specification <here>
 #updateJSONURL="" #optional
