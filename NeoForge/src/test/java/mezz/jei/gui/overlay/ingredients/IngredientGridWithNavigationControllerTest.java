@@ -20,6 +20,7 @@ import mezz.jei.api.runtime.IScreenHelper;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientGridConfig;
+import mezz.jei.common.config.IngredientGridLayoutMode;
 import mezz.jei.common.config.IngredientGridNavigationMode;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
@@ -568,6 +569,11 @@ public class IngredientGridWithNavigationControllerTest {
 		@Override
 		public IJeiConfigValue<Boolean> drawBackground() {
 			return value("drawBackground", false);
+		}
+
+		@Override
+		public IJeiConfigValue<IngredientGridLayoutMode> layoutMode() {
+			return value("layoutMode", IngredientGridLayoutMode.MAXIMIZE_AVAILABLE_SPACE);
 		}
 
 		@Override
