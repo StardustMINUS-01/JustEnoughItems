@@ -335,16 +335,17 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			clientConfig.lookupHistoryEnabled().getValue() && lookupHistoryOverlay.isDisplayedOnThisSide(),
 			clientConfig.maxLookupHistoryRows().getValue()
 		);
-		ImmutableRect2i contentsLayoutArea = avoidTopLeftExclusions(layoutAreas.contentsLayoutArea(), guiExclusionAreas);
-		layoutAreas = new LayoutAreas(contentsLayoutArea, layoutAreas.historyArea(), layoutAreas.contentsBottomLimit());
+		// TEMP DISABLED (upstream merge trial): shift bookmark contents below top-left exclusion areas.
+		// ImmutableRect2i contentsLayoutArea = avoidTopLeftExclusions(layoutAreas.contentsLayoutArea(), guiExclusionAreas);
+		// layoutAreas = new LayoutAreas(contentsLayoutArea, layoutAreas.historyArea(), layoutAreas.contentsBottomLimit());
 		layoutAreas.historyArea().ifPresent(historyArea -> {
 			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, mouseExclusionArea);
 			this.lookupHistoryOverlay.updateLayout();
 		});
-		this.contents.updateBounds(contentsLayoutArea, layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
+		this.contents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
 		this.contents.updateLayout(false);
 
-		this.favoriteContents.updateBounds(contentsLayoutArea, layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
+		this.favoriteContents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
 		this.favoriteContents.updateLayout(false);
 
 		if (contents.hasRoom()) {
