@@ -13,7 +13,6 @@ import mezz.jei.api.runtime.config.IJeiConfigValueSerializer.IDeserializeResult;
 import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.FocusedRecipe;
-import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 import java.util.Optional;

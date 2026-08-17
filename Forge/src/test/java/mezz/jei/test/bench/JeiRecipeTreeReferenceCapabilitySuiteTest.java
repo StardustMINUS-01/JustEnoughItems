@@ -1,7 +1,6 @@
 package mezz.jei.test.bench;
 
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
-import mezz.jei.gui.input.FocusedRecipe;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 

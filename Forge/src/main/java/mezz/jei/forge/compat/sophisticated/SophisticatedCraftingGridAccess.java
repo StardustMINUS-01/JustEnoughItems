@@ -1,6 +1,5 @@
 package mezz.jei.forge.compat.sophisticated;
 
-import mezz.jei.forge.compat.CompatUtil;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;

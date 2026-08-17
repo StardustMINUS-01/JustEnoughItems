@@ -352,4 +352,3 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		private record Offset(int x, int y) {}
 	}
 }
-

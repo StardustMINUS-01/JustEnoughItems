@@ -1,7 +1,6 @@
 package mezz.jei.common.network.packets;
 
 import mezz.jei.common.config.DebugConfig;
-import mezz.jei.common.network.ClientPacketContext;
 import mezz.jei.common.network.ClientPacketData;
 import mezz.jei.common.network.IPacketId;
 import mezz.jei.common.network.PacketIdClient;
