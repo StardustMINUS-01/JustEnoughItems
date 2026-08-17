@@ -52,6 +52,7 @@ import mezz.jei.gui.overlay.bookmarks.BookmarkGroupDropBridge.GroupDropHandler;
 import mezz.jei.gui.overlay.bookmarks.BookmarkGroupDropBridge.GroupDropHighlightProvider;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.ingredients.IngredientGridLayout;
 import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
 import net.minecraft.client.Minecraft;
@@ -334,14 +335,16 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			clientConfig.lookupHistoryEnabled().getValue() && lookupHistoryOverlay.isDisplayedOnThisSide(),
 			clientConfig.maxLookupHistoryRows().getValue()
 		);
+		ImmutableRect2i contentsLayoutArea = avoidTopLeftExclusions(layoutAreas.contentsLayoutArea(), guiExclusionAreas);
+		layoutAreas = new LayoutAreas(contentsLayoutArea, layoutAreas.historyArea(), layoutAreas.contentsBottomLimit());
 		layoutAreas.historyArea().ifPresent(historyArea -> {
 			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, mouseExclusionArea);
 			this.lookupHistoryOverlay.updateLayout();
 		});
-		this.contents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
+		this.contents.updateBounds(contentsLayoutArea, layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
 		this.contents.updateLayout(false);
 
-		this.favoriteContents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
+		this.favoriteContents.updateBounds(contentsLayoutArea, layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
 		this.favoriteContents.updateLayout(false);
 
 		if (contents.hasRoom()) {
@@ -410,6 +413,57 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		int x = favoriteButtonArea.getX() + favoriteButtonArea.getWidth() + INNER_PADDING;
 		int width = rightBoundary - x + 1;
 		return new ImmutableRect2i(x, favoriteButtonArea.getY(), Math.max(0, width), favoriteButtonArea.getHeight());
+	}
+
+	/**
+	 * Shifts the bookmark contents area below exclusion areas that meaningfully cover its
+	 * top-left slot cell. Such areas (e.g. an FTB sidebar icon) would otherwise create a
+	 * partial first row that breaks group borders; shifting the whole area keeps every row
+	 * full and lets the page buttons and scrollbar follow automatically. The shift is
+	 * aligned to whole grid rows, and tiny slivers keep blocking only the slot underneath.
+	 */
+	static ImmutableRect2i avoidTopLeftExclusions(
+		ImmutableRect2i area,
+		Set<ImmutableRect2i> guiExclusionAreas
+	) {
+		int areaBottom = area.getY() + area.getHeight();
+		int candidateY = area.getY();
+		while (candidateY < areaBottom) {
+			ImmutableRect2i firstCellArea = new ImmutableRect2i(
+				area.getX(),
+				candidateY,
+				IngredientGridLayout.INGREDIENT_WIDTH,
+				IngredientGridLayout.INGREDIENT_HEIGHT
+			);
+			int nextY = candidateY;
+			for (ImmutableRect2i exclusion : guiExclusionAreas) {
+				if (!exclusion.intersects(firstCellArea)) {
+					continue;
+				}
+				int overlapWidth = Math.min(exclusion.getX() + exclusion.getWidth(), firstCellArea.getX() + firstCellArea.getWidth())
+					- Math.max(exclusion.getX(), firstCellArea.getX());
+				int overlapHeight = Math.min(exclusion.getY() + exclusion.getHeight(), firstCellArea.getY() + firstCellArea.getHeight())
+					- Math.max(exclusion.getY(), firstCellArea.getY());
+				if (overlapWidth < IngredientGridLayout.INGREDIENT_WIDTH / 2 || overlapHeight < IngredientGridLayout.INGREDIENT_HEIGHT / 2) {
+					continue;
+				}
+				int exclusionBottom = exclusion.getY() + exclusion.getHeight();
+				nextY = Math.max(nextY, alignUp(exclusionBottom - area.getY(), IngredientGridLayout.INGREDIENT_HEIGHT) + area.getY());
+				break;
+			}
+			if (nextY == candidateY) {
+				if (candidateY == area.getY()) {
+					return area;
+				}
+				return new ImmutableRect2i(area.getX(), candidateY, area.getWidth(), areaBottom - candidateY);
+			}
+			candidateY = nextY;
+		}
+		return area;
+	}
+
+	private static int alignUp(int value, int alignment) {
+		return (value + alignment - 1) / alignment * alignment;
 	}
 
 	public static LayoutAreas calculateLayoutAreas(ImmutableRect2i displayArea, boolean lookupHistoryOnSide, int historyRows) {
