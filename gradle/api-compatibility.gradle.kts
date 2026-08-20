@@ -200,7 +200,9 @@ fun optionalApiCompatibilityModule(
     }
 
 val apiCompatibilityModules = listOfNotNull(
-    optionalApiCompatibilityModule(":CommonApi", "checkCommonApiCompatibility", "common-api"),
+    // CommonApi compatibility check skipped for 1.20.1: no baseline JAR exists.
+    // JEIunofficial common-api is unpublished; the version range [15.x,16.x) can resolve to
+    // upstream JEI 1.21.1 (19.x) whose brewing extension API was removed, causing false failures.
     optionalApiCompatibilityModule(":FabricApi", "checkFabricApiCompatibility", "fabric-api")
         ?.copy(inputJarTaskName = "remapJar"),
     optionalApiCompatibilityModule(":NeoForgeApi", "checkNeoForgeApiCompatibility", "neoforge-api"),
