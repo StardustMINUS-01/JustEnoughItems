@@ -85,7 +85,7 @@ public class BookmarkOverlayRenderer {
 		}
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkOverlayLayout.toRowSlots(panelSlots);
 		boolean hasDragPreview = panelSlots != sourcePanelSlots || sortDragState != null && sortDragState.isActive();
-		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview && overlay.isSmoothScrolling() ?
+		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview ?
 			panelSnapshot.boundaryConnections() :
 			BookmarkOverlayLayout.BoundaryConnections.NONE;
 		for (int i = 0; i < panelSlots.size(); i++) {
