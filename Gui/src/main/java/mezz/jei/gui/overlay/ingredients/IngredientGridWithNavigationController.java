@@ -235,6 +235,13 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		return this.pageState.getPageNumber();
 	}
 
+	public int getFirstItemIndex() {
+		if (usesScrollbar()) {
+			return this.scrollController.getFirstItemIndex();
+		}
+		return this.pageState.getFirstItemIndex();
+	}
+
 	@Override
 	public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		if (!mouseOverable.isMouseOver(mouseX, mouseY)) {

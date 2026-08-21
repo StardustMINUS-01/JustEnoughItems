@@ -284,6 +284,10 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return controller;
 	}
 
+	public int getFirstItemIndex() {
+		return this.controller.getFirstItemIndex();
+	}
+
 	@Override
 	public void drawBackground(GuiGraphics guiGraphics) {
 		updateLayoutIfDirty();

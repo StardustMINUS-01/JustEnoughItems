@@ -560,6 +560,31 @@ public class BookmarkListInvariantTest {
 	}
 
 	@Test
+	public void displayEntryUsesLatestNonUniformRowLayout() {
+		BookmarkList bookmarks = bookmarkList();
+		String groupId = "group_1";
+		TestBookmark first = bookmark("plate");
+		TestBookmark second = bookmark("gear");
+		TestBookmark third = bookmark("machine");
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.COLLAPSED, null, false, Set.of()));
+		for (TestBookmark bookmark : List.of(first, second, third)) {
+			bookmarks.addToListWithoutNotifying(bookmark, false);
+			bookmarks.moveBookmarkMetadataFromConfig(bookmark, BookmarkItemMetadata.defaultForGroup(groupId));
+		}
+
+		BookmarkDisplayEntry<IBookmark> expected = bookmarks.getDisplaySlots(3, List.of(2, 3)).stream()
+			.map(BookmarkDisplaySlot::entry)
+			.filter(entry -> entry.item().equals(second))
+			.findFirst()
+			.orElseThrow();
+		BookmarkDisplayEntry<IBookmark> actual = bookmarks.getDisplayEntry(second).orElseThrow();
+
+		Assertions.assertNotNull(expected.border());
+		Assertions.assertTrue(expected.border().right());
+		Assertions.assertEquals(expected, actual);
+	}
+
+	@Test
 	public void catalystBookmarkAmountIsNotShiftedByScroll() {
 		BookmarkList bookmarks = bookmarkList();
 		TestBookmark catalyst = bookmark("mold");

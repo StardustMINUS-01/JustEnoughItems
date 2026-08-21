@@ -9,11 +9,13 @@ import mezz.jei.common.config.HistoryDisplaySide;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientGridConfig;
+import mezz.jei.common.config.IngredientGridNavigationMode;
 import mezz.jei.common.config.file.IConfigListener;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.JeiClientSoundUtil;
+import mezz.jei.common.util.NavigationVisibility;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
@@ -127,6 +129,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	private final FavoriteRecipePanelState favoritePanelState;
 	private final IClientToggleState toggleState;
 	private final IClientConfig clientConfig;
+	private final IIngredientGridConfig gridConfig;
 	private final IInternalKeyMappings keyBindings;
 	private final ScrollStep scrollStep;
 	private final ScrollStepTextField scrollStepField;
@@ -162,6 +165,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		this.favoritePanelState = favoritePanelState;
 		this.toggleState = toggleState;
 		this.clientConfig = clientConfig;
+		this.gridConfig = bookmarkListConfig;
 		this.keyBindings = keyBindings;
 		this.scrollStep = scrollStep;
 		this.scrollStepField = new ScrollStepTextField(scrollStep);
@@ -211,7 +215,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		clientConfig.lookupHistoryEnabled().addListener(this.lookupHistoryEnabledListener::onConfigValueChanged);
 		clientConfig.maxLookupHistoryRows().addListener(v -> markScreenPropertiesDirty());
 		clientConfig.lookupHistoryDisplaySide().addListener(this.lookupHistoryViewSideListener::onConfigValueChanged);
-		addGridConfigListeners(bookmarkListConfig);
+		addGridConfigListeners(gridConfig);
 	}
 
 	public boolean isListDisplayed() {
@@ -329,23 +333,35 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		ImmutableRect2i displayArea = getDisplayArea(guiProperties);
 		Set<ImmutableRect2i> guiExclusionAreas = this.guiPropertiesCache.getGuiExclusionAreas();
 		ImmutablePoint2i mouseExclusionArea = this.guiPropertiesCache.getMouseExclusionArea();
+		Set<ImmutableRect2i> contentGuiExclusionAreas = guiExclusionAreas;
+		ImmutablePoint2i contentMouseExclusionArea = mouseExclusionArea;
 
 		LayoutAreas layoutAreas = calculateLayoutAreas(
 			displayArea,
 			clientConfig.lookupHistoryEnabled().getValue() && lookupHistoryOverlay.isDisplayedOnThisSide(),
 			clientConfig.maxLookupHistoryRows().getValue()
 		);
-		// TEMP DISABLED (upstream merge trial): shift bookmark contents below top-left exclusion areas.
-		// ImmutableRect2i contentsLayoutArea = avoidTopLeftExclusions(layoutAreas.contentsLayoutArea(), guiExclusionAreas);
-		// layoutAreas = new LayoutAreas(contentsLayoutArea, layoutAreas.historyArea(), layoutAreas.contentsBottomLimit());
+		IngredientGridNavigationMode navigationMode = gridConfig.navigationMode().getValue();
+		NavigationVisibility navigationVisibility = gridConfig.navigationVisibility().getValue();
+		// ENABLED page navigation already moves the whole grid below exclusions that block its
+		// button strip. Scrollbar navigation has no equivalent strip, while AUTO_HIDE and DISABLED
+		// page navigation may not show one, so use bookmark whole-row avoidance for those modes.
+		if (shouldAvoidTopLeftExclusions(navigationMode, navigationVisibility)) {
+			ImmutableRect2i contentsLayoutArea = avoidTopLeftExclusions(layoutAreas.contentsLayoutArea(), guiExclusionAreas);
+			layoutAreas = new LayoutAreas(contentsLayoutArea, layoutAreas.historyArea(), layoutAreas.contentsBottomLimit());
+			if (navigationMode.usesSmoothScrolling()) {
+				contentGuiExclusionAreas = filterContentExclusionAreas(contentsLayoutArea, guiExclusionAreas);
+				contentMouseExclusionArea = filterContentMouseExclusionPoint(contentsLayoutArea, mouseExclusionArea);
+			}
+		}
 		layoutAreas.historyArea().ifPresent(historyArea -> {
 			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, mouseExclusionArea);
 			this.lookupHistoryOverlay.updateLayout();
 		});
-		this.contents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
+		this.contents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), contentGuiExclusionAreas, contentMouseExclusionArea);
 		this.contents.updateLayout(false);
 
-		this.favoriteContents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
+		this.favoriteContents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), contentGuiExclusionAreas, contentMouseExclusionArea);
 		this.favoriteContents.updateLayout(false);
 
 		if (contents.hasRoom()) {
@@ -394,6 +410,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		gridConfig.horizontalAlignment().addListener(v -> markScreenPropertiesDirty());
 		gridConfig.verticalAlignment().addListener(v -> markScreenPropertiesDirty());
 		gridConfig.navigationVisibility().addListener(v -> markScreenPropertiesDirty());
+		gridConfig.navigationMode().addListener(v -> markScreenPropertiesDirty());
 	}
 
 	private void updateScreenPropertiesIfDirty() {
@@ -416,12 +433,45 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return new ImmutableRect2i(x, favoriteButtonArea.getY(), Math.max(0, width), favoriteButtonArea.getHeight());
 	}
 
+	static boolean shouldAvoidTopLeftExclusions(
+		IngredientGridNavigationMode navigationMode,
+		NavigationVisibility navigationVisibility
+	) {
+		return navigationMode.usesScrollbar() || navigationVisibility != NavigationVisibility.ENABLED;
+	}
+
+	static Set<ImmutableRect2i> filterContentExclusionAreas(
+		ImmutableRect2i area,
+		Set<ImmutableRect2i> guiExclusionAreas
+	) {
+		Set<ImmutableRect2i> filteredExclusionAreas = null;
+		for (ImmutableRect2i exclusion : guiExclusionAreas) {
+			if (exclusion.getY() + exclusion.getHeight() <= area.getY()) {
+				if (filteredExclusionAreas == null) {
+					filteredExclusionAreas = new HashSet<>(guiExclusionAreas);
+				}
+				filteredExclusionAreas.remove(exclusion);
+			}
+		}
+		return filteredExclusionAreas == null ? guiExclusionAreas : filteredExclusionAreas;
+	}
+
+	static @Nullable ImmutablePoint2i filterContentMouseExclusionPoint(
+		ImmutableRect2i area,
+		@Nullable ImmutablePoint2i mouseExclusionPoint
+	) {
+		return mouseExclusionPoint == null || mouseExclusionPoint.y() < area.y() ? null : mouseExclusionPoint;
+	}
+
 	/**
 	 * Shifts the bookmark contents area below exclusion areas that meaningfully cover its
 	 * top-left slot cell. Such areas (e.g. an FTB sidebar icon) would otherwise create a
 	 * partial first row that breaks group borders; shifting the whole area keeps every row
 	 * full and lets the page buttons and scrollbar follow automatically. The shift is
 	 * aligned to whole grid rows, and tiny slivers keep blocking only the slot underneath.
+	 *
+	 * Used for scrollbar navigation and button navigation with AUTO_HIDE or DISABLED page
+	 * buttons. With ENABLED page navigation, upstream handles the shift itself.
 	 */
 	static ImmutableRect2i avoidTopLeftExclusions(
 		ImmutableRect2i area,
@@ -517,7 +567,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				sortDragState.drawTargetSlotOverlays(guiGraphics);
 				sortDragState.drawSourceSlotOverlays(guiGraphics, getPanelSlots());
 			}
-			renderer.drawBookmarkGroupPanels(guiGraphics, mouseX, mouseY, groupPanelDrag, sortDragState);
+			drawBookmarkGroupPanels(guiGraphics, mouseX, mouseY);
 			if (groupPanelDrag != null) {
 				groupPanelDrag.drawPreview(guiGraphics, mouseX, mouseY);
 			}
@@ -539,6 +589,25 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.favoriteButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			this.historyButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			this.scrollStepField.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
+		}
+	}
+
+	private void drawBookmarkGroupPanels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (!isSmoothScrolling()) {
+			renderer.drawBookmarkGroupPanels(guiGraphics, mouseX, mouseY, groupPanelDrag, sortDragState);
+			return;
+		}
+		ImmutableRect2i clipArea = calculateGroupPanelClipArea(this.contents.getIngredientGridArea());
+		guiGraphics.enableScissor(
+			clipArea.getX(),
+			clipArea.getY(),
+			clipArea.getX() + clipArea.getWidth(),
+			clipArea.getY() + clipArea.getHeight()
+		);
+		try {
+			renderer.drawBookmarkGroupPanels(guiGraphics, mouseX, mouseY, groupPanelDrag, sortDragState);
+		} finally {
+			guiGraphics.disableScissor();
 		}
 	}
 
@@ -752,6 +821,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return layout.getGroupPanelSlots();
 	}
 
+	BookmarkOverlayLayout.PanelSnapshot getGroupPanelSnapshotForRendering() {
+		return layout.getPanelSnapshotForRendering();
+	}
+
 	boolean canStartGroupDrop(String groupId) {
 		return BookmarkGroupDropBridge.canStartGroupDrop(bookmarkList, groupId);
 	}
@@ -943,8 +1016,15 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	Optional<GroupPanelSlot> getGroupPanelSlotUnderMouse(double mouseX, double mouseY) {
+		if (!isMouseOverVisibleGroupPanelArea(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		return BookmarkPanelLayout.findRowUnderMouse(getGroupPanelRowSlots(), mouseX, mouseY, GROUP_PANEL_WIDTH)
 			.map(this::toGroupPanelSlot);
+	}
+
+	boolean isMouseOverVisibleGroupPanelArea(double mouseX, double mouseY) {
+		return !isSmoothScrolling() || calculateGroupPanelClipArea(this.contents.getIngredientGridArea()).contains(mouseX, mouseY);
 	}
 
 	Optional<FavoriteRecipeRowPanelSlot> getFavoriteRecipeRowPanelSlotUnderMouse(double mouseX, double mouseY) {
@@ -1018,6 +1098,19 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	static ImmutableRect2i getGroupPanelArea(ImmutableRect2i slotArea) {
 		return BookmarkPanelLayout.getGroupPanelArea(slotArea, GROUP_PANEL_WIDTH);
+	}
+
+	static ImmutableRect2i calculateGroupPanelClipArea(ImmutableRect2i ingredientGridArea) {
+		return new ImmutableRect2i(
+			ingredientGridArea.getX() - GROUP_PANEL_WIDTH,
+			ingredientGridArea.getY(),
+			GROUP_PANEL_WIDTH,
+			ingredientGridArea.getHeight()
+		);
+	}
+
+	boolean isSmoothScrolling() {
+		return this.gridConfig.navigationMode().getValue().usesSmoothScrolling();
 	}
 
 	GroupPanelSlot toGroupPanelSlot(BookmarkPanelLayout.RowSlot<IBookmark> slot) {

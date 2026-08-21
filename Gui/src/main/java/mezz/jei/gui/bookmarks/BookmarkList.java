@@ -76,6 +76,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private List<Integer> cachedDisplaySlotsPerRow = List.of();
 	private List<BookmarkDisplaySlot<IBookmark>> cachedDisplaySlots = List.of();
 	private int latestDisplaySlotsColumns = 0;
+	private List<Integer> latestDisplaySlotsPerRow = List.of();
 
 	public BookmarkList(
 		IRecipeManager recipeManager,
@@ -1193,16 +1194,20 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public List<BookmarkDisplaySlot<IBookmark>> getDisplaySlots(int columns, List<Integer> usableColumnsPerRow) {
+		List<Integer> immutableUsableColumnsPerRow = cachedDisplaySlotsPerRow.equals(usableColumnsPerRow) ?
+			cachedDisplaySlotsPerRow :
+			List.copyOf(usableColumnsPerRow);
 		if (columns > 0) {
 			latestDisplaySlotsColumns = columns;
+			latestDisplaySlotsPerRow = immutableUsableColumnsPerRow;
 		}
 		if (cachedDisplaySlotsVersion != changeVersion ||
 			cachedDisplaySlotsColumns != columns ||
-			!cachedDisplaySlotsPerRow.equals(usableColumnsPerRow)) {
+			cachedDisplaySlotsPerRow != immutableUsableColumnsPerRow) {
 			cachedDisplaySlotsVersion = changeVersion;
 			cachedDisplaySlotsColumns = columns;
-			cachedDisplaySlotsPerRow = List.copyOf(usableColumnsPerRow);
-			cachedDisplaySlots = bookmarkGroups.getDisplaySlots(bookmarksList, columns, usableColumnsPerRow);
+			cachedDisplaySlotsPerRow = immutableUsableColumnsPerRow;
+			cachedDisplaySlots = bookmarkGroups.getDisplaySlots(bookmarksList, columns, immutableUsableColumnsPerRow);
 		}
 		return cachedDisplaySlots;
 	}
@@ -1224,7 +1229,7 @@ public class BookmarkList implements IIngredientGridSource {
 
 	public Optional<BookmarkDisplayEntry<IBookmark>> getDisplayEntry(IBookmark bookmark) {
 		List<BookmarkDisplaySlot<IBookmark>> displaySlots = latestDisplaySlotsColumns > 0 ?
-			getDisplaySlots(latestDisplaySlotsColumns) :
+			getDisplaySlots(latestDisplaySlotsColumns, latestDisplaySlotsPerRow) :
 			getDisplaySlots();
 		return displaySlots.stream()
 			.map(BookmarkDisplaySlot::entry)

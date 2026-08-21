@@ -35,6 +35,7 @@ import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
+import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.FocusUtil;
 import mezz.jei.library.focus.FocusFactory;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IngredientGridWithNavigationControllerTest {
@@ -150,6 +152,17 @@ public class IngredientGridWithNavigationControllerTest {
 		assertEquals(Optional.of(fixture.controller), handler);
 		assertEquals(1, fixture.layoutChanges);
 		assertEquals(1, fixture.controller.getPageNumber());
+	}
+
+	@Test
+	public void pagedModeReportsRenderedFirstItemIndex() {
+		Fixture fixture = Fixture.create(3, 7, true, IngredientGridNavigationMode.PAGED);
+		fixture.controller.updateLayoutToFirstPage();
+
+		fixture.controller.nextPage();
+
+		assertEquals(3, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 	}
 
 	@Test
@@ -297,6 +310,19 @@ public class IngredientGridWithNavigationControllerTest {
 	}
 
 	@Test
+	public void smoothScrollingModeReportsRenderedFirstItemIndexAfterOneRow() {
+		Fixture fixture = Fixture.create(3, 9, true, IngredientGridNavigationMode.SMOOTH_SCROLLING);
+		fixture.controller.updateLayoutToFirstPage();
+
+		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
+		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
+		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
+
+		assertEquals(3, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
+	}
+
+	@Test
 	public void scrollingModeDoesNotWrapFromFirstRowToLastRow() {
 		// Setup: scrollbar mode starts at the top of a multi-row list.
 		Fixture fixture = Fixture.create(3, 7, true, IngredientGridNavigationMode.SCROLLING);
@@ -379,6 +405,7 @@ public class IngredientGridWithNavigationControllerTest {
 		// Assertions: the last 45 visible slots can include the final ingredient.
 		assertEquals(1, fixture.layoutChanges);
 		assertEquals(55, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 	}
 
 	@Test
@@ -395,7 +422,55 @@ public class IngredientGridWithNavigationControllerTest {
 		// Assertions: the exact bottom starts late enough for the final ingredient and has no partial-row offset.
 		assertEquals(1, fixture.layoutChanges);
 		assertEquals(55, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 		assertEquals(0, fixture.grid.scrollOffsetY);
+	}
+
+	@Test
+	public void scrollingModeReportsRenderedFirstItemIndexAfterOneRow() {
+		Fixture fixture = Fixture.create(3, 7, true, IngredientGridNavigationMode.SCROLLING);
+		fixture.controller.updateLayoutToFirstPage();
+
+		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
+
+		assertEquals(3, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
+	}
+
+	@Test
+	public void scrollingModeUsesLayoutAwareElements() {
+		List<IElement<?>> rawElements = createElements(4);
+		List<IElement<?>> layoutElements = List.of(
+			LayoutPlaceholderElement.INSTANCE,
+			rawElements.get(0),
+			rawElements.get(1),
+			rawElements.get(2),
+			rawElements.get(3)
+		);
+		Fixture fixture = Fixture.create(2, 1, rawElements, layoutElements, true, IngredientGridNavigationMode.SCROLLING);
+
+		fixture.controller.updateLayoutToFirstPage();
+
+		assertSame(layoutElements, fixture.grid.ingredientList);
+		assertSame(LayoutPlaceholderElement.INSTANCE, fixture.grid.ingredientList.getFirst());
+	}
+
+	@Test
+	public void smoothScrollingModeUsesLayoutAwareElements() {
+		List<IElement<?>> rawElements = createElements(4);
+		List<IElement<?>> layoutElements = List.of(
+			LayoutPlaceholderElement.INSTANCE,
+			rawElements.get(0),
+			rawElements.get(1),
+			rawElements.get(2),
+			rawElements.get(3)
+		);
+		Fixture fixture = Fixture.create(2, 1, rawElements, layoutElements, true, IngredientGridNavigationMode.SMOOTH_SCROLLING);
+
+		fixture.controller.updateLayoutToFirstPage();
+
+		assertSame(layoutElements, fixture.grid.ingredientList);
+		assertSame(LayoutPlaceholderElement.INSTANCE, fixture.grid.ingredientList.getFirst());
 	}
 
 	@Test
@@ -480,6 +555,18 @@ public class IngredientGridWithNavigationControllerTest {
 		}
 
 		static Fixture create(int columns, int rows, int itemCount, boolean mouseOver, IngredientGridNavigationMode navigationMode) {
+			List<IElement<?>> elements = createElements(itemCount);
+			return create(columns, rows, elements, elements, mouseOver, navigationMode);
+		}
+
+		static Fixture create(
+			int columns,
+			int rows,
+			List<IElement<?>> rawElements,
+			List<IElement<?>> layoutElements,
+			boolean mouseOver,
+			IngredientGridNavigationMode navigationMode
+		) {
 			TestClientConfig clientConfig = new TestClientConfig(false);
 			TestConnectionToServer connection = new TestConnectionToServer();
 			IIngredientManager ingredientManager = createIngredientManager();
@@ -488,7 +575,7 @@ public class IngredientGridWithNavigationControllerTest {
 			GhostIngredientQuickMoveManager quickMoveManager = new GhostIngredientQuickMoveManager(emptyFocusSource, new TestScreenHelper());
 			CommandUtil commandUtil = new CommandUtil(clientConfig, connection);
 			TestNavigationGrid grid = new TestNavigationGrid(columns, rows);
-			TestIngredientGridSource source = new TestIngredientGridSource(itemCount);
+			TestIngredientGridSource source = new TestIngredientGridSource(rawElements, layoutElements);
 			IngredientGridWithNavigationController controller = new IngredientGridWithNavigationController(
 				source,
 				grid,
@@ -615,6 +702,7 @@ public class IngredientGridWithNavigationControllerTest {
 		private int visibleSlotCount;
 		private int firstItemIndex;
 		private int scrollOffsetY;
+		private List<IElement<?>> ingredientList = List.of();
 		private List<IElement<?>> visibleElements = List.of();
 
 		private TestNavigationGrid(int slotCount) {
@@ -675,6 +763,7 @@ public class IngredientGridWithNavigationControllerTest {
 		public void set(int firstItemIndex, int scrollOffsetY, List<IElement<?>> ingredientList) {
 			this.firstItemIndex = firstItemIndex;
 			this.scrollOffsetY = scrollOffsetY;
+			this.ingredientList = ingredientList;
 			int startIndex = Math.clamp(firstItemIndex, 0, ingredientList.size());
 			int endIndex = Math.min(startIndex + this.visibleSlotCount, ingredientList.size());
 			this.visibleElements = List.copyOf(ingredientList.subList(startIndex, endIndex));
@@ -763,14 +852,23 @@ public class IngredientGridWithNavigationControllerTest {
 		}
 	}
 
-	private record TestIngredientGridSource(List<IElement<?>> elements) implements IIngredientGridSource {
+	private record TestIngredientGridSource(List<IElement<?>> rawElements, List<IElement<?>> layoutElements) implements IIngredientGridSource {
 		private TestIngredientGridSource(int itemCount) {
 			this(createElements(itemCount));
 		}
 
+		private TestIngredientGridSource(List<IElement<?>> elements) {
+			this(elements, elements);
+		}
+
 		@Override
 		public List<IElement<?>> getElements() {
-			return elements;
+			return rawElements;
+		}
+
+		@Override
+		public List<IElement<?>> getElements(int usableColumnCount, List<Integer> usableColumnsPerRow) {
+			return layoutElements;
 		}
 
 		@Override

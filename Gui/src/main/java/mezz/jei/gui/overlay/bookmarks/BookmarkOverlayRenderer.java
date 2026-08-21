@@ -76,14 +76,24 @@ public class BookmarkOverlayRenderer {
 		@Nullable GroupPanelDrag groupPanelDrag,
 		@Nullable BookmarkSortDragState sortDragState
 	) {
-		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlotsForPreview = overlay.getPanelSlots();
-		List<GroupPanelSlot> panelSlots = overlay.getGroupPanelSlots();
+		BookmarkOverlayLayout.PanelSnapshot panelSnapshot = overlay.getGroupPanelSnapshotForRendering();
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlotsForPreview = panelSnapshot.panelSlots();
+		List<GroupPanelSlot> sourcePanelSlots = panelSnapshot.groupPanelSlots();
+		List<GroupPanelSlot> panelSlots = sourcePanelSlots;
 		if (groupPanelDrag != null) {
 			panelSlots = groupPanelDrag.getPreviewGroupPanelSlots(panelSlotsForPreview, panelSlots);
 		}
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkOverlayLayout.toRowSlots(panelSlots);
+		boolean hasDragPreview = panelSlots != sourcePanelSlots || sortDragState != null && sortDragState.isActive();
+		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview && overlay.isSmoothScrolling() ?
+			panelSnapshot.boundaryConnections() :
+			BookmarkOverlayLayout.BoundaryConnections.NONE;
 		for (int i = 0; i < panelSlots.size(); i++) {
 			GroupPanelSlot slot = panelSlots.get(i);
+			boolean connectedToPrevious = BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i) ||
+				i == 0 && boundaryConnections.connectedToPrevious();
+			boolean connectedToNext = BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i) ||
+				i == panelSlots.size() - 1 && boundaryConnections.connectedToNext();
 			if (sortDragState != null &&
 				sortDragState.getGroupPanelRenderMode(slot.groupId()) == BookmarkSortDragState.GroupPanelRenderMode.DRAG_PLACEHOLDER) {
 				ImmutableRect2i area = overlay.getGroupPanelArea(slot.area());
@@ -97,8 +107,8 @@ public class BookmarkOverlayRenderer {
 				drawGroupPanelPlaceholderLine(
 					guiGraphics,
 					slot.area(),
-					BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i),
-					BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i)
+					connectedToPrevious,
+					connectedToNext
 				);
 				continue;
 			}
@@ -109,14 +119,14 @@ public class BookmarkOverlayRenderer {
 					guiGraphics,
 					slot.area(),
 					getGroupPanelColor(slot.groupId()),
-					BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i),
-					BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i)
+					connectedToPrevious,
+					connectedToNext
 				);
 			}
 		}
 
-		if (groupPanelDrag == null) {
-			overlay.getGroupPanelSlotUnderMouse(mouseX, mouseY)
+		if (groupPanelDrag == null && overlay.isMouseOverVisibleGroupPanelArea(mouseX, mouseY)) {
+			BookmarkPanelLayout.findRowUnderMouse(rowSlots, mouseX, mouseY, groupPanelWidth)
 				.ifPresent(slot -> {
 					ImmutableRect2i area = overlay.getGroupPanelArea(slot.area());
 					guiGraphics.fill(area.getX(), area.getY(), area.getX() + area.getWidth(), area.getY() + area.getHeight(), groupPanelHoverColor);
