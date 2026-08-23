@@ -1,37 +1,34 @@
 package mezz.jei.gui.overlay.bookmarks;
 
+import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.buttons.IButtonState;
+import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.api.gui.drawable.IDrawable;
-import mezz.jei.api.gui.drawable.IDrawableStatic;
+import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.Internal;
-import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.gui.elements.GuiIconToggleButton;
-import mezz.jei.gui.input.UserInput;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
-public class BookmarkButton extends GuiIconToggleButton {
-	public static BookmarkButton create(BookmarkOverlay bookmarkOverlay, IInternalKeyMappings keyBindings) {
-		Textures textures = Internal.getTextures();
-		IDrawableStatic offIcon = textures.getBookmarkButtonDisabledIcon();
-		IDrawableStatic onIcon = textures.getBookmarkButtonEnabledIcon();
-		return new BookmarkButton(offIcon, onIcon, bookmarkOverlay, keyBindings);
-	}
-
+class BookmarkPanelButtonController implements IIconButtonController {
+	private final IDrawable offIcon;
+	private final IDrawable onIcon;
 	private final BookmarkOverlay bookmarkOverlay;
 	private final IInternalKeyMappings keyBindings;
 
-	private BookmarkButton(IDrawable offIcon, IDrawable onIcon, BookmarkOverlay bookmarkOverlay, IInternalKeyMappings keyBindings) {
-		super(offIcon, onIcon);
+	BookmarkPanelButtonController(BookmarkOverlay bookmarkOverlay, IInternalKeyMappings keyBindings) {
+		Textures textures = Internal.getTextures();
+		this.offIcon = textures.getBookmarkButtonDisabledIcon();
+		this.onIcon = textures.getBookmarkButtonEnabledIcon();
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.keyBindings = keyBindings;
 	}
 
 	@Override
-	protected void getTooltips(JeiTooltip tooltip) {
+	public void getTooltips(ITooltipBuilder tooltip) {
 		tooltip.add(Component.translatable("jei.tooltip.bookmarks"));
 		IJeiKeyMapping bookmarkKey = keyBindings.getBookmark();
 		if (bookmarkKey.isUnbound()) {
@@ -49,12 +46,14 @@ public class BookmarkButton extends GuiIconToggleButton {
 	}
 
 	@Override
-	protected boolean isIconToggledOn() {
-		return bookmarkOverlay.isListDisplayed();
+	public void updateState(IButtonState state) {
+		boolean iconToggledOn = bookmarkOverlay.isListDisplayed();
+		state.setIcon(iconToggledOn ? onIcon : offIcon);
+		state.setForcePressed(iconToggledOn);
 	}
 
 	@Override
-	protected boolean onMouseClicked(UserInput input) {
+	public boolean onPress(IJeiUserInput input) {
 		return bookmarkOverlay.toggleBookmarkPanel(input.isSimulate());
 	}
 }

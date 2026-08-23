@@ -25,6 +25,7 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkMoveSelection;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.elements.GuiIconToggleButton;
+import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
@@ -47,7 +48,7 @@ import mezz.jei.gui.input.handlers.ProxyDragHandler;
 import mezz.jei.gui.input.handlers.ProxyInputHandler;
 import mezz.jei.gui.overlay.GuiPropertiesCache;
 import mezz.jei.gui.overlay.IScreenPropertiesUpdater;
-import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryButton;
+import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryButtonController;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkGroupDropBridge.GroupDropAvailabilityProvider;
 import mezz.jei.gui.overlay.bookmarks.BookmarkGroupDropBridge.GroupDropHandler;
@@ -119,9 +120,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	private final IngredientGridWithNavigation contents;
 	private final IngredientGridWithNavigation favoriteContents;
 	private final LookupHistoryOverlay lookupHistoryOverlay;
-	private final GuiIconToggleButton bookmarkButton;
+	// Keep these types aligned with the upstream private field descriptors used by external integrations.
+	private final IconButton bookmarkButton;
 	private final GuiIconToggleButton favoriteButton;
-	private final GuiIconToggleButton historyButton;
+	private final IconButton historyButton;
 
 	// data
 	private final BookmarkList bookmarkList;
@@ -169,9 +171,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		this.keyBindings = keyBindings;
 		this.scrollStep = scrollStep;
 		this.scrollStepField = new ScrollStepTextField(scrollStep);
-		this.bookmarkButton = BookmarkButton.create(this, keyBindings);
-		this.favoriteButton = FavoriteRecipePanelButton.create(this, favoriteRecipes);
-		this.historyButton = LookupHistoryButton.create(clientConfig);
 		this.contents = contents;
 		this.layout = new BookmarkOverlayLayout(bookmarkList, contents);
 		this.renderer = new BookmarkOverlayRenderer(
@@ -192,6 +191,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			screen -> screenHelper.getGuiProperties(screen)
 				.orElse(null)
 		);
+		this.bookmarkButton = new IconButton(new BookmarkPanelButtonController(this, keyBindings));
+		this.favoriteButton = FavoriteRecipePanelButton.create(this, favoriteRecipes);
+		this.historyButton = new IconButton(new LookupHistoryButtonController(clientConfig));
 		this.bookmarkDragManager = new BookmarkDragManager(this);
 		contents.setExtraHoveredIngredientSource(() -> getGroupDropHoverIngredient(MouseUtil.getX(), MouseUtil.getY()));
 		bookmarkList.addSourceListChangedListener(() -> {
@@ -372,12 +374,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				.keepBottom(BUTTON_SIZE)
 				.keepLeft(BUTTON_SIZE);
 			this.bookmarkButton.updateBounds(bookmarkButtonArea);
-			ImmutableRect2i historyButtonArea  = bookmarkButtonArea.moveRight(2 + BUTTON_SIZE);
-			this.historyButton.updateBounds(historyButtonArea);
-			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(historyButtonArea);
+			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(bookmarkButtonArea);
 			this.favoriteButton.updateBounds(favoriteButtonArea);
+			ImmutableRect2i historyButtonArea = calculateHistoryButtonArea(favoriteButtonArea);
+			this.historyButton.updateBounds(historyButtonArea);
 			ImmutableRect2i gridArea = this.contents.getIngredientGridArea();
-			this.scrollStepArea = calculateScrollStepArea(favoriteButtonArea, gridArea.getX() + gridArea.getWidth());
+			this.scrollStepArea = calculateScrollStepArea(historyButtonArea, gridArea.getX() + gridArea.getWidth());
 			this.scrollStepField.updateBounds(scrollStepArea);
 		} else {
 			ImmutableRect2i bookmarkButtonArea = displayArea
@@ -385,11 +387,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				.keepBottom(BUTTON_SIZE)
 				.keepLeft(BUTTON_SIZE);
 			this.bookmarkButton.updateBounds(bookmarkButtonArea);
-			ImmutableRect2i historyButtonArea  = bookmarkButtonArea.moveRight(2 + BUTTON_SIZE);
-			this.historyButton.updateBounds(historyButtonArea);
-			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(historyButtonArea);
+			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(bookmarkButtonArea);
 			this.favoriteButton.updateBounds(favoriteButtonArea);
-			this.scrollStepArea = calculateScrollStepArea(favoriteButtonArea, displayArea.getWidth() - BORDER_MARGIN);
+			ImmutableRect2i historyButtonArea = calculateHistoryButtonArea(favoriteButtonArea);
+			this.historyButton.updateBounds(historyButtonArea);
+			this.scrollStepArea = calculateScrollStepArea(historyButtonArea, displayArea.getWidth() - BORDER_MARGIN);
 			this.scrollStepField.updateBounds(scrollStepArea);
 		}
 	}
@@ -423,14 +425,18 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 	}
 
-	public static ImmutableRect2i calculateFavoritePanelButtonArea(ImmutableRect2i historyButtonArea) {
-		return historyButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
+	public static ImmutableRect2i calculateFavoritePanelButtonArea(ImmutableRect2i bookmarkButtonArea) {
+		return bookmarkButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
 	}
 
-	public static ImmutableRect2i calculateScrollStepArea(ImmutableRect2i favoriteButtonArea, int rightBoundary) {
-		int x = favoriteButtonArea.getX() + favoriteButtonArea.getWidth() + INNER_PADDING;
+	public static ImmutableRect2i calculateHistoryButtonArea(ImmutableRect2i favoriteButtonArea) {
+		return favoriteButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
+	}
+
+	public static ImmutableRect2i calculateScrollStepArea(ImmutableRect2i historyButtonArea, int rightBoundary) {
+		int x = historyButtonArea.getX() + historyButtonArea.getWidth() + INNER_PADDING;
 		int width = rightBoundary - x + 1;
-		return new ImmutableRect2i(x, favoriteButtonArea.getY(), Math.max(0, width), favoriteButtonArea.getHeight());
+		return new ImmutableRect2i(x, historyButtonArea.getY(), Math.max(0, width), historyButtonArea.getHeight());
 	}
 
 	static boolean shouldAvoidTopLeftExclusions(
@@ -652,6 +658,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	public void tick() {
+		this.bookmarkButton.tick();
+		this.historyButton.tick();
 		if (isListDisplayed()) {
 			this.contents.tick();
 		}

@@ -7,10 +7,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class BookmarkOverlayScrollStepAreaTest {
 	@Test
-	public void scrollStepAreaSitsRightOfFavoriteButtonAndAlignsRightEdge() {
-		ImmutableRect2i favoriteButtonArea = new ImmutableRect2i(50, 100, 20, 20);
+	public void toolbarButtonsPlaceFavoriteThenHistoryAfterBookmark() {
+		ImmutableRect2i bookmarkButtonArea = new ImmutableRect2i(6, 100, 20, 20);
 
-		ImmutableRect2i area = BookmarkOverlay.calculateScrollStepArea(favoriteButtonArea, 194);
+		ImmutableRect2i favoriteButtonArea = BookmarkOverlay.calculateFavoritePanelButtonArea(bookmarkButtonArea);
+		ImmutableRect2i historyButtonArea = BookmarkOverlay.calculateHistoryButtonArea(favoriteButtonArea);
+
+		assertEquals(28, favoriteButtonArea.getX());
+		assertEquals(50, historyButtonArea.getX());
+	}
+
+	@Test
+	public void scrollStepAreaSitsRightOfHistoryButtonAndAlignsRightEdge() {
+		ImmutableRect2i historyButtonArea = new ImmutableRect2i(50, 100, 20, 20);
+
+		ImmutableRect2i area = BookmarkOverlay.calculateScrollStepArea(historyButtonArea, 194);
 
 		assertEquals(72, area.getX());
 		assertEquals(100, area.getY());
@@ -21,9 +32,9 @@ public class BookmarkOverlayScrollStepAreaTest {
 
 	@Test
 	public void scrollStepAreaIsEmptyWhenNoRoom() {
-		ImmutableRect2i favoriteButtonArea = new ImmutableRect2i(50, 100, 20, 20);
+		ImmutableRect2i historyButtonArea = new ImmutableRect2i(50, 100, 20, 20);
 
-		ImmutableRect2i area = BookmarkOverlay.calculateScrollStepArea(favoriteButtonArea, 60);
+		ImmutableRect2i area = BookmarkOverlay.calculateScrollStepArea(historyButtonArea, 60);
 
 		assertEquals(0, area.getWidth());
 	}
