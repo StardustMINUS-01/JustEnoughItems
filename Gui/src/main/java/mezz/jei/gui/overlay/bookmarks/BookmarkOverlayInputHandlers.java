@@ -165,7 +165,7 @@ public final class BookmarkOverlayInputHandlers {
 				return handled ? Optional.of(this) : Optional.empty();
 			}
 
-			if (overlay.getDefaultGroupControlArea().contains(input.getMouseX(), input.getMouseY())) {
+			if (overlay.hasDefaultGroupBookmarks() && overlay.getDefaultGroupControlArea().contains(input.getMouseX(), input.getMouseY())) {
 				BookmarkHotkeyContext context = createDefaultGroupControlHotkeyContext();
 				Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveGroupMouseAction(
 					context,
@@ -262,7 +262,7 @@ public final class BookmarkOverlayInputHandlers {
 			}
 
 			Optional<GroupPanelSlot> groupSlot = overlay.getGroupPanelSlotUnderMouse(mouseX, mouseY);
-			boolean defaultControl = overlay.getDefaultGroupControlArea().contains(mouseX, mouseY);
+			boolean defaultControl = overlay.hasDefaultGroupBookmarks() && overlay.getDefaultGroupControlArea().contains(mouseX, mouseY);
 			if (!overlay.isMouseOver(mouseX, mouseY) && groupSlot.isEmpty() && !defaultControl) {
 				return Optional.empty();
 			}

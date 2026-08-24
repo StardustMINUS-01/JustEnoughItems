@@ -50,6 +50,7 @@
   "jei.tooltip.bookmarks.hotkeys.craft_missing": "Craft Missing Items",
   "jei.tooltip.bookmarks.hotkeys.craft_items": "Craft Items",
   "jei.tooltip.bookmarks.group": "Bookmark Group",
+  "jei.tooltip.bookmarks.default_group": "Default Group (Ungrouped Bookmarks)",
   "jei.tooltip.bookmarks.group.keys.left": "Left Click",
   "jei.tooltip.bookmarks.group.keys.right": "Right Click",
   "jei.tooltip.bookmarks.group.keys.left_drag": "Left Click + Drag",

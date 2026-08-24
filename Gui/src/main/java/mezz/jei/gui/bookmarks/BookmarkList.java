@@ -69,6 +69,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private final @Nullable BookmarkFactory bookmarkFactory;
 	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
+	private final BookmarkPermutationTooltipState permutationTooltipState = new BookmarkPermutationTooltipState();
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private long changeVersion;
 	private long cachedDisplaySlotsVersion = -1;
@@ -1172,7 +1173,7 @@ public class BookmarkList implements IIngredientGridSource {
 		if (!needsProjectedElement(entry)) {
 			return element;
 		}
-		return new ProjectedBookmarkElement((IElement) element, entry);
+		return new ProjectedBookmarkElement((IElement) element, entry, permutationTooltipState);
 	}
 
 	static boolean needsProjectedElement(BookmarkDisplayEntry<?> entry) {
@@ -1858,7 +1859,12 @@ public class BookmarkList implements IIngredientGridSource {
 			return false;
 		}
 		IBookmark replacement = createPermutationBookmark(bookmark, nextIngredient.get());
-		return replaceBookmark(bookmark, replacement, metadata);
+		int bookmarkIndex = bookmarksList.indexOf(bookmark);
+		boolean replaced = replaceBookmark(bookmark, replacement, metadata);
+		if (replaced) {
+			permutationTooltipState.updateStart(bookmarkIndex, permutations, nextIndex);
+		}
+		return replaced;
 	}
 
 	public boolean toggleBookmarkInputCatalyst(IBookmark bookmark) {

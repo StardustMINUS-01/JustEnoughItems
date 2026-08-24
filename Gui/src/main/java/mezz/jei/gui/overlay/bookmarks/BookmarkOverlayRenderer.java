@@ -6,6 +6,7 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.common.util.MathUtil;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -19,10 +20,12 @@ import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.gui.input.IPaged;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -247,10 +250,48 @@ public class BookmarkOverlayRenderer {
 		guiGraphics.fill(area.getX(), area.getY(), area.getX() + area.getWidth(), area.getY() + area.getHeight(), groupPlaceholderColor);
 	}
 
+	void drawDefaultGroupControlIndicator(
+		Minecraft minecraft,
+		GuiGraphics guiGraphics,
+		ImmutableRect2i controlArea,
+		IPaged paged
+	) {
+		if (
+			controlArea.isEmpty() ||
+			!overlay.hasDefaultGroupBookmarks() ||
+			!bookmarkList.isGroupCraftingMode(BookmarkGroupManager.DEFAULT_GROUP_ID)
+		) {
+			return;
+		}
+		String pageNumber = String.format("%d/%d", paged.getPageNumber() + 1, paged.getPageCount());
+		Font font = minecraft.font;
+		ImmutableRect2i textArea = MathUtil.centerTextArea(controlArea, font, pageNumber);
+		int bracketWidth = font.width("[");
+		int leftX = textArea.getX() - bracketWidth;
+		int rightX = textArea.getX() + textArea.getWidth();
+		if (leftX < controlArea.getX() || rightX + bracketWidth > controlArea.getX() + controlArea.getWidth()) {
+			return;
+		}
+		guiGraphics.drawString(font, "[", leftX, textArea.getY(), groupChainColor);
+		guiGraphics.drawString(font, "]", rightX, textArea.getY(), groupChainColor);
+	}
+
 	boolean drawGroupHotkeyTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (overlay.getDefaultGroupControlArea().contains(mouseX, mouseY)) {
+			if (!overlay.hasDefaultGroupBookmarks()) {
+				return false;
+			}
+			String groupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
+			boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 			JeiTooltip tooltip = new JeiTooltip();
-			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, overlay.getKeyBindings(), Screen.hasAltDown());
+			addRecipeChainTooltip(tooltip, groupId);
+			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(
+				tooltip,
+				overlay.getKeyBindings(),
+				Screen.hasAltDown(),
+				craftingMode,
+				canPullDefaultGroupItems()
+			);
 			tooltip.draw(guiGraphics, mouseX, mouseY);
 			return true;
 		}
@@ -288,10 +329,12 @@ public class BookmarkOverlayRenderer {
 		return bridge.isAvailable() && bridge.isPatternEncodingTerminal(containerScreen.getMenu());
 	}
 
+	private static boolean canPullDefaultGroupItems() {
+		Minecraft minecraft = Minecraft.getInstance();
+		return minecraft.player != null && minecraft.screen instanceof AbstractContainerScreen<?>;
+	}
+
 	private void addRecipeChainTooltip(JeiTooltip tooltip, String groupId) {
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-			return;
-		}
 		if (!bookmarkList.isGroupCraftingMode(groupId)) {
 			return;
 		}

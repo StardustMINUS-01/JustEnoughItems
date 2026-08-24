@@ -1,5 +1,6 @@
 package mezz.jei.gui.favorites;
 
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -11,15 +12,20 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.Internal;
+import mezz.jei.common.config.BookmarkTooltipFeature;
+import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
+import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import mezz.jei.gui.recipes.InputSlotSelectionState;
 import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.ChatFormatting;
@@ -44,6 +50,8 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	private final Optional<FavoriteRecipeStore.FavoriteSlotInput> favoriteSlotInput;
 	private final Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs;
 	private final boolean visible;
+	private final FocusedRecipeLayoutResolver recipeLayoutResolver;
+	private final FavoriteRecipePreviewState recipePreviewState;
 
 	public FavoriteRecipeElement(
 		ITypedIngredient<T> ingredient,
@@ -71,6 +79,8 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		this.favoriteSlotInput = favoriteSlotInput == null ? Optional.empty() : favoriteSlotInput;
 		this.entryInputs = entryInputs == null ? Map.of() : Map.copyOf(entryInputs);
 		this.visible = visible;
+		this.recipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
+		this.recipePreviewState = new FavoriteRecipePreviewState(this::createRecipeLayoutDrawable);
 	}
 
 	@Override
@@ -133,9 +143,34 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		tooltip.add(Component.translatable("jei.tooltip.favoriteRecipes.recipe").withStyle(ChatFormatting.GREEN));
 		tooltip.add(Component.translatable("jei.tooltip.favoriteRecipes.clickRecipe").withStyle(ChatFormatting.GRAY));
 		tooltipHelper.getIngredientTooltip(tooltip, tooltipIngredient, ingredientRenderer, ingredientHelper, favoriteRecipes == null);
+		addRecipePreviewTooltip(tooltip);
 		if (favoriteRecipes != null) {
 			BookmarkHotkeyTooltipUtil.addFavoriteRecipeHotkeys(tooltip, Internal.getKeyMappings());
 		}
+	}
+
+	private void addRecipePreviewTooltip(JeiTooltip tooltip) {
+		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
+		if (!clientConfig.bookmarkTooltipFeatures().getValue().contains(BookmarkTooltipFeature.PREVIEW)) {
+			return;
+		}
+		if (clientConfig.holdShiftToShowBookmarkTooltipFeaturesEnabled().getValue()) {
+			IJeiKeyMappingInternal showBookmarkTooltipFeatures = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
+			if (!showBookmarkTooltipFeatures.isDown()) {
+				tooltip.addKeyUsageComponent("jei.tooltip.bookmarks.tooltips.usage", showBookmarkTooltipFeatures);
+				return;
+			}
+		}
+		recipePreviewState.addTo(tooltip);
+	}
+
+	private Optional<IRecipeLayoutDrawable<?>> createRecipeLayoutDrawable() {
+		return recipeLayoutResolver.resolve(recipe, focusFactory.getEmptyFocusGroup())
+			.map(recipeLayout -> {
+				InputSlotSelectionState selectionState = new InputSlotSelectionState(Internal.getJeiRuntime().getIngredientManager());
+				FavoriteRecipeInputs.apply(recipeLayout, entryInputs, selectionState);
+				return recipeLayout;
+			});
 	}
 
 	@Override
@@ -189,6 +224,7 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 
 	@Override
 	public void tick() {
+		recipePreviewState.tick();
 	}
 
 }

@@ -44,6 +44,17 @@ public final class FavoriteRecipeInputs {
 		return Map.copyOf(inputs);
 	}
 
+	public static void apply(
+		IRecipeLayoutDrawable<?> recipeLayout,
+		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> inputs,
+		InputSlotSelectionState selectionState
+	) {
+		Map<Integer, BookmarkIngredientKey> selectedKeys = new LinkedHashMap<>();
+		inputs.forEach((index, slotInput) -> selectedKeys.put(index, slotInput.selected()));
+		selectionState.setSelectedKeys(selectedKeys);
+		selectionState.apply(recipeLayout);
+	}
+
 	private static BookmarkIngredientKey createKey(ITypedIngredient<?> ingredient, IIngredientManager ingredientManager) {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
 	}

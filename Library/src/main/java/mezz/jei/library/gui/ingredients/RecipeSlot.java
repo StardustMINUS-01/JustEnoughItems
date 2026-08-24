@@ -11,6 +11,7 @@ import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IIngredientVisibility;
@@ -18,6 +19,7 @@ import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
+import mezz.jei.common.gui.CandidateTooltipWindow;
 import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.OffsetDrawable;
@@ -73,6 +75,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 
 	@Nullable
 	private DisplayIngredientAcceptor displayOverrides;
+	private int tagContentTooltipWindowStart;
 
 	public RecipeSlot(
 		RecipeIngredientRole role,
@@ -268,9 +271,29 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 			List<T> ingredients = getVisibleIngredients(type);
 
 			if (ingredients.size() > 1) {
-				tooltip.add(new TagContentTooltipComponent<>(renderer, ingredients));
+				int selectedIndex = getSelectedIngredientIndex(ingredients, displayed, ingredientManager.getIngredientHelper(type));
+				tagContentTooltipWindowStart = CandidateTooltipWindow.updateStart(
+					ingredients.size(),
+					selectedIndex,
+					tagContentTooltipWindowStart
+				);
+				tooltip.add(new TagContentTooltipComponent<>(renderer, ingredients, selectedIndex, tagContentTooltipWindowStart));
 			}
 		}
+	}
+
+	private static <T> int getSelectedIngredientIndex(
+		List<T> ingredients,
+		ITypedIngredient<T> displayed,
+		IIngredientHelper<T> ingredientHelper
+	) {
+		Object displayedUid = ingredientHelper.getUid(displayed, UidContext.Ingredient);
+		for (int index = 0; index < ingredients.size(); index++) {
+			if (displayedUid.equals(ingredientHelper.getUid(ingredients.get(index), UidContext.Ingredient))) {
+				return index;
+			}
+		}
+		return -1;
 	}
 
 	private <T> List<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
