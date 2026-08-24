@@ -19,6 +19,8 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,10 @@ public final class InputSlotSelectionState {
 
 	public Map<Integer, BookmarkIngredientKey> selectedKeys() {
 		return Map.copyOf(selectedKeys);
+	}
+
+	public boolean hasSelections() {
+		return !selectedKeys.isEmpty();
 	}
 
 	public void setSelectedKeys(Map<Integer, BookmarkIngredientKey> keys) {
@@ -77,8 +83,12 @@ public final class InputSlotSelectionState {
 	}
 
 	public IRecipeSlotsView createTransferSlotsView(IRecipeLayoutDrawable<?> recipeLayout) {
-		List<IRecipeSlotView> slots = recipeLayout.getRecipeSlotsView().getSlotViews();
-		List<IRecipeSlotView> transferSlots = new java.util.ArrayList<>(slots.size());
+		IRecipeSlotsView baseView = recipeLayout.getRecipeSlotsView();
+		if (selectedKeys.isEmpty()) {
+			return baseView;
+		}
+		List<IRecipeSlotView> slots = baseView.getSlotViews();
+		List<IRecipeSlotView> transferSlots = new ArrayList<>(slots.size());
 		int inputSlotIndex = 0;
 		for (IRecipeSlotView slot : slots) {
 			if (slot.getRole() == RecipeIngredientRole.INPUT && selectedKeys.containsKey(inputSlotIndex)) {
@@ -94,7 +104,8 @@ public final class InputSlotSelectionState {
 				inputSlotIndex++;
 			}
 		}
-		return () -> List.copyOf(transferSlots);
+		List<IRecipeSlotView> immutableTransferSlots = Collections.unmodifiableList(transferSlots);
+		return () -> immutableTransferSlots;
 	}
 
 	public Optional<ITypedIngredient<?>> resolve(IRecipeSlotView slot, int inputSlotIndex) {

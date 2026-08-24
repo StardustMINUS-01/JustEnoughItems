@@ -43,7 +43,12 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		RecipesGui recipesGui,
 		List<IRecipeButtonControllerFactory> extraButtonControllerFactories
 	) {
-		RecipeTransferButtonController transferButton = new RecipeTransferButtonController(recipeLayoutDrawable, recipesGui);
+		RecipesGui.RecipeLayoutForkExtras forkExtras = recipesGui.createRecipeLayoutForkExtras(recipeLayoutDrawable);
+		RecipeTransferButtonController transferButton = new RecipeTransferButtonController(
+			recipeLayoutDrawable,
+			recipesGui,
+			forkExtras.inputSlotSelectionState()
+		);
 		RecipeBookmarkButtonController bookmarkButton = new RecipeBookmarkButtonController(bookmarks, recipeLayoutDrawable, recipeBookmark);
 
 		List<IconButton> buttons = new ArrayList<>();
@@ -56,7 +61,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 			}
 		}
 
-		RecipesGui.RecipeLayoutForkExtras forkExtras = recipesGui.createRecipeLayoutForkExtras(recipeLayoutDrawable);
 		return new RecipeLayoutWithButtons<>(
 			recipeLayoutDrawable,
 			transferButton,

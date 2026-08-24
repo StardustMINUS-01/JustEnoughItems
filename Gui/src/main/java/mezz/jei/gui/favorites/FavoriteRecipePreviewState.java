@@ -2,6 +2,7 @@ package mezz.jei.gui.favorites;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,7 +31,7 @@ final class FavoriteRecipePreviewState {
 	private Optional<PreviewTooltipComponent<?>> getPreviewTooltipComponent() {
 		if (previewTooltipComponent == null) {
 			previewTooltipComponent = recipeLayoutSupplier.get()
-				.map(PreviewTooltipComponent::new);
+				.map(FixedRecipePreviewTooltipComponent::new);
 		}
 		return previewTooltipComponent;
 	}

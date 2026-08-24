@@ -67,17 +67,26 @@ public class InputSlotSelectionStateTest {
 	}
 
 	@Test
-	public void transferViewRestrictsManuallySelectedInputToItsSelectedCandidate() throws ReflectiveOperationException {
+	public void transferViewReusesRecipeSlotsViewWithoutManualSelections() {
+		IRecipeSlotsView recipeSlotsView = () -> List.of(slot(List.of(typed("first"))));
+		IRecipeLayoutDrawable<?> layout = proxy(IRecipeLayoutDrawable.class, (proxy, method, args) -> switch (method.getName()) {
+			case "getRecipeSlotsView" -> recipeSlotsView;
+			default -> defaultValue(method.getReturnType());
+		});
+		InputSlotSelectionState state = new InputSlotSelectionState(ingredientManager());
+
+		Assertions.assertSame(recipeSlotsView, state.createTransferSlotsView(layout));
+	}
+
+	@Test
+	public void transferViewRestrictsManuallySelectedInputToItsSelectedCandidate() {
 		IRecipeSlotDrawable hoveredSlot = slot(List.of(typed("first"), typed("second")));
 		IRecipeSlotDrawable layoutSlot = slot(List.of(typed("first"), typed("second")));
 		IRecipeLayoutDrawable<?> layout = layout(hoveredSlot, layoutSlot);
 		InputSlotSelectionState state = new InputSlotSelectionState(ingredientManager());
 		Assertions.assertTrue(state.scroll(layout, 4, 4, -1, false));
 
-		IRecipeSlotsView transferView = Assertions.assertDoesNotThrow(() -> {
-			var method = InputSlotSelectionState.class.getMethod("createTransferSlotsView", IRecipeLayoutDrawable.class);
-			return (IRecipeSlotsView) method.invoke(state, layout);
-		});
+		IRecipeSlotsView transferView = state.createTransferSlotsView(layout);
 
 		List<String> transferredCandidates = transferView.getSlotViews(RecipeIngredientRole.INPUT).getFirst()
 			.getAllIngredients()
@@ -147,6 +156,7 @@ public class InputSlotSelectionStateTest {
 		});
 	}
 
+	@SuppressWarnings("unchecked")
 	private static IIngredientManager ingredientManager() {
 		IIngredientHelper<String> helper = proxy(IIngredientHelper.class, (proxy, method, args) -> switch (method.getName()) {
 			case "getUniqueId" -> args[0];

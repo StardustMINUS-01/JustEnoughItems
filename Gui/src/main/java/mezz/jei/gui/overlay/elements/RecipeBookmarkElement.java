@@ -12,6 +12,7 @@ import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
+import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
@@ -37,6 +38,7 @@ import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
+import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.recipes.RecipeCategoryIconUtil;
 import mezz.jei.gui.util.FocusUtil;
@@ -330,7 +332,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			if (recipeLayout == null) {
 				return false;
 			}
-			component = new PreviewTooltipComponent<>(recipeLayout);
+			component = new FixedRecipePreviewTooltipComponent<>(recipeLayout);
 			previewTooltipComponent = component;
 		}
 
@@ -398,11 +400,13 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
 			IFocusFactory focusFactory = jeiRuntime.getJeiHelpers().getFocusFactory();
 			IScalableDrawable recipePreviewBackground = Internal.getTextures().getRecipePreviewBackground();
+			IFocus<?> focus = focusFactory.createFocus(recipeBookmark.getDisplayRole(), recipeBookmark.getRecipeOutput());
+			IFocusGroup focusGroup = focusFactory.createFocusGroup(List.of(focus));
 
 			cachedLayoutDrawable = recipeManager.createRecipeLayoutDrawable(
 				recipeBookmark.getRecipeCategory(),
 				recipeBookmark.getRecipe(),
-				focusFactory.getEmptyFocusGroup(),
+				focusGroup,
 				recipePreviewBackground,
 				4
 			);

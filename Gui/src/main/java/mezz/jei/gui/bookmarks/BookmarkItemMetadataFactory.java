@@ -39,8 +39,30 @@ public final class BookmarkItemMetadataFactory {
 		ITypedIngredient<T> selectedIngredient,
 		IIngredientManager ingredientManager
 	) {
-		Set<BookmarkIngredientKey> permutations = createPermutations(type, sourceSlot, selectedIngredient, ingredientManager);
 		long factor = getMatchedFactor(selectedIngredient, roleSlots, ingredientManager);
+		return createForRecipeSlotWithFactor(
+			groupId,
+			recipeCategory,
+			recipeUid,
+			type,
+			sourceSlot,
+			selectedIngredient,
+			ingredientManager,
+			factor
+		);
+	}
+
+	static <R, T> BookmarkItemMetadata createForRecipeSlotWithFactor(
+		String groupId,
+		IRecipeCategory<R> recipeCategory,
+		ResourceLocation recipeUid,
+		BookmarkItemType type,
+		IRecipeSlotView sourceSlot,
+		ITypedIngredient<T> selectedIngredient,
+		IIngredientManager ingredientManager,
+		long factor
+	) {
+		Set<BookmarkIngredientKey> permutations = createPermutations(type, sourceSlot, selectedIngredient, ingredientManager);
 		ContainerItemInfo containerItem = createContainerItemInfo(type, selectedIngredient, ingredientManager);
 		return new BookmarkItemMetadata(
 			groupId,
@@ -131,7 +153,7 @@ public final class BookmarkItemMetadataFactory {
 		return permutations;
 	}
 
-	private static <T> long getMatchedFactor(
+	static <T> long getMatchedFactor(
 		ITypedIngredient<T> selectedIngredient,
 		List<IRecipeSlotView> roleSlots,
 		IIngredientManager ingredientManager
@@ -139,11 +161,11 @@ public final class BookmarkItemMetadataFactory {
 		BookmarkIngredientKey selectedKey = createPermutationKey(selectedIngredient, ingredientManager);
 		long amount = 0;
 		for (IRecipeSlotView slot : roleSlots) {
-			List<ITypedIngredient<?>> matchingIngredients = slot.getAllIngredients()
+			var matchingIngredient = slot.getAllIngredients()
 				.filter(ingredient -> selectedKey.equals(createPermutationKey(ingredient, ingredientManager)))
-				.toList();
-			if (!matchingIngredients.isEmpty()) {
-				amount = SaturatedMath.add(amount, BookmarkIngredientAmountResolver.getAmount(matchingIngredients.get(0), ingredientManager));
+				.findFirst();
+			if (matchingIngredient.isPresent()) {
+				amount = SaturatedMath.add(amount, BookmarkIngredientAmountResolver.getAmount(matchingIngredient.get(), ingredientManager));
 			}
 		}
 		return amount;

@@ -13,6 +13,7 @@ import mezz.jei.forge.startup.ForgePluginFinder;
 import mezz.jei.forge.startup.StartEventObserver;
 import mezz.jei.gui.config.InternalKeyMappings;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
+import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
@@ -98,6 +99,7 @@ public class JustEnoughItemsClient {
 
 	private void onRegisterClientTooltipEvent(RegisterClientTooltipComponentFactoriesEvent event) {
 		event.register(CandidateTooltipComponent.class, Function.identity());
+		event.register(FixedRecipePreviewTooltipComponent.class, Function.identity());
 		event.register(IngredientsTooltipComponent.class, Function.identity());
 		event.register(PreviewTooltipComponent.class, Function.identity());
 		event.register(TagContentTooltipComponent.class, Function.identity());

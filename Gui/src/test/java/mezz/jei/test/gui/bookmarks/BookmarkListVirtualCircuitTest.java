@@ -196,6 +196,30 @@ public class BookmarkListVirtualCircuitTest {
 	}
 
 	@Test
+	public void projectionCountsMixedSelectionsBySelectedSlots() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		List<ITypedIngredient<?>> plankCandidates = List.of(item(Items.OAK_PLANKS), item(Items.CHERRY_PLANKS));
+		TestRecipeLayout layout = layout(
+			new Object(),
+			List.of(plankCandidates, plankCandidates, plankCandidates, List.of(item(Items.STICK)), List.of(item(Items.STICK))),
+			List.of(List.of(item(Items.WOODEN_PICKAXE)))
+		);
+		BookmarkIngredientKey oak = BookmarkItemMetadataFactory.createPermutationKey(item(Items.OAK_PLANKS), INGREDIENT_MANAGER);
+		BookmarkIngredientKey cherry = BookmarkItemMetadataFactory.createPermutationKey(item(Items.CHERRY_PLANKS), INGREDIENT_MANAGER);
+
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, false, Map.of(2, cherry)));
+
+		Map<BookmarkIngredientKey, Long> factors = bookmarks.getBookmarks().stream()
+			.filter(bookmark -> bookmarks.getBookmarkMetadata(bookmark).type() == mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT)
+			.collect(java.util.stream.Collectors.toMap(
+				bookmark -> BookmarkItemMetadataFactory.createPermutationKey(bookmark.getElement().getTypedIngredient(), INGREDIENT_MANAGER),
+				bookmark -> bookmarks.getBookmarkMetadata(bookmark).factor()
+			));
+		Assertions.assertEquals(2, factors.get(oak));
+		Assertions.assertEquals(1, factors.get(cherry));
+	}
+
+	@Test
 	public void projectionWithoutSelectedInputKeepsAllVariants() {
 		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
 		TestRecipeLayout layout = layout(

@@ -19,6 +19,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.input.InputModifiers;
@@ -951,28 +952,61 @@ public class BookmarkList implements IIngredientGridSource {
 	) {
 		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
 		List<IRecipeSlotView> roleSlots = recipeSlotsView.getSlotViews(role);
+		if (role != RecipeIngredientRole.INPUT) {
+			for (IRecipeSlotView slotView : roleSlots) {
+				Optional<ITypedIngredient<?>> ingredient;
+				if (role == RecipeIngredientRole.OUTPUT && projection.selectedOutputKey().isPresent()) {
+					ingredient = getSelectedIngredient(slotView, projection.selectedOutputKey().get());
+				} else {
+					ingredient = slotView.getAllIngredients().findFirst();
+				}
+				ingredient
+					.map(selected -> createRecipeBookmark(recipeLayout, slotView, roleSlots, selected, role, preserveAmount, virtualInputs, equalityScope, null))
+					.ifPresent(entry -> addBookmarkIfAbsent(bookmarks, entry));
+			}
+			return;
+		}
+		List<Optional<ITypedIngredient<?>>> selectedIngredients = new ArrayList<>(roleSlots.size());
+		Map<BookmarkIngredientKey, Long> selectedInputFactors = new HashMap<>();
 		for (int i = 0; i < roleSlots.size(); i++) {
 			IRecipeSlotView slotView = roleSlots.get(i);
-			Optional<ITypedIngredient<?>> ingredient;
-			if (role == RecipeIngredientRole.OUTPUT && projection.selectedOutputKey().isPresent()) {
-				ingredient = getSelectedIngredient(slotView, projection.selectedOutputKey().get());
-			} else if (role == RecipeIngredientRole.INPUT) {
-				ingredient = projection.selectedInputKey(i)
-					.flatMap(key -> getSelectedIngredient(slotView, key))
-					.or(() -> slotView.getAllIngredients().findFirst());
-			} else {
-				ingredient = slotView.getAllIngredients().findFirst();
-			}
-			BookmarkIngredientKey lockedInputPermutation = role == RecipeIngredientRole.INPUT ?
-				projection.selectedInputKey(i).orElse(null) :
-				null;
+			Optional<ITypedIngredient<?>> ingredient = projection.selectedInputKey(i)
+				.flatMap(key -> getSelectedIngredient(slotView, key))
+				.or(() -> slotView.getAllIngredients().findFirst());
+			selectedIngredients.add(ingredient);
+			ingredient.ifPresent(selected -> selectedInputFactors.merge(
+				BookmarkItemMetadataFactory.createPermutationKey(selected, ingredientManager),
+				BookmarkIngredientAmountResolver.getAmount(selected, ingredientManager),
+				SaturatedMath::add
+			));
+		}
+		for (int i = 0; i < roleSlots.size(); i++) {
+			IRecipeSlotView slotView = roleSlots.get(i);
+			Optional<ITypedIngredient<?>> ingredient = selectedIngredients.get(i);
+			BookmarkIngredientKey lockedInputPermutation = projection.selectedInputKey(i).orElse(null);
 			ingredient
-				.map(selected -> createRecipeBookmark(recipeLayout, slotView, roleSlots, selected, role, preserveAmount, virtualInputs, equalityScope, lockedInputPermutation))
-				.ifPresent(entry -> {
-					if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
-						bookmarks.add(entry);
-					}
-			});
+				.map(selected -> {
+					BookmarkIngredientKey selectedKey = BookmarkItemMetadataFactory.createPermutationKey(selected, ingredientManager);
+					long factor = selectedInputFactors.get(selectedKey);
+					return createRecipeBookmarkWithFactor(
+						recipeLayout,
+						slotView,
+						selected,
+						role,
+						preserveAmount,
+						virtualInputs,
+						equalityScope,
+						lockedInputPermutation,
+						factor
+					);
+				})
+				.ifPresent(entry -> addBookmarkIfAbsent(bookmarks, entry));
+		}
+	}
+
+	private static void addBookmarkIfAbsent(List<RecipeBookmarkEntry> bookmarks, RecipeBookmarkEntry entry) {
+		if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
+			bookmarks.add(entry);
 		}
 	}
 
@@ -993,9 +1027,7 @@ public class BookmarkList implements IIngredientGridSource {
 				continue;
 			}
 			RecipeBookmarkEntry entry = createSyntheticRecipeInputBookmark(recipeLayout, virtualInput, preserveAmount, equalityScope);
-			if (bookmarks.stream().noneMatch(bookmark -> bookmark.bookmark().equals(entry.bookmark()))) {
-				bookmarks.add(entry);
-			}
+			addBookmarkIfAbsent(bookmarks, entry);
 		}
 	}
 
@@ -1055,6 +1087,31 @@ public class BookmarkList implements IIngredientGridSource {
 		Object equalityScope,
 		@Nullable BookmarkIngredientKey lockedInputPermutation
 	) {
+		long factor = BookmarkItemMetadataFactory.getMatchedFactor(ingredient, roleSlots, ingredientManager);
+		return createRecipeBookmarkWithFactor(
+			recipeLayout,
+			slotView,
+			ingredient,
+			role,
+			preserveAmount,
+			virtualInputs,
+			equalityScope,
+			lockedInputPermutation,
+			factor
+		);
+	}
+
+	private <R, T> RecipeBookmarkEntry createRecipeBookmarkWithFactor(
+		IRecipeLayoutDrawable<R> recipeLayout,
+		IRecipeSlotView slotView,
+		ITypedIngredient<T> ingredient,
+		RecipeIngredientRole role,
+		boolean preserveAmount,
+		GtmVirtualCircuitCompat.VirtualInputProjection virtualInputs,
+		Object equalityScope,
+		@Nullable BookmarkIngredientKey lockedInputPermutation,
+		long factor
+	) {
 		IRecipeCategory<R> recipeCategory = recipeLayout.getRecipeCategory();
 		R recipe = recipeLayout.getRecipe();
 		ITypedIngredient<T> bookmarkIngredient = preserveAmount ? ingredient : ingredientManager.normalizeTypedIngredient(ingredient);
@@ -1071,15 +1128,15 @@ public class BookmarkList implements IIngredientGridSource {
 			.anyMatch(candidate -> sameIngredient(ingredient, candidate));
 		BookmarkItemType type = virtualInput ?
 			BookmarkItemType.CATALYST : BookmarkItemType.fromRecipeRole(role);
-		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForRecipeSlot(
+		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForRecipeSlotWithFactor(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			recipeCategory,
 			recipeUid,
 			type,
 			slotView,
-			roleSlots,
 			ingredient,
-			ingredientManager
+			ingredientManager,
+			factor
 		);
 		if (lockedInputPermutation != null) {
 			metadata = metadata.withPermutations(Set.of(lockedInputPermutation));
