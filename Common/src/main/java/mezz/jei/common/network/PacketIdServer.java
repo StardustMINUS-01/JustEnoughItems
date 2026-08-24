@@ -9,7 +9,9 @@ public enum PacketIdServer implements IPacketId {
 	RECIPE_TRANSFER_COUNTED,
 	PULL_BOOKMARK_ITEMS,
 	CRAFTING_GRID_CRAFT,
-	FILL_CRAFTING_GRID;
+	FILL_CRAFTING_GRID,
+	FAST_PICKUP_ITEM,
+	ENCODE_RECIPE_CHAIN_PATTERNS;
 
 	public static final PacketIdServer[] VALUES = values();
 }

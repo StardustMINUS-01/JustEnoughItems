@@ -77,11 +77,12 @@ public final class BookmarkHotkeyRouter {
 		BookmarkHotkeyContext context,
 		BookmarkHotkeyMouseButton mouseButton,
 		boolean shiftDown,
-		boolean altDown
+		boolean altDown,
+		boolean controlDown
 	) {
 		List<BookmarkHotkeyAvailability> availableActions = BookmarkHotkeyPlanner.plan(context);
 		BookmarkHotkeyAction requestedAction = switch (context.subject()) {
-			case GROUP -> resolveGroupedMouseAction(mouseButton, shiftDown, altDown);
+			case GROUP -> resolveGroupedMouseAction(mouseButton, shiftDown, altDown, controlDown);
 			case DEFAULT_GROUP_CONTROL -> resolveDefaultGroupControlMouseAction(mouseButton, shiftDown, altDown);
 			case EMPTY_GROUP_PANEL -> resolveEmptyGroupPanelMouseAction(mouseButton, shiftDown, altDown);
 			case INGREDIENT, ITEM_BOOKMARK, RECIPE_BOOKMARK -> null;
@@ -108,11 +109,18 @@ public final class BookmarkHotkeyRouter {
 	private static BookmarkHotkeyAction resolveGroupedMouseAction(
 		BookmarkHotkeyMouseButton mouseButton,
 		boolean shiftDown,
-		boolean altDown
+		boolean altDown,
+		boolean controlDown
 	) {
 		if (altDown) {
 			return switch (mouseButton) {
 				case LEFT -> BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED;
+				case RIGHT -> null;
+			};
+		}
+		if (controlDown) {
+			return switch (mouseButton) {
+				case LEFT -> shiftDown ? null : BookmarkHotkeyAction.GROUP_DROP_DRAG;
 				case RIGHT -> null;
 			};
 		}

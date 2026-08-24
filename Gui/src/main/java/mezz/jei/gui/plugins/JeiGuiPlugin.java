@@ -13,9 +13,18 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
 @JeiPlugin
 public class JeiGuiPlugin implements IModPlugin {
+	private static final List<Consumer<IGuiHandlerRegistration>> guiHandlerHooks = new ArrayList<>();
 	private @Nullable IJeiFeatures jeiFeatures;
+
+	public static void addGuiHandlerHook(Consumer<IGuiHandlerRegistration> hook) {
+		guiHandlerHooks.add(hook);
+	}
 
 	@Override
 	public ResourceLocation getPluginUid() {
@@ -37,6 +46,9 @@ public class JeiGuiPlugin implements IModPlugin {
 		registration.addGuiScreenHandler(AbstractContainerScreen.class, GuiProperties::create);
 		registration.addGuiScreenHandler(ChatScreen.class, new ChatScreenHandler(ingredientManager));
 		registration.addGuiScreenHandler(RecipesGui.class, RecipesGui::getProperties);
+		for (Consumer<IGuiHandlerRegistration> hook : guiHandlerHooks) {
+			hook.accept(registration);
+		}
 	}
 
 	private boolean isJeiGuiEnabled() {

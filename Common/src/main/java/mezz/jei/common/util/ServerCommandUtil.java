@@ -91,6 +91,31 @@ public final class ServerCommandUtil {
 		}
 	}
 
+	public static void executeFastPickup(ServerPacketContext context, ItemStack itemStack) {
+		ServerPlayer sender = context.player();
+		IServerConfig serverConfig = context.serverConfig();
+		if (hasPermissionForCheatMode(sender, serverConfig)) {
+			if (itemStack.isEmpty()) {
+				if (LOGGER.isDebugEnabled()) {
+					LOGGER.debug("Player '{} ({})' tried to fast pickup an empty ItemStack.", sender.getName(), sender.getUUID());
+				}
+				return;
+			}
+			giveToInventoryFastPickup(sender, itemStack);
+		} else {
+			if (LOGGER.isDebugEnabled()) {
+				LOGGER.debug("Player '{} ({})' tried to fast pickup an ItemStack '{}' but does not have permission.", sender.getName(), sender.getUUID(), itemStack.getDisplayName());
+			}
+			IConnectionToClient connection = context.connection();
+			connection.sendPacketToClient(new PacketCheatPermission(false), sender);
+		}
+	}
+
+	private static void giveToInventoryFastPickup(Player player, ItemStack itemStack) {
+		player.getInventory().add(itemStack);
+		player.inventoryMenu.broadcastChanges();
+	}
+
 	public static void setHotbarSlot(
 		ServerPacketContext context,
 		ItemStack itemStack,

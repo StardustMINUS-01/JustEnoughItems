@@ -10,7 +10,11 @@ import mezz.jei.common.network.ClientPacketRouter;
 import mezz.jei.forge.chat.JeiChatEventHandler;
 import mezz.jei.forge.compat.ae2.Ae2AvailableStacksProvider;
 import mezz.jei.forge.compat.ae2.Ae2BookmarkStorageSnapshotProvider;
+import mezz.jei.forge.compat.ae2.Ae2JeiSearchTextCompat;
 import mezz.jei.forge.compat.ae2.Ae2CraftingGridTargetSlotProvider;
+import mezz.jei.forge.compat.ae2.Ae2GroupDropCompat;
+import mezz.jei.forge.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.forge.compat.sophisticated.SophisticatedAvailableStacksProvider;
 import mezz.jei.forge.compat.sophisticated.SophisticatedCraftingGridTargetSlotProvider;
 import mezz.jei.forge.compat.tconstruct.TinkerCraftingGridTargetSlotProvider;
@@ -121,6 +125,13 @@ public class JustEnoughItemsClient {
 		// Tinkers' Construct workstations: CraftingStation 3x3 grid / TinkerStation input slots.
 		TinkerCraftingGridTargetSlotProvider.createIfLoaded()
 			.ifPresent(BookmarkGhostOverlayTargetSlots::registerProvider);
+		// AE2 search-box text sync + config-screen ghost drop (1.21.1 alignment).
+		Ae2JeiSearchTextCompat.register();
+		// Bookmark group drop onto AE2 terminals (1.21.1 alignment).
+		Ae2GroupDropCompat.register();
+		// AE2 pattern-encoding terminal: recipe-chain batch pattern encoding (1.21.1 alignment).
+		Ae2RecipeChainPatternEncodingBridge.createIfLoaded()
+			.ifPresent(Ae2RecipeChainPatternEncodingBridgeRegistry::register);
 	}
 
 	private void onGameShuttingDown() {

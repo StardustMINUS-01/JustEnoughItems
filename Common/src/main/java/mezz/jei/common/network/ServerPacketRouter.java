@@ -3,6 +3,7 @@ package mezz.jei.common.network;
 import mezz.jei.common.network.packets.IServerPacketHandler;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
+import mezz.jei.common.network.packets.PacketFastPickupItemStack;
 import mezz.jei.common.network.packets.PacketFillCraftingGrid;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
 import mezz.jei.common.network.packets.PacketPullBookmarkItems;
@@ -16,8 +17,10 @@ import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.lang.reflect.Method;
 import java.util.EnumMap;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public class ServerPacketRouter {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -38,6 +41,31 @@ public class ServerPacketRouter {
 		handlers.put(PacketIdServer.PULL_BOOKMARK_ITEMS, PacketPullBookmarkItems::readPacketData);
 		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT, PacketCraftingGridCraft::readPacketData);
 		handlers.put(PacketIdServer.FILL_CRAFTING_GRID, PacketFillCraftingGrid::readPacketData);
+		handlers.put(PacketIdServer.FAST_PICKUP_ITEM, PacketFastPickupItemStack::readPacketData);
+		registerEncodeRecipeChainPatternsHandler(handlers);
+	}
+
+	private static void registerEncodeRecipeChainPatternsHandler(EnumMap<PacketIdServer, IServerPacketHandler> handlers) {
+		try {
+			Class<?> packetClass = Class.forName("mezz.jei.forge.compat.ae2.patternencoding.PacketEncodeRecipeChainPatterns");
+			Method readPacketData = packetClass.getMethod("readPacketData", ServerPacketData.class);
+			handlers.put(PacketIdServer.ENCODE_RECIPE_CHAIN_PATTERNS, data -> {
+				try {
+					Object result = readPacketData.invoke(null, data);
+					if (result instanceof CompletableFuture<?> future) {
+						@SuppressWarnings("unchecked")
+						CompletableFuture<Void> voidFuture = (CompletableFuture<Void>) future;
+						return voidFuture;
+					}
+					return CompletableFuture.completedFuture(null);
+				} catch (ReflectiveOperationException e) {
+					LOGGER.error("Failed to execute recipe chain pattern encoding packet", e);
+					return CompletableFuture.completedFuture(null);
+				}
+			});
+		} catch (ReflectiveOperationException | LinkageError e) {
+			LOGGER.debug("Recipe chain pattern encoding packet handler is not available", e);
+		}
 	}
 
 	public void onPacket(FriendlyByteBuf packetBuffer, ServerPlayer player) {

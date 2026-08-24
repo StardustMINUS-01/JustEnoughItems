@@ -1,6 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
@@ -16,10 +17,14 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
+import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
+import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
@@ -34,6 +39,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -47,6 +53,8 @@ public class FocusInputHandler implements IUserInputHandler {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final IClientToggleState toggleState;
+	private final IConnectionToServer serverConnection;
+	private final ScrollStep scrollStep;
 	private final CommandUtil commandUtil;
 
 	public FocusInputHandler(
@@ -58,7 +66,8 @@ public class FocusInputHandler implements IUserInputHandler {
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
 		IClientToggleState toggleState,
-		IConnectionToServer serverConnection
+		IConnectionToServer serverConnection,
+		ScrollStep scrollStep
 	) {
 		this.focusSource = focusSource;
 		this.recipesGui = recipesGui;
@@ -67,11 +76,24 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
 		this.toggleState = toggleState;
+		this.serverConnection = serverConnection;
+		this.scrollStep = scrollStep;
 		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
 	}
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (toggleState.isFastPickupEnabled() &&
+			input.is(keyBindings.getLeftClick()) &&
+			!InputModifiers.hasShift(input) &&
+			!InputModifiers.hasControl(input) &&
+			!InputModifiers.hasAlt(input)) {
+			Optional<IUserInputHandler> handledFastPickup = handleFastPickup(input, keyBindings);
+			if (handledFastPickup.isPresent()) {
+				return handledFastPickup;
+			}
+		}
+
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
@@ -80,6 +102,11 @@ public class FocusInputHandler implements IUserInputHandler {
 		Optional<IUserInputHandler> handledRecipeId = handleOutputRecipeIdShortcut(input, keyBindings);
 		if (handledRecipeId.isPresent()) {
 			return handledRecipeId;
+		}
+
+		Optional<IUserInputHandler> handledPatternEncode = handleSingleRecipePatternEncode(input, keyBindings);
+		if (handledPatternEncode.isPresent()) {
+			return handledPatternEncode;
 		}
 
 		Optional<IUserInputHandler> handledIngredientShortcut = handleIngredientShortcut(input, keyBindings);
@@ -154,6 +181,36 @@ public class FocusInputHandler implements IUserInputHandler {
 			});
 	}
 
+	private Optional<IUserInputHandler> handleSingleRecipePatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
+		if (!input.is(keyBindings.getEncodeRecipeChainPatterns())) {
+			return Optional.empty();
+		}
+		AbstractContainerMenu menu = recipesGui.getParentContainerMenu();
+		if (menu == null) {
+			return Optional.empty();
+		}
+		double mouseX = input.getMouseX();
+		double mouseY = input.getMouseY();
+		Optional<IRecipeLayoutWithButtons<?>> recipeUnderMouse = recipesGui.getRecipeLayoutUnderMouse(mouseX, mouseY);
+		Optional<IRecipeLayoutDrawable<?>> layout = recipeUnderMouse.map(IRecipeLayoutWithButtons::getRecipeLayout);
+		Optional<RecipeSlotUnderMouse> slotUnderMouse = layout.flatMap(recipeLayout -> recipeLayout.getSlotUnderMouse(mouseX, mouseY));
+		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handleSingleRecipe(
+			input,
+			keyBindings.getEncodeRecipeChainPatterns(),
+			menu,
+			Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge(),
+			layout,
+			slotUnderMouse.map(RecipeSlotUnderMouse::slot),
+			ingredientManager,
+			this::displayClientMessage
+		);
+		return result
+			.filter(RecipeChainPatternEncodeController.HandleResult::handled)
+			.map(ignored -> new SameElementInputHandler(this, (mouseX2, mouseY2) -> slotUnderMouse
+				.map(slot -> slot.isMouseOver(mouseX2, mouseY2))
+				.orElse(false)));
+	}
+
 	private Optional<IUserInputHandler> handleIngredientShortcut(UserInput input, IInternalKeyMappings keyBindings) {
 		Optional<BookmarkHotkeyAction> action = getIngredientKeyboardAction(input, keyBindings);
 		if (action.isEmpty()) {
@@ -219,6 +276,13 @@ public class FocusInputHandler implements IUserInputHandler {
 		}
 	}
 
+	private void displayClientMessage(Component message) {
+		LocalPlayer player = Minecraft.getInstance().player;
+		if (player != null) {
+			player.displayClientMessage(message, false);
+		}
+	}
+
 	private Optional<IUserInputHandler> handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 		List<IClickableIngredientInternal<?>> ingredientUnderMouse = focusSource.getIngredientUnderMouse(input, keyBindings)
 			.toList();
@@ -274,5 +338,33 @@ public class FocusInputHandler implements IUserInputHandler {
 				}
 			})
 			.findFirst();
+	}
+
+	private Optional<IUserInputHandler> handleFastPickup(UserInput input, IInternalKeyMappings keyBindings) {
+		if (!serverConnection.isJeiOnServer()) {
+			return Optional.empty();
+		}
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
+				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
+				if (!itemStack.isEmpty()) {
+					int amount = resolveFastPickupAmount(itemStack, clicked.getElement().getCheatGiveAmount(), scrollStep);
+					if (!input.isSimulate()) {
+						commandUtil.fastPickupStack(itemStack.copyWithCount(amount));
+					}
+					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
+					consumer.accept(handler);
+				}
+			})
+			.findFirst();
+	}
+
+	static int resolveFastPickupAmount(ItemStack itemStack, Optional<Long> cheatGiveAmount, ScrollStep scrollStep) {
+		if (cheatGiveAmount.isPresent()) {
+			long amount = Math.max(1, cheatGiveAmount.get());
+			return (int) Math.min(Integer.MAX_VALUE, amount);
+		}
+		long amount = scrollStep.getValue() == 0 ? itemStack.getMaxStackSize() : scrollStep.getValue();
+		return (int) Math.min(Integer.MAX_VALUE, amount);
 	}
 }

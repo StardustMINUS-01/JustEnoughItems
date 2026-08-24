@@ -1,6 +1,7 @@
 package mezz.jei.gui.util;
 
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketFastPickupItemStack;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
 import mezz.jei.common.util.ErrorUtil;
@@ -55,6 +56,13 @@ public final class CommandUtil {
 		if (serverConnection.isJeiOnServer()) {
 			ItemStack sendStack = copyWithSize(itemStack, itemStack.getMaxStackSize());
 			PacketSetHotbarItemStack packet = new PacketSetHotbarItemStack(sendStack, hotbarSlot);
+			serverConnection.sendPacketToServer(packet);
+		}
+	}
+
+	public void fastPickupStack(ItemStack itemStack) {
+		if (serverConnection.isJeiOnServer()) {
+			PacketFastPickupItemStack packet = new PacketFastPickupItemStack(itemStack);
 			serverConnection.sendPacketToServer(packet);
 		}
 	}

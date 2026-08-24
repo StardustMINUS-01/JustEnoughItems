@@ -4,6 +4,8 @@ import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.Constants;
 import mezz.jei.common.bookmarks.CraftingGridCraftExecutors;
 import mezz.jei.common.bookmarks.CraftingGridFillExecutors;
+import mezz.jei.common.bookmarks.ServerBookmarkPullTransfers;
+import mezz.jei.forge.compat.ae2.Ae2BookmarkPullTransferHandler;
 import mezz.jei.forge.compat.ae2.Ae2CraftingGridCraftExecutor;
 import mezz.jei.forge.compat.sophisticated.SophisticatedCraftingGridCraftExecutor;
 import mezz.jei.forge.compat.sophisticated.SophisticatedCraftingGridFillExecutor;
@@ -41,6 +43,9 @@ public class JustEnoughItems {
 		// Tinkers' Construct workstations.
 		Ae2CraftingGridCraftExecutor.createIfLoaded()
 			.ifPresent(CraftingGridCraftExecutors::registerExecutor);
+		// AE2 storage terminals: pull bookmark items from the ME network into the player inventory.
+		Ae2BookmarkPullTransferHandler.createIfLoaded()
+			.ifPresent(ServerBookmarkPullTransfers::registerHandler);
 		SophisticatedCraftingGridCraftExecutor.createIfLoaded()
 			.ifPresent(CraftingGridCraftExecutors::registerExecutor);
 		SophisticatedCraftingGridFillExecutor.createIfLoaded()
