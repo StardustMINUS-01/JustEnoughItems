@@ -1,6 +1,7 @@
 package mezz.jei.neoforge.compat.ae2.patternencoding;
 
 import appeng.api.stacks.AEItemKey;
+import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import net.minecraft.core.NonNullList;
@@ -28,9 +29,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 public class JeiRecipeChainPatternEncodingServiceTest {
 	@BeforeAll
@@ -120,6 +125,33 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 		);
 
 		Assertions.assertNull(JeiRecipeChainPatternEncodingService.validateCatalysts(request));
+	}
+
+	@Test
+	public void networkPatternPrimaryOutputIsQueriedOnlyOnce() {
+		AEKey primaryOutput = AEItemKey.of(new ItemStack(Items.DIAMOND));
+		Set<AEKey> knownPrimaryOutputs = new HashSet<>();
+		AtomicInteger networkQueryCount = new AtomicInteger();
+		Predicate<AEKey> networkHasPattern = key -> {
+			networkQueryCount.incrementAndGet();
+			return primaryOutput.equals(key);
+		};
+
+		boolean firstIsNew = JeiRecipeChainPatternEncodingService.markPrimaryOutputIfNew(
+			primaryOutput,
+			knownPrimaryOutputs,
+			networkHasPattern
+		);
+		boolean secondIsNew = JeiRecipeChainPatternEncodingService.markPrimaryOutputIfNew(
+			primaryOutput,
+			knownPrimaryOutputs,
+			networkHasPattern
+		);
+
+		Assertions.assertFalse(firstIsNew);
+		Assertions.assertFalse(secondIsNew);
+		Assertions.assertTrue(knownPrimaryOutputs.contains(primaryOutput));
+		Assertions.assertEquals(1, networkQueryCount.get());
 	}
 
 	@Test

@@ -3,6 +3,7 @@ package mezz.jei.neoforge.compat.ae2.patternencoding;
 import appeng.api.crafting.PatternDetailsHelper;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.inventories.InternalInventory;
+import appeng.api.networking.IGridNode;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public final class JeiRecipeChainPatternEncodingService {
 	private JeiRecipeChainPatternEncodingService() {
@@ -55,7 +57,7 @@ public final class JeiRecipeChainPatternEncodingService {
 		int skippedInvalidCount = 0;
 		JeiPatternEncodeStopReason stopReason = JeiPatternEncodeStopReason.NONE;
 		List<JeiPatternEncodeEntryResult> entries = new ArrayList<>(requests.size());
-		List<PreparedEntry> preparedEntries = prepareEntries(player, requests);
+		List<PreparedEntry> preparedEntries = prepareEntries(player, patternMenu, requests);
 
 		for (PreparedEntry preparedEntry : preparedEntries) {
 			if (preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT) {
@@ -119,9 +121,14 @@ public final class JeiRecipeChainPatternEncodingService {
 		);
 	}
 
-	private static List<PreparedEntry> prepareEntries(ServerPlayer player, List<JeiPatternEncodeRequestWire> requests) {
+	private static List<PreparedEntry> prepareEntries(
+		ServerPlayer player,
+		PatternEncodingTermMenu menu,
+		List<JeiPatternEncodeRequestWire> requests
+	) {
 		List<PreparedEntry> preparedEntries = new ArrayList<>(requests.size());
-		Set<AEKey> plannedPrimaryOutputs = new HashSet<>();
+		Set<AEKey> knownPrimaryOutputs = getPlayerPatternPrimaryOutputs(player);
+		Predicate<AEKey> networkHasPattern = getNetworkPatternLookup(menu);
 
 		for (JeiPatternEncodeRequestWire request : requests) {
 			String catalystValidationFailure = validateCatalysts(request);
@@ -143,7 +150,7 @@ public final class JeiRecipeChainPatternEncodingService {
 			}
 
 			GenericStack primaryOutput = details.getPrimaryOutput();
-			if (hasPatternWithPrimaryOutput(player, primaryOutput) || !plannedPrimaryOutputs.add(primaryOutput.what())) {
+			if (!markPrimaryOutputIfNew(primaryOutput.what(), knownPrimaryOutputs, networkHasPattern)) {
 				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT, "Pattern with same primary output already exists"));
 				continue;
 			}
@@ -528,17 +535,35 @@ public final class JeiRecipeChainPatternEncodingService {
 		return items;
 	}
 
-	private static boolean hasPatternWithPrimaryOutput(ServerPlayer player, GenericStack primaryOutput) {
+	private static Set<AEKey> getPlayerPatternPrimaryOutputs(ServerPlayer player) {
+		Set<AEKey> primaryOutputs = new HashSet<>();
 		for (ItemStack stack : player.getInventory().items) {
 			IPatternDetails details = PatternDetailsHelper.decodePattern(stack, player.level());
 			if (details == null || details.getOutputs().isEmpty()) {
 				continue;
 			}
-			if (details.getPrimaryOutput().what().equals(primaryOutput.what())) {
-				return true;
-			}
+			primaryOutputs.add(details.getPrimaryOutput().what());
 		}
-		return false;
+		return primaryOutputs;
+	}
+
+	private static Predicate<AEKey> getNetworkPatternLookup(PatternEncodingTermMenu menu) {
+		IGridNode gridNode = menu.getGridNode();
+		if (gridNode == null || !gridNode.isActive()) {
+			return key -> false;
+		}
+		return gridNode.getGrid().getCraftingService()::isCraftable;
+	}
+
+	static boolean markPrimaryOutputIfNew(
+		AEKey primaryOutput,
+		Set<AEKey> knownPrimaryOutputs,
+		Predicate<AEKey> networkHasPattern
+	) {
+		if (!knownPrimaryOutputs.add(primaryOutput)) {
+			return false;
+		}
+		return !networkHasPattern.test(primaryOutput);
 	}
 
 	private static boolean hasBlankPatterns(PatternEncodingTermMenu menu, ServerPlayer player, int amount) {
