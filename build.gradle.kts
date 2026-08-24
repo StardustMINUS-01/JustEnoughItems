@@ -71,7 +71,7 @@ subprojects {
     //adds the build number to the end of the version string if on a build server
     var buildNumber = project.findProperty("BUILD_NUMBER")
     if (buildNumber == null) {
-        buildNumber = "181"
+        buildNumber = "182"
     }
 
     version = "${specificationVersion}.${buildNumber}"
