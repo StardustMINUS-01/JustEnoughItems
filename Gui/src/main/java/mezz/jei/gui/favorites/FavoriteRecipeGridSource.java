@@ -12,6 +12,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.BookmarkPermutationTooltipState;
 import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
@@ -57,6 +58,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final RecipeInputsResolver recipeInputsResolver;
+	private final BookmarkPermutationTooltipState permutationTooltipState = new BookmarkPermutationTooltipState();
 	private List<IElement<?>> cachedGridElements;
 	private final Map<RecipeRowsKey, List<IElement<?>>> cachedRecipeRows = new HashMap<>();
 
@@ -187,7 +189,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			Optional.empty(),
 			Optional.empty(),
 			entryInputs,
-			!panelState.isSortDragHidden(recipe, true, Optional.empty())
+			!panelState.isSortDragHidden(recipe, true, Optional.empty()),
+			permutationTooltipState
 		);
 	}
 
@@ -209,7 +212,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			Optional.empty(),
 			Optional.empty(),
 			entryInputs,
-			!panelState.isSortDragHidden(recipe, true, Optional.empty())
+			!panelState.isSortDragHidden(recipe, true, Optional.empty()),
+			permutationTooltipState
 		);
 	}
 
@@ -312,7 +316,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			Optional.of(inputKey),
 			Optional.ofNullable(slotInput),
 			entryInputs,
-			!panelState.isSortDragHidden(recipe, false, Optional.of(inputKey))
+			!panelState.isSortDragHidden(recipe, false, Optional.of(inputKey)),
+			permutationTooltipState
 		);
 	}
 

@@ -443,5 +443,11 @@
   "jei.collapsible.group.tooltip": "组内 %s 件物品",
   "jei.collapsible.toggle.hint": "Alt + 左键 展开/折叠",
   "jei.ae2.crafting.grid_full": "AE2 网络已满，无法收纳合成网格中的物品",
-  "jei.ae2.crafting.unsupported": "检测到 AE2 附属冲突，终端自动合成不可用"
+  "jei.ae2.crafting.unsupported": "检测到 AE2 附属冲突，终端自动合成不可用",
+  "gui.jei.recipe_filter.search": "搜索配方……",
+  "gui.jei.recipe_filter.mode": "配方筛选：%s",
+  "gui.jei.recipe_filter.mode.all": "全部",
+  "gui.jei.recipe_filter.mode.preferred": "偏好",
+  "gui.jei.recipe_filter.mode.not_preferred": "非偏好",
+  "gui.jei.recipe_filter.empty": "没有结果哦，尝试换换规则？"
 }

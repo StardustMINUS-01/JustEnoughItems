@@ -27,11 +27,24 @@ public class BookmarkPermutationTooltipStateTest {
 		Assertions.assertEquals(0, state.updateStart(5, candidates, 0));
 	}
 
+	@Test
+	public void keepsTheSlidingWindowForAnEqualFavoriteInputKey() {
+		BookmarkPermutationTooltipState state = new BookmarkPermutationTooltipState();
+		List<BookmarkIngredientKey> candidates = candidates(31);
+
+		Assertions.assertEquals(1, state.updateStart(new FavoriteInputKey("recipe", 2), candidates, 29));
+		Assertions.assertEquals(2, state.updateStart(new FavoriteInputKey("recipe", 2), candidates, 30));
+		Assertions.assertEquals(0, state.updateStart(new FavoriteInputKey("recipe", 3), candidates, 0));
+	}
+
 	private static List<BookmarkIngredientKey> candidates(int count) {
 		List<BookmarkIngredientKey> candidates = new ArrayList<>();
 		for (int index = 0; index < count; index++) {
 			candidates.add(BookmarkIngredientKey.of("test", "candidate-" + index));
 		}
 		return candidates;
+	}
+
+	private record FavoriteInputKey(String recipe, int slot) {
 	}
 }

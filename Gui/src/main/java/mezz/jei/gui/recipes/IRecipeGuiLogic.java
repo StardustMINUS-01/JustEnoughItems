@@ -6,6 +6,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
+import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
@@ -20,6 +21,16 @@ public interface IRecipeGuiLogic {
 	boolean hasMultipleCategories();
 
 	boolean hasAllCategories();
+
+	default void applyRecipeResultFilter(RecipeFilterMode mode, String query) {
+	}
+
+	default void clearRecipeResultSnapshot() {
+	}
+
+	default boolean hasRecipeResults() {
+		return true;
+	}
 
 	boolean previousRecipeCategory();
 

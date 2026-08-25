@@ -70,6 +70,31 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
+	public void returnsAllTiedPreferredRecipesWithoutChangingUniqueSelection() {
+		RecipePreferenceRule rule = rule(
+			"gtceu:lv_circuit",
+			"gtceu:soldering_alloy | fluid:gtceu:tin",
+			null
+		);
+		RecipePreferenceCandidate soldered = candidate(
+			"gtceu:assembler/soldered_circuit",
+			List.of(item("gtceu:soldering_alloy")),
+			List.of(item(CIRCUIT))
+		);
+		RecipePreferenceCandidate tin = candidate(
+			"gtceu:assembler/tin_circuit",
+			List.of(fluid("gtceu:tin")),
+			List.of(item(CIRCUIT))
+		);
+		RecipePreferenceRules rules = new RecipePreferenceRules(List.of(rule));
+
+		List<FocusedRecipe> preferred = rules.resolvePreferredRecipes(List.of(soldered, tin));
+
+		Assertions.assertEquals(List.of(soldered.recipe(), tin.recipe()), preferred);
+		Assertions.assertTrue(rules.resolvePreferredRecipe(List.of(soldered, tin)).isEmpty());
+	}
+
+	@Test
 	public void fluidTargetMatchesFluidIngredient() {
 		IngredientSelector target = selector("fluid:gtceu:molten_*");
 

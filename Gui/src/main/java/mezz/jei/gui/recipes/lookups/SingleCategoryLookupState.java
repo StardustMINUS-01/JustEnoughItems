@@ -55,6 +55,11 @@ public class SingleCategoryLookupState implements ILookupState {
 	}
 
 	@Override
+	public IFocusedRecipes<?> getFocusedRecipes(IRecipeCategory<?> recipeCategory) {
+		return focusedRecipes;
+	}
+
+	@Override
 	public boolean nextRecipeCategory() {
 		return false;
 	}

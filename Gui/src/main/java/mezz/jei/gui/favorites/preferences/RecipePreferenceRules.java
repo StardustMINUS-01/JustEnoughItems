@@ -19,7 +19,39 @@ public final class RecipePreferenceRules {
 	}
 
 	public Optional<FocusedRecipe> resolvePreferredRecipe(List<RecipePreferenceCandidate> candidates) {
-		List<RecipePreferenceCandidate> uniqueCandidates = candidates.stream()
+		List<RecipePreferenceCandidate> uniqueCandidates = getUniqueCandidates(candidates);
+		if (uniqueCandidates.size() == 1) {
+			return Optional.of(uniqueCandidates.getFirst().recipe());
+		}
+		for (RecipePreferenceRule rule : rules) {
+			List<FocusedRecipe> preferred = resolve(rule, uniqueCandidates);
+			if (preferred.size() == 1) {
+				return Optional.of(preferred.getFirst());
+			}
+		}
+		return Optional.empty();
+	}
+
+	public List<FocusedRecipe> resolvePreferredRecipes(List<RecipePreferenceCandidate> candidates) {
+		List<RecipePreferenceCandidate> uniqueCandidates = getUniqueCandidates(candidates);
+		if (uniqueCandidates.size() == 1) {
+			return List.of(uniqueCandidates.getFirst().recipe());
+		}
+		for (RecipePreferenceRule rule : rules) {
+			List<FocusedRecipe> preferred = resolve(rule, uniqueCandidates);
+			if (!preferred.isEmpty()) {
+				return preferred;
+			}
+		}
+		return List.of();
+	}
+
+	public boolean isEmpty() {
+		return rules.isEmpty();
+	}
+
+	private static List<RecipePreferenceCandidate> getUniqueCandidates(List<RecipePreferenceCandidate> candidates) {
+		return candidates.stream()
 			.collect(Collectors.toMap(
 				RecipePreferenceCandidate::recipe,
 				candidate -> candidate,
@@ -29,23 +61,9 @@ public final class RecipePreferenceRules {
 			.values()
 			.stream()
 			.toList();
-		if (uniqueCandidates.size() == 1) {
-			return Optional.of(uniqueCandidates.getFirst().recipe());
-		}
-		for (RecipePreferenceRule rule : rules) {
-			Optional<FocusedRecipe> selected = resolve(rule, uniqueCandidates);
-			if (selected.isPresent()) {
-				return selected;
-			}
-		}
-		return Optional.empty();
 	}
 
-	public boolean isEmpty() {
-		return rules.isEmpty();
-	}
-
-	private static Optional<FocusedRecipe> resolve(
+	private static List<FocusedRecipe> resolve(
 		RecipePreferenceRule rule,
 		List<RecipePreferenceCandidate> candidates
 	) {
@@ -72,7 +90,10 @@ public final class RecipePreferenceRules {
 		List<RankedCandidate> best = eligible.stream()
 			.filter(candidate -> eligible.stream().noneMatch(other -> dominates(other, candidate, inputActive, recipeActive)))
 			.toList();
-		return best.size() == 1 ? Optional.of(best.getFirst().candidate().recipe()) : Optional.empty();
+		return best.stream()
+			.map(RankedCandidate::candidate)
+			.map(RecipePreferenceCandidate::recipe)
+			.toList();
 	}
 
 	private static boolean dominates(

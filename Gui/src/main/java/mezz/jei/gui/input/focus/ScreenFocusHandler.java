@@ -14,14 +14,19 @@ public class ScreenFocusHandler implements IFocusHandler {
 	private final @Nullable GuiEventListener storedInScreenFocus;
 
 	public static @Nullable ScreenFocusHandler create(Screen screen) {
+		return create(screen, null);
+	}
+
+	public static @Nullable ScreenFocusHandler create(Screen screen, @Nullable GuiEventListener excludedElement) {
 		GuiEventListener focused = screen.getFocused();
 		final @Nullable IFocusHandler focusedElement;
 		final @Nullable GuiEventListener storedInScreenFocus;
-		if (focused != null) {
+		if (focused != null && focused != excludedElement) {
 			focusedElement = GuiEventListenerFocusHandler.create(focused);
 			storedInScreenFocus = focused;
 		} else {
 			EditBox editBox = reflectionUtil.getFieldWithClass(screen, EditBox.class)
+				.filter(candidate -> candidate != excludedElement)
 				.filter(EditBox::isFocused)
 				.findFirst()
 				.orElse(null);

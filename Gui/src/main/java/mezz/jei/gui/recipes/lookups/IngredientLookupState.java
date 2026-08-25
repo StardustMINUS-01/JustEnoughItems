@@ -149,8 +149,17 @@ public class IngredientLookupState implements ILookupState {
 	public IFocusedRecipes<?> getFocusedRecipes() {
 		if (focusedRecipes == null) {
 			final IRecipeCategory<?> recipeCategory = recipeCategories.get(recipeCategoryIndex);
-			focusedRecipes = FocusedRecipes.create(focuses, recipeManager, recipeCategory);
+			focusedRecipes = getFocusedRecipes(recipeCategory);
 		}
 		return focusedRecipes;
+	}
+
+	@Override
+	public IFocusedRecipes<?> getFocusedRecipes(IRecipeCategory<?> recipeCategory) {
+		return createFocusedRecipes(recipeCategory);
+	}
+
+	private <T> IFocusedRecipes<T> createFocusedRecipes(IRecipeCategory<T> recipeCategory) {
+		return FocusedRecipes.create(focuses, recipeManager, recipeCategory);
 	}
 }
