@@ -7,6 +7,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import mezz.jei.gui.recipes.lookups.ILookupState;
+import mezz.jei.gui.recipes.lookups.LookupStatePositionUtil;
 import mezz.jei.gui.recipes.lookups.ProjectedLookupState;
 import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
 import net.minecraft.network.chat.Component;
@@ -51,6 +52,35 @@ public class ProjectedLookupStateTest {
 		Assertions.assertEquals(0, original.getRecipeIndex());
 	}
 
+	@Test
+	public void navigationRestoresAProjectedPageDirectlyAndClampsRemovedPages() {
+		TestRecipeCategory category = new TestRecipeCategory();
+		IFocusedRecipes<String> originalRecipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three", "four", "five"));
+		ILookupState original = new TestLookupState(originalRecipes, emptyFocusGroup());
+		ProjectedLookupState projected = new ProjectedLookupState(original, List.of(originalRecipes));
+		projected.setRecipesPerPage(2);
+
+		LookupStatePositionUtil.restoreRecipeIndex(projected, 3);
+		Assertions.assertEquals(2, projected.getRecipeIndex());
+
+		LookupStatePositionUtil.restoreRecipeIndex(projected, 20);
+		Assertions.assertEquals(4, projected.getRecipeIndex());
+	}
+
+	@Test
+	public void navigationFallsBackForThirdPartyLookupStates() {
+		TestRecipeCategory category = new TestRecipeCategory();
+		IFocusedRecipes<String> recipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three", "four", "five"));
+		TestLookupState state = new TestLookupState(recipes, emptyFocusGroup());
+		state.setRecipesPerPage(2);
+
+		LookupStatePositionUtil.restoreRecipeIndex(state, 3);
+		Assertions.assertEquals(2, state.getRecipeIndex());
+
+		LookupStatePositionUtil.restoreRecipeIndex(state, 20);
+		Assertions.assertEquals(4, state.getRecipeIndex());
+	}
+
 	@SuppressWarnings("unchecked")
 	private static IFocusGroup emptyFocusGroup() {
 		return (IFocusGroup) Proxy.newProxyInstance(
@@ -68,6 +98,8 @@ public class ProjectedLookupStateTest {
 	private static final class TestLookupState implements ILookupState {
 		private final IFocusedRecipes<?> focusedRecipes;
 		private final IFocusGroup focuses;
+		private int recipeIndex;
+		private int recipesPerPage = 1;
 
 		private TestLookupState(IFocusedRecipes<?> focusedRecipes, IFocusGroup focuses) {
 			this.focusedRecipes = focusedRecipes;
@@ -86,16 +118,17 @@ public class ProjectedLookupStateTest {
 
 		@Override
 		public int getRecipesPerPage() {
-			return 1;
+			return recipesPerPage;
 		}
 
 		@Override
 		public void setRecipesPerPage(int recipesPerPage) {
+			this.recipesPerPage = recipesPerPage;
 		}
 
 		@Override
 		public int getRecipeIndex() {
-			return 0;
+			return recipeIndex;
 		}
 
 		@Override
@@ -125,11 +158,17 @@ public class ProjectedLookupStateTest {
 
 		@Override
 		public void goToFirstPage() {
+			recipeIndex = 0;
 		}
 
 		@Override
 		public boolean nextPage() {
-			return false;
+			int oldIndex = recipeIndex;
+			recipeIndex += recipesPerPage;
+			if (recipeIndex >= focusedRecipes.getRecipes().size()) {
+				recipeIndex = 0;
+			}
+			return recipeIndex != oldIndex;
 		}
 
 		@Override
@@ -139,7 +178,7 @@ public class ProjectedLookupStateTest {
 
 		@Override
 		public int pageCount() {
-			return 2;
+			return Math.max(1, (focusedRecipes.getRecipes().size() + recipesPerPage - 1) / recipesPerPage);
 		}
 	}
 

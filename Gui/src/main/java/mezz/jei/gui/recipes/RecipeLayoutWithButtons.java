@@ -10,6 +10,7 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.elements.IconButton;
@@ -30,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
@@ -270,6 +272,17 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 	@Override
 	public @Nullable RecipeBookmark<?, ?> getRecipeBookmark() {
 		return recipeBookmark;
+	}
+
+	Map<Integer, BookmarkIngredientKey> getInputSelections() {
+		return inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.selectedKeys();
+	}
+
+	void restoreInputSelections(Map<Integer, BookmarkIngredientKey> selections) {
+		if (inputSlotSelectionState != null) {
+			inputSlotSelectionState.setSelectedKeys(selections);
+			inputSlotSelectionState.apply(recipeLayout);
+		}
 	}
 
 	@Override

@@ -33,4 +33,18 @@ public class RecipeFilterSettingsTest {
 		Assertions.assertEquals("", settings.getAppliedQuery());
 		Assertions.assertFalse(settings.clearQuery());
 	}
+
+	@Test
+	public void restoresARecipeNavigationSnapshot() {
+		RecipeFilterSettings settings = new RecipeFilterSettings();
+		settings.setDraftQuery("discarded");
+		settings.commitQuery();
+		settings.cycleMode();
+
+		settings.restore(RecipeFilterMode.NOT_PREFERRED, "i:#c:ingots");
+
+		Assertions.assertEquals(RecipeFilterMode.NOT_PREFERRED, settings.getMode());
+		Assertions.assertEquals("i:#c:ingots", settings.getDraftQuery());
+		Assertions.assertEquals("i:#c:ingots", settings.getAppliedQuery());
+	}
 }

@@ -13,7 +13,7 @@ public final class InputModifiers {
 	}
 
 	public static boolean hasShift(UserInput input) {
-		return Screen.hasShiftDown() || (input.getModifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
+		return Screen.hasShiftDown() || hasShift(input.getModifiers());
 	}
 
 	public static boolean hasControl(UserInput input) {

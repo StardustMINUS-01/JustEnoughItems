@@ -61,6 +61,10 @@ public final class ProjectedLookupState implements ILookupState {
 		return recipeIndex;
 	}
 
+	void setRecipeIndex(int recipeIndex) {
+		this.recipeIndex = recipeIndex;
+	}
+
 	@Override
 	public IFocusGroup getFocuses() {
 		return focuses;

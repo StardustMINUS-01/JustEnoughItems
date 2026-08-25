@@ -1,6 +1,7 @@
 package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -19,7 +20,9 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
+import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
 import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
 import mezz.jei.gui.recipes.filtering.RecipeLookupSnapshot;
@@ -29,16 +32,22 @@ import mezz.jei.gui.recipes.layouts.IRecipeLayoutList;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import mezz.jei.gui.recipes.lookups.ILookupState;
 import mezz.jei.gui.recipes.lookups.IngredientLookupState;
+import mezz.jei.gui.recipes.lookups.LookupStatePositionUtil;
 import mezz.jei.gui.recipes.lookups.ProjectedLookupState;
 import mezz.jei.gui.recipes.lookups.SingleCategoryLookupState;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationEntry;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationHistory;
 import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -50,10 +59,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	private final Supplier<RecipePreferenceRules> preferenceRulesSupplier;
 	private final RecipeLookupSnapshotFactory snapshotFactory;
 
-	private boolean initialState = true;
 	private ILookupState state;
 	private ILookupState unfilteredState;
-	private final Stack<ILookupState> stateHistory = new Stack<>();
+	private final RecipeNavigationHistory<RecipeNavigationEntry> navigationHistory = new RecipeNavigationHistory<>();
 	private final LookupHistory lookupHistory;
 	private final IFocusFactory focusFactory;
 	private final BookmarkFactory bookmarkFactory;
@@ -62,6 +70,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	private int cachedContainerId = -1;
 	private Set<RecipeSorterStage> cachedSorterStages = Set.of();
 	private RecipeFilterMode filterMode = RecipeFilterMode.ALL;
+	private String searchQueryText = "";
 	private RecipeSearchQuery searchQuery = RecipeSearchQuery.parse("");
 	private @Nullable RecipeLookupSnapshot snapshot;
 	private @Nullable RecipePreferenceRules snapshotPreferenceRules;
@@ -186,38 +195,126 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public boolean back() {
-		if (stateHistory.empty()) {
-			return false;
-		}
-		final ILookupState state = stateHistory.pop();
-		setState(state, false);
-		return true;
+		return navigate(RecipeNavigationDirection.BACK, false);
+	}
+
+	public boolean navigate(RecipeNavigationDirection direction, boolean jumpToEnd) {
+		updateCurrentNavigationEntry();
+		return navigationHistory.navigate(direction, jumpToEnd)
+			.map(this::restoreNavigationEntry)
+			.orElse(false);
+	}
+
+	public boolean canNavigate(RecipeNavigationDirection direction) {
+		return navigationHistory.canNavigate(direction);
+	}
+
+	public Optional<Component> getNavigationTargetTitle(RecipeNavigationDirection direction) {
+		return navigationHistory.peek(direction)
+			.map(RecipeNavigationEntry::getTitle);
+	}
+
+	public void updateCurrentInputSelections(Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> inputSelections) {
+		navigationHistory.current()
+			.ifPresent(entry -> entry.updateInputSelections(inputSelections));
+	}
+
+	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> getCurrentInputSelections() {
+		return navigationHistory.current()
+			.map(RecipeNavigationEntry::getInputSelections)
+			.orElseGet(Map::of);
+	}
+
+	public RecipeFilterMode getFilterMode() {
+		return filterMode;
+	}
+
+	public String getSearchQueryText() {
+		return searchQueryText;
 	}
 
 	@Override
 	public void clearHistory() {
-		while (!stateHistory.empty()) {
-			stateHistory.pop();
-		}
+		navigationHistory.clear();
 	}
 
+	// Mixin contract signature: setState(ILookupState, boolean) -> boolean
 	private boolean setState(ILookupState state, boolean saveHistory) {
 		List<IRecipeCategory<?>> recipeCategories = state.getRecipeCategories();
 		if (recipeCategories.isEmpty()) {
 			return false;
 		}
 
-		if (saveHistory && !initialState) {
-			stateHistory.push(this.unfilteredState);
+		if (saveHistory) {
+			updateCurrentNavigationEntry();
 		}
 		this.unfilteredState = state;
-		this.initialState = false;
 		this.snapshot = null;
 		this.snapshotPreferenceRules = null;
 		rebuildDisplayedState();
 		clearLayoutCache();
+		if (saveHistory) {
+			navigationHistory.push(createNavigationEntry());
+		}
+		stateListener.onStateChange();
+		if (saveHistory) {
+			updateCurrentNavigationEntry();
+		}
+		return true;
+	}
+
+	private RecipeNavigationEntry createNavigationEntry() {
+		return new RecipeNavigationEntry(
+			unfilteredState,
+			createNavigationTitle(unfilteredState),
+			filterMode,
+			searchQueryText,
+			state
+		);
+	}
+
+	private void updateCurrentNavigationEntry() {
+		navigationHistory.current()
+			.ifPresent(entry -> entry.updateView(filterMode, searchQueryText, state));
+	}
+
+	private boolean restoreNavigationEntry(RecipeNavigationEntry entry) {
+		this.filterMode = entry.getFilterMode();
+		this.searchQueryText = entry.getSearchQuery();
+		this.searchQuery = RecipeSearchQuery.parse(searchQueryText);
+		this.unfilteredState = entry.getLookupState();
+		this.state = unfilteredState;
+		this.snapshot = null;
+		this.snapshotPreferenceRules = null;
+		rebuildDisplayedState();
+		restorePosition(entry);
+		clearLayoutCache();
 		stateListener.onStateChange();
 		return true;
+	}
+
+	private void restorePosition(RecipeNavigationEntry entry) {
+		int recipesPerPage = Math.max(1, entry.getRecipesPerPage());
+		state.setRecipesPerPage(recipesPerPage);
+		state.moveToRecipeCategory(entry.getRecipeCategory());
+		LookupStatePositionUtil.restoreRecipeIndex(state, entry.getRecipeIndex());
+	}
+
+	private Component createNavigationTitle(ILookupState lookupState) {
+		return lookupState.getFocuses().getAllFocuses().stream()
+			.findFirst()
+			.map(this::createNavigationTitle)
+			.orElseGet(() -> lookupState.getFocusedRecipes().getRecipeCategory().getTitle());
+	}
+
+	private <T> Component createNavigationTitle(IFocus<T> focus) {
+		ITypedIngredient<T> typedIngredient = focus.getTypedValue();
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		Component ingredientName = Component.literal(ingredientHelper.getDisplayName(typedIngredient.getIngredient()));
+		String translationKey = focus.getRole() == mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT ?
+			"gui.jei.recipe_navigation.target.recipes" :
+			"gui.jei.recipe_navigation.target.uses";
+		return Component.translatable(translationKey, ingredientName);
 	}
 
 	private void rebuildDisplayedState() {
@@ -255,10 +352,12 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	@Override
 	public void applyRecipeResultFilter(RecipeFilterMode mode, String query) {
 		this.filterMode = mode;
+		this.searchQueryText = query;
 		this.searchQuery = RecipeSearchQuery.parse(query);
 		rebuildDisplayedState();
 		clearLayoutCache();
 		stateListener.onStateChange();
+		updateCurrentNavigationEntry();
 	}
 
 	@Override

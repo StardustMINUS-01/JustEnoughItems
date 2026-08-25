@@ -8,6 +8,7 @@ import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
 import mezz.jei.gui.input.ClickableIngredientInternal;
@@ -30,7 +31,9 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -119,6 +122,30 @@ public class RecipeGuiLayouts {
 		this.cachedInputHandler = null;
 	}
 
+	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> captureInputSelections() {
+		Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> selections = new LinkedHashMap<>();
+		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
+			if (layout instanceof RecipeLayoutWithButtons<?> layoutWithButtons) {
+				Map<Integer, BookmarkIngredientKey> selectedInputs = layoutWithButtons.getInputSelections();
+				if (!selectedInputs.isEmpty()) {
+					getFocusedRecipe(layout.getRecipeLayout())
+						.ifPresent(recipe -> selections.put(recipe, selectedInputs));
+				}
+			}
+		}
+		return Map.copyOf(selections);
+	}
+
+	public void restoreInputSelections(Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> selections) {
+		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
+			if (layout instanceof RecipeLayoutWithButtons<?> layoutWithButtons) {
+				getFocusedRecipe(layout.getRecipeLayout())
+					.map(selections::get)
+					.ifPresent(layoutWithButtons::restoreInputSelections);
+			}
+		}
+	}
+
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
 		return this.recipeLayoutsWithButtons.stream()
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
@@ -202,13 +229,18 @@ public class RecipeGuiLayouts {
 	}
 
 	private static <R> Optional<FocusedRecipeCandidate> getFocusedRecipeCandidate(IRecipeLayoutDrawable<R> recipeLayout) {
+		return getFocusedRecipe(recipeLayout)
+			.map(FocusedRecipeCandidate::recipe);
+	}
+
+	private static <R> Optional<FocusedRecipe> getFocusedRecipe(IRecipeLayoutDrawable<R> recipeLayout) {
 		R recipe = recipeLayout.getRecipe();
 		ResourceLocation recipeUid = recipeLayout.getRecipeCategory().getRegistryName(recipe);
 		if (recipeUid == null) {
 			return Optional.empty();
 		}
 		ResourceLocation recipeTypeUid = recipeLayout.getRecipeCategory().getRecipeType().getUid();
-		return Optional.of(FocusedRecipeCandidate.recipe(new FocusedRecipe(recipeTypeUid, recipeUid)));
+		return Optional.of(new FocusedRecipe(recipeTypeUid, recipeUid));
 	}
 
 	public record RecipeLayoutUnderMouse(IRecipeLayoutDrawable<?> layout, RecipeSlotUnderMouse slotUnderMouse) {
