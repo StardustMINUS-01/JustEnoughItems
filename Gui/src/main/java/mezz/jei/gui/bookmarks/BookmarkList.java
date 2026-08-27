@@ -581,6 +581,15 @@ public class BookmarkList implements IIngredientGridSource {
 		return addRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys), preserveAmount);
 	}
 
+	public boolean addRecipeBookmarks(
+		IRecipeLayoutDrawable<?> recipeLayout,
+		boolean preserveAmount,
+		Map<Integer, BookmarkIngredientKey> selectedInputKeys,
+		Map<Integer, List<ITypedIngredient<?>>> filteredInputCandidates
+	) {
+		return addRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys, filteredInputCandidates), preserveAmount);
+	}
+
 	private boolean addRecipeBookmarks(RecipeLayoutProjection projection, boolean preserveAmount) {
 		List<RecipeBookmarkEntry> recipeBookmarks = createRecipeBookmarkEntries(projection, preserveAmount, null);
 		if (recipeBookmarks.isEmpty()) {
@@ -950,7 +959,9 @@ public class BookmarkList implements IIngredientGridSource {
 		GtmVirtualCircuitCompat.VirtualInputProjection virtualInputs,
 		Object equalityScope
 	) {
-		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
+		IRecipeSlotsView recipeSlotsView = role == RecipeIngredientRole.INPUT ?
+			projection.getRecipeSlotsView() :
+			recipeLayout.getRecipeSlotsView();
 		List<IRecipeSlotView> roleSlots = recipeSlotsView.getSlotViews(role);
 		if (role != RecipeIngredientRole.INPUT) {
 			for (IRecipeSlotView slotView : roleSlots) {
@@ -1150,7 +1161,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private String getRecipeBookmarkGroupTitle(RecipeLayoutProjection projection) {
-		IRecipeSlotsView recipeSlotsView = projection.layout().getRecipeSlotsView();
+		IRecipeSlotsView recipeSlotsView = projection.getRecipeSlotsView();
 		return findSelectedOutputIngredient(recipeSlotsView, projection.selectedOutputKey())
 			.or(() -> findFirstIngredient(recipeSlotsView, RecipeIngredientRole.OUTPUT))
 			.or(() -> findFirstIngredient(recipeSlotsView, RecipeIngredientRole.INPUT))

@@ -247,6 +247,34 @@ public class BookmarkListVirtualCircuitTest {
 		);
 	}
 
+	@Test
+	public void projectionKeepsOnlyFilteredInputCandidates() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		TestRecipeLayout layout = layout(
+			new Object(),
+			List.of(List.of(item(Items.GLASS), item(Items.RED_STAINED_GLASS), item(Items.BLUE_STAINED_GLASS))),
+			List.of(List.of(item(Items.GOLD_INGOT)))
+		);
+		BookmarkIngredientKey red = BookmarkItemMetadataFactory.createPermutationKey(item(Items.RED_STAINED_GLASS), INGREDIENT_MANAGER);
+		BookmarkIngredientKey blue = BookmarkItemMetadataFactory.createPermutationKey(item(Items.BLUE_STAINED_GLASS), INGREDIENT_MANAGER);
+
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(
+			layout,
+			false,
+			Map.of(),
+			Map.of(0, List.of(item(Items.RED_STAINED_GLASS), item(Items.BLUE_STAINED_GLASS)))
+		));
+
+		BookmarkItemMetadata metadata = bookmarks.getBookmarks().stream()
+			.filter(bookmark -> bookmark.getElement().getTypedIngredient().getItemStack()
+				.map(stack -> stack.is(Items.RED_STAINED_GLASS))
+				.orElse(false))
+			.map(bookmarks::getBookmarkMetadata)
+			.findFirst()
+			.orElseThrow();
+		Assertions.assertEquals(Set.of(red, blue), metadata.permutations());
+	}
+
 	private static TestRecipeLayout layout(
 		Object recipe,
 		List<List<@Nullable ITypedIngredient<?>>> inputs,

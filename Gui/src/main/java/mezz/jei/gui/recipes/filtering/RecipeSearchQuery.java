@@ -6,9 +6,18 @@ import java.util.Locale;
 
 public final class RecipeSearchQuery {
 	private final List<List<SearchTerm>> alternatives;
+	private final List<List<SearchTerm>> inputAlternatives;
 
 	private RecipeSearchQuery(List<List<SearchTerm>> alternatives) {
 		this.alternatives = alternatives;
+		List<List<SearchTerm>> inputAlternatives = alternatives.stream()
+			.map(alternative -> alternative.stream()
+				.filter(term -> term.scope() == Scope.INPUT)
+				.toList())
+			.toList();
+		this.inputAlternatives = inputAlternatives.stream().anyMatch(List::isEmpty) ?
+			List.of() :
+			inputAlternatives;
 	}
 
 	public static RecipeSearchQuery parse(String query) {
@@ -37,6 +46,15 @@ public final class RecipeSearchQuery {
 	public boolean matches(RecipeSearchDocument document) {
 		return isEmpty() || alternatives.stream()
 			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matches(document)));
+	}
+
+	public boolean hasInputTerms() {
+		return !inputAlternatives.isEmpty();
+	}
+
+	public boolean matchesInputCandidate(RecipeSearchIngredient ingredient) {
+		return inputAlternatives.isEmpty() || inputAlternatives.stream()
+			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matchesIngredient(ingredient)));
 	}
 
 	private static List<String> tokenize(String query) {
@@ -129,12 +147,20 @@ public final class RecipeSearchQuery {
 		}
 
 		private boolean matchesIngredients(List<RecipeSearchIngredient> ingredients) {
-			return ingredients.stream().anyMatch(ingredient -> switch (matchType) {
+			return ingredients.stream().anyMatch(this::matchesIngredientValue);
+		}
+
+		private boolean matchesIngredient(RecipeSearchIngredient ingredient) {
+			return excluded != matchesIngredientValue(ingredient);
+		}
+
+		private boolean matchesIngredientValue(RecipeSearchIngredient ingredient) {
+			return switch (matchType) {
 				case TEXT -> ingredient.matchesText(value);
 				case TAG -> ingredient.matchesTag(value);
 				case MOD -> ingredient.matchesMod(value);
 				case RESOURCE_LOCATION -> ingredient.matchesResourceLocation(value);
-			});
+			};
 		}
 
 		private boolean matchesRecipeText(RecipeSearchDocument document) {

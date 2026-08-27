@@ -61,6 +61,8 @@ import mezz.jei.gui.recipes.navigation.RecipeNavigationButtonController;
 import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import mezz.jei.gui.recipes.filtering.RecipeFilterModeButtonController;
 import mezz.jei.gui.recipes.filtering.RecipeFilterSettings;
+import mezz.jei.gui.recipes.filtering.RecipeSearchIngredientFactory;
+import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.filtering.RecipeSearchInputHandler;
 import mezz.jei.gui.recipes.filtering.RecipeSearchTextField;
 import net.minecraft.client.Minecraft;
@@ -831,7 +833,16 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	RecipeLayoutForkExtras createRecipeLayoutForkExtras(IRecipeLayoutDrawable<?> recipeLayoutDrawable) {
-		InputSlotSelectionState inputSlotSelectionState = new InputSlotSelectionState(ingredientManager);
+		RecipeSearchQuery searchQuery = navigationLogic.getSearchQuery();
+		InputSlotSelectionState inputSlotSelectionState = searchQuery.hasInputTerms() ?
+			new InputSlotSelectionState(
+				ingredientManager,
+				candidate -> searchQuery.matchesInputCandidate(
+					RecipeSearchIngredientFactory.create(candidate, ingredientManager)
+				)
+			) :
+			new InputSlotSelectionState(ingredientManager);
+		inputSlotSelectionState.applyCandidateFilter(recipeLayoutDrawable);
 		Optional.ofNullable(getFocusedRecipe(recipeLayoutDrawable))
 			.map(pendingFavoriteInputs::remove)
 			.ifPresent(inputs -> FavoriteRecipeInputs.apply(recipeLayoutDrawable, inputs, inputSlotSelectionState));

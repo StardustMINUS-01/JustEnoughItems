@@ -233,6 +233,10 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		return searchQueryText;
 	}
 
+	RecipeSearchQuery getSearchQuery() {
+		return searchQuery;
+	}
+
 	@Override
 	public void clearHistory() {
 		navigationHistory.clear();

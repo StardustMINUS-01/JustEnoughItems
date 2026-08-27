@@ -21,6 +21,7 @@ import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.CandidateTooltipWindow;
 import mezz.jei.common.gui.GuiRenderLayers;
+import mezz.jei.common.gui.IRecipeSlotCandidateView;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.platform.IPlatformRenderHelper;
@@ -46,7 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
+public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipeSlotCandidateView {
 	private static final int MAX_DISPLAYED_INGREDIENTS = 100;
 
 	private final RecipeIngredientRole role;
@@ -75,6 +76,8 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 
 	@Nullable
 	private DisplayIngredientAcceptor displayOverrides;
+	@Nullable
+	private List<ITypedIngredient<?>> filteredCandidates;
 	private int tagContentTooltipWindowStart;
 
 	public RecipeSlot(
@@ -123,6 +126,9 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 		if (this.displayOverrides != null) {
 			List<@Nullable ITypedIngredient<?>> overrides = this.displayOverrides.getAllIngredients();
 			return cycler.getCycled(overrides);
+		}
+		if (this.filteredCandidates != null) {
+			return cycler.getCycled(this.filteredCandidates);
 		}
 		if (this.displayIngredients == null) {
 			this.displayIngredients = calculateDisplayIngredients(this.allIngredients);
@@ -298,7 +304,10 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 
 	private <T> List<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
 		IIngredientVisibility ingredientVisibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
-		return getAllIngredients()
+		Stream<ITypedIngredient<?>> candidates = filteredCandidates == null ?
+			getAllIngredients() :
+			filteredCandidates.stream();
+		return candidates
 			.filter(ingredientVisibility::isIngredientVisible)
 			.map(i -> i.getIngredient(ingredientType))
 			.flatMap(Optional::stream)
@@ -419,6 +428,12 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 			displayOverrides = new DisplayIngredientAcceptor(ingredientManager);
 		}
 		return displayOverrides;
+	}
+
+	@Override
+	public void setDisplayedCandidates(List<ITypedIngredient<?>> candidates) {
+		this.filteredCandidates = candidates;
+		this.tagContentTooltipWindowStart = 0;
 	}
 
 	@SuppressWarnings("removal")

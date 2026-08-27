@@ -65,6 +65,21 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 		recipesGui.show(focuses);
 	}
 
+	public boolean handleShowRecipeClick(
+		UserInput input,
+		IInternalKeyMappings keyBindings,
+		IRecipesGui recipesGui,
+		FocusUtil focusUtil
+	) {
+		if (!displayEntry.metadata().type().isGraphOutput() || !input.is(keyBindings.getLeftClick())) {
+			return false;
+		}
+		if (!input.isSimulate()) {
+			delegate.show(recipesGui, focusUtil, List.of(RecipeIngredientRole.OUTPUT));
+		}
+		return true;
+	}
+
 	@Override
 	public void getTooltip(JeiTooltip tooltip, IngredientGridTooltipHelper tooltipHelper, IIngredientRenderer<T> ingredientRenderer, IIngredientHelper<T> ingredientHelper) {
 		ITypedIngredient<T> typedIngredient = createTooltipIngredient(getTypedIngredient(), ingredientHelper, displayEntry);

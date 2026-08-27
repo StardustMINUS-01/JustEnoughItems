@@ -255,7 +255,12 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 			return false;
 		}
 		if (!input.isSimulate()) {
-			boolean added = bookmarks.addRecipeBookmarks(recipeLayout, preserveAmount, inputSlotSelectionState.selectedKeys());
+			boolean added = bookmarks.addRecipeBookmarks(
+				recipeLayout,
+				preserveAmount,
+				inputSlotSelectionState.selectedKeys(),
+				inputSlotSelectionState.filteredCandidates()
+			);
 			if (added) {
 				showBookmarkPanel.run();
 			}

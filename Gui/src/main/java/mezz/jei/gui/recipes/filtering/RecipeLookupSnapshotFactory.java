@@ -1,6 +1,5 @@
 package mezz.jei.gui.recipes.filtering;
 
-import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;
@@ -18,8 +17,6 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public final class RecipeLookupSnapshotFactory {
 	private final IRecipeManager recipeManager;
@@ -125,16 +122,6 @@ public final class RecipeLookupSnapshotFactory {
 	}
 
 	private <T> RecipeSearchIngredient createSearchIngredient(ITypedIngredient<T> typedIngredient) {
-		IIngredientHelper<T> helper = ingredientManager.getIngredientHelper(typedIngredient.getType());
-		T ingredient = typedIngredient.getIngredient();
-		Set<String> tags = helper.getTagStream(ingredient)
-			.map(ResourceLocation::toString)
-			.collect(Collectors.toUnmodifiableSet());
-		return new RecipeSearchIngredient(
-			helper.getDisplayName(ingredient),
-			helper.getResourceLocation(ingredient),
-			helper.getDisplayModId(ingredient),
-			tags
-		);
+		return RecipeSearchIngredientFactory.create(typedIngredient, ingredientManager);
 	}
 }

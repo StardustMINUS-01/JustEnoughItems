@@ -46,6 +46,32 @@ public class RecipeSearchQueryTest {
 		Assertions.assertTrue(RecipeSearchQuery.parse("   ").isEmpty());
 	}
 
+	@Test
+	public void inputCandidateMatchingUsesOnlyInputScopedTerms() {
+		RecipeSearchQuery query = RecipeSearchQuery.parse("i:silver -i:plate o:dust");
+
+		Assertions.assertTrue(query.hasInputTerms());
+		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Silver Ingot", "gtceu:silver_ingot", "c:ingots")));
+		Assertions.assertFalse(query.matchesInputCandidate(ingredient("Silver Plate", "gtceu:silver_plate", "c:plates")));
+		Assertions.assertFalse(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
+	}
+
+	@Test
+	public void queryWithoutInputTermsDoesNotRestrictCandidates() {
+		RecipeSearchQuery query = RecipeSearchQuery.parse("o:silver_dust c:macerator");
+
+		Assertions.assertFalse(query.hasInputTerms());
+		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
+	}
+
+	@Test
+	public void alternativeWithoutInputTermsKeepsCandidateFilteringDisabled() {
+		RecipeSearchQuery query = RecipeSearchQuery.parse("i:silver | o:gold_dust");
+
+		Assertions.assertFalse(query.hasInputTerms());
+		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
+	}
+
 	private static RecipeSearchIngredient ingredient(String name, String id, String... tags) {
 		ResourceLocation resourceLocation = ResourceLocation.parse(id);
 		return new RecipeSearchIngredient(

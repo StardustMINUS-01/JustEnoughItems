@@ -1,9 +1,15 @@
 package mezz.jei.test.gui.overlay.elements;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
+import mezz.jei.api.recipe.IFocus;
+import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.api.runtime.IJeiKeyMapping;
+import mezz.jei.api.runtime.IRecipesGui;
+import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
@@ -12,21 +18,87 @@ import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
+import mezz.jei.gui.input.InputType;
+import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
+import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 public class ProjectedBookmarkElementTest {
 	private static final TestFluidType FLUID_TYPE = new TestFluidType();
 	private static final TestItemType ITEM_TYPE = new TestItemType();
 	private static final ResourceLocation CRAFTING = ResourceLocation.fromNamespaceAndPath("test", "crafting");
 	private static final ResourceLocation RECIPE = ResourceLocation.fromNamespaceAndPath("test", "recipe");
+	private static final InputConstants.Key LEFT_MOUSE = InputConstants.Type.MOUSE.getOrCreate(0);
+	private static final InputConstants.Key R_KEY = InputConstants.Type.KEYSYM.getOrCreate(82);
+
+	@Test
+	public void showUsesTheProjectedIngredientForNormalQueries() {
+		AtomicBoolean delegateShowCalled = new AtomicBoolean();
+		AtomicBoolean recipesGuiShowCalled = new AtomicBoolean();
+		ProjectedBookmarkElement<String> projected = projected(recordingElement(delegateShowCalled), BookmarkItemType.RESULT);
+		IRecipesGui recipesGui = proxy(IRecipesGui.class, (proxy, method, args) -> {
+			if (method.getName().equals("show")) {
+				recipesGuiShowCalled.set(true);
+			}
+			return null;
+		});
+		FocusUtil focusUtil = new FocusUtil(null, null, null) {
+			@Override
+			public List<IFocus<?>> createFocuses(ITypedIngredient<?> ingredient, List<RecipeIngredientRole> roles) {
+				return List.of();
+			}
+		};
+
+		projected.show(recipesGui, focusUtil, List.of(RecipeIngredientRole.OUTPUT));
+
+		Assertions.assertTrue(recipesGuiShowCalled.get());
+		Assertions.assertFalse(delegateShowCalled.get());
+	}
+
+	@ParameterizedTest
+	@MethodSource("exactRecipeActions")
+	public void exactRecipeNavigationOnlyHandlesResultLeftClicks(
+		BookmarkItemType type,
+		InputConstants.Key key,
+		boolean expected
+	) {
+		AtomicBoolean delegateShowCalled = new AtomicBoolean();
+		ProjectedBookmarkElement<String> projected = projected(recordingElement(delegateShowCalled), type);
+
+		boolean handled = projected.handleShowRecipeClick(
+			new UserInput(key, 0, 0, 0, InputType.EXECUTE),
+			keyMappings(),
+			null,
+			null
+		);
+
+		Assertions.assertEquals(expected, handled);
+		Assertions.assertEquals(expected, delegateShowCalled.get());
+	}
+
+	private static Stream<Arguments> exactRecipeActions() {
+		return Stream.of(
+			Arguments.of(BookmarkItemType.RESULT, LEFT_MOUSE, true),
+			Arguments.of(BookmarkItemType.RESULT, R_KEY, false),
+			Arguments.of(BookmarkItemType.INGREDIENT, LEFT_MOUSE, false)
+		);
+	}
 
 	@Test
 	public void fluidTooltipIngredientUsesRecipeMetadataAmount() throws ReflectiveOperationException {
@@ -125,6 +197,57 @@ public class ProjectedBookmarkElementTest {
 
 	private static ITypedIngredient<TestFluid> typedFluid(TestFluid fluid) {
 		return new TestTypedIngredient<>(FLUID_TYPE, fluid);
+	}
+
+	private static ProjectedBookmarkElement<String> projected(IElement<String> delegate, BookmarkItemType type) {
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			type,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			CRAFTING,
+			RECIPE,
+			Set.of()
+		);
+		BookmarkDisplayEntry<String> entry = new BookmarkDisplayEntry<>(
+			"item",
+			0,
+			metadata,
+			BookmarkViewMode.DEFAULT,
+			Optional.of(RECIPE),
+			Optional.empty(),
+			false,
+			false
+		);
+		return new ProjectedBookmarkElement<>(delegate, entry);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static IElement<String> recordingElement(AtomicBoolean showCalled) {
+		return proxy(IElement.class, (proxy, method, args) -> switch (method.getName()) {
+			case "getTypedIngredient" -> new TestTypedIngredient<>(ITEM_TYPE, "item");
+			case "show" -> {
+				showCalled.set(true);
+				yield null;
+			}
+			default -> null;
+		});
+	}
+
+	private static IInternalKeyMappings keyMappings() {
+		IJeiKeyMapping leftClick = proxy(IJeiKeyMapping.class, (proxy, method, args) ->
+			method.getName().equals("isActiveAndMatches") && LEFT_MOUSE.equals(args[0])
+		);
+		IJeiKeyMapping noMatch = proxy(IJeiKeyMapping.class, (proxy, method, args) -> false);
+		return proxy(IInternalKeyMappings.class, (proxy, method, args) ->
+			method.getName().equals("getLeftClick") ? leftClick : noMatch
+		);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T> T proxy(Class<T> type, java.lang.reflect.InvocationHandler handler) {
+		return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
 	}
 
 	private record TestTypedIngredient<T>(IIngredientType<T> type, T ingredient) implements ITypedIngredient<T> {

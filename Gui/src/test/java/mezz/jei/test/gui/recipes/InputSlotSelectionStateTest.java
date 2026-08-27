@@ -111,6 +111,46 @@ public class InputSlotSelectionStateTest {
 		Assertions.assertEquals("third", selections.get(1).ingredientUid());
 	}
 
+	@Test
+	public void scrollAndCandidateSnapshotUseFilteredCandidates() {
+		List<ITypedIngredient<?>> candidates = List.of(typed("oak"), typed("supreme_crimson"), typed("supreme_blazing"));
+		IRecipeSlotDrawable hoveredSlot = slot(candidates);
+		IRecipeSlotDrawable layoutSlot = slot(candidates);
+		IRecipeLayoutDrawable<?> layout = layout(hoveredSlot, layoutSlot);
+		InputSlotSelectionState state = new InputSlotSelectionState(
+			ingredientManager(),
+			candidate -> ((String) candidate.getIngredient()).startsWith("supreme_")
+		);
+		state.applyCandidateFilter(layout);
+
+		boolean handled = state.scroll(layout, 4, 4, -1, false);
+
+		Assertions.assertTrue(handled);
+		Assertions.assertEquals("supreme_blazing", layoutSlot.getDisplayedIngredient().orElseThrow().getIngredient());
+		Assertions.assertEquals(
+			List.of("supreme_crimson", "supreme_blazing"),
+			state.filteredCandidates().get(0).stream()
+				.map(ITypedIngredient::getIngredient)
+				.toList()
+		);
+	}
+
+	@Test
+	public void candidateFilterKeepsSlotUnchangedWhenNothingMatches() {
+		IRecipeSlotDrawable hoveredSlot = slot(List.of(typed("oak"), typed("birch")));
+		IRecipeSlotDrawable layoutSlot = slot(List.of(typed("oak"), typed("birch")));
+		IRecipeLayoutDrawable<?> layout = layout(hoveredSlot, layoutSlot);
+		InputSlotSelectionState state = new InputSlotSelectionState(
+			ingredientManager(),
+			candidate -> ((String) candidate.getIngredient()).startsWith("supreme_")
+		);
+		state.applyCandidateFilter(layout);
+
+		Assertions.assertTrue(state.scroll(layout, 4, 4, -1, false));
+		Assertions.assertEquals("birch", layoutSlot.getDisplayedIngredient().orElseThrow().getIngredient());
+		Assertions.assertTrue(state.filteredCandidates().isEmpty());
+	}
+
 
 	private static IRecipeLayoutDrawable<?> layout(IRecipeSlotDrawable hoveredSlot, IRecipeSlotDrawable... layoutSlots) {
 		return proxy(IRecipeLayoutDrawable.class, (proxy, method, args) -> switch (method.getName()) {
@@ -183,6 +223,10 @@ public class InputSlotSelectionStateTest {
 				return value;
 			}
 		};
+	}
+
+	private static BookmarkIngredientKey key(String value) {
+		return BookmarkIngredientKey.of(TYPE.getUid(), value);
 	}
 
 
