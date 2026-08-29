@@ -360,8 +360,10 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+			boolean synchronizeFamily = Screen.hasShiftDown();
 			if (inputSlotSelectionState != null &&
-				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDeltaY, !Screen.hasControlDown())
+				(synchronizeFamily || Screen.hasControlDown()) &&
+				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDeltaY, synchronizeFamily)
 			) {
 				return Optional.of(this);
 			}

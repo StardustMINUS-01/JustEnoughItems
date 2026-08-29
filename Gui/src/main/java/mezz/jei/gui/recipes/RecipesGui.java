@@ -19,6 +19,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IRecipesGui;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
@@ -26,6 +27,7 @@ import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.search.BakedSubstringIndexBuilder;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
@@ -62,7 +64,6 @@ import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import mezz.jei.gui.recipes.filtering.RecipeFilterModeButtonController;
 import mezz.jei.gui.recipes.filtering.RecipeFilterSettings;
 import mezz.jei.gui.recipes.filtering.RecipeSearchIngredientFactory;
-import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.filtering.RecipeSearchInputHandler;
 import mezz.jei.gui.recipes.filtering.RecipeSearchTextField;
 import net.minecraft.client.Minecraft;
@@ -208,6 +209,46 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		Runnable showFavoritePanel,
 		Supplier<RecipePreferenceRules> preferenceRulesSupplier
 	) {
+		this(
+			recipeManager,
+			ingredientManager,
+			recipeTransferManager,
+			keyBindings,
+			focusFactory,
+			bookmarks,
+			lookupHistory,
+			guiHelper,
+			bookmarkFactory,
+			favoriteRecipes,
+			favoriteRecipeConfig,
+			favoriteTreeBookmarkWriter,
+			clientFallbackStarter,
+			showBookmarkPanel,
+			showFavoritePanel,
+			preferenceRulesSupplier,
+			BakedSubstringIndexBuilder::new
+		);
+	}
+
+	public RecipesGui(
+		IRecipeManager recipeManager,
+		IIngredientManager ingredientManager,
+		IRecipeTransferManager recipeTransferManager,
+		IInternalKeyMappings keyBindings,
+		IFocusFactory focusFactory,
+		BookmarkList bookmarks,
+		LookupHistory lookupHistory,
+		IGuiHelper guiHelper,
+		BookmarkFactory bookmarkFactory,
+		FavoriteRecipeStore favoriteRecipes,
+		FavoriteRecipeConfig favoriteRecipeConfig,
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter,
+		ClientFallbackStarter clientFallbackStarter,
+		Runnable showBookmarkPanel,
+		Runnable showFavoritePanel,
+		Supplier<RecipePreferenceRules> preferenceRulesSupplier,
+		ISearchStorageBuilderFactory searchStorageBuilderFactory
+	) {
 		super(Component.literal("Recipes"));
 		this.recipeManager = recipeManager;
 		this.ingredientManager = ingredientManager;
@@ -227,7 +268,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			this::updateLayout,
 			focusFactory,
 			bookmarkFactory,
-			preferenceRulesSupplier
+			preferenceRulesSupplier,
+			searchStorageBuilderFactory
 		);
 		this.logic = navigationLogic;
 		this.recipeCatalysts = new RecipeCatalysts(recipeManager);
@@ -833,11 +875,10 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	RecipeLayoutForkExtras createRecipeLayoutForkExtras(IRecipeLayoutDrawable<?> recipeLayoutDrawable) {
-		RecipeSearchQuery searchQuery = navigationLogic.getSearchQuery();
-		InputSlotSelectionState inputSlotSelectionState = searchQuery.hasInputTerms() ?
+		InputSlotSelectionState inputSlotSelectionState = navigationLogic.hasInputSearchTerms() ?
 			new InputSlotSelectionState(
 				ingredientManager,
-				candidate -> searchQuery.matchesInputCandidate(
+				candidate -> navigationLogic.matchesInputCandidate(
 					RecipeSearchIngredientFactory.create(candidate, ingredientManager)
 				)
 			) :

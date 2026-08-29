@@ -372,7 +372,8 @@ public class JeiGuiStarter {
 			clientCraftingGridClickRunner,
 			bookmarkOverlay::showBookmarkPanel,
 			bookmarkOverlay::showFavoritePanel,
-			recipePreferenceRulesRef::get
+			recipePreferenceRulesRef::get,
+			searchStorageBuilderFactory
 		);
 		registration.setRecipesGui(recipesGui);
 

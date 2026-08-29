@@ -6,6 +6,8 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
+import mezz.jei.common.search.BakedSubstringIndexBuilder;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -21,18 +23,28 @@ import java.util.Optional;
 public final class RecipeLookupSnapshotFactory {
 	private final IRecipeManager recipeManager;
 	private final IIngredientManager ingredientManager;
+	private final ISearchStorageBuilderFactory searchStorageBuilderFactory;
 
 	public RecipeLookupSnapshotFactory(IRecipeManager recipeManager, IIngredientManager ingredientManager) {
+		this(recipeManager, ingredientManager, BakedSubstringIndexBuilder::new);
+	}
+
+	public RecipeLookupSnapshotFactory(
+		IRecipeManager recipeManager,
+		IIngredientManager ingredientManager,
+		ISearchStorageBuilderFactory searchStorageBuilderFactory
+	) {
 		this.recipeManager = recipeManager;
 		this.ingredientManager = ingredientManager;
+		this.searchStorageBuilderFactory = searchStorageBuilderFactory;
 	}
 
 	public RecipeLookupSnapshot create(ILookupState state) {
-		return new RecipeLookupSnapshot(createCategories(state, false));
+		return new RecipeLookupSnapshot(createCategories(state, false), searchStorageBuilderFactory);
 	}
 
 	public RecipeLookupSnapshot create(ILookupState state, RecipePreferenceRules preferenceRules) {
-		return new RecipeLookupSnapshot(createCategories(state, true), preferenceRules);
+		return new RecipeLookupSnapshot(createCategories(state, true), preferenceRules, searchStorageBuilderFactory);
 	}
 
 	private List<RecipeLookupSnapshot.CategoryRecipes<?>> createCategories(
