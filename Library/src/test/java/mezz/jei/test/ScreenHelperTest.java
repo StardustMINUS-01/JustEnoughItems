@@ -302,10 +302,6 @@ public class ScreenHelperTest {
 		return createScreenHelper(screenHandlers, List.of(), guiContainerHandlers);
 	}
 
-	private static ScreenHelper createScreenHelper(List<IGlobalGuiHandler> globalGuiHandlers) {
-		return createScreenHelper(Map.of(), globalGuiHandlers, new GuiContainerHandlers());
-	}
-
 	private static ScreenHelper createScreenHelper(
 		Map<Class<?>, IScreenHandler<?>> screenHandlers,
 		List<IGlobalGuiHandler> globalGuiHandlers,
@@ -500,20 +496,6 @@ public class ScreenHelperTest {
 		public List<Rect2i> getGuiExtraAreas(T containerScreen) {
 			guiExtraAreasCalls.incrementAndGet();
 			return List.of(extraArea);
-		}
-
-		public int getGuiExtraAreasCalls() {
-			return guiExtraAreasCalls.get();
-		}
-	}
-
-	private static class TestGlobalGuiHandler implements IGlobalGuiHandler {
-		private final AtomicInteger guiExtraAreasCalls = new AtomicInteger();
-
-		@Override
-		public List<Rect2i> getGuiExtraAreas() {
-			guiExtraAreasCalls.incrementAndGet();
-			return List.of(new Rect2i(1, 2, 3, 4));
 		}
 
 		public int getGuiExtraAreasCalls() {

@@ -2,34 +2,20 @@ package mezz.jei.test.gui.ingredients;
 
 import mezz.jei.common.gui.CandidateTooltipWindow;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class CandidateTooltipWindowTest {
-	@Test
-	public void keepsEveryCandidateVisibleWhenTheyFitInTheTooltip() {
-		int start = CandidateTooltipWindow.updateStart(30, 29, 0);
+	@ParameterizedTest
+	@CsvSource({
+		"30, 29, 0, 0",
+		"31, 29, 0, 1",
+		"31, 0, 2, 0",
+		"31, 30, 0, 2"
+	})
+	public void updatesWindowStart(int candidateCount, int selectedIndex, int currentStart, int expectedStart) {
+		int start = CandidateTooltipWindow.updateStart(candidateCount, selectedIndex, currentStart);
 
-		Assertions.assertEquals(0, start);
-	}
-
-	@Test
-	public void shiftsForwardWhenTheSelectedCandidateLeavesTheVisibleWindow() {
-		int start = CandidateTooltipWindow.updateStart(31, 29, 0);
-
-		Assertions.assertEquals(1, start);
-	}
-
-	@Test
-	public void shiftsBackwardWhenTheSelectedCandidateLeavesTheVisibleWindow() {
-		int start = CandidateTooltipWindow.updateStart(31, 0, 2);
-
-		Assertions.assertEquals(0, start);
-	}
-
-	@Test
-	public void clampsTheWindowToTheLastCandidate() {
-		int start = CandidateTooltipWindow.updateStart(31, 30, 0);
-
-		Assertions.assertEquals(2, start);
+		Assertions.assertEquals(expectedStart, start);
 	}
 }

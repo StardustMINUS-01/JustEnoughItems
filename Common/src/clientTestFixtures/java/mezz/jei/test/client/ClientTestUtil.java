@@ -1,4 +1,4 @@
-package mezz.jei.fabric.test;
+package mezz.jei.test.client;
 
 import net.minecraft.client.Minecraft;
 
@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 /**
  * Helpers for coordinating assertions with the Minecraft render thread.
  */
-final class ClientTestUtil {
+public final class ClientTestUtil {
 	private static final Duration CLIENT_TASK_TIMEOUT = Duration.ofSeconds(10);
 
 	private ClientTestUtil() {

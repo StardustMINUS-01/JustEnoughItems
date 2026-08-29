@@ -1,5 +1,7 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import mezz.jei.fabric.input.FabricAmecsSupport;
 import mezz.jei.test.lib.JUnitXmlTestReporter;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;

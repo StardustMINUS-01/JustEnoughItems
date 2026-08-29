@@ -1,5 +1,7 @@
 package mezz.jei.neoforge.tests.client;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import mezz.jei.common.Internal;
 import mezz.jei.common.network.ClientConnectionHelper;
 import mezz.jei.test.lib.JUnitXmlTestReporter;

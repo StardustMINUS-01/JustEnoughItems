@@ -55,6 +55,8 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.item.ItemStack;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -437,8 +439,9 @@ public class IngredientGridWithNavigationControllerTest {
 		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 	}
 
-	@Test
-	public void scrollingModeUsesLayoutAwareElements() {
+	@ParameterizedTest
+	@EnumSource(value = IngredientGridNavigationMode.class, names = {"SCROLLING", "SMOOTH_SCROLLING"})
+	public void scrollingModesUseLayoutAwareElements(IngredientGridNavigationMode navigationMode) {
 		List<IElement<?>> rawElements = createElements(4);
 		List<IElement<?>> layoutElements = List.of(
 			LayoutPlaceholderElement.INSTANCE,
@@ -447,25 +450,7 @@ public class IngredientGridWithNavigationControllerTest {
 			rawElements.get(2),
 			rawElements.get(3)
 		);
-		Fixture fixture = Fixture.create(2, 1, rawElements, layoutElements, true, IngredientGridNavigationMode.SCROLLING);
-
-		fixture.controller.updateLayoutToFirstPage();
-
-		assertSame(layoutElements, fixture.grid.ingredientList);
-		assertSame(LayoutPlaceholderElement.INSTANCE, fixture.grid.ingredientList.getFirst());
-	}
-
-	@Test
-	public void smoothScrollingModeUsesLayoutAwareElements() {
-		List<IElement<?>> rawElements = createElements(4);
-		List<IElement<?>> layoutElements = List.of(
-			LayoutPlaceholderElement.INSTANCE,
-			rawElements.get(0),
-			rawElements.get(1),
-			rawElements.get(2),
-			rawElements.get(3)
-		);
-		Fixture fixture = Fixture.create(2, 1, rawElements, layoutElements, true, IngredientGridNavigationMode.SMOOTH_SCROLLING);
+		Fixture fixture = Fixture.create(2, 1, rawElements, layoutElements, true, navigationMode);
 
 		fixture.controller.updateLayoutToFirstPage();
 

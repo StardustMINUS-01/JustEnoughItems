@@ -331,9 +331,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			return;
 		}
 
-		RecipePreferenceRules preferenceRules = filterMode == RecipeFilterMode.ALL ?
-			null :
-			preferenceRulesSupplier.get();
+		RecipePreferenceRules preferenceRules = filterMode != RecipeFilterMode.ALL || snapshotPreferenceRules != null ?
+			preferenceRulesSupplier.get() :
+			null;
 		if (snapshot == null || snapshotPreferenceRules != preferenceRules) {
 			this.snapshot = preferenceRules == null ?
 				snapshotFactory.create(unfilteredState) :

@@ -1,5 +1,7 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.test.client.ExternalServerClient;
 import mezz.jei.test.lib.ExternalServerProcess;

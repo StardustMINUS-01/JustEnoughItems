@@ -1,5 +1,7 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import mezz.jei.common.Internal;
 import mezz.jei.common.network.ClientConnectionHelper;
 import net.minecraft.resources.ResourceLocation;

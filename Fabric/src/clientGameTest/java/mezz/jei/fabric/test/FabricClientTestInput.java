@@ -1,5 +1,7 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import mezz.jei.common.input.keys.JeiKeyModifier;
 import mezz.jei.fabric.test.mixin.KeyboardHandlerAccessor;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;

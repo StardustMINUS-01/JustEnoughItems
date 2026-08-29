@@ -230,6 +230,9 @@ public final class InputSlotSelectionState {
 	}
 
 	public void apply(IRecipeLayoutDrawable<?> recipeLayout) {
+		if (selectedKeys.isEmpty()) {
+			return;
+		}
 		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView().getSlotViews(RecipeIngredientRole.INPUT);
 		for (int index = 0; index < inputSlots.size(); index++) {
 			IRecipeSlotView slot = inputSlots.get(index);

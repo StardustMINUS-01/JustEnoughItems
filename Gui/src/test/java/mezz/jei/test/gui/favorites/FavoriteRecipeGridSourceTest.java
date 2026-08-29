@@ -1,15 +1,10 @@
 package mezz.jei.test.gui.favorites;
 
 import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
-import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import mezz.jei.api.gui.builder.IClickableIngredientFactory;
-import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.IIngredientManager.IIngredientListener;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.favorites.FavoriteRecipeGridSource;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
@@ -17,15 +12,12 @@ import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.elements.IElement;
-import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.mojang.serialization.Codec;
-
-import java.util.Collection;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -126,7 +118,7 @@ public class FavoriteRecipeGridSourceTest {
 		return new FavoriteRecipeGridSource(
 			store,
 			panelState,
-			new TestIngredientManager(),
+			ingredientManager(),
 			null,
 			null,
 			resolver
@@ -158,7 +150,7 @@ public class FavoriteRecipeGridSourceTest {
 	}
 
 	private static TestTypedIngredient<String> typed(String ingredient) {
-		return new TestTypedIngredient(TYPE, ingredient);
+		return new TestTypedIngredient<>(TYPE, ingredient);
 	}
 
 	private static class CountingRecipeInputsResolver implements FavoriteRecipeGridSource.RecipeInputsResolver {
@@ -216,158 +208,42 @@ public class FavoriteRecipeGridSourceTest {
 		}
 	}
 
-	private static class TestIngredientManager implements IIngredientManager {
-		private final TestIngredientHelper helper = new TestIngredientHelper();
-
-		@Override
-		public <V> Collection<V> getAllIngredients(IIngredientType<V> ingredientType) {
-			return List.of();
-		}
-
-		@Override
-		public <V> Collection<ITypedIngredient<V>> getAllTypedIngredients(IIngredientType<V> ingredientType) {
-			return List.of();
-		}
-
-		@Override
-		public <V> IIngredientHelper<V> getIngredientHelper(V ingredient) {
-			return castHelper();
-		}
-
-		@Override
-		public <V> IIngredientHelper<V> getIngredientHelper(IIngredientType<V> ingredientType) {
-			return castHelper();
-		}
-
-		@Override
-		public <V> IIngredientRenderer<V> getIngredientRenderer(V ingredient) {
-			throw unsupported();
-		}
-
-		@Override
-		public <V> IIngredientRenderer<V> getIngredientRenderer(IIngredientType<V> ingredientType) {
-			throw unsupported();
-		}
-
-		@Override
-		public <V> Codec<V> getIngredientCodec(IIngredientType<V> ingredientType) {
-			throw unsupported();
-		}
-
-		@Override
-		public Collection<IIngredientType<?>> getRegisteredIngredientTypes() {
-			return List.of(TYPE, FLUID_TYPE);
-		}
-
-		@Override
-		public Optional<IIngredientType<?>> getIngredientTypeForUid(String ingredientTypeUid) {
-			if (TYPE.getUid().equals(ingredientTypeUid)) {
-				return Optional.of(TYPE);
+	private static IIngredientManager ingredientManager() {
+		TestIngredientHelper helper = new TestIngredientHelper();
+		return (IIngredientManager) Proxy.newProxyInstance(
+			FavoriteRecipeGridSourceTest.class.getClassLoader(),
+			new Class<?>[]{IIngredientManager.class},
+			(proxy, method, args) -> switch (method.getName()) {
+				case "getIngredientHelper" -> helper;
+				case "getIngredientTypeForUid" -> ingredientType((String) args[0]);
+				case "getIngredientByUid" -> ingredient((IIngredientType<?>) args[0], (String) args[1]);
+				case "getTypedIngredientByUid" -> typedIngredient((IIngredientType<?>) args[0], (String) args[1]);
+				case "createTypedIngredient" -> typedIngredient((IIngredientType<?>) args[0], (String) args[1]);
+				case "normalizeTypedIngredient" -> args[0];
+				default -> throw new UnsupportedOperationException(method.getName());
 			}
-			if (FLUID_TYPE.getUid().equals(ingredientTypeUid)) {
-				return Optional.of(FLUID_TYPE);
-			}
-			return Optional.empty();
-		}
+		);
+	}
 
-		@Override
-		public <V> void addIngredientsAtRuntime(IIngredientType<V> ingredientType, Collection<V> ingredients) {
-			throw unsupported();
+	private static Optional<IIngredientType<?>> ingredientType(String uid) {
+		if (TYPE.getUid().equals(uid)) {
+			return Optional.of(TYPE);
 		}
+		if (FLUID_TYPE.getUid().equals(uid)) {
+			return Optional.of(FLUID_TYPE);
+		}
+		return Optional.empty();
+	}
 
-		@Override
-		public <V> void removeIngredientsAtRuntime(IIngredientType<V> ingredientType, Collection<V> ingredients) {
-			throw unsupported();
-		}
+	private static Optional<?> ingredient(IIngredientType<?> type, String uid) {
+		return type == TYPE || type == FLUID_TYPE ? Optional.of(uid) : Optional.empty();
+	}
 
-		@Override
-		public @Nullable <V> IIngredientType<V> getIngredientType(V ingredient) {
-			if (ingredient instanceof String) {
-				@SuppressWarnings("unchecked")
-				IIngredientType<V> cast = (IIngredientType<V>) TYPE;
-				return cast;
-			}
-			return null;
-		}
-
-		@Override
-		public <V> Optional<IIngredientType<V>> getIngredientTypeChecked(V ingredient) {
-			return Optional.ofNullable(getIngredientType(ingredient));
-		}
-
-		@Override
-		public <V> Optional<IIngredientType<V>> getIngredientTypeChecked(Class<? extends V> ingredientClass) {
-			if (ingredientClass == String.class) {
-				@SuppressWarnings("unchecked")
-				IIngredientType<V> cast = (IIngredientType<V>) TYPE;
-				return Optional.of(cast);
-			}
-			return Optional.empty();
-		}
-
-		@Override
-		public <B, I> Optional<IIngredientTypeWithSubtypes<B, I>> getIngredientTypeWithSubtypesFromBase(B baseIngredient) {
-			return Optional.empty();
-		}
-
-		@Override
-		public <V> Optional<ITypedIngredient<V>> createTypedIngredient(IIngredientType<V> ingredientType, V ingredient, boolean normalize) {
-			if (ingredient instanceof String string) {
-				@SuppressWarnings("unchecked")
-				ITypedIngredient<V> cast = (ITypedIngredient<V>) typed(string);
-				return Optional.of(cast);
-			}
-			return Optional.empty();
-		}
-
-		@Override
-		public <V> ITypedIngredient<V> normalizeTypedIngredient(ITypedIngredient<V> typedIngredient) {
-			return typedIngredient;
-		}
-
-		@Override
-		public IClickableIngredientFactory getClickableIngredientFactory() {
-			throw unsupported();
-		}
-
-		@Override
-		public <V> Optional<IClickableIngredient<V>> createClickableIngredient(IIngredientType<V> ingredientType, V ingredient, Rect2i area, boolean normalize) {
-			throw unsupported();
-		}
-
-		@Override
-		public <V> Optional<V> getIngredientByUid(IIngredientType<V> ingredientType, String ingredientUuid) {
-			if (ingredientType == TYPE || ingredientType == FLUID_TYPE) {
-				@SuppressWarnings("unchecked")
-				V cast = (V) ingredientUuid;
-				return Optional.of(cast);
-			}
-			return Optional.empty();
-		}
-
-		@Override
-		public <V> Optional<ITypedIngredient<V>> getTypedIngredientByUid(IIngredientType<V> ingredientType, String ingredientUuid) {
-			if (ingredientType == TYPE || ingredientType == FLUID_TYPE) {
-				@SuppressWarnings("unchecked")
-				ITypedIngredient<V> cast = (ITypedIngredient<V>) new TestTypedIngredient(ingredientType, ingredientUuid);
-				return Optional.of(cast);
-			}
-			return Optional.empty();
-		}
-
-		@Override
-		public Collection<String> getIngredientAliases(ITypedIngredient<?> ingredient) {
-			return List.of();
-		}
-
-		@Override
-		public void registerIngredientListener(IIngredientListener listener) {
-		}
-
-		@SuppressWarnings("unchecked")
-		private <V> IIngredientHelper<V> castHelper() {
-			return (IIngredientHelper<V>) helper;
-		}
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static Optional<?> typedIngredient(IIngredientType<?> type, String uid) {
+		return type == TYPE || type == FLUID_TYPE ?
+			Optional.of(new TestTypedIngredient(type, uid)) :
+			Optional.empty();
 	}
 
 	private static class TestIngredientHelper implements IIngredientHelper<String> {
@@ -407,7 +283,4 @@ public class FavoriteRecipeGridSourceTest {
 		}
 	}
 
-	private static UnsupportedOperationException unsupported() {
-		return new UnsupportedOperationException("not needed for this test");
-	}
 }

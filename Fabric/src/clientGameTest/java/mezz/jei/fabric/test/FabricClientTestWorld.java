@@ -1,5 +1,7 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;

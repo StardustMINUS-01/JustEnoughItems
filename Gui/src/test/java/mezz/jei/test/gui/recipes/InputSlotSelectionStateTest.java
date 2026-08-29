@@ -79,6 +79,16 @@ public class InputSlotSelectionStateTest {
 	}
 
 	@Test
+	public void applyDoesNotReadLayoutWithoutManualSelections() {
+		IRecipeLayoutDrawable<?> layout = proxy(IRecipeLayoutDrawable.class, (proxy, method, args) -> {
+			throw new AssertionError("The layout must not be read without manual selections");
+		});
+		InputSlotSelectionState state = new InputSlotSelectionState(ingredientManager());
+
+		state.apply(layout);
+	}
+
+	@Test
 	public void transferViewRestrictsManuallySelectedInputToItsSelectedCandidate() {
 		IRecipeSlotDrawable hoveredSlot = slot(List.of(typed("first"), typed("second")));
 		IRecipeSlotDrawable layoutSlot = slot(List.of(typed("first"), typed("second")));

@@ -1,34 +1,27 @@
 package mezz.jei.test.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.drawable.IScalableDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IFocusGroup;
-import mezz.jei.api.recipe.IRecipeCatalystLookup;
 import mezz.jei.api.recipe.IRecipeCategoriesLookup;
 import mezz.jei.api.recipe.IRecipeLookup;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
-import net.minecraft.network.chat.Component;
-import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 import java.util.ArrayList;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,8 +33,8 @@ public class RecipeIdClipboardHandlerTest {
 
 	@Test
 	public void recipeLayoutCopiesCurrentRecipeId() {
-		TestRecipeCategory category = new TestRecipeCategory("test:category", "current", "test:current_recipe");
-		TestRecipeLayout layout = new TestRecipeLayout(category, "current");
+		IRecipeCategory<String> category = category("test:category", "current", "test:current_recipe");
+		IRecipeLayoutDrawable<String> layout = layout(category, "current");
 
 		Optional<String> recipeId = RecipeIdClipboardHandler.getRecipeId(layout);
 
@@ -50,8 +43,8 @@ public class RecipeIdClipboardHandlerTest {
 
 	@Test
 	public void ingredientCopiesAllOutputRecipeIds() {
-		TestRecipeCategory first = new TestRecipeCategory("test:first", "plate", "test:plate");
-		TestRecipeCategory second = new TestRecipeCategory("test:second", "gear", "test:gear");
+		IRecipeCategory<String> first = category("test:first", "plate", "test:plate");
+		IRecipeCategory<String> second = category("test:second", "gear", "test:gear");
 		TestRecipeManager recipeManager = new TestRecipeManager(List.of(
 			new TestRecipeSet(first, List.of("plate")),
 			new TestRecipeSet(second, List.of("gear"))
@@ -59,7 +52,7 @@ public class RecipeIdClipboardHandlerTest {
 
 		List<String> recipeIds = RecipeIdClipboardHandler.getOutputRecipeIds(
 			INGOT,
-			recipeManager,
+			recipeManager.value(),
 			new TestFocusFactory()
 		);
 
@@ -69,17 +62,17 @@ public class RecipeIdClipboardHandlerTest {
 
 	@Test
 	public void recipeLayoutTakesPriorityOverIngredientOutputRecipeIds() {
-		TestRecipeCategory current = new TestRecipeCategory("test:current", "current", "test:current_recipe");
-		TestRecipeCategory other = new TestRecipeCategory("test:other", "other", "test:other_recipe");
+		IRecipeCategory<String> current = category("test:current", "current", "test:current_recipe");
+		IRecipeCategory<String> other = category("test:other", "other", "test:other_recipe");
 		TestRecipeManager recipeManager = new TestRecipeManager(List.of(
 			new TestRecipeSet(current, List.of("current")),
 			new TestRecipeSet(other, List.of("other"))
 		));
 
 		List<String> recipeIds = RecipeIdClipboardHandler.getRecipeIdsForCopy(
-			new TestRecipeLayout(current, "current"),
+			layout(current, "current"),
 			INGOT,
-			recipeManager,
+			recipeManager.value(),
 			new TestFocusFactory()
 		);
 
@@ -88,8 +81,8 @@ public class RecipeIdClipboardHandlerTest {
 
 	@Test
 	public void unknownRecipeIdsAreSkipped() {
-		TestRecipeCategory known = new TestRecipeCategory("test:known", "known", "test:known");
-		TestRecipeCategory unknown = new TestRecipeCategory("test:unknown", "unknown", null);
+		IRecipeCategory<String> known = category("test:known", "known", "test:known");
+		IRecipeCategory<String> unknown = category("test:unknown", "unknown", null);
 		TestRecipeManager recipeManager = new TestRecipeManager(List.of(
 			new TestRecipeSet(known, List.of("known")),
 			new TestRecipeSet(unknown, List.of("unknown"))
@@ -97,7 +90,7 @@ public class RecipeIdClipboardHandlerTest {
 
 		List<String> recipeIds = RecipeIdClipboardHandler.getOutputRecipeIds(
 			INGOT,
-			recipeManager,
+			recipeManager.value(),
 			new TestFocusFactory()
 		);
 
@@ -169,19 +162,33 @@ public class RecipeIdClipboardHandlerTest {
 		}
 	}
 
-	private record TestRecipeSet(TestRecipeCategory category, List<String> recipes) {
+	private record TestRecipeSet(IRecipeCategory<String> category, List<String> recipes) {
 	}
 
-	private static final class TestRecipeManager implements IRecipeManager {
+	private static final class TestRecipeManager {
 		private final List<TestRecipeSet> recipeSets;
+		private final IRecipeManager value;
 		private RecipeIngredientRole lastFocusRole;
 
 		private TestRecipeManager(List<TestRecipeSet> recipeSets) {
 			this.recipeSets = recipeSets;
+			this.value = (IRecipeManager) Proxy.newProxyInstance(
+				RecipeIdClipboardHandlerTest.class.getClassLoader(),
+				new Class<?>[]{IRecipeManager.class},
+				(proxy, method, args) -> switch (method.getName()) {
+					case "createRecipeLookup" -> createRecipeLookup((RecipeType<?>) args[0]);
+					case "createRecipeCategoryLookup" -> createRecipeCategoryLookup();
+					case "getRecipeButtonControllerFactories" -> List.of();
+					default -> throw new UnsupportedOperationException(method.getName());
+				}
+			);
 		}
 
-		@Override
-		public <R> IRecipeLookup<R> createRecipeLookup(RecipeType<R> recipeType) {
+		private IRecipeManager value() {
+			return value;
+		}
+
+		private <R> IRecipeLookup<R> createRecipeLookup(RecipeType<R> recipeType) {
 			TestRecipeSet recipeSet = recipeSets.stream()
 				.filter(set -> set.category().getRecipeType().equals(recipeType))
 				.findFirst()
@@ -191,88 +198,12 @@ public class RecipeIdClipboardHandlerTest {
 			return new TestRecipeLookup<>(recipes, this);
 		}
 
-		@Override
-		public IRecipeCategoriesLookup createRecipeCategoryLookup() {
+		private IRecipeCategoriesLookup createRecipeCategoryLookup() {
 			List<IRecipeCategory<?>> categories = new ArrayList<>();
 			for (TestRecipeSet recipeSet : recipeSets) {
 				categories.add(recipeSet.category());
 			}
 			return new TestRecipeCategoriesLookup(categories, this);
-		}
-
-		@Override
-		public <T> IRecipeCategory<T> getRecipeCategory(RecipeType<T> recipeType) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public IRecipeCatalystLookup createRecipeCatalystLookup(RecipeType<?> recipeType) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> void hideRecipes(RecipeType<T> recipeType, Collection<T> recipes) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> void unhideRecipes(RecipeType<T> recipeType, Collection<T> recipes) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> void addRecipes(RecipeType<T> recipeType, List<T> recipes) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void hideRecipeCategory(RecipeType<?> recipeType) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void unhideRecipeCategory(RecipeType<?> recipeType) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> IRecipeLayoutDrawable<T> createRecipeLayoutDrawableOrShowError(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focusGroup) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> Optional<IRecipeLayoutDrawable<T>> createRecipeLayoutDrawable(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focusGroup) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> Optional<IRecipeLayoutDrawable<T>> createRecipeLayoutDrawable(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focusGroup, IScalableDrawable background, int borderSize) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public IRecipeSlotDrawable createRecipeSlotDrawable(RecipeIngredientRole role, List<Optional<ITypedIngredient<?>>> ingredients, Set<Integer> focusedIngredients, int ingredientCycleOffset) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public <T> Optional<RecipeType<T>> getRecipeType(ResourceLocation recipeUid, Class<? extends T> recipeClass) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<RecipeType<?>> getRecipeType(ResourceLocation recipeUid) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<IRecipeButtonControllerFactory> getRecipeButtonControllerFactories() {
-			return List.of();
 		}
 	}
 
@@ -339,118 +270,34 @@ public class RecipeIdClipboardHandlerTest {
 		}
 	}
 
-	private static final class TestRecipeCategory implements IRecipeCategory<String> {
-		private final RecipeType<String> recipeType;
-		private final String recipe;
-		private final @Nullable ResourceLocation registryName;
-
-		private TestRecipeCategory(String recipeTypeUid, String recipe, @Nullable String registryName) {
+	private static IRecipeCategory<String> category(String recipeTypeUid, String recipe, @Nullable String registryName) {
 			ResourceLocation uid = ResourceLocation.parse(recipeTypeUid);
-			this.recipeType = RecipeType.create(uid.getNamespace(), uid.getPath(), String.class);
-			this.recipe = recipe;
-			this.registryName = registryName == null ? null : ResourceLocation.parse(registryName);
-		}
-
-		@Override
-		public RecipeType<String> getRecipeType() {
-			return recipeType;
-		}
-
-		@Override
-		public Component getTitle() {
-			return Component.literal(recipeType.getUid().toString());
-		}
-
-		@Override
-		public @Nullable mezz.jei.api.gui.drawable.IDrawable getIcon() {
-			return null;
-		}
-
-		@Override
-		public void setRecipe(mezz.jei.api.gui.builder.IRecipeLayoutBuilder builder, String recipe, IFocusGroup focuses) {
-		}
-
-		@Override
-		public @Nullable ResourceLocation getRegistryName(String recipe) {
-			return this.recipe.equals(recipe) ? registryName : null;
-		}
+		RecipeType<String> recipeType = RecipeType.create(uid.getNamespace(), uid.getPath(), String.class);
+		ResourceLocation recipeUid = registryName == null ? null : ResourceLocation.parse(registryName);
+		@SuppressWarnings("unchecked")
+		IRecipeCategory<String> category = (IRecipeCategory<String>) Proxy.newProxyInstance(
+			RecipeIdClipboardHandlerTest.class.getClassLoader(),
+			new Class<?>[]{IRecipeCategory.class},
+			(proxy, method, args) -> switch (method.getName()) {
+				case "getRecipeType" -> recipeType;
+				case "getRegistryName" -> recipe.equals(args[0]) ? recipeUid : null;
+				default -> throw new UnsupportedOperationException(method.getName());
+			}
+		);
+		return category;
 	}
 
-	private record TestRecipeLayout(TestRecipeCategory category, String recipe) implements IRecipeLayoutDrawable<String> {
-		@Override
-		public void setPosition(int posX, int posY) {
-		}
-
-		@Override
-		public void drawRecipe(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		}
-
-		@Override
-		public void drawOverlays(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		}
-
-		@Override
-		public boolean isMouseOver(double mouseX, double mouseY) {
-			return true;
-		}
-
-		@Override
-		public <T> Optional<T> getIngredientUnderMouse(int mouseX, int mouseY, IIngredientType<T> ingredientType) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<IRecipeSlotDrawable> getRecipeSlotUnderMouse(double mouseX, double mouseY) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<mezz.jei.api.gui.inputs.RecipeSlotUnderMouse> getSlotUnderMouse(double mouseX, double mouseY) {
-			return Optional.empty();
-		}
-
-		@Override
-		public net.minecraft.client.renderer.Rect2i getRect() {
-			return new net.minecraft.client.renderer.Rect2i(0, 0, 1, 1);
-		}
-
-		@Override
-		public net.minecraft.client.renderer.Rect2i getRectWithBorder() {
-			return getRect();
-		}
-
-		@Override
-		public net.minecraft.client.renderer.Rect2i getSideButtonArea(int buttonIndex) {
-			return getRect();
-		}
-
-		@Override
-		public mezz.jei.api.gui.ingredient.IRecipeSlotsView getRecipeSlotsView() {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public IRecipeCategory<String> getRecipeCategory() {
-			return category;
-		}
-
-		@Override
-		public String getRecipe() {
-			return recipe;
-		}
-
-		@Override
-		public mezz.jei.api.gui.inputs.IJeiInputHandler getInputHandler() {
-			return new mezz.jei.api.gui.inputs.IJeiInputHandler() {
-				@Override
-				public ScreenRectangle getArea() {
-					return ScreenRectangle.empty();
-				}
-			};
-		}
-
-		@Override
-		public void tick() {
-		}
+	private static IRecipeLayoutDrawable<String> layout(IRecipeCategory<String> category, String recipe) {
+		@SuppressWarnings("unchecked")
+		IRecipeLayoutDrawable<String> layout = (IRecipeLayoutDrawable<String>) Proxy.newProxyInstance(
+			RecipeIdClipboardHandlerTest.class.getClassLoader(),
+			new Class<?>[]{IRecipeLayoutDrawable.class},
+			(proxy, method, args) -> switch (method.getName()) {
+				case "getRecipeCategory" -> category;
+				case "getRecipe" -> recipe;
+				default -> throw new UnsupportedOperationException(method.getName());
+			}
+		);
+		return layout;
 	}
 }

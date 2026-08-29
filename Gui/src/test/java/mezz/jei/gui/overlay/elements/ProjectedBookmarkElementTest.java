@@ -1,4 +1,4 @@
-package mezz.jei.test.gui.overlay.elements;
+package mezz.jei.gui.overlay.elements;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -20,8 +20,6 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.elements.IElement;
-import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -31,7 +29,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Optional;
@@ -101,7 +98,7 @@ public class ProjectedBookmarkElementTest {
 	}
 
 	@Test
-	public void fluidTooltipIngredientUsesRecipeMetadataAmount() throws ReflectiveOperationException {
+	public void fluidTooltipIngredientUsesRecipeMetadataAmount() {
 		ITypedIngredient<TestFluid> normalizedFluid = typedFluid(new TestFluid("water", 1000));
 		BookmarkDisplayEntry<Object> entry = entry(metadata("water", 144, 3), Optional.empty());
 
@@ -115,7 +112,7 @@ public class ProjectedBookmarkElementTest {
 	}
 
 	@Test
-	public void fluidTooltipIngredientUsesCalculatedChainAmount() throws ReflectiveOperationException {
+	public void fluidTooltipIngredientUsesCalculatedChainAmount() {
 		ITypedIngredient<TestFluid> normalizedFluid = typedFluid(new TestFluid("water", 1000));
 		BookmarkItemMetadata metadata = metadata("water", 144, 3);
 		RecipeChainItem chainItem = new RecipeChainItem(
@@ -140,7 +137,7 @@ public class ProjectedBookmarkElementTest {
 	}
 
 	@Test
-	public void nonFluidTooltipIngredientKeepsNormalizedIngredient() throws ReflectiveOperationException {
+	public void nonFluidTooltipIngredientKeepsNormalizedIngredient() {
 		ITypedIngredient<String> normalizedItem = new TestTypedIngredient<>(ITEM_TYPE, "iron_ingot");
 		BookmarkDisplayEntry<Object> entry = entry(metadata("iron_ingot", 2, 5), Optional.empty());
 
@@ -153,20 +150,79 @@ public class ProjectedBookmarkElementTest {
 		Assertions.assertSame(normalizedItem, tooltipIngredient);
 	}
 
-	@SuppressWarnings("unchecked")
 	private static <T> ITypedIngredient<T> createTooltipIngredient(
 		ITypedIngredient<T> typedIngredient,
 		IIngredientHelper<T> ingredientHelper,
 		BookmarkDisplayEntry<?> entry
-	) throws ReflectiveOperationException {
-		Method method = ProjectedBookmarkElement.class.getDeclaredMethod(
-			"createTooltipIngredient",
-			ITypedIngredient.class,
-			IIngredientHelper.class,
-			BookmarkDisplayEntry.class
+	) {
+		return ProjectedBookmarkElement.createTooltipIngredient(typedIngredient, ingredientHelper, entry);
+	}
+
+	@Test
+	public void plainNonDefaultBookmarkUsesMetadataAmount() {
+		BookmarkItemMetadata metadata = cheatMetadata(2, 3);
+		ProjectedBookmarkElement<String> element = element(metadata, Optional.empty());
+
+		Assertions.assertEquals(Optional.of(6L), element.getCheatGiveAmount());
+	}
+
+	@Test
+	public void chainItemUsesCalculatedCheatAmount() {
+		BookmarkItemMetadata metadata = cheatMetadata(1, 1);
+		RecipeChainItem chainItem = new RecipeChainItem(0, metadata, RecipeChainItemType.INGREDIENT, 2, 3, 8, 1, 8);
+		ProjectedBookmarkElement<String> element = element(metadata, Optional.of(chainItem));
+
+		Assertions.assertEquals(Optional.of(8L), element.getCheatGiveAmount());
+	}
+
+	@Test
+	public void defaultPlainBookmarkHasNoCheatAmount() {
+		BookmarkItemMetadata metadata = BookmarkItemMetadata.defaultForGroup(BookmarkGroupManager.DEFAULT_GROUP_ID);
+		ProjectedBookmarkElement<String> element = element(metadata, Optional.empty());
+
+		Assertions.assertEquals(Optional.empty(), element.getCheatGiveAmount());
+	}
+
+	@Test
+	public void zeroChainAmountHasNoCheatAmount() {
+		BookmarkItemMetadata metadata = cheatMetadata(1, 1);
+		RecipeChainItem chainItem = new RecipeChainItem(0, metadata, RecipeChainItemType.INGREDIENT, 0, 0, 0, 0, 0);
+		ProjectedBookmarkElement<String> element = element(metadata, Optional.of(chainItem));
+
+		Assertions.assertEquals(Optional.empty(), element.getCheatGiveAmount());
+	}
+
+	private static ProjectedBookmarkElement<String> element(
+		BookmarkItemMetadata metadata,
+		Optional<RecipeChainItem> chainItem
+	) {
+		BookmarkDisplayEntry<String> entry = new BookmarkDisplayEntry<>(
+			"item",
+			0,
+			metadata,
+			BookmarkViewMode.DEFAULT,
+			Optional.empty(),
+			chainItem,
+			false,
+			false
 		);
-		method.setAccessible(true);
-		return (ITypedIngredient<T>) method.invoke(null, typedIngredient, ingredientHelper, entry);
+		return new ProjectedBookmarkElement<>(
+			new IngredientElement<>(new TestTypedIngredient<>(ITEM_TYPE, "item")),
+			entry
+		);
+	}
+
+	private static BookmarkItemMetadata cheatMetadata(long multiplier, long factor) {
+		return new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.ITEM,
+			multiplier,
+			factor,
+			BookmarkItemMetadata.CHANCE_FULL,
+			null,
+			null,
+			Set.of()
+		);
 	}
 
 	private static BookmarkDisplayEntry<Object> entry(BookmarkItemMetadata metadata, Optional<RecipeChainItem> chainItem) {

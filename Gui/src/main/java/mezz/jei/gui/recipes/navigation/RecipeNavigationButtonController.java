@@ -45,11 +45,6 @@ public final class RecipeNavigationButtonController implements IIconButtonContro
 	}
 
 	@Override
-	public void initState(IButtonState state) {
-		updateState(state);
-	}
-
-	@Override
 	public void updateState(IButtonState state) {
 		boolean active = canNavigate.test(direction);
 		state.setActive(active);

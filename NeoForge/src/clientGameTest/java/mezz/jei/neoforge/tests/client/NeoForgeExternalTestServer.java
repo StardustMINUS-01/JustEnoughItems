@@ -1,5 +1,7 @@
 package mezz.jei.neoforge.tests.client;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import mezz.jei.test.client.ExternalServerClient;
 import mezz.jei.test.lib.ExternalServerProcess;
 import net.minecraft.client.Minecraft;

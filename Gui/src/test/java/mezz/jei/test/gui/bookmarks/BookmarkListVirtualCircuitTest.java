@@ -1,32 +1,20 @@
 package mezz.jei.test.gui.bookmarks;
 
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
-import mezz.jei.api.constants.VanillaTypes;
-import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotView;
-import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.gui.inputs.IJeiInputHandler;
-import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import mezz.jei.api.recipe.IFocusGroup;
-import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
+import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
+import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeLayout;
 import net.minecraft.SharedConstants;
-import net.minecraft.client.gui.navigation.ScreenRectangle;
-import net.minecraft.client.renderer.Rect2i;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
@@ -36,13 +24,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
+
+import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager;
+import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
+import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.typed;
 
 public class BookmarkListVirtualCircuitTest {
 	private static final ResourceLocation RECIPE_UID = ResourceLocation.fromNamespaceAndPath("test", "assembler");
@@ -280,25 +268,13 @@ public class BookmarkListVirtualCircuitTest {
 		List<List<@Nullable ITypedIngredient<?>>> inputs,
 		List<List<@Nullable ITypedIngredient<?>>> outputs
 	) {
-		return new TestRecipeLayout(new TestRecipeCategory(), recipe, inputs, outputs);
-	}
-
-	private static ITypedIngredient<ItemStack> item(net.minecraft.world.level.ItemLike item) {
-		return typed(new ItemStack(item));
-	}
-
-	private static ITypedIngredient<ItemStack> typed(ItemStack stack) {
-		return new ITypedIngredient<>() {
-			@Override
-			public IIngredientType<ItemStack> getType() {
-				return VanillaTypes.ITEM_STACK;
-			}
-
-			@Override
-			public ItemStack getIngredient() {
-				return stack;
-			}
-		};
+		return RecipeLayoutTestFixtures.layout(
+			RecipeType.create("gtceu", "assembler", Object.class),
+			recipe,
+			RECIPE_UID,
+			inputs,
+			outputs
+		);
 	}
 
 	private static ITypedIngredient<IdentityIngredient> identity(String id) {
@@ -316,24 +292,9 @@ public class BookmarkListVirtualCircuitTest {
 	}
 
 	private static IIngredientManager ingredientManager() {
-		return (IIngredientManager) Proxy.newProxyInstance(
-			BookmarkListVirtualCircuitTest.class.getClassLoader(),
-			new Class<?>[]{IIngredientManager.class},
-			(proxy, method, args) -> {
-				if ("getIngredientHelper".equals(method.getName()) && args[0] == VanillaTypes.ITEM_STACK) {
-					return itemHelper();
-				}
-				if ("getIngredientHelper".equals(method.getName()) && args[0] == IDENTITY_INGREDIENT_TYPE) {
-					return identityHelper();
-				}
-				if ("createTypedIngredient".equals(method.getName()) && args[0] == VanillaTypes.ITEM_STACK) {
-					return Optional.of(typed((ItemStack) args[1]));
-				}
-				if ("normalizeTypedIngredient".equals(method.getName())) {
-					return args[0];
-				}
-				throw new UnsupportedOperationException(method.getName());
-			}
+		return mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager(
+			IDENTITY_INGREDIENT_TYPE,
+			identityHelper()
 		);
 	}
 
@@ -379,186 +340,4 @@ public class BookmarkListVirtualCircuitTest {
 		}
 	}
 
-	private static IIngredientHelper<ItemStack> itemHelper() {
-		return new IIngredientHelper<>() {
-			@Override
-			public IIngredientType<ItemStack> getIngredientType() {
-				return VanillaTypes.ITEM_STACK;
-			}
-
-			@Override
-			public String getDisplayName(ItemStack ingredient) {
-				return ingredient.getHoverName().getString();
-			}
-
-			@Override
-			public String getUniqueId(ItemStack ingredient, UidContext context) {
-				ResourceLocation key = BuiltInRegistries.ITEM.getKey(ingredient.getItem());
-				return key == null ? "minecraft:air" : key.toString();
-			}
-
-			@Override
-			public ResourceLocation getResourceLocation(ItemStack ingredient) {
-				return BuiltInRegistries.ITEM.getKey(ingredient.getItem());
-			}
-
-			@Override
-			public long getAmount(ItemStack ingredient) {
-				return ingredient.getCount();
-			}
-
-			@Override
-			public ItemStack copyIngredient(ItemStack ingredient) {
-				return ingredient.copy();
-			}
-
-			@Override
-			public String getErrorInfo(ItemStack ingredient) {
-				return ingredient.toString();
-			}
-		};
-	}
-
-	private record TestRecipeCategory() implements IRecipeCategory<Object> {
-		@Override
-		public RecipeType<Object> getRecipeType() {
-			return RecipeType.create("gtceu", "assembler", Object.class);
-		}
-
-		@Override
-		public Component getTitle() {
-			return Component.literal("assembler");
-		}
-
-		@Override
-		public @Nullable mezz.jei.api.gui.drawable.IDrawable getIcon() {
-			return null;
-		}
-
-		@Override
-		public void setRecipe(mezz.jei.api.gui.builder.IRecipeLayoutBuilder builder, Object recipe, IFocusGroup focuses) {
-		}
-
-		@Override
-		public @Nullable ResourceLocation getRegistryName(Object recipe) {
-			return RECIPE_UID;
-		}
-	}
-
-	private record TestRecipeLayout(
-		TestRecipeCategory category,
-		Object recipe,
-		List<List<@Nullable ITypedIngredient<?>>> inputs,
-		List<List<@Nullable ITypedIngredient<?>>> outputs
-	) implements IRecipeLayoutDrawable<Object> {
-		@Override
-		public void setPosition(int posX, int posY) {
-		}
-
-		@Override
-		public void drawRecipe(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		}
-
-		@Override
-		public void drawOverlays(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		}
-
-		@Override
-		public boolean isMouseOver(double mouseX, double mouseY) {
-			return true;
-		}
-
-		@Override
-		public <T> Optional<T> getIngredientUnderMouse(int mouseX, int mouseY, IIngredientType<T> ingredientType) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<IRecipeSlotDrawable> getRecipeSlotUnderMouse(double mouseX, double mouseY) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<RecipeSlotUnderMouse> getSlotUnderMouse(double mouseX, double mouseY) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Rect2i getRect() {
-			return new Rect2i(0, 0, 1, 1);
-		}
-
-		@Override
-		public Rect2i getRectWithBorder() {
-			return getRect();
-		}
-
-		@Override
-		public Rect2i getSideButtonArea(int buttonIndex) {
-			return getRect();
-		}
-
-		@Override
-		public IRecipeSlotsView getRecipeSlotsView() {
-			return () -> Stream.concat(
-					inputs.stream().map(i -> new TestRecipeSlotView(RecipeIngredientRole.INPUT, i)),
-					outputs.stream().map(i -> new TestRecipeSlotView(RecipeIngredientRole.OUTPUT, i))
-				)
-				.map(IRecipeSlotView.class::cast)
-				.toList();
-		}
-
-		@Override
-		public IRecipeCategory<Object> getRecipeCategory() {
-			return category;
-		}
-
-		@Override
-		public Object getRecipe() {
-			return recipe;
-		}
-
-		@Override
-		public IJeiInputHandler getInputHandler() {
-			return () -> ScreenRectangle.empty();
-		}
-
-		@Override
-		public void tick() {
-		}
-	}
-
-	private record TestRecipeSlotView(
-		RecipeIngredientRole role,
-		List<@Nullable ITypedIngredient<?>> ingredients
-	) implements IRecipeSlotView {
-		@Override
-		public Stream<ITypedIngredient<?>> getAllIngredients() {
-			return ingredients.stream().filter(Objects::nonNull);
-		}
-
-		@Override
-		public List<@Nullable ITypedIngredient<?>> getAllIngredientsList() {
-			return ingredients;
-		}
-
-		@Override
-		public Optional<ITypedIngredient<?>> getDisplayedIngredient() {
-			return ingredients.stream().filter(Objects::nonNull).findFirst();
-		}
-
-		@Override
-		public RecipeIngredientRole getRole() {
-			return role;
-		}
-
-		@Override
-		public void drawHighlight(net.minecraft.client.gui.GuiGraphics guiGraphics, int color) {
-		}
-
-		@Override
-		public Optional<String> getSlotName() {
-			return Optional.empty();
-		}
-	}
 }

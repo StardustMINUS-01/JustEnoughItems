@@ -31,87 +31,51 @@ public class ServerBookmarkPullTransferTest {
 
 	@Test
 	public void pullsRequestedItemsFromContainerSlotsIntoPlayerInventory() {
-		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
-		SimpleContainer playerInventory = playerInventory(new ItemStack(Items.DIAMOND, 60), ItemStack.EMPTY);
-		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
-
-		int moved = ServerBookmarkPullTransfer.pull(
-			menu,
-			7,
-			playerInventory,
-			null,
-			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 8))
+		PullFixture fixture = PullFixture.create(
+			new ItemStack(Items.DIAMOND, 10),
+			new ItemStack(Items.DIAMOND, 60),
+			ItemStack.EMPTY
 		);
 
+		int moved = fixture.pull(7, 8);
+
 		assertEquals(8, moved);
-		assertEquals(2, container.getItem(0).getCount());
-		assertEquals(64, playerInventory.getItem(0).getCount());
-		assertEquals(4, playerInventory.getItem(1).getCount());
+		assertEquals(2, fixture.container().getItem(0).getCount());
+		assertEquals(64, fixture.playerInventory().getItem(0).getCount());
+		assertEquals(4, fixture.playerInventory().getItem(1).getCount());
 	}
 
 	@Test
 	public void doesNotUsePlayerInventorySlotsAsSources() {
-		SimpleContainer container = new SimpleContainer(ItemStack.EMPTY);
-		SimpleContainer playerInventory = playerInventory(new ItemStack(Items.DIAMOND, 10), ItemStack.EMPTY);
-		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
+		PullFixture fixture = PullFixture.create(ItemStack.EMPTY, new ItemStack(Items.DIAMOND, 10), ItemStack.EMPTY);
 
-		int moved = ServerBookmarkPullTransfer.pull(
-			menu,
-			7,
-			playerInventory,
-			null,
-			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
-		);
+		int moved = fixture.pull(7, 5);
 
 		assertEquals(0, moved);
-		assertEquals(10, playerInventory.getItem(0).getCount());
-		assertEquals(true, playerInventory.getItem(1).isEmpty());
+		assertEquals(10, fixture.playerInventory().getItem(0).getCount());
+		assertEquals(true, fixture.playerInventory().getItem(1).isEmpty());
 	}
 
 	@Test
 	public void capsTransferAtPlayerInventoryCapacity() {
-		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
-		SimpleContainer playerInventory = playerInventory(new ItemStack(Items.DIAMOND, 63));
-		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
+		PullFixture fixture = PullFixture.create(new ItemStack(Items.DIAMOND, 10), new ItemStack(Items.DIAMOND, 63));
 
-		int moved = ServerBookmarkPullTransfer.pull(
-			menu,
-			7,
-			playerInventory,
-			null,
-			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
-		);
+		int moved = fixture.pull(7, 5);
 
 		assertEquals(1, moved);
-		assertEquals(9, container.getItem(0).getCount());
-		assertEquals(64, playerInventory.getItem(0).getCount());
+		assertEquals(9, fixture.container().getItem(0).getCount());
+		assertEquals(64, fixture.playerInventory().getItem(0).getCount());
 	}
 
 	@Test
 	public void rejectsMismatchedContainerId() {
-		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
-		SimpleContainer playerInventory = playerInventory(ItemStack.EMPTY);
-		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
+		PullFixture fixture = PullFixture.create(new ItemStack(Items.DIAMOND, 10), ItemStack.EMPTY);
 
-		int moved = ServerBookmarkPullTransfer.pull(
-			menu,
-			8,
-			playerInventory,
-			null,
-			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
-		);
+		int moved = fixture.pull(8, 5);
 
 		assertEquals(0, moved);
-		assertEquals(10, container.getItem(0).getCount());
-		assertEquals(true, playerInventory.getItem(0).isEmpty());
+		assertEquals(10, fixture.container().getItem(0).getCount());
+		assertEquals(true, fixture.playerInventory().getItem(0).isEmpty());
 	}
 
 	@Test
@@ -222,6 +186,27 @@ public class ServerBookmarkPullTransferTest {
 			inventory.setItem(i, stacks[i]);
 		}
 		return inventory;
+	}
+
+	private record PullFixture(SimpleContainer container, SimpleContainer playerInventory, TestMenu menu) {
+		private static PullFixture create(ItemStack containerStack, ItemStack... playerStacks) {
+			SimpleContainer container = new SimpleContainer(containerStack);
+			SimpleContainer playerInventory = ServerBookmarkPullTransferTest.playerInventory(playerStacks);
+			TestMenu menu = new TestMenu(7);
+			menu.addContainerSlots(container);
+			menu.addPlayerSlots(playerInventory);
+			return new PullFixture(container, playerInventory, menu);
+		}
+
+		private int pull(int containerId, int amount) {
+			return ServerBookmarkPullTransfer.pull(
+				menu,
+				containerId,
+				playerInventory,
+				null,
+				List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), amount))
+			);
+		}
 	}
 
 	private static final class TestMenu extends AbstractContainerMenu {

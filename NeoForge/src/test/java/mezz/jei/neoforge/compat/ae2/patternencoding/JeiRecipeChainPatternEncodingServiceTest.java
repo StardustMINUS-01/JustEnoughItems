@@ -25,6 +25,9 @@ import net.neoforged.fml.loading.LoadingModList;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -56,9 +59,14 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 		Assertions.assertEquals(1, result.notProcessedCount());
 	}
 
-	@Test
-	public void rejectsCatalystForNonProcessingMode() {
-		JeiPatternEncodeRequestWire request = new JeiPatternEncodeRequestWire(
+	@ParameterizedTest
+	@MethodSource("invalidCatalystRequests")
+	public void rejectsInvalidCatalysts(JeiPatternEncodeRequestWire request, String expectedFailure) {
+		Assertions.assertEquals(expectedFailure, JeiRecipeChainPatternEncodingService.validateCatalysts(request));
+	}
+
+	private static List<Arguments> invalidCatalystRequests() {
+		JeiPatternEncodeRequestWire craftingRequest = new JeiPatternEncodeRequestWire(
 			ResourceLocation.fromNamespaceAndPath("test", "category"),
 			ResourceLocation.fromNamespaceAndPath("test", "recipe"),
 			JeiPatternEncodeMode.CRAFTING,
@@ -70,51 +78,40 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 			false,
 			false
 		);
-
-		Assertions.assertNotNull(JeiRecipeChainPatternEncodingService.validateCatalysts(request));
-	}
-
-	@Test
-	public void rejectsOutOfRangeCatalystSlot() {
-		JeiPatternEncodeRequestWire request = processingRequest(
-			List.of(stack(Items.IRON_INGOT, 1)),
-			List.of(new JeiPatternCatalystWire(2, stack(Items.IRON_INGOT, 1)))
-		);
-
-		Assertions.assertNotNull(JeiRecipeChainPatternEncodingService.validateCatalysts(request));
-	}
-
-	@Test
-	public void rejectsDuplicateCatalystSlots() {
-		JeiPatternEncodeRequestWire request = processingRequest(
-			List.of(stack(Items.IRON_INGOT, 1), stack(Items.GOLD_INGOT, 1)),
-			List.of(
-				new JeiPatternCatalystWire(0, stack(Items.IRON_INGOT, 1)),
-				new JeiPatternCatalystWire(0, stack(Items.IRON_INGOT, 1))
+		return List.of(
+			Arguments.of(craftingRequest, "Catalysts are only supported for processing patterns"),
+			Arguments.of(
+				processingRequest(
+					List.of(stack(Items.IRON_INGOT, 1)),
+					List.of(new JeiPatternCatalystWire(2, stack(Items.IRON_INGOT, 1)))
+				),
+				"Catalyst source slot is out of range"
+			),
+			Arguments.of(
+				processingRequest(
+					List.of(stack(Items.IRON_INGOT, 1), stack(Items.GOLD_INGOT, 1)),
+					List.of(
+						new JeiPatternCatalystWire(0, stack(Items.IRON_INGOT, 1)),
+						new JeiPatternCatalystWire(0, stack(Items.IRON_INGOT, 1))
+					)
+				),
+				"Catalyst source slots must be unique"
+			),
+			Arguments.of(
+				processingRequest(
+					List.of(stack(Items.IRON_INGOT, 1)),
+					List.of(new JeiPatternCatalystWire(0, stack(Items.GOLD_INGOT, 1)))
+				),
+				"Catalyst must match its processing input"
+			),
+			Arguments.of(
+				processingRequest(
+					List.of(stack(Items.IRON_INGOT, 1)),
+					List.of(new JeiPatternCatalystWire(0, stack(Items.IRON_INGOT, 1)))
+				),
+				"Processing pattern has no real input"
 			)
 		);
-
-		Assertions.assertNotNull(JeiRecipeChainPatternEncodingService.validateCatalysts(request));
-	}
-
-	@Test
-	public void rejectsMismatchedCatalystStack() {
-		JeiPatternEncodeRequestWire request = processingRequest(
-			List.of(stack(Items.IRON_INGOT, 1)),
-			List.of(new JeiPatternCatalystWire(0, stack(Items.GOLD_INGOT, 1)))
-		);
-
-		Assertions.assertNotNull(JeiRecipeChainPatternEncodingService.validateCatalysts(request));
-	}
-
-	@Test
-	public void rejectsProcessingPatternWithOnlyCatalysts() {
-		JeiPatternEncodeRequestWire request = processingRequest(
-			List.of(stack(Items.IRON_INGOT, 1)),
-			List.of(new JeiPatternCatalystWire(0, stack(Items.IRON_INGOT, 1)))
-		);
-
-		Assertions.assertNotNull(JeiRecipeChainPatternEncodingService.validateCatalysts(request));
 	}
 
 	@Test

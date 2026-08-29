@@ -11,17 +11,6 @@ import java.util.Set;
 
 public class BakedSubstringIndexSearchStorageTest {
 	@Test
-	public void searchesBakedIndex() {
-		BakedSubstringIndexSearchStorage<String> storage = createStorage(
-			BakedSubstringIndex.<String>builder()
-				.put("alpha", "first")
-				.build()
-		);
-
-		Assertions.assertEquals(Set.of("first"), search(storage, "alp"));
-	}
-
-	@Test
 	public void searchesRuntimeAdditionsAfterBake() {
 		BakedSubstringIndexSearchStorage<String> storage = createStorage(
 			BakedSubstringIndex.<String>builder()

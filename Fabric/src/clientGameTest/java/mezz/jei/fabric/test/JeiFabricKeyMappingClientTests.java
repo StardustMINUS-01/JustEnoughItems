@@ -1,5 +1,7 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.Internal;
 import mezz.jei.common.input.keys.IJeiKeyMappingBuilder;
