@@ -141,7 +141,7 @@ public final class BookmarkChainSlotVisuals {
 		if (!Objects.equals(entry.metadata().groupId(), hovered.metadata().groupId())) {
 			return BookmarkSlotDisplayMode.DEFAULT;
 		}
-		if (entry.viewMode() == BookmarkViewMode.TODO_LIST &&
+		if (!entry.collapsed() && entry.viewMode() == BookmarkViewMode.TODO_LIST &&
 			context.rowIndex() >= 0 &&
 			context.rowIndex() == context.hoveredRowIndex()) {
 			return requestedMode;
@@ -209,7 +209,7 @@ public final class BookmarkChainSlotVisuals {
 	}
 
 	private static Optional<String> getMultiplierText(BookmarkDisplayEntry<?> entry, RecipeChainItem item, BookmarkSlotDisplayMode displayMode) {
-		if (entry.metadata().type().isGraphInput()) {
+		if (entry.metadata().type().isGraphInput() || !entry.metadata().type().isRecipeAssociated()) {
 			return Optional.empty();
 		}
 		long multiplier = item == null ? entry.metadata().multiplier() : item.realMultiplier();

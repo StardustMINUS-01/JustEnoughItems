@@ -18,6 +18,7 @@ import mezz.jei.common.network.packets.PacketRecipeTransfer;
 import mezz.jei.common.network.packets.PacketRecipeTransferCounted;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
+import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
 import mezz.jei.common.network.packets.PlayToClientPacket;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.neoforge.compat.CompatUtil;
@@ -61,6 +62,7 @@ public class NetworkHandler {
 			.playToServer(PacketPullBookmarkItems.TYPE, PacketPullBookmarkItems.STREAM_CODEC, wrapServerHandler(PacketPullBookmarkItems::process))
 			.playToServer(PacketFillCraftingGrid.TYPE, PacketFillCraftingGrid.STREAM_CODEC, wrapServerHandler(PacketFillCraftingGrid::process))
 			.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
+			.playToServer(PacketShareBookmarkGroup.TYPE, PacketShareBookmarkGroup.STREAM_CODEC, wrapServerHandler(PacketShareBookmarkGroup::process))
 			.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
 			.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
 			if (CompatUtil.isModLoaded("ae2")) {

@@ -55,6 +55,19 @@ public record BookmarkIngredientKey(
 			.orElse(false);
 	}
 
+	public BookmarkIngredientKey getCraftingAvailabilityKey() {
+		if (!ITEM_STACK_TYPE_UID.equals(ingredientTypeUid)) {
+			return this;
+		}
+		String baseUid = itemRegistryUid(ingredientUid);
+		if (itemNamespace(baseUid)
+			.map(CraftingStackMatcher::isNbtRelaxedCraftingNamespace)
+			.orElse(false)) {
+			return new BookmarkIngredientKey(ingredientTypeUid, baseUid, null);
+		}
+		return this;
+	}
+
 	@Override
 	public int compareTo(BookmarkIngredientKey other) {
 		int type = ingredientTypeUid.compareTo(other.ingredientTypeUid);

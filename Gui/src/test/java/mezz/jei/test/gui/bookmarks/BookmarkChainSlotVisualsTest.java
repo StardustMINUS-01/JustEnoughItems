@@ -74,6 +74,7 @@ public class BookmarkChainSlotVisualsTest {
 			0,
 			metadata,
 			BookmarkViewMode.DEFAULT,
+			false,
 			Optional.empty(),
 			Optional.empty(),
 			false,

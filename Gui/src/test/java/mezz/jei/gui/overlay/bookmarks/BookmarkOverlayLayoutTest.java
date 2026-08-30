@@ -147,6 +147,7 @@ public class BookmarkOverlayLayoutTest {
 			slotIndex,
 			BookmarkItemMetadata.defaultForGroup(groupId),
 			BookmarkViewMode.DEFAULT,
+			false,
 			Optional.empty(),
 			Optional.empty(),
 			false,

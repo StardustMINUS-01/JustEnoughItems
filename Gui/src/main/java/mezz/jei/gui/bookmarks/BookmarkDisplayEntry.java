@@ -11,6 +11,7 @@ public record BookmarkDisplayEntry<T>(
 	int sourceIndex,
 	BookmarkItemMetadata metadata,
 	BookmarkViewMode viewMode,
+	boolean collapsed,
 	Optional<ResourceLocation> displayRecipeUid,
 	Optional<RecipeChainItem> recipeChainItem,
 	boolean outputRecipe,
@@ -28,12 +29,13 @@ public record BookmarkDisplayEntry<T>(
 		int sourceIndex,
 		BookmarkItemMetadata metadata,
 		BookmarkViewMode viewMode,
+		boolean collapsed,
 		Optional<ResourceLocation> displayRecipeUid,
 		Optional<RecipeChainItem> recipeChainItem,
 		boolean outputRecipe,
 		boolean middleRecipe
 	) {
-		this(item, sourceIndex, metadata, viewMode, displayRecipeUid, recipeChainItem, outputRecipe, middleRecipe, null, null);
+		this(item, sourceIndex, metadata, viewMode, collapsed, displayRecipeUid, recipeChainItem, outputRecipe, middleRecipe, null, null);
 	}
 
 	public boolean isOutputRecipe() {
@@ -50,6 +52,7 @@ public record BookmarkDisplayEntry<T>(
 			sourceIndex,
 			metadata,
 			viewMode,
+			collapsed,
 			displayRecipeUid,
 			recipeChainItem,
 			outputRecipe,

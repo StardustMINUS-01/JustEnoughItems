@@ -1,0 +1,137 @@
+package mezz.jei.gui.input.handlers;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.runtime.IJeiKeyMapping;
+import mezz.jei.common.config.ClientToggleState;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
+import mezz.jei.gui.input.ClickableIngredientInternal;
+import mezz.jei.gui.input.CombinedRecipeFocusSource;
+import mezz.jei.gui.input.IClickableIngredientInternal;
+import mezz.jei.gui.input.InputType;
+import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.overlay.elements.IngredientElement;
+import mezz.jei.gui.overlay.bookmarks.ScrollStep;
+import net.minecraft.SharedConstants;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Proxy;
+import java.util.Optional;
+import java.util.stream.Stream;
+
+import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class FocusInputHandlerTest {
+	@BeforeAll
+	public static void bootStrap() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
+
+	@Test
+	public void ordinaryItemUsesScrollStepValue() {
+		ScrollStep scrollStep = new ScrollStep();
+		scrollStep.setValue(33);
+
+		assertEquals(33, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.empty(), scrollStep));
+	}
+
+	@Test
+	public void ordinaryItemUsesOneStackWhenScrollStepIsZero() {
+		ScrollStep scrollStep = new ScrollStep();
+
+		assertEquals(64, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.empty(), scrollStep));
+	}
+
+	@Test
+	public void nonStackableItemUsesOneStackWhenScrollStepIsZero() {
+		ScrollStep scrollStep = new ScrollStep();
+
+		assertEquals(1, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND_SWORD), Optional.empty(), scrollStep));
+	}
+
+	@Test
+	public void chainAmountTakesPriorityOverScrollStep() {
+		ScrollStep scrollStep = new ScrollStep();
+		scrollStep.setValue(33);
+
+		assertEquals(8, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.of(8L), scrollStep));
+	}
+
+	@Test
+	public void chainAmountClampsToIntMax() {
+		ScrollStep scrollStep = new ScrollStep();
+
+		assertEquals(Integer.MAX_VALUE, FocusInputHandler.resolveFastPickupAmount(
+			stack(Items.DIAMOND),
+			Optional.of(3_000_000_000L),
+			scrollStep
+		));
+	}
+
+	@Test
+	public void terminalSearchUsesCombinedFocusSource() {
+		InputConstants.Key searchKey = InputConstants.Type.KEYSYM.getOrCreate(1);
+		ITypedIngredient<?> ingredient = item(Items.DIAMOND);
+		CombinedRecipeFocusSource focusSource = new CombinedRecipeFocusSource() {
+			@Override
+			public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(UserInput input, IInternalKeyMappings keyBindings) {
+				IngredientElement<?> element = new IngredientElement<>(ingredient);
+				return Stream.of(new ClickableIngredientInternal<>(element, (x, y) -> true, false, false));
+			}
+		};
+		IJeiKeyMapping matching = createKeyMapping(searchKey);
+		IJeiKeyMapping noMatch = createKeyMapping(InputConstants.UNKNOWN);
+		IInternalKeyMappings keyMappings = (IInternalKeyMappings) Proxy.newProxyInstance(
+			IInternalKeyMappings.class.getClassLoader(),
+			new Class<?>[]{IInternalKeyMappings.class},
+			(proxy, method, args) -> method.getName().equals("getSearchIngredientInTerminal") ? matching : noMatch
+		);
+		FocusInputHandler handler = new FocusInputHandler(
+			focusSource, null, null, null, null, null, null, new ClientToggleState(), null, new ScrollStep()
+		);
+		int[] searches = {0};
+		ExternalIngredientSearchHandlerRegistry.register((screen, searchedIngredient, simulate) -> {
+			searches[0]++;
+			return searchedIngredient == ingredient;
+		});
+
+		try {
+			UserInput input = new UserInput(searchKey, 0, 0, 0, InputType.IMMEDIATE);
+			assertTrue(handler.handleUserInput(null, input, keyMappings).isPresent());
+			assertEquals(1, searches[0]);
+		} finally {
+			ExternalIngredientSearchHandlerRegistry.register((screen, searchedIngredient, simulate) -> false);
+		}
+	}
+
+	private static IJeiKeyMapping createKeyMapping(InputConstants.Key key) {
+		return (IJeiKeyMapping) Proxy.newProxyInstance(
+			IJeiKeyMapping.class.getClassLoader(),
+			new Class<?>[]{IJeiKeyMapping.class},
+			(proxy, method, args) -> switch (method.getName()) {
+				case "isActiveAndMatches", "matchesIgnoringModifiers" -> key.equals(args[0]);
+				case "isUnbound" -> false;
+				case "getTranslatedKeyMessage" -> Component.empty();
+				default -> null;
+			}
+		);
+	}
+
+	private static ItemStack stack() {
+		return new ItemStack(Items.DIAMOND);
+	}
+
+	private static ItemStack stack(Item item) {
+		return new ItemStack(item);
+	}
+}

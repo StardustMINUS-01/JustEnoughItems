@@ -59,8 +59,8 @@ public class BookmarkJsonSerializerTest {
 		BookmarkGroup group = new BookmarkGroup(
 			"group_1",
 			"Machines",
-			BookmarkViewMode.COLLAPSED,
 			BookmarkViewMode.TODO_LIST,
+			true,
 			true,
 			Set.of(ResourceLocation.parse("test:plate"))
 		);
@@ -111,6 +111,30 @@ public class BookmarkJsonSerializerTest {
 		Assertions.assertEquals(1, decoded.getBookmarks().size());
 		Assertions.assertTrue(decoded.getBookmarks().getFirst() instanceof RecipeBookmark);
 		Assertions.assertEquals(RECIPE_UID, ((RecipeBookmark<?, ?>) decoded.getBookmarks().getFirst()).getRecipeUid());
+	}
+
+	@Test
+	public void groupSnapshotImportsWithFreshGroupId() {
+		BookmarkList source = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS, 4));
+		String sharedGroupId = source.addRecipeBookmarkGroup(
+			"Shared Machines",
+			List.of(IngredientBookmark.createWithAmount(glass, 4, INGREDIENT_MANAGER))
+		);
+		source.setGroupCraftingMode(sharedGroupId, true);
+
+		String snapshot = BookmarkJsonSerializer.serializeGroupSnapshot(source, sharedGroupId, INGREDIENT_MANAGER).orElseThrow();
+		BookmarkList decoded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		decoded.addGroupFromConfig(new BookmarkGroup("group_1", "Existing"));
+		decoded.addToListWithoutNotifying(IngredientBookmark.create(typed(new ItemStack(Items.GLASS)), INGREDIENT_MANAGER), false);
+
+		String importedGroupId = BookmarkJsonSerializer.deserializeGroupSnapshot(snapshot, decoded, null, INGREDIENT_MANAGER).orElseThrow();
+
+		Assertions.assertEquals("group_2", importedGroupId);
+		BookmarkGroup importedGroup = decoded.getBookmarkGroups().getLast();
+		Assertions.assertEquals("Shared Machines", importedGroup.title());
+		Assertions.assertTrue(importedGroup.craftingMode());
+		Assertions.assertEquals(2, decoded.getBookmarks().size());
 	}
 
 	private static JsonArray toArray(List<JsonElement> elements) {
@@ -168,7 +192,11 @@ public class BookmarkJsonSerializerTest {
 			(proxy, method, args) -> switch (method.getName()) {
 				case "getIngredientHelper" -> itemHelper();
 				case "createTypedIngredient" -> Optional.of(typed((ItemStack) args[1]));
-				case "normalizeTypedIngredient" -> args[0];
+				case "normalizeTypedIngredient" -> {
+					ItemStack normalized = ((ITypedIngredient<?>) args[0]).getItemStack().orElseThrow().copy();
+					normalized.setCount(1);
+					yield typed(normalized);
+				}
 				case "getIngredientTypeForUid" -> "item_stack".equals(args[0]) ?
 					Optional.of(VanillaTypes.ITEM_STACK) :
 					Optional.empty();

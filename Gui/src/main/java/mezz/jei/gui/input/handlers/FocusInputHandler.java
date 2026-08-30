@@ -15,6 +15,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
+import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
@@ -138,6 +139,10 @@ public class FocusInputHandler implements IUserInputHandler {
 
 		if (input.is(keyBindings.getShareToChat())) {
 			return handleShareToChat(input, keyBindings);
+		}
+
+		if (input.is(keyBindings.getSearchIngredientInTerminal())) {
+			return handleSearchIngredientInTerminal(screen, input, keyBindings);
 		}
 
 		if (input.is(keyBindings.getShowUses())) {
@@ -336,6 +341,14 @@ public class FocusInputHandler implements IUserInputHandler {
 				}
 				return new SameElementInputHandler(this, clicked::isMouseOver);
 			});
+	}
+
+	private Optional<IUserInputHandler> handleSearchIngredientInTerminal(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.filter(clicked -> clicked.getElement().isVisible())
+			.findFirst()
+			.filter(clicked -> ExternalIngredientSearchHandlerRegistry.search(screen, clicked.getTypedIngredient(), input.isSimulate()))
+			.map(clicked -> new SameElementInputHandler(this, clicked::isMouseOver));
 	}
 
 	private Optional<IUserInputHandler> handleGive(UserInput input, IInternalKeyMappings keyBindings, GiveAmount giveAmount) {

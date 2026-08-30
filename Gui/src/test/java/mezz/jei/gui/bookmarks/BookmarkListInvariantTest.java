@@ -106,7 +106,7 @@ public class BookmarkListInvariantTest {
 		TestBookmark input = bookmark("input");
 		TestBookmark loose = bookmark("loose");
 
-		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of()));
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of()));
 		bookmarks.addToListWithoutNotifying(result, false);
 		bookmarks.addToListWithoutNotifying(input, false);
 		bookmarks.addToListWithoutNotifying(loose, false);
@@ -545,7 +545,7 @@ public class BookmarkListInvariantTest {
 		BookmarkList bookmarks = bookmarkList();
 		String groupId = "group_1";
 		TestBookmark result = bookmark("plate");
-		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.COLLAPSED, null, false, Set.of()));
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.DEFAULT, true, false, Set.of()));
 		bookmarks.addToListWithoutNotifying(result, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(groupId, BookmarkItemType.RESULT, RECIPE, "plate"));
 
@@ -566,7 +566,7 @@ public class BookmarkListInvariantTest {
 		TestBookmark first = bookmark("plate");
 		TestBookmark second = bookmark("gear");
 		TestBookmark third = bookmark("machine");
-		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.COLLAPSED, null, false, Set.of()));
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.DEFAULT, true, false, Set.of()));
 		for (TestBookmark bookmark : List.of(first, second, third)) {
 			bookmarks.addToListWithoutNotifying(bookmark, false);
 			bookmarks.moveBookmarkMetadataFromConfig(bookmark, BookmarkItemMetadata.defaultForGroup(groupId));

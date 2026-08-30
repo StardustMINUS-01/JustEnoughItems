@@ -34,9 +34,7 @@ public final class BookmarkGroupConfigSerializer {
 		json.addProperty("id", group.id());
 		json.addProperty("title", group.title());
 		json.addProperty("viewMode", group.viewMode().name());
-		if (group.viewMode() == BookmarkViewMode.COLLAPSED) {
-			json.addProperty("expandedViewMode", group.expandedViewMode().name());
-		}
+		json.addProperty("collapsed", group.collapsed());
 		json.addProperty("crafting", group.craftingMode());
 		if (!group.collapsedRecipeIds().isEmpty()) {
 			JsonArray collapsedRecipes = new JsonArray();
@@ -66,12 +64,8 @@ public final class BookmarkGroupConfigSerializer {
 		try {
 			String id = json.get("id").getAsString();
 			String title = json.get("title").getAsString();
-			BookmarkViewMode viewMode = json.has("viewMode") ?
-				BookmarkViewMode.valueOf(json.get("viewMode").getAsString()) :
-				BookmarkViewMode.DEFAULT;
-			BookmarkViewMode expandedViewMode = json.has("expandedViewMode") ?
-				BookmarkViewMode.valueOf(json.get("expandedViewMode").getAsString()) :
-				(viewMode == BookmarkViewMode.COLLAPSED ? BookmarkViewMode.DEFAULT : viewMode);
+			BookmarkViewMode viewMode = BookmarkViewMode.valueOf(json.get("viewMode").getAsString());
+			boolean collapsed = json.get("collapsed").getAsBoolean();
 			boolean crafting = json.has("crafting") && json.get("crafting").getAsBoolean();
 			Set<ResourceLocation> collapsedRecipeIds = json.has("collapsedRecipes") ?
 				json.getAsJsonArray("collapsedRecipes")
@@ -80,7 +74,7 @@ public final class BookmarkGroupConfigSerializer {
 					.map(element -> ResourceLocation.parse(element.getAsString()))
 					.collect(Collectors.toUnmodifiableSet()) :
 				Set.of();
-			return Optional.of(new BookmarkGroup(id, title, viewMode, expandedViewMode, crafting, collapsedRecipeIds));
+			return Optional.of(new BookmarkGroup(id, title, viewMode, collapsed, crafting, collapsedRecipeIds));
 		} catch (RuntimeException ignored) {
 			return Optional.empty();
 		}

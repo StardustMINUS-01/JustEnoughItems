@@ -37,7 +37,7 @@ public class BookmarkGroupManagerTest {
 		groups.addItem("plate", false);
 		groups.moveItemToGroup("gear", groupId);
 		groups.moveItemToGroup("plate", groupId);
-		groups.setViewMode(groupId, BookmarkViewMode.COLLAPSED);
+		groups.toggleCollapsed(groupId);
 
 		Assertions.assertEquals(List.of("iron", "gear", "plate"), groups.getVisibleItems(List.of("iron", "gear", "plate")));
 		Assertions.assertEquals(groupId, groups.getGroupId("gear"));
@@ -83,7 +83,7 @@ public class BookmarkGroupManagerTest {
 	}
 
 	@Test
-	public void viewModeToggleCyclesAndCollapseRemembersExpandedMode() {
+	public void viewModeAndCollapseToggleIndependently() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
 		String groupId = groups.createGroup("Machines");
 
@@ -95,13 +95,16 @@ public class BookmarkGroupManagerTest {
 
 		groups.toggleViewMode(groupId);
 		groups.toggleCollapsed(groupId);
-		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertTrue(groups.getGroup(groupId).orElseThrow().collapsed());
 
 		groups.toggleViewMode(groupId);
-		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertTrue(groups.getGroup(groupId).orElseThrow().collapsed());
 
 		groups.toggleCollapsed(groupId);
 		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertFalse(groups.getGroup(groupId).orElseThrow().collapsed());
 
 		groups.toggleCollapsed(groupId);
 		groups.toggleCollapsed(groupId);

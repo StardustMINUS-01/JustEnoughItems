@@ -1,14 +1,13 @@
 package mezz.jei.gui.overlay.bookmarks;
 
-import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
-import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
@@ -33,7 +32,6 @@ import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -290,7 +288,8 @@ public class BookmarkOverlayRenderer {
 				overlay.getKeyBindings(),
 				Screen.hasAltDown(),
 				craftingMode,
-				canPullDefaultGroupItems()
+				canPullDefaultGroupItems(),
+				canShareBookmarkGroups()
 			);
 			tooltip.draw(guiGraphics, mouseX, mouseY);
 			return true;
@@ -306,7 +305,16 @@ public class BookmarkOverlayRenderer {
 		boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 		JeiTooltip tooltip = new JeiTooltip();
 		addRecipeChainTooltip(tooltip, groupId);
-		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, overlay.getKeyBindings(), Screen.hasAltDown(), grouped, craftingMode, canEncodeAe2Patterns(), overlay.canStartGroupDrop(groupId));
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(
+			tooltip,
+			overlay.getKeyBindings(),
+			Screen.hasAltDown(),
+			grouped,
+			craftingMode,
+			canEncodeAe2Patterns(),
+			overlay.canStartGroupDrop(groupId),
+			canShareBookmarkGroups()
+		);
 		tooltip.draw(guiGraphics, mouseX, mouseY);
 		return true;
 	}
@@ -334,6 +342,10 @@ public class BookmarkOverlayRenderer {
 		return minecraft.player != null && minecraft.screen instanceof AbstractContainerScreen<?>;
 	}
 
+	private static boolean canShareBookmarkGroups() {
+		return Internal.getServerConnection().canSendPacket(PacketShareBookmarkGroup.TYPE);
+	}
+
 	private void addRecipeChainTooltip(JeiTooltip tooltip, String groupId) {
 		if (!bookmarkList.isGroupCraftingMode(groupId)) {
 			return;
@@ -348,35 +360,27 @@ public class BookmarkOverlayRenderer {
 			hoverTooltip == null ||
 				!hoverTooltip.matches(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown)
 		) {
-			RecipeChainTooltipModel model;
-			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients = bookmarkList.getRecipeChainTooltipIngredients(groupId);
+			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 			Optional<RecipeChainDetails> baseDetails = bookmarkList.getRecipeChainDetails(groupId);
-			if (baseDetails.isPresent()) {
-				model = RecipeChainTooltipModel.create(
-					bookmarkList.getRecipeChainTooltipInputs(groupId),
-					baseDetails.get(),
-					bookmarkList.getCollapsedRecipeIds(groupId),
-					shiftDown ? getRecipeChainTooltipInventoryInputs(groupId) : List.of(),
-					shiftDown,
-					controlDown
-				);
-			} else {
-				model = RecipeChainTooltipModel.create(
-					bookmarkList.getRecipeChainInputs(groupId),
-					bookmarkList.getCollapsedRecipeIds(groupId),
-					shiftDown ? getRecipeChainTooltipInventoryInputs(groupId) : List.of(),
-					shiftDown,
-					controlDown
-				);
-			}
+			List<RecipeChainInput> groupInputs = baseDetails.isPresent() ?
+				bookmarkList.getRecipeChainTooltipInputs(groupId) :
+				bookmarkList.getRecipeChainInputs(groupId);
+			RecipeChainTooltipModel model = RecipeChainTooltipModel.create(
+				groupInputs,
+				baseDetails,
+				bookmarkList.getCollapsedRecipeIds(groupId),
+				shiftDown ? getRecipeChainTooltipInventoryInputs(groupId) : List.of(),
+				shiftDown,
+				controlDown,
+				ingredientManager
+			);
 			hoverTooltip = RecipeChainHoverTooltip.create(
 				groupId,
 				bookmarkVersion,
 				shiftVersion,
 				shiftDown,
 				controlDown,
-				model,
-				resolvedIngredients
+				model
 			);
 			recipeChainHoverTooltip = hoverTooltip;
 		}
@@ -442,11 +446,10 @@ public class BookmarkOverlayRenderer {
 			long shiftVersion,
 			boolean shiftDown,
 			boolean controlDown,
-			RecipeChainTooltipModel model,
-			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients
+			RecipeChainTooltipModel model
 		) {
 			List<RecipeChainTooltipSection> sections = model.sections().stream()
-				.map(section -> RecipeChainTooltipSection.create(section, resolvedIngredients))
+				.map(RecipeChainTooltipSection::create)
 				.flatMap(Optional::stream)
 				.toList();
 			return new RecipeChainHoverTooltip(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown, sections);
@@ -471,11 +474,8 @@ public class BookmarkOverlayRenderer {
 		RecipeChainTooltipSectionType type,
 		RecipeChainPreviewTooltipComponent component
 	) {
-		public static Optional<RecipeChainTooltipSection> create(
-			RecipeChainTooltipModel.Section section,
-			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients
-		) {
-			RecipeChainPreviewTooltipComponent component = new RecipeChainPreviewTooltipComponent(section.items(), resolvedIngredients);
+		public static Optional<RecipeChainTooltipSection> create(RecipeChainTooltipModel.Section section) {
+			RecipeChainPreviewTooltipComponent component = new RecipeChainPreviewTooltipComponent(section.items());
 			if (component.isEmpty()) {
 				return Optional.empty();
 			}

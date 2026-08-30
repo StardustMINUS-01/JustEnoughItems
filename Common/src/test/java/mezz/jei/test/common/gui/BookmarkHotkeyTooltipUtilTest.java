@@ -12,10 +12,31 @@ import java.lang.reflect.Proxy;
 
 public class BookmarkHotkeyTooltipUtilTest {
 	@Test
+	public void ingredientTooltipShowsShareHotkey() {
+		JeiTooltip tooltip = new JeiTooltip();
+
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, createKeyMappings(), true, false, false, false);
+
+		Assertions.assertTrue(tooltip.toString().contains("jei.tooltip.bookmarks.hotkeys.share"));
+	}
+
+	@Test
+	public void ingredientTooltipShowsTerminalSearchOnlyWhenAvailable() {
+		JeiTooltip availableTooltip = new JeiTooltip();
+		JeiTooltip unavailableTooltip = new JeiTooltip();
+
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(availableTooltip, createKeyMappings(), true, false, false, false, true);
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(unavailableTooltip, createKeyMappings(), true, false, false, false, false);
+
+		Assertions.assertTrue(availableTooltip.toString().contains("jei.tooltip.bookmarks.hotkeys.search_terminal"));
+		Assertions.assertFalse(unavailableTooltip.toString().contains("jei.tooltip.bookmarks.hotkeys.search_terminal"));
+	}
+
+	@Test
 	public void defaultGroupTooltipDescribesUngroupedBookmarksAndHidesUnavailablePullActions() {
 		JeiTooltip tooltip = new JeiTooltip();
 
-		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, null, true, false, false);
+		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, null, true, false, false, false);
 
 		String text = tooltip.toString();
 		Assertions.assertTrue(text.contains("jei.tooltip.bookmarks.default_group"));
@@ -27,7 +48,7 @@ public class BookmarkHotkeyTooltipUtilTest {
 	public void defaultRecipeChainTooltipShowsGroupConversionAndAvailablePullActions() {
 		JeiTooltip tooltip = new JeiTooltip();
 
-		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, createKeyMappings(), true, true, true);
+		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, createKeyMappings(), true, true, true, false);
 
 		String text = tooltip.toString();
 		Assertions.assertFalse(text.contains("jei.tooltip.bookmarks.default_group"));
@@ -37,7 +58,7 @@ public class BookmarkHotkeyTooltipUtilTest {
 	}
 
 	private static IInternalKeyMappings createKeyMappings() {
-		IJeiKeyMapping pullKey = (IJeiKeyMapping) Proxy.newProxyInstance(
+		IJeiKeyMapping key = (IJeiKeyMapping) Proxy.newProxyInstance(
 			IJeiKeyMapping.class.getClassLoader(),
 			new Class<?>[]{IJeiKeyMapping.class},
 			(proxy, method, args) -> method.getName().equals("getTranslatedKeyMessage") ? Component.literal("V") : false
@@ -45,7 +66,7 @@ public class BookmarkHotkeyTooltipUtilTest {
 		return (IInternalKeyMappings) Proxy.newProxyInstance(
 			IInternalKeyMappings.class.getClassLoader(),
 			new Class<?>[]{IInternalKeyMappings.class},
-			(proxy, method, args) -> method.getName().equals("getBookmarkPullItems") ? pullKey : null
+			(proxy, method, args) -> IJeiKeyMapping.class.isAssignableFrom(method.getReturnType()) ? key : null
 		);
 	}
 }

@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -240,6 +242,30 @@ public class JeiChatItemLinksTest {
 		assertEquals("Look at [Diamond]!", parsedMessage.getString());
 	}
 
+	@Test
+	public void bookmarkGroupMarkersBecomeClickableImportLinks() {
+		String snapshot = createBookmarkGroupSnapshot();
+		String marker = JeiChatItemLinks.createBookmarkGroupLinkMarker(snapshot);
+
+		Component parsed = JeiChatItemLinks.parse("Shared " + marker.trim());
+		Component link = parsed.getSiblings().get(1);
+
+		assertEquals("Shared [Factory]", parsed.getString());
+		ClickEvent clickEvent = link.getStyle().getClickEvent();
+		assertNotNull(clickEvent);
+		assertEquals(ClickEvent.Action.RUN_COMMAND, clickEvent.getAction());
+		assertEquals(Optional.of(snapshot), JeiChatItemLinks.parseImportBookmarkGroupCommand(clickEvent.getValue()));
+		assertEquals(Optional.of(snapshot), JeiChatItemLinkHover.getBookmarkGroupSnapshot(link.getStyle()));
+	}
+
+	@Test
+	public void malformedBookmarkGroupMarkersAreIgnored() {
+		String rawText = "Shared [JEI-GROUP:not-base64]";
+
+		assertFalse(JeiChatItemLinks.hasLinkMarkers(rawText));
+		assertEquals(rawText, JeiChatItemLinks.parse(rawText).getString());
+	}
+
 	private static void assertRunCommand(Component component, String itemId) {
 		ClickEvent clickEvent = component.getStyle().getClickEvent();
 		assertNotNull(clickEvent);
@@ -256,6 +282,15 @@ public class JeiChatItemLinksTest {
 			return Optional.of("Stick");
 		}
 		return Optional.empty();
+	}
+
+	private static String createBookmarkGroupSnapshot() {
+		String json = """
+			{"version":1,"group":{"type":"group","id":"shared","title":"Factory","viewMode":"DEFAULT","crafting":true},"bookmarks":[{"type":"item"}]}
+			""".trim();
+		return Base64.getUrlEncoder()
+			.withoutPadding()
+			.encodeToString(json.getBytes(StandardCharsets.UTF_8));
 	}
 
 	private static IngredientLink createItemLink(String itemId) {

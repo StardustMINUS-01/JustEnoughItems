@@ -1,5 +1,7 @@
 package mezz.jei.common.chat;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
@@ -20,18 +22,25 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 
 import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.function.Function;
 
 public final class JeiChatItemLinks {
 	public static final String SHOW_RECIPE_COMMAND = "jei_internal_show";
+	public static final String IMPORT_BOOKMARK_GROUP_COMMAND = "jei_internal_import_group";
 	public static final String LINK_ARGUMENT = "link";
+	public static final int MAX_BOOKMARK_GROUP_ENTRIES = 512;
+	public static final int MAX_BOOKMARK_GROUP_LINK_LENGTH = 64 * 1024;
+	public static final int MAX_BOOKMARK_GROUP_TITLE_LENGTH = 128;
 
 	private static final String LINK_VERSION = "v1";
 	private static final String LINK_VERSION_PREFIX = LINK_VERSION + ":";
 	private static final String LINK_MARKER_PREFIX = "[JEI:";
 	private static final String LINK_MARKER_SUFFIX = "]";
+	private static final String BOOKMARK_GROUP_MARKER_PREFIX = "[JEI-GROUP:";
 	private static final char LINK_VALUE_SEPARATOR = ';';
 
 	private JeiChatItemLinks() {
@@ -54,25 +63,17 @@ public final class JeiChatItemLinks {
 		int lastEnd = 0;
 
 		while (true) {
-			int markerStart = rawText.indexOf(LINK_MARKER_PREFIX, searchStart);
-			if (markerStart < 0) {
+			Optional<ParsedLinkMarker> optionalMarker = findNextLinkMarker(rawText, searchStart, ingredientNameLookup);
+			if (optionalMarker.isEmpty()) {
 				break;
 			}
 
-			Optional<LinkMarker> optionalMarker = parseLinkMarker(rawText, markerStart);
-			if (optionalMarker.isEmpty()) {
-				searchStart = markerStart + LINK_MARKER_PREFIX.length();
-				continue;
-			}
-
-			LinkMarker marker = optionalMarker.get();
+			ParsedLinkMarker marker = optionalMarker.get();
 			if (marker.start() > lastEnd) {
 				result.append(Component.literal(rawText.substring(lastEnd, marker.start())));
 			}
 
-			IngredientLink link = marker.link();
-			MutableComponent linkComponent = createLinkComponent(link, ingredientNameLookup);
-			result.append(linkComponent);
+			result.append(marker.component());
 
 			searchStart = marker.end();
 			lastEnd = marker.end();
@@ -100,19 +101,7 @@ public final class JeiChatItemLinks {
 	}
 
 	public static boolean hasLinkMarkers(String rawText) {
-		int searchStart = 0;
-		while (true) {
-			int markerStart = rawText.indexOf(LINK_MARKER_PREFIX, searchStart);
-			if (markerStart < 0) {
-				return false;
-			}
-
-			if (parseLinkMarker(rawText, markerStart).isPresent()) {
-				return true;
-			}
-
-			searchStart = markerStart + LINK_MARKER_PREFIX.length();
-		}
+		return findNextLinkMarker(rawText, 0, link -> Optional.empty()).isPresent();
 	}
 
 	public static Optional<ITypedIngredient<?>> resolveTypedIngredient(IngredientLink link, IIngredientManager ingredientManager) {
@@ -169,6 +158,32 @@ public final class JeiChatItemLinks {
 		return parseCommandArgument(linkText);
 	}
 
+	public static String createBookmarkGroupLinkMarker(String snapshot) {
+		return BOOKMARK_GROUP_MARKER_PREFIX + snapshot + LINK_MARKER_SUFFIX + " ";
+	}
+
+	public static boolean isBookmarkGroupLinkLengthValid(String snapshot) {
+		int markerOverhead = BOOKMARK_GROUP_MARKER_PREFIX.length() + LINK_MARKER_SUFFIX.length() + 1;
+		return snapshot.length() <= MAX_BOOKMARK_GROUP_LINK_LENGTH - markerOverhead;
+	}
+
+	public static String createImportBookmarkGroupCommand(String snapshot) {
+		return IMPORT_BOOKMARK_GROUP_COMMAND + " " + snapshot;
+	}
+
+	public static Optional<String> parseImportBookmarkGroupCommand(String command) {
+		String prefix = IMPORT_BOOKMARK_GROUP_COMMAND + " ";
+		if (!command.startsWith(prefix)) {
+			return Optional.empty();
+		}
+		String snapshot = command.substring(prefix.length());
+		return snapshot.isEmpty() ? Optional.empty() : Optional.of(snapshot);
+	}
+
+	public static boolean isValidBookmarkGroupSnapshot(String snapshot) {
+		return parseBookmarkGroupSnapshot(snapshot).isPresent();
+	}
+
 	private static String createLinkMarker(IngredientLink link) {
 		String linkText = createCommandArgument(link);
 		return LINK_MARKER_PREFIX + linkText + LINK_MARKER_SUFFIX + " ";
@@ -200,6 +215,36 @@ public final class JeiChatItemLinks {
 			.findFirst();
 	}
 
+	private static Optional<ParsedLinkMarker> findNextLinkMarker(
+		String rawText,
+		int searchStart,
+		Function<IngredientLink, Optional<String>> ingredientNameLookup
+	) {
+		while (searchStart < rawText.length()) {
+			int ingredientStart = rawText.indexOf(LINK_MARKER_PREFIX, searchStart);
+			int groupStart = rawText.indexOf(BOOKMARK_GROUP_MARKER_PREFIX, searchStart);
+			if (ingredientStart < 0 && groupStart < 0) {
+				return Optional.empty();
+			}
+			boolean groupMarker = groupStart >= 0 && (ingredientStart < 0 || groupStart < ingredientStart);
+			int markerStart = groupMarker ? groupStart : ingredientStart;
+			Optional<ParsedLinkMarker> marker = groupMarker ?
+				parseBookmarkGroupMarker(rawText, markerStart) :
+				parseLinkMarker(rawText, markerStart)
+					.map(linkMarker -> new ParsedLinkMarker(
+						linkMarker.start(),
+						linkMarker.end(),
+						createLinkComponent(linkMarker.link(), ingredientNameLookup)
+					));
+			if (marker.isPresent()) {
+				return marker;
+			}
+			searchStart = markerStart + 1;
+		}
+		return Optional.empty();
+	}
+
+	// Mixin contract signature retained from upstream JEI.
 	private static Optional<LinkMarker> parseLinkMarker(String rawText, int start) {
 		int argumentStart = start + LINK_MARKER_PREFIX.length();
 		int markerEnd = rawText.indexOf(LINK_MARKER_SUFFIX, argumentStart);
@@ -216,6 +261,59 @@ public final class JeiChatItemLinks {
 		IngredientLink link = optionalLink.get();
 		LinkMarker marker = new LinkMarker(start, markerEnd + LINK_MARKER_SUFFIX.length(), link);
 		return Optional.of(marker);
+	}
+
+	private static Optional<ParsedLinkMarker> parseBookmarkGroupMarker(String rawText, int start) {
+		int snapshotStart = start + BOOKMARK_GROUP_MARKER_PREFIX.length();
+		int markerEnd = rawText.indexOf(LINK_MARKER_SUFFIX, snapshotStart);
+		if (markerEnd < 0) {
+			return Optional.empty();
+		}
+		String snapshot = rawText.substring(snapshotStart, markerEnd);
+		return parseBookmarkGroupSnapshot(snapshot)
+			.map(json -> new ParsedLinkMarker(
+				start,
+				markerEnd + LINK_MARKER_SUFFIX.length(),
+				createBookmarkGroupLinkComponent(snapshot, json)
+			));
+	}
+
+	private static Optional<JsonObject> parseBookmarkGroupSnapshot(String snapshot) {
+		// Bookmark-group snapshots can arrive from an untrusted remote client through the server.
+		try {
+			if (!isBookmarkGroupLinkLengthValid(snapshot)) {
+				return Optional.empty();
+			}
+			String jsonText = new String(Base64.getUrlDecoder().decode(snapshot), StandardCharsets.UTF_8);
+			JsonObject json = JsonParser.parseString(jsonText).getAsJsonObject();
+			JsonObject group = json.getAsJsonObject("group");
+			int entries = json.getAsJsonArray("bookmarks").size();
+			if (json.get("version").getAsInt() != 1 ||
+				group.get("title").getAsString().length() > MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
+				entries <= 0 ||
+				entries > MAX_BOOKMARK_GROUP_ENTRIES) {
+				return Optional.empty();
+			}
+			return Optional.of(json);
+		} catch (RuntimeException e) {
+			return Optional.empty();
+		}
+	}
+
+	private static MutableComponent createBookmarkGroupLinkComponent(String snapshot, JsonObject json) {
+		JsonObject group = json.getAsJsonObject("group");
+		String title = group.get("title").getAsString();
+		boolean craftingMode = group.has("crafting") && group.get("crafting").getAsBoolean();
+		int entries = json.getAsJsonArray("bookmarks").size();
+		MutableComponent component = Component.literal("[" + title + "]");
+		return component.withStyle(style -> style
+			.withColor(craftingMode ? ChatFormatting.AQUA : ChatFormatting.GRAY)
+			.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, createImportBookmarkGroupCommand(snapshot)))
+			.withHoverEvent(new HoverEvent(
+				HoverEvent.Action.SHOW_TEXT,
+				Component.translatable("jei.chat.bookmark_group.hover", entries)
+			))
+		);
 	}
 
 	private static boolean isValidIngredientTypeUid(String ingredientTypeUid) {
@@ -327,5 +425,8 @@ public final class JeiChatItemLinks {
 	}
 
 	private record LinkMarker(int start, int end, IngredientLink link) {
+	}
+
+	private record ParsedLinkMarker(int start, int end, MutableComponent component) {
 	}
 }

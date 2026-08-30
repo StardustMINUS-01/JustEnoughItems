@@ -1,14 +1,18 @@
 package mezz.jei.gui.bookmarks.chain;
 
 import mezz.jei.common.util.SaturatedMath;
-import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.runtime.IIngredientManager;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,40 +28,46 @@ public record RecipeChainTooltipModel(
 
 	public static RecipeChainTooltipModel create(
 		List<RecipeChainInput> recipeInputs,
+		Optional<RecipeChainDetails> baseDetails,
 		Set<ResourceLocation> collapsedRecipes,
 		List<RecipeChainInput> inventoryInputs,
 		boolean shiftDown,
-		boolean controlDown
+		boolean controlDown,
+		IIngredientManager ingredientManager
 	) {
-		RecipeChainDetails baseDetails = RecipeChainMath.refresh(recipeInputs, collapsedRecipes);
-		return create(recipeInputs, baseDetails, collapsedRecipes, inventoryInputs, shiftDown, controlDown);
-	}
-
-	public static RecipeChainTooltipModel create(
-		List<RecipeChainInput> recipeInputs,
-		RecipeChainDetails baseDetails,
-		Set<ResourceLocation> collapsedRecipes,
-		List<RecipeChainInput> inventoryInputs,
-		boolean shiftDown,
-		boolean controlDown
-	) {
+		RecipeChainDetails baseRecipeDetails = baseDetails.orElseGet(() -> RecipeChainMath.refresh(recipeInputs, collapsedRecipes));
 		if (!shiftDown) {
-			return create(recipeInputs, baseDetails);
+			return create(recipeInputs, baseRecipeDetails);
 		}
+		boolean hasOrdinaryTargets = recipeInputs.stream()
+			.anyMatch(input -> input.metadata().type() == BookmarkItemType.ITEM);
+		RecipeChainDetails recipeDetails = hasOrdinaryTargets ?
+			RecipeChainMath.refresh(recipeInputs.stream()
+				.filter(input -> input.metadata().type() != BookmarkItemType.ITEM)
+				.toList(), collapsedRecipes) :
+			baseRecipeDetails;
 		List<RecipeChainInput> adjustedRecipeInputs = !controlDown ?
-			expandOutputRecipeMultipliers(recipeInputs, baseDetails, inventoryInputs) :
+			expandOutputRecipeMultipliers(recipeInputs, recipeDetails, inventoryInputs) :
 			recipeInputs;
-		List<RecipeChainInput> calculationInputs = new ArrayList<>(adjustedRecipeInputs);
-		if (shiftDown) {
-			calculationInputs.addAll(inventoryInputs);
+		List<RecipeChainInput> calculationInputs = new ArrayList<>(adjustedRecipeInputs.size() + inventoryInputs.size());
+		for (RecipeChainInput input : adjustedRecipeInputs) {
+			if (input.metadata().type() != BookmarkItemType.ITEM) {
+				calculationInputs.add(input);
+			}
 		}
+		calculationInputs.addAll(inventoryInputs);
 
 		RecipeChainDetails details = RecipeChainMath.refresh(calculationInputs, collapsedRecipes);
+		Map<BookmarkIngredientKey, Long> usedAmounts = hasOrdinaryTargets ? new LinkedHashMap<>() : Map.of();
+		List<Item> available = collectAvailable(calculationInputs, details, usedAmounts, hasOrdinaryTargets);
+		List<Item> missing = hasOrdinaryTargets ?
+			collectMissing(calculationInputs, details, adjustedRecipeInputs, inventoryInputs, usedAmounts, ingredientManager) :
+			sorted(collectMissing(calculationInputs, details));
 		List<Section> sections = new ArrayList<>();
 		addSection(sections, RecipeChainTooltipSectionType.OUTPUT, collectOutputs(adjustedRecipeInputs, details));
-		addSection(sections, RecipeChainTooltipSectionType.MISSING, collectMissing(calculationInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.MISSING, missing);
 		addSection(sections, RecipeChainTooltipSectionType.NEEDED, collectNeeded(calculationInputs, details));
-		addSection(sections, RecipeChainTooltipSectionType.AVAILABLE, collectAvailable(calculationInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.AVAILABLE, available);
 		addSection(sections, RecipeChainTooltipSectionType.REMAINDER, collectRemainders(calculationInputs, details));
 		return new RecipeChainTooltipModel(sections);
 	}
@@ -65,7 +75,7 @@ public record RecipeChainTooltipModel(
 	public static RecipeChainTooltipModel create(List<RecipeChainInput> recipeInputs, RecipeChainDetails details) {
 		List<Section> sections = new ArrayList<>();
 		addSection(sections, RecipeChainTooltipSectionType.OUTPUT, collectOutputs(recipeInputs, details));
-		addSection(sections, RecipeChainTooltipSectionType.INPUT, collectMissing(recipeInputs, details));
+		addSection(sections, RecipeChainTooltipSectionType.INPUT, sorted(collectMissing(recipeInputs, details)));
 		return new RecipeChainTooltipModel(sections);
 	}
 
@@ -136,7 +146,7 @@ public record RecipeChainTooltipModel(
 		return sorted(items);
 	}
 
-	private static List<Item> collectMissing(List<RecipeChainInput> inputs, RecipeChainDetails details) {
+	private static Map<BookmarkIngredientKey, Item> collectMissing(List<RecipeChainInput> inputs, RecipeChainDetails details) {
 		Map<BookmarkIngredientKey, Item> items = new LinkedHashMap<>();
 		for (RecipeChainInput input : inputs) {
 			RecipeChainItem item = details.calculatedItems().get(input.index());
@@ -144,15 +154,73 @@ public record RecipeChainTooltipModel(
 				toItem(input, item.requiredAmount()).ifPresent(missing -> merge(items, missing));
 			}
 		}
+		return items;
+	}
+
+	private static List<Item> collectMissing(
+		List<RecipeChainInput> inputs,
+		RecipeChainDetails details,
+		List<RecipeChainInput> groupInputs,
+		List<RecipeChainInput> inventoryInputs,
+		Map<BookmarkIngredientKey, Long> usedAmounts,
+		IIngredientManager ingredientManager
+	) {
+		Map<BookmarkIngredientKey, Item> items = collectMissing(inputs, details);
+		Map<BookmarkIngredientKey, Item> targets = new LinkedHashMap<>();
+		for (RecipeChainInput input : groupInputs) {
+			if (input.metadata().type() == BookmarkItemType.ITEM) {
+				ITypedIngredient<?> ingredient = input.selectedIngredient();
+				long amount = BookmarkIngredientAmountResolver.getAmount(ingredient, ingredientManager);
+				toItem(input, amount).ifPresent(target -> merge(targets, target));
+			}
+		}
+		if (targets.isEmpty()) {
+			return sorted(items);
+		}
+		Map<BookmarkIngredientKey, Long> inventoryAmounts = new LinkedHashMap<>();
+		Set<BookmarkIngredientKey> indexedKeys = new HashSet<>();
+		for (RecipeChainInput inventoryInput : inventoryInputs) {
+			indexedKeys.clear();
+			for (BookmarkIngredientKey key : inventoryInput.metadata().permutations()) {
+				BookmarkIngredientKey availabilityKey = key.getCraftingAvailabilityKey();
+				if (indexedKeys.add(availabilityKey)) {
+					inventoryAmounts.merge(availabilityKey, inventoryInput.metadata().amount(), SaturatedMath::add);
+				}
+			}
+		}
+		for (Item target : targets.values()) {
+			BookmarkIngredientKey availabilityKey = target.key().getCraftingAvailabilityKey();
+			long inventoryAmount = inventoryAmounts.getOrDefault(availabilityKey, 0L);
+			long usedAmount = usedAmounts.getOrDefault(availabilityKey, 0L);
+			long available = Math.max(0, inventoryAmount - Math.min(inventoryAmount, usedAmount));
+			if (available < target.amount()) {
+				merge(items, target.withAmount(target.amount() - available));
+			}
+		}
 		return sorted(items);
 	}
 
-	private static List<Item> collectAvailable(List<RecipeChainInput> inputs, RecipeChainDetails details) {
+	private static List<Item> collectAvailable(
+		List<RecipeChainInput> inputs,
+		RecipeChainDetails details,
+		Map<BookmarkIngredientKey, Long> usedAmounts,
+		boolean trackUsedAmounts
+	) {
 		Map<BookmarkIngredientKey, Item> items = new LinkedHashMap<>();
+		Set<BookmarkIngredientKey> indexedKeys = trackUsedAmounts ? new HashSet<>() : Set.of();
 		for (RecipeChainInput input : inputs) {
 			RecipeChainItem item = details.calculatedItems().get(input.index());
 			if (item != null && item.type() == RecipeChainItemType.INGREDIENT && item.requiredAmount() > 0 && details.initialItems().contains(input.index())) {
 				toItem(input, item.requiredAmount()).ifPresent(available -> merge(items, available));
+				if (trackUsedAmounts) {
+					indexedKeys.clear();
+					for (BookmarkIngredientKey key : input.metadata().permutations()) {
+						BookmarkIngredientKey availabilityKey = key.getCraftingAvailabilityKey();
+						if (indexedKeys.add(availabilityKey)) {
+							usedAmounts.merge(availabilityKey, item.requiredAmount(), SaturatedMath::add);
+						}
+					}
+				}
 			}
 		}
 		return sorted(items);
@@ -185,9 +253,8 @@ public record RecipeChainTooltipModel(
 		for (Map.Entry<BookmarkIngredientKey, Long> containerItem : details.containerItems().entrySet()) {
 			merge(byKey, new Item(
 				containerItem.getKey(),
-				containerMetadata(containerItem.getKey(), containerItem.getValue()),
 				containerItem.getValue(),
-				Integer.MIN_VALUE
+				null
 			));
 		}
 		return sorted(byKey);
@@ -201,7 +268,7 @@ public record RecipeChainTooltipModel(
 
 	private static Optional<Item> toItem(RecipeChainInput input, long amount) {
 		return getDisplayKey(input)
-			.map(key -> new Item(key, input.metadata(), amount, input.index()));
+			.map(key -> new Item(key, amount, input.selectedIngredient()));
 	}
 
 	private static Optional<BookmarkIngredientKey> getDisplayKey(RecipeChainInput input) {
@@ -221,29 +288,11 @@ public record RecipeChainTooltipModel(
 		}
 	}
 
-	private static List<Item> sorted(List<Item> items) {
-		return items.stream()
-			.sorted(Comparator.comparing(Item::key).thenComparingInt(Item::sourceIndex))
+	private static List<Item> sorted(Map<BookmarkIngredientKey, Item> items) {
+		return items.values().stream()
+			.sorted(Comparator.comparing(Item::key))
 			.toList();
 	}
-
-	private static List<Item> sorted(Map<BookmarkIngredientKey, Item> items) {
-		return sorted(new ArrayList<>(items.values()));
-	}
-
-	private static BookmarkItemMetadata containerMetadata(BookmarkIngredientKey key, long amount) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.ITEM,
-			1,
-			amount,
-			BookmarkItemMetadata.CHANCE_FULL,
-			null,
-			null,
-			Set.of(key)
-		);
-	}
-
 
 	public record Section(
 		RecipeChainTooltipSectionType type,
@@ -256,12 +305,11 @@ public record RecipeChainTooltipModel(
 
 	public record Item(
 		BookmarkIngredientKey key,
-		BookmarkItemMetadata metadata,
 		long amount,
-		int sourceIndex
+		@Nullable ITypedIngredient<?> ingredient
 	) {
 		private Item withAmount(long amount) {
-			return new Item(key, metadata, amount, sourceIndex);
+			return new Item(key, amount, ingredient);
 		}
 	}
 }

@@ -5,10 +5,10 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.util.JeiClientSoundUtil;
+import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
@@ -108,7 +108,7 @@ public final class BookmarkOverlayInputHandlers {
 				boolean collapsed = overlay.getBookmarkList().getBookmarkGroups().stream()
 					.filter(group -> group.id().equals(groupId))
 					.findFirst()
-					.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
+					.map(BookmarkGroup::collapsed)
 					.orElse(false);
 				if (collapsed) {
 					overlay.getBookmarkList().toggleGroupCollapsed(groupId);

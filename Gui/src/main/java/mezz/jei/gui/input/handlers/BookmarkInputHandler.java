@@ -10,6 +10,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.gui.bookmarks.IBookmark;
@@ -27,7 +28,8 @@ import mezz.jei.gui.bookmarks.chain.BookmarkContainerPullExecutor;
 import mezz.jei.gui.bookmarks.chain.BookmarkContainerStorageScanner;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
-import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipInventoryProvider;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingBridge;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
@@ -46,7 +48,7 @@ import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.overlay.elements.IElement;
-import mezz.jei.gui.recipes.RecipesGui;
+import mezz.jei.gui.config.BookmarkJsonSerializer;
 import net.minecraft.client.Minecraft;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipesGui;
@@ -69,6 +71,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final BookmarkList bookmarkList;
 	private final BookmarkOverlay bookmarkOverlay;
 	private final IIngredientManager ingredientManager;
+	private final PlayerInventoryRecipeChainTooltipInventoryProvider recipeChainInventoryProvider;
 	private final IConnectionToServer serverConnection;
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
 	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
@@ -94,6 +97,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.bookmarkList = bookmarkList;
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.ingredientManager = ingredientManager;
+		this.recipeChainInventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(Minecraft.getInstance(), ingredientManager);
 		this.serverConnection = serverConnection;
 		this.autoCraftingRunner = autoCraftingRunner;
 		this.clientCraftingGridClickRunner = clientCraftingGridClickRunner;
@@ -105,6 +109,15 @@ public class BookmarkInputHandler implements IUserInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getShareToChat())) {
+			Optional<IUserInputHandler> shareHandler = handleGroupShare(input);
+			if (shareHandler.isPresent()) {
+				return shareHandler;
+			}
+		}
+		if (isSaveMissingInput(input, keyBindings.getBookmarkPullItems())) {
+			return handleSaveMissingRecipeChain(input);
+		}
 		if (BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
 			return handleBookmarkAutoCrafting(input, keyBindings.getCraftItems());
 		}
@@ -146,7 +159,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 
-		PlayerInventoryRecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
 		String hoveredGroupId = groupId.get();
 		AbstractContainerMenu menu = containerScreen.getMenu();
 		boolean craftAll = isCraftAllModifier(input.getModifiers());
@@ -157,8 +169,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
 				targetSlotCount,
 				menu.containerId,
-				() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-				inventoryProvider::getAvailableStacks,
+				() -> getAutoCraftingInventoryInputs(hoveredGroupId),
+				recipeChainInventoryProvider::getAvailableStacks,
 				recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
 				serverConnection::sendPacketToServer,
 				true,
@@ -171,8 +183,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 					bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
 					targetSlotCount,
 					menu.containerId,
-					() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-					inventoryProvider::getAvailableStacks,
+					() -> getAutoCraftingInventoryInputs(hoveredGroupId),
+					recipeChainInventoryProvider::getAvailableStacks,
 					recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
 					serverConnection::sendPacketToServer,
 					() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
@@ -187,8 +199,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 						bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
 						targetSlotCount,
 						menu,
-						() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-						inventoryProvider::getAvailableStacks,
+						() -> getAutoCraftingInventoryInputs(hoveredGroupId),
+						recipeChainInventoryProvider::getAvailableStacks,
 						recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
 						clientCraftingGridClickRunner,
 						clientCraftingGridClickRunner::consumeLastResult,
@@ -211,11 +223,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		return Optional.of(handler);
 	}
 
-	private List<RecipeChainInput> getAutoCraftingInventoryInputs(
-		String groupId,
-		RecipeChainTooltipInventoryProvider inventoryProvider
-	) {
-		return List.copyOf(inventoryProvider.getInventoryInputs(groupId, -1));
+	private List<RecipeChainInput> getAutoCraftingInventoryInputs(String groupId) {
+		return recipeChainInventoryProvider.getInventoryInputs(groupId, -1);
 	}
 
 	private Optional<IUserInputHandler> handleRecipeChainPatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
@@ -341,6 +350,67 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		}
 		int modifiers = input.getModifiers();
 		return hasShift(modifiers) && !hasControlOrAlt(modifiers) && bookmarkPullKey.matchesIgnoringModifiers(input.getKey());
+	}
+
+	private static boolean isSaveMissingInput(UserInput input, IJeiKeyMapping bookmarkPullKey) {
+		int modifiers = input.getModifiers();
+		return hasAlt(modifiers) && !hasShift(modifiers) && (modifiers & GLFW.GLFW_MOD_CONTROL) == 0 &&
+			bookmarkPullKey.matchesIgnoringModifiers(input.getKey());
+	}
+
+	private Optional<IUserInputHandler> handleGroupShare(UserInput input) {
+		if (!serverConnection.canSendPacket(PacketShareBookmarkGroup.TYPE)) {
+			return Optional.empty();
+		}
+		Optional<String> snapshot = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+			.flatMap(groupId -> BookmarkJsonSerializer.serializeGroupSnapshot(bookmarkList, groupId, ingredientManager));
+		if (snapshot.isEmpty()) {
+			return Optional.empty();
+		}
+		if (!input.isSimulate()) {
+			serverConnection.sendPacketToServer(new PacketShareBookmarkGroup(snapshot.get()));
+			JeiClientSoundUtil.playClickSound();
+		}
+		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
+	}
+
+	private Optional<IUserInputHandler> handleSaveMissingRecipeChain(UserInput input) {
+		Optional<String> optionalGroupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+			.filter(bookmarkList::isGroupCraftingMode);
+		if (optionalGroupId.isEmpty()) {
+			return Optional.empty();
+		}
+		String groupId = optionalGroupId.get();
+		Minecraft minecraft = Minecraft.getInstance();
+		List<RecipeChainInput> inventoryInputs;
+		if (minecraft.screen instanceof RecipesGui) {
+			inventoryInputs = List.of();
+		} else {
+			inventoryInputs = recipeChainInventoryProvider.getInventoryInputs(groupId, -1);
+		}
+		List<RecipeChainInput> groupInputs = bookmarkList.getRecipeChainTooltipInputs(groupId);
+		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(
+			groupInputs,
+			bookmarkList.getRecipeChainDetails(groupId),
+			bookmarkList.getCollapsedRecipeIds(groupId),
+			inventoryInputs,
+			true,
+			false,
+			ingredientManager
+		);
+		List<RecipeChainTooltipModel.Item> missingItems = model.sections().stream()
+			.filter(section -> section.type() == RecipeChainTooltipSectionType.MISSING)
+			.flatMap(section -> section.items().stream())
+			.toList();
+		if (missingItems.isEmpty()) {
+			return Optional.empty();
+		}
+		if (!input.isSimulate()) {
+			bookmarkList.addMissingRecipeChainGroup(groupId, missingItems);
+			bookmarkOverlay.showBookmarkPanel();
+			JeiClientSoundUtil.playClickSound();
+		}
+		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
 	}
 
 	private Optional<IUserInputHandler> handleBookmarkPull(UserInput input) {

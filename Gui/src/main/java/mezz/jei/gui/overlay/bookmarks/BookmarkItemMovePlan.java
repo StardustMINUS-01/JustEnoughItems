@@ -212,7 +212,7 @@ public record BookmarkItemMovePlan(
 			return true;
 		}
 		return Optional.ofNullable(groups.get(groupId))
-			.map(group -> group.viewMode() == BookmarkViewMode.TODO_LIST)
+			.map(group -> !group.collapsed() && group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
 	}
 

@@ -4,10 +4,17 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IClickableIngredient;
+import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.api.runtime.IScreenHelper;
+import mezz.jei.common.Internal;
+import mezz.jei.common.chat.JeiChatItemLinkHover;
+import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.config.BookmarkJsonSerializer;
+import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.util.FocusUtil;
@@ -26,6 +33,10 @@ public class ChatLinkInputHandler {
 
 	@Nullable
 	private PendingInput pendingInput;
+	@Nullable
+	private InputConstants.Key pendingGroupKey;
+	@Nullable
+	private String pendingGroupSnapshot;
 
 	public ChatLinkInputHandler(
 		IRecipesGui recipesGui,
@@ -42,7 +53,11 @@ public class ChatLinkInputHandler {
 	public boolean handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (!(screen instanceof ChatScreen chatScreen)) {
 			this.pendingInput = null;
+			clearPendingGroupInput();
 			return false;
+		}
+		if (handleBookmarkGroupInput(chatScreen, input, keyBindings)) {
+			return true;
 		}
 
 		return switch (input.getInputType()) {
@@ -54,6 +69,7 @@ public class ChatLinkInputHandler {
 
 	public void handleGuiChange() {
 		this.pendingInput = null;
+		clearPendingGroupInput();
 	}
 
 	private boolean handleImmediateInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {
@@ -114,6 +130,69 @@ public class ChatLinkInputHandler {
 
 		executeAction(typedIngredient, pendingInput.action());
 		return true;
+	}
+
+	private boolean handleBookmarkGroupInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {
+		return switch (input.getInputType()) {
+			case IMMEDIATE -> false;
+			case SIMULATE -> {
+				clearPendingGroupInput();
+				if (!input.is(keyBindings.getLeftClick())) {
+					yield false;
+				}
+				Optional<String> snapshot = getHoveredBookmarkGroupSnapshot(chatScreen, input);
+				if (snapshot.isEmpty()) {
+					yield false;
+				}
+				this.pendingInput = null;
+				this.pendingGroupKey = input.getKey();
+				this.pendingGroupSnapshot = snapshot.get();
+				yield true;
+			}
+			case EXECUTE -> {
+				InputConstants.Key pendingKey = this.pendingGroupKey;
+				String pendingSnapshot = this.pendingGroupSnapshot;
+				clearPendingGroupInput();
+				if (
+					pendingKey == null ||
+					pendingSnapshot == null ||
+					!pendingKey.equals(input.getKey()) ||
+					getHoveredBookmarkGroupSnapshot(chatScreen, input).filter(pendingSnapshot::equals).isEmpty()
+				) {
+					yield false;
+				}
+				importBookmarkGroup(pendingSnapshot);
+				yield true;
+			}
+		};
+	}
+
+	private Optional<String> getHoveredBookmarkGroupSnapshot(ChatScreen chatScreen, UserInput input) {
+		return JeiChatItemLinkHover.getHoveredStyle(chatScreen, input.getMouseX(), input.getMouseY())
+			.flatMap(JeiChatItemLinkHover::getBookmarkGroupSnapshot);
+	}
+
+	private void importBookmarkGroup(String snapshot) {
+		var jeiRuntime = Internal.getJeiRuntime();
+		IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
+		RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(
+			jeiRuntime.getRecipeManager(),
+			jeiRuntime.getJeiHelpers().getFocusFactory(),
+			new TypedIngredientSerializer(ingredientManager)
+		);
+		if (BookmarkJsonSerializer.deserializeGroupSnapshot(
+			snapshot,
+			bookmarkList,
+			recipeBookmarkSerializer,
+			ingredientManager
+		).isPresent()) {
+			JeiClientSoundUtil.playClickSound();
+		}
+	}
+
+	private void clearPendingGroupInput() {
+		this.pendingGroupKey = null;
+		this.pendingGroupSnapshot = null;
 	}
 
 	private Optional<ITypedIngredient<?>> getHoveredIngredient(ChatScreen chatScreen, UserInput input) {

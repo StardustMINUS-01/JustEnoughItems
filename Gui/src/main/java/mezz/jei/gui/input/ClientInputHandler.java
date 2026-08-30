@@ -54,7 +54,9 @@ public class ClientInputHandler {
 			return true;
 		}
 
-		if (!isContainerTextFieldFocused(screen)) {
+		boolean textFieldFocused = isContainerTextFieldFocused(screen);
+		// AE text fields consume every focused key, so terminal search must run before the screen.
+		if (!textFieldFocused || input.is(keybindings.getSearchIngredientInTerminal())) {
 			if (screenHelper.getGuiProperties(screen).isPresent()) {
 				return this.inputRouter.handleUserInput(screen, input, keybindings);
 			}
