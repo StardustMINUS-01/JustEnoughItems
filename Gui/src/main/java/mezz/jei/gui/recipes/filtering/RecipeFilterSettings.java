@@ -44,4 +44,10 @@ public final class RecipeFilterSettings {
 		appliedQuery = "";
 		return changed;
 	}
+
+	public void restore(RecipeFilterMode mode, String query) {
+		this.mode = mode;
+		this.draftQuery = query;
+		this.appliedQuery = query;
+	}
 }

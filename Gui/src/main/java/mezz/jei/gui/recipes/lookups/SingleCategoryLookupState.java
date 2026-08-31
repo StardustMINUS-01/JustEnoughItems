@@ -44,6 +44,10 @@ public class SingleCategoryLookupState implements ILookupState {
 		return recipeIndex;
 	}
 
+	void setRecipeIndex(int recipeIndex) {
+		this.recipeIndex = recipeIndex;
+	}
+
 	@Override
 	public IFocusGroup getFocuses() {
 		return focusGroup;

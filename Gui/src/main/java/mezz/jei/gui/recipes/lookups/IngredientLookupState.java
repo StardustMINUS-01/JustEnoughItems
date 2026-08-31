@@ -127,6 +127,10 @@ public class IngredientLookupState implements ILookupState {
 		return recipeIndex;
 	}
 
+	void setRecipeIndex(int recipeIndex) {
+		this.recipeIndex = recipeIndex;
+	}
+
 	@Override
 	public int getRecipesPerPage() {
 		return recipesPerPage;
