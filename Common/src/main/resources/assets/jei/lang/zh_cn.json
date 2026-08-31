@@ -74,6 +74,8 @@
   "jei.tooltip.bookmarks.group.hotkeys.remove": "移除分组",
   "jei.tooltip.bookmarks.group.hotkeys.pull_items": "拉取全部物品",
   "jei.tooltip.bookmarks.group.hotkeys.pull_items_shift": "拉取缺失物品",
+  "jei.tooltip.bookmarks.group.hotkeys.save_missing": "将缺失物品保存为蓝括号",
+  "jei.tooltip.bookmarks.group.hotkeys.share": "将书签组分享到聊天栏",
   "jei.tooltip.bookmarks.group.hotkeys.craft_missing": "合成缺失物品",
   "jei.tooltip.bookmarks.group.hotkeys.craft_items": "合成物品",
   "jei.tooltip.bookmarks.group.hotkeys.encode_ae2_patterns": "为此配方链编码 AE2 样板",

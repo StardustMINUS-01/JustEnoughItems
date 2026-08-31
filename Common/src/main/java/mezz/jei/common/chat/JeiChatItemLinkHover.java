@@ -39,6 +39,16 @@ public final class JeiChatItemLinkHover {
 	}
 
 	public static Optional<IngredientLink> getIngredientLink(@Nullable Style style) {
+		return getRunCommand(style)
+			.flatMap(JeiChatItemLinks::parseShowRecipeCommand);
+	}
+
+	public static Optional<String> getBookmarkGroupSnapshot(@Nullable Style style) {
+		return getRunCommand(style)
+			.flatMap(JeiChatItemLinks::parseImportBookmarkGroupCommand);
+	}
+
+	private static Optional<String> getRunCommand(@Nullable Style style) {
 		if (style == null) {
 			return Optional.empty();
 		}
@@ -46,7 +56,6 @@ public final class JeiChatItemLinkHover {
 		if (clickEvent == null || clickEvent.getAction() != ClickEvent.Action.RUN_COMMAND) {
 			return Optional.empty();
 		}
-		String command = clickEvent.getValue();
-		return JeiChatItemLinks.parseShowRecipeCommand(command);
+		return Optional.of(clickEvent.getValue());
 	}
 }
