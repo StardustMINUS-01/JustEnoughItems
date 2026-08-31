@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public final class JeiRecipeChainPatternEncodingService {
 	private JeiRecipeChainPatternEncodingService() {
@@ -119,7 +120,8 @@ public final class JeiRecipeChainPatternEncodingService {
 
 	private static List<PreparedEntry> prepareEntries(ServerPlayer player, AbstractContainerMenu menu, List<JeiPatternEncodeRequestWire> requests) {
 		List<PreparedEntry> preparedEntries = new ArrayList<>(requests.size());
-		Set<AEKey> plannedPrimaryOutputs = new HashSet<>();
+		Set<AEKey> knownPrimaryOutputs = getPlayerPatternPrimaryOutputs(player);
+	Predicate<AEKey> networkHasPattern = getNetworkPatternLookup(menu);
 
 		for (JeiPatternEncodeRequestWire request : requests) {
 			String catalystValidationFailure = validateCatalysts(request);
@@ -141,7 +143,7 @@ public final class JeiRecipeChainPatternEncodingService {
 			}
 
 			GenericStack primaryOutput = details.getPrimaryOutput();
-			if (hasPatternWithPrimaryOutput(player, primaryOutput) || !plannedPrimaryOutputs.add(primaryOutput.what())) {
+			if (!markPrimaryOutputIfNew(primaryOutput.what(), knownPrimaryOutputs, networkHasPattern)) {
 				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT, "Pattern with same primary output already exists"));
 				continue;
 			}
@@ -535,17 +537,38 @@ public final class JeiRecipeChainPatternEncodingService {
 		return items;
 	}
 
-	private static boolean hasPatternWithPrimaryOutput(ServerPlayer player, GenericStack primaryOutput) {
+	private static Set<AEKey> getPlayerPatternPrimaryOutputs(ServerPlayer player) {
+		Set<AEKey> primaryOutputs = new HashSet<>();
 		for (ItemStack stack : player.getInventory().items) {
 			IPatternDetails details = PatternDetailsHelper.decodePattern(stack, player.level());
 			if (details == null || details.getOutputs().length == 0) {
 				continue;
 			}
-			if (details.getPrimaryOutput().what().equals(primaryOutput.what())) {
-				return true;
-			}
+			primaryOutputs.add(details.getPrimaryOutput().what());
 		}
-		return false;
+		return primaryOutputs;
+	}
+
+	private static Predicate<AEKey> getNetworkPatternLookup(AbstractContainerMenu menu) {
+		if (!(menu instanceof PatternEncodingTermMenu patternMenu)) {
+			return key -> false;
+		}
+		ForkPatternEncodingAccess fork = ForkPatternEncodingAccess.get();
+		if (fork == null) {
+			return key -> false;
+		}
+		return fork.getNetworkPatternLookup(patternMenu);
+	}
+
+	static boolean markPrimaryOutputIfNew(
+		AEKey primaryOutput,
+		Set<AEKey> knownPrimaryOutputs,
+		Predicate<AEKey> networkHasPattern
+	) {
+		if (!knownPrimaryOutputs.add(primaryOutput)) {
+			return false;
+		}
+		return !networkHasPattern.test(primaryOutput);
 	}
 
 	private static boolean hasBlankPatterns(PatternEncodingTermMenu menu, ServerPlayer player, int amount) {
