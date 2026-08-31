@@ -155,6 +155,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	private final BookmarkOverlayInputHandlers inputHandlers;
 	private final BookmarkOverlayDragHandlers dragHandlers;
 	private ImmutableRect2i scrollStepArea = ImmutableRect2i.EMPTY;
+	private long defaultGroupBookmarksVersion = Long.MIN_VALUE;
+	private boolean defaultGroupHasBookmarks;
 
 	// these need to be stored as strong references here because listeners are weakly stored elsewhere
 	@SuppressWarnings("FieldCanBeLocal")
@@ -541,6 +543,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			dragHandlers.updateSortDrag(mouseX, mouseY);
 			this.bookmarkDragManager.updateDrag(mouseX, mouseY);
 			this.contents.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+			renderer.drawDefaultGroupControlIndicator(
+				minecraft,
+				guiGraphics,
+				getDefaultGroupControlArea(),
+				contents.getPageDelegate()
+			);
 			if (sortDragState != null) {
 				sortDragState.drawTargetSlotOverlays(guiGraphics);
 				sortDragState.drawSourceSlotOverlays(guiGraphics, getPanelSlots());
@@ -625,6 +633,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	public void tick() {
 		if (isListDisplayed()) {
 			this.contents.tick();
+		}
+		if (isFavoritePanelDisplayed()) {
+			this.favoriteContents.tick();
 		}
 		if (guiPropertiesCache.hasValidScreen() && toggleState.isOverlayEnabled()) {
 			this.lookupHistoryOverlay.tick();
@@ -951,7 +962,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	public Optional<String> getPatternEncodeGroupIdUnderMouse(double mouseX, double mouseY) {
-		if (getDefaultGroupControlArea().contains(mouseX, mouseY)) {
+		if (hasDefaultGroupBookmarks() && getDefaultGroupControlArea().contains(mouseX, mouseY)) {
 			return Optional.of(BookmarkGroupManager.DEFAULT_GROUP_ID);
 		}
 		return getGroupIdUnderMouseGroupPanel(mouseX, mouseY);
@@ -1046,6 +1057,16 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			return ImmutableRect2i.EMPTY;
 		}
 		return new ImmutableRect2i(x, back.getY(), width, back.getHeight());
+	}
+
+	boolean hasDefaultGroupBookmarks() {
+		long bookmarkVersion = bookmarkList.getChangeVersion();
+		if (defaultGroupBookmarksVersion != bookmarkVersion) {
+			defaultGroupBookmarksVersion = bookmarkVersion;
+			defaultGroupHasBookmarks = bookmarkList.getBookmarks().stream()
+				.anyMatch(bookmark -> BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarkList.getBookmarkGroupId(bookmark)));
+		}
+		return defaultGroupHasBookmarks;
 	}
 
 	Optional<GroupPanelSlot> getClosestGroupPanelSlotAtY(double mouseY) {

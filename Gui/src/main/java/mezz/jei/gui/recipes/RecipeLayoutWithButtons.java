@@ -354,7 +354,7 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
 			if (inputSlotSelectionState != null &&
-				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDelta, Screen.hasControlDown())
+				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDelta, !Screen.hasControlDown())
 			) {
 				return Optional.of(this);
 			}

@@ -21,6 +21,10 @@ public class TagContentTooltipComponent<T> implements ClientTooltipComponent, To
 	private final List<T> ingredients;
 
 	public TagContentTooltipComponent(IIngredientRenderer<T> renderer, List<T> ingredients) {
+		this(renderer, ingredients, -1, 0);
+	}
+
+	public TagContentTooltipComponent(IIngredientRenderer<T> renderer, List<T> ingredients, int selectedIndex, int windowStart) {
 		this.renderer = renderer;
 		this.ingredients = ingredients;
 	}

@@ -49,6 +49,7 @@
   "jei.tooltip.bookmarks.hotkeys.craft_missing": "合成缺失物品",
   "jei.tooltip.bookmarks.hotkeys.craft_items": "合成物品",
   "jei.tooltip.bookmarks.group": "书签分组",
+  "jei.tooltip.bookmarks.default_group": "默认组（未分组书签）",
   "jei.tooltip.bookmarks.group.keys.left": "左键单击",
   "jei.tooltip.bookmarks.group.keys.right": "右键单击",
   "jei.tooltip.bookmarks.group.keys.left_drag": "左键单击 + 拖动",

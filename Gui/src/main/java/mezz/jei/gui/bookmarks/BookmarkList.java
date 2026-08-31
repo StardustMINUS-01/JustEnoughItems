@@ -69,6 +69,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private final IGuiHelper guiHelper;
 	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
+	private final BookmarkPermutationTooltipState permutationTooltipState = new BookmarkPermutationTooltipState();
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private long changeVersion;
 	private long cachedDisplaySlotsVersion = -1;
@@ -1992,7 +1993,11 @@ public class BookmarkList implements IIngredientGridSource {
 			return false;
 		}
 		IBookmark replacement = createPermutationBookmark(bookmark, nextIngredient.get());
+		int bookmarkIndex = bookmarksList.indexOf(bookmark);
 		boolean replaced = replaceBookmark(bookmark, replacement, metadata);
+		if (replaced) {
+			permutationTooltipState.updateStart(bookmarkIndex, permutations, nextIndex);
+		}
 		if (DebugConfig.isDebugModeEnabled()) {
 			LOGGER.info("[Bug5] CYCLE-PERM index={} perms={} current={} next={} replaced={}",
 				index, permutations.size(), currentIndex, nextIndex, replaced);

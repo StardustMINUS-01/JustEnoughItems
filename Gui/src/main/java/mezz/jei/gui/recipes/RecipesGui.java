@@ -36,6 +36,7 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
+import mezz.jei.gui.favorites.FavoriteRecipeInputs;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.elements.GuiIconButton;
@@ -632,12 +633,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		InputSlotSelectionState inputSlotSelectionState = new InputSlotSelectionState(ingredientManager);
 		Optional.ofNullable(getFocusedRecipe(recipeLayoutDrawable))
 			.map(pendingFavoriteInputs::remove)
-			.ifPresent(inputs -> {
-				Map<Integer, BookmarkIngredientKey> selectedKeys = new HashMap<>();
-				inputs.forEach((index, slotInput) -> selectedKeys.put(index, slotInput.selected()));
-				inputSlotSelectionState.setSelectedKeys(selectedKeys);
-				inputSlotSelectionState.apply(recipeLayoutDrawable);
-			});
+			.ifPresent(inputs -> FavoriteRecipeInputs.apply(recipeLayoutDrawable, inputs, inputSlotSelectionState));
 		RecipeFavoriteButton favoriteButton = RecipeFavoriteButton.create(
 			recipeLayoutDrawable,
 			ingredientManager,
