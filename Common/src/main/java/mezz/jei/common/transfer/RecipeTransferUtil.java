@@ -42,8 +42,31 @@ public final class RecipeTransferUtil {
 		return transferRecipe(recipeTransferManager, container, recipeLayout, player, false, false);
 	}
 
+	public static Optional<IRecipeTransferError> getTransferRecipeErrorWithSlotsView(
+		IRecipeTransferManager recipeTransferManager,
+		AbstractContainerMenu container,
+		IRecipeLayoutDrawable<?> recipeLayout,
+		IRecipeSlotsView recipeSlotsView,
+		Player player
+	) {
+		return transferRecipeWithSlotsView(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, false, false);
+	}
+
 	public static boolean transferRecipe(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player, boolean maxTransfer) {
 		return transferRecipe(recipeTransferManager, container, recipeLayout, player, maxTransfer, true)
+			.map(error -> error.getType().allowsTransfer)
+			.orElse(true);
+	}
+
+	public static boolean transferRecipeWithSlotsView(
+		IRecipeTransferManager recipeTransferManager,
+		AbstractContainerMenu container,
+		IRecipeLayoutDrawable<?> recipeLayout,
+		IRecipeSlotsView recipeSlotsView,
+		Player player,
+		boolean maxTransfer
+	) {
+		return transferRecipeWithSlotsView(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, maxTransfer, true)
 			.map(error -> error.getType().allowsTransfer)
 			.orElse(true);
 	}
@@ -52,6 +75,28 @@ public final class RecipeTransferUtil {
 		IRecipeTransferManager recipeTransferManager,
 		C container,
 		IRecipeLayoutDrawable<R> recipeLayout,
+		Player player,
+		boolean maxTransfer,
+		boolean doTransfer
+	) {
+		return transferRecipeWithSlotsView(
+			recipeTransferManager,
+			container,
+			recipeLayout,
+			recipeLayout.getRecipeSlotsView(),
+			player,
+			maxTransfer,
+			doTransfer
+		);
+	}
+
+	// This exact signature (6 parameters, Optional return) is a mixin contract for third-party mods
+	// (e.g. DataEnergistics wraps it with @WrapMethod by its erased descriptor). Do not change it.
+	private static <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipeWithSlotsView(
+		IRecipeTransferManager recipeTransferManager,
+		C container,
+		IRecipeLayoutDrawable<R> recipeLayout,
+		IRecipeSlotsView recipeSlotsView,
 		Player player,
 		boolean maxTransfer,
 		boolean doTransfer
@@ -67,7 +112,6 @@ public final class RecipeTransferUtil {
 		}
 
 		IRecipeTransferHandler<C, R> transferHandler = recipeTransferHandler.get();
-		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
 
 		try {
 			IRecipeTransferError transferError = transferHandler.transferRecipe(container, recipeLayout.getRecipe(), recipeSlotsView, player, maxTransfer, doTransfer);

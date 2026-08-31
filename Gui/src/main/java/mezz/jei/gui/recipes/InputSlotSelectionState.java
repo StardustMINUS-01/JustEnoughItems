@@ -16,12 +16,11 @@ import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +31,6 @@ import java.util.Set;
  * Ephemeral input choices for one visible recipe layout.
  */
 public final class InputSlotSelectionState {
-	private static final Logger LOGGER = LogManager.getLogger();
 	private final IIngredientManager ingredientManager;
 	private final Map<Integer, BookmarkIngredientKey> selectedKeys = new LinkedHashMap<>();
 
@@ -42,6 +40,10 @@ public final class InputSlotSelectionState {
 
 	public Map<Integer, BookmarkIngredientKey> selectedKeys() {
 		return Map.copyOf(selectedKeys);
+	}
+
+	public boolean hasSelections() {
+		return !selectedKeys.isEmpty();
 	}
 
 	public void setSelectedKeys(Map<Integer, BookmarkIngredientKey> keys) {
@@ -81,8 +83,12 @@ public final class InputSlotSelectionState {
 	}
 
 	public IRecipeSlotsView createTransferSlotsView(IRecipeLayoutDrawable<?> recipeLayout) {
-		List<IRecipeSlotView> slots = recipeLayout.getRecipeSlotsView().getSlotViews();
-		List<IRecipeSlotView> transferSlots = new java.util.ArrayList<>(slots.size());
+		IRecipeSlotsView baseView = recipeLayout.getRecipeSlotsView();
+		if (selectedKeys.isEmpty()) {
+			return baseView;
+		}
+		List<IRecipeSlotView> slots = baseView.getSlotViews();
+		List<IRecipeSlotView> transferSlots = new ArrayList<>(slots.size());
 		int inputSlotIndex = 0;
 		for (IRecipeSlotView slot : slots) {
 			if (slot.getRole() == RecipeIngredientRole.INPUT && selectedKeys.containsKey(inputSlotIndex)) {
@@ -98,7 +104,8 @@ public final class InputSlotSelectionState {
 				inputSlotIndex++;
 			}
 		}
-		return () -> List.copyOf(transferSlots);
+		List<IRecipeSlotView> immutableTransferSlots = Collections.unmodifiableList(transferSlots);
+		return () -> immutableTransferSlots;
 	}
 
 	public Optional<ITypedIngredient<?>> resolve(IRecipeSlotView slot, int inputSlotIndex) {
@@ -135,9 +142,6 @@ public final class InputSlotSelectionState {
 		}
 		List<ITypedIngredient<?>> candidates = inputSlots.get(inputSlotIndex).getAllIngredients().toList();
 		if (candidates.size() <= 1) {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug5] scrollDiag SKIP slot={} candidates={}", inputSlotIndex, candidates.size());
-			}
 			return false;
 		}
 
@@ -149,11 +153,6 @@ public final class InputSlotSelectionState {
 		int direction = (int) Math.signum(scrollDelta);
 		ITypedIngredient<?> selected = candidates.get(Math.floorMod(currentIndex - direction, candidates.size()));
 		BookmarkIngredientKey selectedKey = key(selected);
-		if (DebugConfig.isDebugModeEnabled()) {
-			LOGGER.info("[Bug5] scrollDiag HIT slot={} candidates={} idx={}->{} selected={}",
-				inputSlotIndex, candidates.size(), currentIndex,
-				Math.floorMod(currentIndex - direction, candidates.size()), selected);
-		}
 
 		if (synchronizeFamily) {
 			Set<BookmarkIngredientKey> family = permutationKeys(inputSlots.get(inputSlotIndex));
@@ -205,16 +204,9 @@ public final class InputSlotSelectionState {
 	}
 
 	private Optional<ITypedIngredient<?>> findByKey(IRecipeSlotView slot, BookmarkIngredientKey key) {
-		List<ITypedIngredient<?>> candidates = slot.getAllIngredients().toList();
-		// Exact NBT snapshot match first (keeps the exact variant the user picked),
-		// then fall back to same-ingredient (type+uid) match so tool NBT differences
-		// (damage, tconstruct materials, GT tool attributes) don't lose the selection.
-		return candidates.stream()
+		return slot.getAllIngredients()
 			.filter(candidate -> key.equals(key(candidate)))
-			.findFirst()
-			.or(() -> candidates.stream()
-				.filter(candidate -> key.matches(key(candidate)))
-				.findFirst());
+			.findFirst();
 	}
 
 	private int indexOf(List<ITypedIngredient<?>> candidates, ITypedIngredient<?> ingredient) {
@@ -223,8 +215,7 @@ public final class InputSlotSelectionState {
 		}
 		BookmarkIngredientKey key = key(ingredient);
 		for (int index = 0; index < candidates.size(); index++) {
-			BookmarkIngredientKey candidateKey = key(candidates.get(index));
-			if (key.equals(candidateKey) || key.matches(candidateKey)) {
+			if (key.equals(key(candidates.get(index)))) {
 				return index;
 			}
 		}

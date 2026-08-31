@@ -42,8 +42,29 @@ public final class BookmarkItemMetadataFactory {
 		ITypedIngredient<T> selectedIngredient,
 		IIngredientManager ingredientManager
 	) {
+		return createForRecipeSlotWithFactor(
+			groupId,
+			recipeCategory,
+			recipeUid,
+			type,
+			sourceSlot,
+			selectedIngredient,
+			ingredientManager,
+			getMatchedFactor(selectedIngredient, roleSlots, ingredientManager)
+		);
+	}
+
+	static <R, T> BookmarkItemMetadata createForRecipeSlotWithFactor(
+		String groupId,
+		IRecipeCategory<R> recipeCategory,
+		ResourceLocation recipeUid,
+		BookmarkItemType type,
+		IRecipeSlotView sourceSlot,
+		ITypedIngredient<T> selectedIngredient,
+		IIngredientManager ingredientManager,
+		long factor
+	) {
 		Set<BookmarkIngredientKey> permutations = createPermutations(type, sourceSlot, selectedIngredient, ingredientManager);
-		long factor = getMatchedFactor(selectedIngredient, roleSlots, ingredientManager);
 		ContainerItemInfo containerItem = createContainerItemInfo(type, selectedIngredient, ingredientManager);
 		return new BookmarkItemMetadata(
 			groupId,
@@ -158,7 +179,7 @@ public final class BookmarkItemMetadataFactory {
 		return permutations;
 	}
 
-	private static <T> long getMatchedFactor(
+	static <T> long getMatchedFactor(
 		ITypedIngredient<T> selectedIngredient,
 		List<IRecipeSlotView> roleSlots,
 		IIngredientManager ingredientManager

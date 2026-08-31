@@ -76,7 +76,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		if (Minecraft.ON_OSX) {
 			return GLFW.GLFW_KEY_LEFT_SUPER;
 		}
-		return GLFW.GLFW_KEY_LEFT_CONTROL;
+		return GLFW.GLFW_KEY_LEFT_SHIFT;
 	}
 
 	public InternalKeyMappings(Consumer<KeyMapping> registerMethod) {
