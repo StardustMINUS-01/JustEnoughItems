@@ -44,8 +44,12 @@ public final class RecipeSearchQuery {
 	}
 
 	public boolean matches(RecipeSearchDocument document) {
+		return matches(document, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	boolean matches(RecipeSearchDocument document, IRecipeSearchTextMatcher matcher) {
 		return isEmpty() || alternatives.stream()
-			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matches(document)));
+			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matches(document, matcher)));
 	}
 
 	public boolean hasInputTerms() {
@@ -53,8 +57,12 @@ public final class RecipeSearchQuery {
 	}
 
 	public boolean matchesInputCandidate(RecipeSearchIngredient ingredient) {
+		return matchesInputCandidate(ingredient, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	public boolean matchesInputCandidate(RecipeSearchIngredient ingredient, IRecipeSearchTextMatcher matcher) {
 		return inputAlternatives.isEmpty() || inputAlternatives.stream()
-			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matchesIngredient(ingredient)));
+			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matchesIngredient(ingredient, matcher)));
 	}
 
 	private static List<String> tokenize(String query) {
@@ -132,45 +140,48 @@ public final class RecipeSearchQuery {
 			return new SearchTerm(scope, matchType, token.toLowerCase(Locale.ROOT), excluded);
 		}
 
-		private boolean matches(RecipeSearchDocument document) {
+		private boolean matches(RecipeSearchDocument document, IRecipeSearchTextMatcher matcher) {
 			boolean matched = switch (scope) {
-				case ALL -> matchesIngredients(document.inputs()) ||
-					matchesIngredients(document.outputs()) ||
-					matchesIngredients(document.catalysts()) ||
-					matchesRecipeText(document);
-				case INPUT -> matchesIngredients(document.inputs());
-				case OUTPUT -> matchesIngredients(document.outputs());
-				case CATALYST -> matchesIngredients(document.catalysts());
-				case RECIPE -> matchesRecipeText(document);
+				case ALL -> matchesIngredients(document.inputs(), matcher) ||
+					matchesIngredients(document.outputs(), matcher) ||
+					matchesIngredients(document.catalysts(), matcher) ||
+					matchesRecipeText(document, matcher);
+				case INPUT -> matchesIngredients(document.inputs(), matcher);
+				case OUTPUT -> matchesIngredients(document.outputs(), matcher);
+				case CATALYST -> matchesIngredients(document.catalysts(), matcher);
+				case RECIPE -> matchesRecipeText(document, matcher);
 			};
 			return excluded != matched;
 		}
 
-		private boolean matchesIngredients(List<RecipeSearchIngredient> ingredients) {
-			return ingredients.stream().anyMatch(this::matchesIngredientValue);
+		private boolean matchesIngredients(
+			List<RecipeSearchIngredient> ingredients,
+			IRecipeSearchTextMatcher matcher
+		) {
+			return ingredients.stream().anyMatch(ingredient -> matchesIngredientValue(ingredient, matcher));
 		}
 
-		private boolean matchesIngredient(RecipeSearchIngredient ingredient) {
-			return excluded != matchesIngredientValue(ingredient);
+		private boolean matchesIngredient(RecipeSearchIngredient ingredient, IRecipeSearchTextMatcher matcher) {
+			return excluded != matchesIngredientValue(ingredient, matcher);
 		}
 
-		private boolean matchesIngredientValue(RecipeSearchIngredient ingredient) {
+		private boolean matchesIngredientValue(RecipeSearchIngredient ingredient, IRecipeSearchTextMatcher matcher) {
 			return switch (matchType) {
-				case TEXT -> ingredient.matchesText(value);
-				case TAG -> ingredient.matchesTag(value);
-				case MOD -> ingredient.matchesMod(value);
-				case RESOURCE_LOCATION -> ingredient.matchesResourceLocation(value);
+				case TEXT -> ingredient.matchesText(value, matcher);
+				case TAG -> ingredient.matchesTag(value, matcher);
+				case MOD -> ingredient.matchesMod(value, matcher);
+				case RESOURCE_LOCATION -> ingredient.matchesResourceLocation(value, matcher);
 			};
 		}
 
-		private boolean matchesRecipeText(RecipeSearchDocument document) {
+		private boolean matchesRecipeText(RecipeSearchDocument document, IRecipeSearchTextMatcher matcher) {
 			if (matchType == MatchType.TAG) {
 				return false;
 			}
 			return document.recipeText().stream().anyMatch(text -> switch (matchType) {
-				case TEXT -> text.contains(value);
-				case MOD -> getNamespace(text).contains(value);
-				case RESOURCE_LOCATION -> text.contains(value);
+				case TEXT -> matcher.contains(text, value);
+				case MOD -> matcher.contains(getNamespace(text), value);
+				case RESOURCE_LOCATION -> matcher.contains(text, value);
 				case TAG -> false;
 			});
 		}

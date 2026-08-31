@@ -31,22 +31,38 @@ public record RecipeSearchIngredient(
 	}
 
 	public boolean matchesText(String value) {
-		return displayName.contains(value) ||
-			resourceLocation.contains(value) ||
-			modId.contains(value) ||
-			tags.stream().anyMatch(tag -> tag.contains(value));
+		return matchesText(value, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	boolean matchesText(String value, IRecipeSearchTextMatcher matcher) {
+		return matcher.contains(displayName, value) ||
+			matcher.contains(resourceLocation, value) ||
+			matcher.contains(modId, value) ||
+			tags.stream().anyMatch(tag -> matcher.contains(tag, value));
 	}
 
 	public boolean matchesTag(String value) {
-		return tags.stream().anyMatch(tag -> tag.contains(value));
+		return matchesTag(value, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	boolean matchesTag(String value, IRecipeSearchTextMatcher matcher) {
+		return tags.stream().anyMatch(tag -> matcher.contains(tag, value));
 	}
 
 	public boolean matchesMod(String value) {
-		return modId.contains(value);
+		return matchesMod(value, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	boolean matchesMod(String value, IRecipeSearchTextMatcher matcher) {
+		return matcher.contains(modId, value);
 	}
 
 	public boolean matchesResourceLocation(String value) {
-		return resourceLocation.contains(value);
+		return matchesResourceLocation(value, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	boolean matchesResourceLocation(String value, IRecipeSearchTextMatcher matcher) {
+		return matcher.contains(resourceLocation, value);
 	}
 
 	private static String normalize(String value) {
