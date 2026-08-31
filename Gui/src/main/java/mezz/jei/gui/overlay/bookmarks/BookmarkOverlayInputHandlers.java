@@ -289,7 +289,13 @@ public final class BookmarkOverlayInputHandlers {
 						return Optional.of(this);
 					}
 				}
-				return Optional.empty();
+				// The group row hit-area overlaps the first bookmark column, so an alt+scroll
+				// (or any modifier combo the group context cannot resolve) must fall through to
+				// the per-bookmark handling below instead of being swallowed here. Fixes alt+scroll
+				// catalyst toggling on recipe-chain bookmarks.
+				if (action.isPresent() || controlDown || shiftDown) {
+					return Optional.empty();
+				}
 			}
 
 			Optional<IBookmark> bookmark = overlay.getBookmarkUnderMouse(mouseX, mouseY);
