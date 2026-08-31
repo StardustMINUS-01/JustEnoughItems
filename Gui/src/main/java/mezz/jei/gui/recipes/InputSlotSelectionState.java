@@ -16,30 +16,72 @@ import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.gui.IRecipeSlotCandidateView;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Ephemeral input choices for one visible recipe layout.
  */
 public final class InputSlotSelectionState {
 	private final IIngredientManager ingredientManager;
+	private final @Nullable Predicate<ITypedIngredient<?>> candidateFilter;
 	private final Map<Integer, BookmarkIngredientKey> selectedKeys = new LinkedHashMap<>();
+	private final Map<Integer, List<ITypedIngredient<?>>> filteredCandidates = new LinkedHashMap<>();
 
 	public InputSlotSelectionState(IIngredientManager ingredientManager) {
 		this.ingredientManager = ingredientManager;
+		this.candidateFilter = null;
+	}
+
+	public InputSlotSelectionState(
+		IIngredientManager ingredientManager,
+		Predicate<ITypedIngredient<?>> candidateFilter
+	) {
+		this.ingredientManager = ingredientManager;
+		this.candidateFilter = candidateFilter;
 	}
 
 	public Map<Integer, BookmarkIngredientKey> selectedKeys() {
 		return Map.copyOf(selectedKeys);
+	}
+
+	public Map<Integer, List<ITypedIngredient<?>>> filteredCandidates() {
+		return Map.copyOf(filteredCandidates);
+	}
+
+	public void applyCandidateFilter(IRecipeLayoutDrawable<?> recipeLayout) {
+		filteredCandidates.clear();
+		if (candidateFilter == null) {
+			return;
+		}
+		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView()
+			.getSlotViews(RecipeIngredientRole.INPUT);
+		Map<BookmarkIngredientKey, Boolean> matchesByCandidate = new HashMap<>();
+		for (int index = 0; index < inputSlots.size(); index++) {
+			List<ITypedIngredient<?>> candidates = inputSlots.get(index).getAllIngredients().toList();
+			List<ITypedIngredient<?>> matches = candidates.stream()
+				.filter(candidate -> matchesByCandidate.computeIfAbsent(key(candidate), ignored -> candidateFilter.test(candidate)))
+				.toList();
+			if (!matches.isEmpty() && matches.size() < candidates.size()) {
+				filteredCandidates.put(index, matches);
+				if (inputSlots.get(index) instanceof IRecipeSlotCandidateView candidateView) {
+					candidateView.setDisplayedCandidates(matches);
+				}
+			}
+		}
 	}
 
 	public boolean hasSelections() {
@@ -58,7 +100,7 @@ public final class InputSlotSelectionState {
 		for (int i = 0; i < inputSlots.size(); i++) {
 			IRecipeSlotView slot = inputSlots.get(i);
 			BookmarkIngredientKey explicit = selectedKeys.get(i);
-			if (explicit != null && findByKey(slot, explicit).isPresent()) {
+			if (explicit != null && findByKey(slot, i, explicit).isPresent()) {
 				selections.put(i, explicit);
 				continue;
 			}
@@ -70,31 +112,26 @@ public final class InputSlotSelectionState {
 		return Map.copyOf(selections);
 	}
 
-	public void clear() {
-		selectedKeys.clear();
-	}
-
-	public void clear(IRecipeLayoutDrawable<?> recipeLayout) {
-		selectedKeys.clear();
-		recipeLayout.getRecipeSlotsView().getSlotViews(RecipeIngredientRole.INPUT).stream()
-			.filter(IRecipeSlotDrawable.class::isInstance)
-			.map(IRecipeSlotDrawable.class::cast)
-			.forEach(IRecipeSlotDrawable::clearDisplayOverrides);
-	}
-
 	public IRecipeSlotsView createTransferSlotsView(IRecipeLayoutDrawable<?> recipeLayout) {
 		IRecipeSlotsView baseView = recipeLayout.getRecipeSlotsView();
-		if (selectedKeys.isEmpty()) {
+		if (selectedKeys.isEmpty() && filteredCandidates.isEmpty()) {
 			return baseView;
 		}
 		List<IRecipeSlotView> slots = baseView.getSlotViews();
 		List<IRecipeSlotView> transferSlots = new ArrayList<>(slots.size());
 		int inputSlotIndex = 0;
 		for (IRecipeSlotView slot : slots) {
-			if (slot.getRole() == RecipeIngredientRole.INPUT && selectedKeys.containsKey(inputSlotIndex)) {
-				Optional<ITypedIngredient<?>> selected = resolve(slot, inputSlotIndex);
-				if (selected.isPresent()) {
-					transferSlots.add(new SelectedInputSlotView(slot, selected.get()));
+			if (slot.getRole() == RecipeIngredientRole.INPUT) {
+				List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
+				if (selectedKeys.containsKey(inputSlotIndex)) {
+					Optional<ITypedIngredient<?>> selected = resolve(slot, inputSlotIndex);
+					if (selected.isPresent()) {
+						transferSlots.add(new FilteredRecipeSlotView(slot, List.of(selected.get())));
+						inputSlotIndex++;
+						continue;
+					}
+				} else if (filtered != null) {
+					transferSlots.add(new FilteredRecipeSlotView(slot, filtered));
 					inputSlotIndex++;
 					continue;
 				}
@@ -111,13 +148,22 @@ public final class InputSlotSelectionState {
 	public Optional<ITypedIngredient<?>> resolve(IRecipeSlotView slot, int inputSlotIndex) {
 		BookmarkIngredientKey selectedKey = selectedKeys.get(inputSlotIndex);
 		if (selectedKey != null) {
-			Optional<ITypedIngredient<?>> selected = findByKey(slot, selectedKey);
+			Optional<ITypedIngredient<?>> selected = findByKey(slot, inputSlotIndex, selectedKey);
 			if (selected.isPresent()) {
 				return selected;
 			}
 			selectedKeys.remove(inputSlotIndex);
 		}
-		return slot.getDisplayedIngredient().or(() -> slot.getAllIngredients().findFirst());
+		List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
+		if (filtered == null) {
+			return slot.getDisplayedIngredient()
+				.or(() -> slot.getAllIngredients().findFirst());
+		}
+		Optional<ITypedIngredient<?>> displayed = slot.getDisplayedIngredient();
+		if (displayed.isPresent() && indexOf(filtered, displayed.get()) >= 0) {
+			return displayed;
+		}
+		return filtered.stream().findFirst();
 	}
 
 	public boolean scroll(
@@ -140,7 +186,7 @@ public final class InputSlotSelectionState {
 		if (inputSlotIndex < 0) {
 			return false;
 		}
-		List<ITypedIngredient<?>> candidates = inputSlots.get(inputSlotIndex).getAllIngredients().toList();
+		List<ITypedIngredient<?>> candidates = listCandidates(inputSlots.get(inputSlotIndex), inputSlotIndex);
 		if (candidates.size() <= 1) {
 			return false;
 		}
@@ -155,9 +201,9 @@ public final class InputSlotSelectionState {
 		BookmarkIngredientKey selectedKey = key(selected);
 
 		if (synchronizeFamily) {
-			Set<BookmarkIngredientKey> family = permutationKeys(inputSlots.get(inputSlotIndex));
+			Set<BookmarkIngredientKey> family = permutationKeys(inputSlots.get(inputSlotIndex), inputSlotIndex);
 			for (int index = 0; index < inputSlots.size(); index++) {
-				if (family.equals(permutationKeys(inputSlots.get(index))) && findByKey(inputSlots.get(index), selectedKey).isPresent()) {
+				if (family.equals(permutationKeys(inputSlots.get(index), index)) && findByKey(inputSlots.get(index), index, selectedKey).isPresent()) {
 					selectedKeys.put(index, selectedKey);
 				}
 			}
@@ -174,9 +220,9 @@ public final class InputSlotSelectionState {
 		if (directIndex >= 0) {
 			return directIndex;
 		}
-		Set<BookmarkIngredientKey> hoveredCandidates = permutationKeys(hoveredSlot);
+		Set<BookmarkIngredientKey> hoveredCandidates = unfilteredPermutationKeys(hoveredSlot);
 		for (int index = 0; index < inputSlots.size(); index++) {
-			if (hoveredCandidates.equals(permutationKeys(inputSlots.get(index)))) {
+			if (hoveredCandidates.equals(unfilteredPermutationKeys(inputSlots.get(index)))) {
 				return index;
 			}
 		}
@@ -194,7 +240,7 @@ public final class InputSlotSelectionState {
 			BookmarkIngredientKey selectedKey = selectedKeys.get(inputSlotIndex);
 			if (selectedKey != null) {
 				drawable.clearDisplayOverrides();
-				findByKey(slot, selectedKey)
+				findByKey(slot, inputSlotIndex, selectedKey)
 					.ifPresentOrElse(
 						selected -> drawable.createDisplayOverrides().addTypedIngredient(selected),
 						() -> selectedKeys.remove(inputSlotIndex)
@@ -203,10 +249,20 @@ public final class InputSlotSelectionState {
 		}
 	}
 
-	private Optional<ITypedIngredient<?>> findByKey(IRecipeSlotView slot, BookmarkIngredientKey key) {
-		return slot.getAllIngredients()
+	private Optional<ITypedIngredient<?>> findByKey(IRecipeSlotView slot, int inputSlotIndex, BookmarkIngredientKey key) {
+		return streamCandidates(slot, inputSlotIndex)
 			.filter(candidate -> key.equals(key(candidate)))
 			.findFirst();
+	}
+
+	private Stream<ITypedIngredient<?>> streamCandidates(IRecipeSlotView slot, int inputSlotIndex) {
+		List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
+		return filtered == null ? slot.getAllIngredients() : filtered.stream();
+	}
+
+	private List<ITypedIngredient<?>> listCandidates(IRecipeSlotView slot, int inputSlotIndex) {
+		List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
+		return filtered == null ? slot.getAllIngredients().toList() : filtered;
 	}
 
 	private int indexOf(List<ITypedIngredient<?>> candidates, ITypedIngredient<?> ingredient) {
@@ -222,43 +278,20 @@ public final class InputSlotSelectionState {
 		return -1;
 	}
 
-	private Set<BookmarkIngredientKey> permutationKeys(IRecipeSlotView slot) {
-		return slot.getAllIngredients().map(this::key).collect(java.util.stream.Collectors.toUnmodifiableSet());
+	private Set<BookmarkIngredientKey> permutationKeys(IRecipeSlotView slot, int inputSlotIndex) {
+		return streamCandidates(slot, inputSlotIndex)
+			.map(this::key)
+			.collect(java.util.stream.Collectors.toUnmodifiableSet());
+	}
+
+	private Set<BookmarkIngredientKey> unfilteredPermutationKeys(IRecipeSlotView slot) {
+		return slot.getAllIngredients()
+			.map(this::key)
+			.collect(java.util.stream.Collectors.toUnmodifiableSet());
 	}
 
 	private BookmarkIngredientKey key(ITypedIngredient<?> ingredient) {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
 	}
 
-	private record SelectedInputSlotView(IRecipeSlotView delegate, ITypedIngredient<?> selected) implements IRecipeSlotView {
-		@Override
-		public java.util.stream.Stream<ITypedIngredient<?>> getAllIngredients() {
-			return java.util.stream.Stream.of(selected);
-		}
-
-		@Override
-		public List<ITypedIngredient<?>> getAllIngredientsList() {
-			return List.of(selected);
-		}
-
-		@Override
-		public Optional<ITypedIngredient<?>> getDisplayedIngredient() {
-			return Optional.of(selected);
-		}
-
-		@Override
-		public RecipeIngredientRole getRole() {
-			return delegate.getRole();
-		}
-
-		@Override
-		public void drawHighlight(net.minecraft.client.gui.GuiGraphics guiGraphics, int color) {
-			delegate.drawHighlight(guiGraphics, color);
-		}
-
-		@Override
-		public Optional<String> getSlotName() {
-			return delegate.getSlotName();
-		}
-	}
 }

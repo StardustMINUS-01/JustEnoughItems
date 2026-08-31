@@ -26,6 +26,7 @@ import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
 import mezz.jei.gui.recipes.RecipesGui;
@@ -133,7 +134,7 @@ public class FocusInputHandler implements IUserInputHandler {
 		}
 
 		if (input.is(keyBindings.getShowRecipe())) {
-			return handleShow(input, List.of(RecipeIngredientRole.OUTPUT), keyBindings);
+			return handleShowRecipe(input, keyBindings);
 		}
 
 		if (input.is(keyBindings.getShareToChat())) {
@@ -295,6 +296,21 @@ public class FocusInputHandler implements IUserInputHandler {
 			}
 		}
 		return Optional.empty();
+	}
+
+	private Optional<IUserInputHandler> handleShowRecipe(UserInput input, IInternalKeyMappings keyBindings) {
+		return focusSource.getIngredientUnderMouse(input, keyBindings)
+			.filter(clicked -> clicked.getElement().isVisible())
+			.findFirst()
+			.map(clicked -> {
+				IElement<?> element = clicked.getElement();
+				boolean handled = element instanceof ProjectedBookmarkElement<?> projectedElement &&
+					projectedElement.handleShowRecipeClick(input, keyBindings, recipesGui, focusUtil);
+				if (!handled && !input.isSimulate()) {
+					clicked.show(recipesGui, focusUtil, List.of(RecipeIngredientRole.OUTPUT));
+				}
+				return new SameElementInputHandler(this, clicked::isMouseOver);
+			});
 	}
 
 	private Optional<IUserInputHandler> handleShow(UserInput input, List<RecipeIngredientRole> roles, IInternalKeyMappings keyBindings) {

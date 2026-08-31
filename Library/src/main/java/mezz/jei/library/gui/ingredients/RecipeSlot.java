@@ -73,6 +73,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 	@Nullable
 	private DisplayIngredientAcceptor displayOverrides;
 	private int tagContentTooltipWindowStart;
+	private @Nullable List<ITypedIngredient<?>> filteredCandidates;
 
 	public RecipeSlot(
 		RecipeIngredientRole role,
@@ -294,7 +295,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 	private <T> List<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
 		IIngredientVisibility ingredientVisibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
 		List<T> ingredients = new ArrayList<>();
-		for (@Nullable ITypedIngredient<?> ingredient : this.allIngredients) {
+		for (@Nullable ITypedIngredient<?> ingredient : (this.filteredCandidates == null ? this.allIngredients : this.filteredCandidates)) {
 			if (ingredient == null || !ingredientVisibility.isIngredientVisible(ingredient)) {
 				continue;
 			}
@@ -415,6 +416,11 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 	@Override
 	public void clearDisplayOverrides() {
 		this.displayOverrides = null;
+	}
+
+	public void setDisplayedCandidates(List<ITypedIngredient<?>> candidates) {
+		this.filteredCandidates = candidates;
+		this.tagContentTooltipWindowStart = 0;
 	}
 
 	@Override
