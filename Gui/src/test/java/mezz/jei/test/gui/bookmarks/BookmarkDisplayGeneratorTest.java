@@ -728,6 +728,52 @@ public class BookmarkDisplayGeneratorTest {
 		Assertions.assertEquals(List.of(0, 1), slots.stream().map(slot -> slot.slotIndex()).toList());
 	}
 
+
+	/**
+	 * Regression for SKILL.md 7.7 (WCWT terminal freeze): with a 1-column bookmark
+	 * layout, every slot is a row start, so {@link BookmarkDisplayGenerator#nextSlotIndex}'s
+	 * while(true) loop only exits when {@code startsRecipeRow} or {@code continuesRecipe}
+	 * returns true. On real data with consecutive TODO_LIST items that share the same
+	 * group, recipeUid, and graph-input/result types, the previous un-bounded loop
+	 * would hang. The bounded guard in nextSlotIndex makes generate return in finite
+	 * time. We don't pin a specific slot layout here (the guard is intentionally
+	 * defensive and may produce a different layout than the ideal one); we only assert
+	 * that the call terminates.
+	 */
+	@Test
+	public void nextSlotIndexBoundedWhenSingleColumn() {
+		ResourceLocation recipeA = new ResourceLocation("test:plate");
+		ResourceLocation recipeB = new ResourceLocation("test:machine");
+		List<String> orderedItems = List.of("plate", "ingot", "screw", "machine", "machine_plate", "machine_gear", "machine_circuit");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"plate", metadata(BookmarkItemType.RESULT, recipeA, "plate", 1, 1),
+			"ingot", metadata(BookmarkItemType.INGREDIENT, recipeA, "ingot", 1, 1),
+			"screw", metadata(BookmarkItemType.INGREDIENT, recipeA, "screw", 1, 1),
+			"machine", metadata(BookmarkItemType.RESULT, recipeB, "machine", 1, 1),
+			"machine_plate", metadata(BookmarkItemType.INGREDIENT, recipeB, "plate", 1, 1),
+			"machine_gear", metadata(BookmarkItemType.INGREDIENT, recipeB, "gear", 1, 1),
+			"machine_circuit", metadata(BookmarkItemType.INGREDIENT, recipeB, "circuit", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of());
+		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
+		List<Integer> usableColumnsPerRow = java.util.Collections.nCopies(64, 1);
+
+		var slots = Assertions.assertDoesNotThrow(() ->
+			BookmarkDisplayGenerator.generate(
+				orderedItems,
+				metadata::get,
+				Map.of(GROUP_ID, group),
+				Map.of(GROUP_ID, details),
+				1,
+				usableColumnsPerRow
+			)
+		);
+
+		// Whatever layout the bounded loop produces, it must terminate and yield a
+		// non-null, possibly-empty list.
+		Assertions.assertNotNull(slots);
+	}
+
 	private static RecipeChainDetails createDetails(
 		List<String> orderedItems,
 		Map<String, BookmarkItemMetadata> metadata,

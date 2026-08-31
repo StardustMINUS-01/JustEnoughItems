@@ -278,7 +278,16 @@ public final class BookmarkDisplayGenerator {
 		if (entry.viewMode() != BookmarkViewMode.TODO_LIST) {
 			return slotIndex;
 		}
-		while (true) {
+		// Bounded loop guard: when the bookmark area is too narrow to fit more than
+		// one column, every position is a "first column" (isRowStart=true) and the
+		// startsRecipeRow/continuesRecipe checks below can both keep returning false
+		// indefinitely if the previous and entry share the same collapsed block,
+		// group, recipeUid and graph-input type. The hard cap is the number of slots
+		// already in displaySlots plus a safety margin; once we walk past every
+		// occupied row, return whatever slot we reached so the layout stays finite.
+		// See SKILL.md 7.7 (WCWT terminal freeze).
+		int maxIterations = displaySlots.size() + 1024;
+		while (maxIterations-- > 0) {
 			boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, rowLayout);
 			if (firstColumn && startsRecipeRow(previous, entry)) {
 				return slotIndex;
@@ -288,6 +297,7 @@ public final class BookmarkDisplayGenerator {
 			}
 			slotIndex++;
 		}
+		return slotIndex;
 	}
 
 	private static boolean startsRecipeRow(BookmarkDisplayEntry<?> previous, BookmarkDisplayEntry<?> entry) {
