@@ -427,5 +427,11 @@
   "jei.collapsible.group.tooltip": "Grouped (%s items)",
   "jei.collapsible.toggle.hint": "Alt + Left Click to expand/collapse",
   "jei.ae2.crafting.grid_full": "AE2 network is full, could not store the crafting grid contents",
-  "jei.ae2.crafting.unsupported": "AE2 terminal auto-crafting is unavailable due to a conflicting addon"
+  "jei.ae2.crafting.unsupported": "AE2 terminal auto-crafting is unavailable due to a conflicting addon",
+  "gui.jei.recipe_filter.search": "Search recipes...",
+  "gui.jei.recipe_filter.mode": "Recipe filter: %s",
+  "gui.jei.recipe_filter.mode.all": "All",
+  "gui.jei.recipe_filter.mode.preferred": "Preferred",
+  "gui.jei.recipe_filter.mode.not_preferred": "Not preferred",
+  "gui.jei.recipe_filter.empty": "No results. Maybe try another rule?"
 }

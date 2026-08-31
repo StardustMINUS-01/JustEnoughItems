@@ -31,7 +31,11 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 	private @Nullable ScreenFocusHandler screenUnfocusHandler;
 
 	public GuiTextFieldFilter(BooleanSupplier filterEmpty) {
-		super(Minecraft.getInstance().font, 0, 0, 0, 0, Component.translatable("gui.jei.search"));
+		this(filterEmpty, Component.translatable("gui.jei.search"));
+	}
+
+	public GuiTextFieldFilter(BooleanSupplier filterEmpty, Component message) {
+		super(Minecraft.getInstance().font, 0, 0, 0, 0, message);
 		this.filterEmpty = filterEmpty;
 
 		setMaxLength(maxSearchLength);
@@ -85,7 +89,7 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 			if (keyboardFocus) {
 				Screen screen = minecraft.screen;
 				if (screen != null) {
-					screenUnfocusHandler = ScreenFocusHandler.create(screen);
+					screenUnfocusHandler = ScreenFocusHandler.create(screen, this);
 					if (screenUnfocusHandler != null) {
 						screenUnfocusHandler.unFocus();
 					}

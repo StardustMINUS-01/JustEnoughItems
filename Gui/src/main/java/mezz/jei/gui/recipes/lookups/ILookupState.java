@@ -24,6 +24,15 @@ public interface ILookupState {
 
 	IFocusedRecipes<?> getFocusedRecipes();
 
+	default IFocusedRecipes<?> getFocusedRecipes(IRecipeCategory<?> recipeCategory) {
+		IFocusedRecipes<?> focusedRecipes = getFocusedRecipes();
+		if (focusedRecipes.getRecipeCategory().getRecipeType().equals(recipeCategory.getRecipeType())) {
+			return focusedRecipes;
+		}
+		throw new IllegalArgumentException("Recipe category is not part of this lookup state: " + recipeCategory.getRecipeType());
+	}
+
+
 	void nextRecipeCategory();
 
 	void previousRecipeCategory();

@@ -7,15 +7,12 @@ import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.Internal;
-import mezz.jei.common.gui.CandidateTooltipComponent;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipHelper;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkPermutationTooltipState;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.bookmarks.IBookmark;
@@ -25,7 +22,6 @@ import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.util.FocusUtil;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -89,40 +85,14 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	}
 
 	private void addPermutationTooltip(JeiTooltip tooltip) {
-		if (!Internal.getJeiClientConfigs().getClientConfig().isTagContentTooltipEnabled()) {
-			return;
-		}
 		List<BookmarkIngredientKey> permutationKeys = List.copyOf(displayEntry.metadata().permutations());
-		if (permutationKeys.size() <= 1) {
-			return;
-		}
-		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		List<BookmarkIngredientKey> resolvedKeys = new ArrayList<>(permutationKeys.size());
-		List<ITypedIngredient<?>> candidates = new ArrayList<>(permutationKeys.size());
-		for (BookmarkIngredientKey key : permutationKeys) {
-			resolvePermutation(ingredientManager, key).ifPresent(ingredient -> {
-				resolvedKeys.add(key);
-				candidates.add(ingredient);
-			});
-		}
-		if (candidates.size() <= 1) {
-			return;
-		}
-		BookmarkIngredientKey selectedKey = BookmarkItemMetadataFactory.createPermutationKey(getTypedIngredient(), ingredientManager);
-		int selectedIndex = resolvedKeys.indexOf(selectedKey);
-		int windowStart = permutationTooltipState.updateStart(
+		BookmarkCandidateTooltipHelper.addTo(
+			tooltip,
+			permutationTooltipState,
 			displayEntry.sourceIndex(),
-			resolvedKeys,
-			selectedIndex
+			getTypedIngredient(),
+			permutationKeys
 		);
-		tooltip.add(CandidateTooltipComponent.create(ingredientManager, candidates, selectedIndex, windowStart));
-	}
-
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private static Optional<ITypedIngredient<?>> resolvePermutation(IIngredientManager ingredientManager, BookmarkIngredientKey key) {
-		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
-			.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
-			.map(typedIngredient -> (ITypedIngredient<?>) typedIngredient);
 	}
 
 	@Override
