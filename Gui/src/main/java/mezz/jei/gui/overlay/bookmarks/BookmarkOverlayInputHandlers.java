@@ -43,9 +43,7 @@ public final class BookmarkOverlayInputHandlers {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	private static void debugScroll(String message, Object... args) {
-		if (DebugConfig.isDebugModeEnabled()) {
-			LOGGER.info("[Bug5-SCROLL] " + message, args);
-		}
+		LOGGER.info("[Bug5-SCROLL] " + message, args);
 	}
 	private final BookmarkOverlay overlay;
 
@@ -263,8 +261,6 @@ public final class BookmarkOverlayInputHandlers {
 
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
-			debugScroll("scroll event mouse=({},{}) delta={} modifiers ctrl={} alt={} shift={}",
-				(int) mouseX, (int) mouseY, scrollDelta, Screen.hasControlDown(), Screen.hasAltDown(), Screen.hasShiftDown());
 			if (overlay.getScrollStepArea().contains(mouseX, mouseY)) {
 				if (scrollDelta == 0) {
 					return Optional.empty();
@@ -290,6 +286,8 @@ public final class BookmarkOverlayInputHandlers {
 			if (!controlDown && !shiftDown && !altDown) {
 				return Optional.empty();
 			}
+			debugScroll("scroll event mouse=({},{}) delta={} modifiers ctrl={} alt={} shift={}",
+				(int) mouseX, (int) mouseY, scrollDelta, controlDown, altDown, shiftDown);
 
 			// A bookmark hit takes priority over the group row: the row hit-area overlaps the first
 			// bookmark column, and the group context cannot resolve alt+scroll (toggle catalyst).
@@ -305,7 +303,9 @@ public final class BookmarkOverlayInputHandlers {
 					playClickSound();
 					return Optional.of(this);
 				}
+				debugScroll("toggleBookmarkInputCatalyst returned false or action not toggle");
 			}
+
 			if (groupSlot.isPresent() || defaultControl) {
 				String groupId = groupSlot.map(GroupPanelSlot::groupId).orElse(BookmarkGroupManager.DEFAULT_GROUP_ID);
 				BookmarkHotkeyContext context = groupSlot
@@ -329,7 +329,7 @@ public final class BookmarkOverlayInputHandlers {
 			}
 
 			Optional<IBookmark> bookmark = overlay.getBookmarkUnderMouse(mouseX, mouseY);
-				debugScroll("late bookmark branch hit: {}", bookmark.isPresent());
+			debugScroll("late bookmark branch hit: {}", bookmark.isPresent());
 			if (bookmark.isPresent()) {
 				BookmarkHotkeyContext context = createBookmarkHotkeyContext(bookmark.get());
 				Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, controlDown, altDown, shiftDown);
