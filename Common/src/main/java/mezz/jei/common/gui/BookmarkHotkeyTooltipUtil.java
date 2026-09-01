@@ -1,6 +1,7 @@
 package mezz.jei.common.gui;
 
 import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.IInternalKeyMappings;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.Screen;
@@ -185,9 +186,9 @@ public final class BookmarkHotkeyTooltipUtil {
 	}
 
 	private static Component getToggleInputCatalystKey(IInternalKeyMappings keyBindings) {
-		Component boundKey = keyBindings.getToggleInputCatalyst().getTranslatedKeyMessage();
-		if (boundKey != null && !boundKey.getString().isBlank()) {
-			return boundKey;
+		IJeiKeyMapping toggleInputCatalyst = keyBindings.getToggleInputCatalyst();
+		if (!toggleInputCatalyst.isUnbound()) {
+			return toggleInputCatalyst.getTranslatedKeyMessage();
 		}
 		return Component.translatable("jei.tooltip.bookmarks.group.keys.alt_scroll");
 	}
