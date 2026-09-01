@@ -1,5 +1,9 @@
 package mezz.jei.gui.overlay.bookmarks;
 
+import mezz.jei.common.Internal;
+import mezz.jei.common.config.DebugConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.Internal;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -36,6 +40,13 @@ import java.util.Optional;
  * semantics including GROUP_DROP_DRAG (Ctrl+left drag) and recipe-chaining (left drag).
  */
 public final class BookmarkOverlayInputHandlers {
+	private static final Logger LOGGER = LogManager.getLogger();
+
+	private static void debugScroll(String message, Object... args) {
+		if (DebugConfig.isDebugModeEnabled()) {
+			LOGGER.info("[Bug5-SCROLL] " + message, args);
+		}
+	}
 	private final BookmarkOverlay overlay;
 
 	public BookmarkOverlayInputHandlers(BookmarkOverlay overlay) {
@@ -252,6 +263,8 @@ public final class BookmarkOverlayInputHandlers {
 
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+			debugScroll("scroll event mouse=({},{}) delta={} modifiers ctrl={} alt={} shift={}",
+				(int) mouseX, (int) mouseY, scrollDelta, Screen.hasControlDown(), Screen.hasAltDown(), Screen.hasShiftDown());
 			if (overlay.getScrollStepArea().contains(mouseX, mouseY)) {
 				if (scrollDelta == 0) {
 					return Optional.empty();
@@ -264,8 +277,10 @@ public final class BookmarkOverlayInputHandlers {
 				return Optional.of(this);
 			}
 
+			debugScroll("gate0: scrollStepArea={} ", overlay.getScrollStepArea().contains(mouseX, mouseY));
 			Optional<GroupPanelSlot> groupSlot = overlay.getGroupPanelSlotUnderMouse(mouseX, mouseY);
 			boolean defaultControl = overlay.hasDefaultGroupBookmarks() && overlay.getDefaultGroupControlArea().contains(mouseX, mouseY);
+			debugScroll("gate1: isMouseOver={} groupSlot={} defaultControl={}", overlay.isMouseOver(mouseX, mouseY), groupSlot.isPresent(), defaultControl);
 			if (!overlay.isMouseOver(mouseX, mouseY) && groupSlot.isEmpty() && !defaultControl) {
 				return Optional.empty();
 			}
@@ -279,11 +294,14 @@ public final class BookmarkOverlayInputHandlers {
 			// A bookmark hit takes priority over the group row: the row hit-area overlaps the first
 			// bookmark column, and the group context cannot resolve alt+scroll (toggle catalyst).
 			Optional<IBookmark> bookmarkUnderMouse = overlay.getBookmarkUnderMouse(mouseX, mouseY);
+			debugScroll("bookmarkUnderMouse present={} (groupSlot={} defaultControl={})", bookmarkUnderMouse.isPresent(), groupSlot.isPresent(), defaultControl);
 			if (bookmarkUnderMouse.isPresent() && altDown && !controlDown && !shiftDown) {
 				BookmarkHotkeyContext bookmarkContext = createBookmarkHotkeyContext(bookmarkUnderMouse.get());
 				Optional<BookmarkHotkeyAction> bookmarkAction = BookmarkHotkeyRouter.resolveBookmarkScrollAction(bookmarkContext, controlDown, altDown, shiftDown);
+				debugScroll("alt+scroll bookmark action resolved: {} on bookmark {}", bookmarkAction, bookmarkUnderMouse.map(b -> b.getElement().getTypedIngredient()));
 				if (bookmarkAction.filter(a -> a == BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST).isPresent()
 					&& overlay.getBookmarkList().toggleBookmarkInputCatalyst(bookmarkUnderMouse.get())) {
+					debugScroll("toggleBookmarkInputCatalyst returned true");
 					playClickSound();
 					return Optional.of(this);
 				}
@@ -311,6 +329,7 @@ public final class BookmarkOverlayInputHandlers {
 			}
 
 			Optional<IBookmark> bookmark = overlay.getBookmarkUnderMouse(mouseX, mouseY);
+				debugScroll("late bookmark branch hit: {}", bookmark.isPresent());
 			if (bookmark.isPresent()) {
 				BookmarkHotkeyContext context = createBookmarkHotkeyContext(bookmark.get());
 				Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, controlDown, altDown, shiftDown);
