@@ -351,7 +351,8 @@ public class JeiGuiStarter {
 		);
 
 		List<ICharTypedHandler> charTypedHandlers = List.of(
-			ingredientListOverlay
+			ingredientListOverlay,
+			bookmarkOverlay
 		);
 
 		FocusUtil focusUtil = new FocusUtil(focusFactory, clientConfig, ingredientManager);

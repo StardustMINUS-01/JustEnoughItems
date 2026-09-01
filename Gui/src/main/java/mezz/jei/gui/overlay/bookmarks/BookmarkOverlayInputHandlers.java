@@ -276,6 +276,18 @@ public final class BookmarkOverlayInputHandlers {
 				return Optional.empty();
 			}
 
+			// A bookmark hit takes priority over the group row: the row hit-area overlaps the first
+			// bookmark column, and the group context cannot resolve alt+scroll (toggle catalyst).
+			Optional<IBookmark> bookmarkUnderMouse = overlay.getBookmarkUnderMouse(mouseX, mouseY);
+			if (bookmarkUnderMouse.isPresent() && altDown && !controlDown && !shiftDown) {
+				BookmarkHotkeyContext bookmarkContext = createBookmarkHotkeyContext(bookmarkUnderMouse.get());
+				Optional<BookmarkHotkeyAction> bookmarkAction = BookmarkHotkeyRouter.resolveBookmarkScrollAction(bookmarkContext, controlDown, altDown, shiftDown);
+				if (bookmarkAction.filter(a -> a == BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST).isPresent()
+					&& overlay.getBookmarkList().toggleBookmarkInputCatalyst(bookmarkUnderMouse.get())) {
+					playClickSound();
+					return Optional.of(this);
+				}
+			}
 			if (groupSlot.isPresent() || defaultControl) {
 				String groupId = groupSlot.map(GroupPanelSlot::groupId).orElse(BookmarkGroupManager.DEFAULT_GROUP_ID);
 				BookmarkHotkeyContext context = groupSlot
