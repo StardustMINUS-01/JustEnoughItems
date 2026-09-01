@@ -41,6 +41,8 @@ import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.InputModifiers;
+import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
+import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
@@ -112,6 +114,9 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		}
 		if (isBookmarkPullInput(input, keyBindings.getBookmarkPullItems())) {
 			return handleBookmarkPull(input);
+		}
+		if (input.is(keyBindings.getToggleInputCatalyst())) {
+			return handleToggleInputCatalyst(input);
 		}
 		Optional<IUserInputHandler> patternEncodeHandler = handleRecipeChainPatternEncode(input, keyBindings);
 		if (patternEncodeHandler.isPresent()) {
@@ -390,6 +395,21 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		}
 		IUserInputHandler handler = new SameElementInputHandler(this, bookmarkOverlay::isMouseOver);
 		return Optional.of(handler);
+	}
+
+	private Optional<IUserInputHandler> handleToggleInputCatalyst(UserInput input) {
+		Optional<IBookmark> bookmark = bookmarkOverlay.getIngredientUnderMouse(input.getMouseX(), input.getMouseY())
+			.map(IClickableIngredientInternal::getElement)
+			.map(IElement::getBookmark)
+			.flatMap(Optional::stream)
+			.findFirst();
+		if (bookmark.isEmpty()) {
+			return Optional.empty();
+		}
+		if (!input.isSimulate() && bookmarkList.toggleBookmarkInputCatalyst(bookmark.get())) {
+			JeiClientSoundUtil.playClickSound();
+		}
+		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
 	}
 
 	private Optional<IUserInputHandler> handleFavoriteRecipe(UserInput input, IInternalKeyMappings keyBindings) {

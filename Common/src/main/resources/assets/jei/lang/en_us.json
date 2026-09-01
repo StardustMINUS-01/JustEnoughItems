@@ -169,6 +169,7 @@
   "key.jei.bookmark": "Add/Remove Bookmark",
   "key.jei.favoriteRecipe": "Favorite Recipe",
   "key.jei.bookmarkPullItems": "Pull Bookmarked Items",
+  "key.jei.toggleInputCatalyst": "Toggle Input/Catalyst",
   "key.jei.overlayRecipe": "Overlay Recipe",
   "key.jei.craftItems": "Craft Items",
   "key.jei.encodeRecipeChainPatterns": "Encode AE2 Patterns",

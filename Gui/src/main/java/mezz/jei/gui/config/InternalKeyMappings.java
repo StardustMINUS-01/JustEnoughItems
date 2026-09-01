@@ -36,6 +36,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping bookmark;
 	private final IJeiKeyMapping favoriteRecipe;
 	private final IJeiKeyMapping bookmarkPullItems;
+	private final IJeiKeyMapping toggleInputCatalyst;
 	private final IJeiKeyMapping overlayRecipe;
 	private final IJeiKeyMapping craftItems;
 	private final IJeiKeyMapping encodeRecipeChainPatterns;
@@ -149,6 +150,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		bookmarkPullItems = mouseHover.createMapping("key.jei.bookmarkPullItems")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.buildKeyboardKey(GLFW.GLFW_KEY_V)
+			.register(registerMethod);
+
+		toggleInputCatalyst = mouseHover.createMapping("key.jei.toggleInputCatalyst")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildUnbound()
 			.register(registerMethod);
 
 		overlayRecipe = mouseHover.createMapping("key.jei.overlayRecipe")
@@ -460,6 +466,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getBookmarkPullItems() {
 		return bookmarkPullItems;
+	}
+
+	@Override
+	public IJeiKeyMapping getToggleInputCatalyst() {
+		return toggleInputCatalyst;
 	}
 
 	@Override

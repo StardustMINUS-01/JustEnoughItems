@@ -65,4 +65,6 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getLeftClick();
 	IJeiKeyMapping getRightClick();
 	IJeiKeyMapping getEnterKey();
+
+	IJeiKeyMapping getToggleInputCatalyst();
 }

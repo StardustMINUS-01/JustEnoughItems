@@ -46,7 +46,7 @@ public final class BookmarkHotkeyTooltipUtil {
 		if (showToggleInputCatalyst) {
 			HotkeyTooltipLine.add(
 				tooltip,
-				Component.translatable("jei.tooltip.bookmarks.group.keys.alt_scroll"),
+				getToggleInputCatalystKey(keyBindings),
 				"jei.tooltip.bookmarks.group.hotkeys.toggle_input_catalyst"
 			);
 		}
@@ -184,6 +184,13 @@ public final class BookmarkHotkeyTooltipUtil {
 		HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("SHIFT + ", craftKey), translationPrefix + ".craft_items");
 	}
 
+	private static Component getToggleInputCatalystKey(IInternalKeyMappings keyBindings) {
+		Component boundKey = keyBindings.getToggleInputCatalyst().getTranslatedKeyMessage();
+		if (boundKey != null && !boundKey.getString().isBlank()) {
+			return boundKey;
+		}
+		return Component.translatable("jei.tooltip.bookmarks.group.keys.alt_scroll");
+	}
 	private static void addHoldAltPrompt(ITooltipBuilder tooltip) {
 		tooltip.add(
 			Component.translatable("jei.tooltip.bookmarks.hotkeys.hold_alt.prefix").withStyle(ChatFormatting.GRAY)
