@@ -20,7 +20,7 @@ public final class InputModifiers {
 		return (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
 	}
 
-	
+
 
 	public static boolean hasControl(UserInput input) {
 		return Screen.hasControlDown() || (input.getModifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
@@ -29,7 +29,7 @@ public final class InputModifiers {
 	public static boolean hasAlt(UserInput input) {
 		return Screen.hasAltDown() || (input.getModifiers() & GLFW.GLFW_MOD_ALT) != 0;
 	}
-
+
 
 	public static boolean hasControl(int modifiers) {
 		return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
