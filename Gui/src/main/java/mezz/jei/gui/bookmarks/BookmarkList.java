@@ -1470,7 +1470,7 @@ public class BookmarkList implements IIngredientGridSource {
 		int groupId = bookmarkGroups.createGroup(sourceGroup.title());
 		for (RecipeChainTooltipModel.Item item : missingItems) {
 			ITypedIngredient<?> ingredient = item.ingredient();
-			IBookmark bookmark = IngredientBookmark.create(ingredient, ingredientManager)
+			IBookmark bookmark = IngredientBookmark.createWithAmount(ingredient, 1, ingredientManager)
 				.withEqualityScope(groupId);
 			if (addToListWithoutNotifying(bookmark, false)) {
 				BookmarkItemMetadata metadata = BookmarkItemMetadata.defaultForGroup(groupId)

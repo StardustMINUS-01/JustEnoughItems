@@ -26,6 +26,9 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import mezz.jei.gui.config.BookmarkConfigEntryCodec;
@@ -40,6 +43,8 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.lang.reflect.Proxy;
 import java.util.LinkedHashSet;
@@ -50,7 +55,7 @@ import java.util.Set;
 public class BookmarkJsonSerializerTest {
 	private static final ResourceLocation RECIPE_UID = ResourceLocation.fromNamespaceAndPath("test", "glass");
 	private static final RecipeType<Object> RECIPE_TYPE = RecipeType.create("test", "crafting", Object.class);
-	private static final IIngredientManager INGREDIENT_MANAGER = ingredientManager();
+	private static final IIngredientManager INGREDIENT_MANAGER = ingredientManager(1);
 
 	@BeforeAll
 	public static void setup() {
@@ -67,6 +72,44 @@ public class BookmarkJsonSerializerTest {
 
 		Assertions.assertEquals(2, encoded.getAsJsonObject().get("id").getAsInt());
 		Assertions.assertEquals(group, decoded);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"1, 1", "128, 1", "1, 1000", "2500, 1000"})
+	public void savedMissingGroupKeepsTooltipAmountsAfterReloadAndResave(long amount, int normalizedAmount) {
+		// Some ingredient types normalize to a larger unit, such as a bucket of fluid.
+		IIngredientManager manager = ingredientManager(normalizedAmount);
+		BookmarkList source = new BookmarkList(null, null, manager, null, null, null, null);
+		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS, 64));
+		BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(glass, manager);
+		source.addMissingRecipeChainGroup(0, List.of(new RecipeChainTooltipModel.Item(key, amount, glass)));
+		Assertions.assertEquals(1, source.getBookmarks().getFirst().getElement().getTypedIngredient().getItemStack().orElseThrow().getCount());
+		Codec<BookmarkConfigEntry> codec = createEntryCodec(manager);
+		List<BookmarkConfigEntry> entries = BookmarkJsonSerializer.createEntries(source).stream()
+			.map(entry -> codec.parse(JsonOps.INSTANCE, codec.encodeStart(JsonOps.INSTANCE, entry).getOrThrow()).getOrThrow())
+			.toList();
+		BookmarkList decoded = new BookmarkList(null, null, manager, null, null, null, null);
+		BookmarkJsonSerializer.applyEntries(entries, decoded);
+		int groupId = decoded.getBookmarkGroups().getLast().id();
+		Assertions.assertTrue(decoded.isGroupCraftingMode(groupId));
+		List<RecipeChainInput> inputs = decoded.getRecipeChainTooltipInputs(groupId);
+		RecipeChainTooltipModel normal = RecipeChainTooltipModel.create(inputs, decoded.getRecipeChainDetails(groupId),
+			Set.of(), List.of(), false, false, manager);
+		Assertions.assertEquals(RecipeChainTooltipSectionType.INPUT, normal.sections().getFirst().type());
+		Assertions.assertEquals(amount, normal.sections().getFirst().items().getFirst().amount());
+		long stored = Math.min(20, amount - 1);
+		RecipeChainInput inventory = new RecipeChainInput(-1,
+			BookmarkItemMetadata.defaultForGroup(groupId).withMultiplier(stored).withPermutations(Set.of(key)), key, glass);
+		RecipeChainTooltipModel shift = RecipeChainTooltipModel.create(inputs, decoded.getRecipeChainDetails(groupId),
+			Set.of(), List.of(inventory), true, false, manager);
+		List<RecipeChainTooltipModel.Item> missing = shift.sections().stream()
+			.filter(section -> section.type() == RecipeChainTooltipSectionType.MISSING)
+			.flatMap(section -> section.items().stream()).toList();
+		Assertions.assertEquals(amount - stored, missing.getFirst().amount());
+		decoded.addMissingRecipeChainGroup(groupId, missing);
+		int savedGroupId = decoded.getBookmarkGroups().getLast().id();
+		Assertions.assertEquals(amount - stored, decoded.getRecipeChainTooltipInputs(savedGroupId).getFirst().metadata().amount());
+		Assertions.assertEquals(amount, decoded.getRecipeChainTooltipInputs(groupId).getFirst().metadata().amount());
 	}
 
 	@Test
@@ -227,6 +270,10 @@ public class BookmarkJsonSerializerTest {
 	}
 
 	private static Codec<BookmarkConfigEntry> createEntryCodec() {
+		return createEntryCodec(INGREDIENT_MANAGER);
+	}
+
+	private static Codec<BookmarkConfigEntry> createEntryCodec(IIngredientManager manager) {
 		MapCodec<ITypedIngredient<?>> typedIngredientCodec = RecordCodecBuilder.mapCodec(instance -> instance.group(
 			Codec.STRING.optionalFieldOf("type", VanillaTypes.ITEM_STACK.getUid())
 				.forGetter(ingredient -> ingredient.getType().getUid()),
@@ -248,11 +295,11 @@ public class BookmarkJsonSerializerTest {
 			typedIngredientCodec.forGetter(bookmark -> bookmark.getElement().getTypedIngredient())
 		).apply(instance, (type, ingredient) -> BookmarkType.valueOf(type) == BookmarkType.RECIPE ?
 			new RecipeBookmark<>(new TestRecipeCategory(), new Object(), RECIPE_UID, ingredient, RecipeIngredientRole.OUTPUT) :
-			IngredientBookmark.create(ingredient, INGREDIENT_MANAGER)));
-		return BookmarkConfigEntryCodec.create(codecHelper, INGREDIENT_MANAGER, bookmarkCodec.codec());
+			IngredientBookmark.create(ingredient, manager)));
+		return BookmarkConfigEntryCodec.create(codecHelper, manager, bookmarkCodec.codec());
 	}
 
-	private static IIngredientManager ingredientManager() {
+	private static IIngredientManager ingredientManager(int normalizedAmount) {
 		return (IIngredientManager) Proxy.newProxyInstance(
 			BookmarkJsonSerializerTest.class.getClassLoader(),
 			new Class<?>[]{IIngredientManager.class},
@@ -261,7 +308,7 @@ public class BookmarkJsonSerializerTest {
 				case "createTypedIngredient" -> Optional.of(typed((ItemStack) args[1]));
 				case "normalizeTypedIngredient" -> {
 					ItemStack normalized = ((ITypedIngredient<?>) args[0]).getItemStack().orElseThrow().copy();
-					normalized.setCount(1);
+					normalized.setCount(normalizedAmount);
 					yield typed(normalized);
 				}
 				case "getIngredientTypeForUid" -> "item_stack".equals(args[0]) ?

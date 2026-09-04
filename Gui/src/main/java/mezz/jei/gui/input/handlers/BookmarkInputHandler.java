@@ -396,13 +396,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 		int groupId = optionalGroupId.get();
-		Minecraft minecraft = Minecraft.getInstance();
-		List<RecipeChainInput> inventoryInputs;
-		if (minecraft.screen instanceof RecipesGui) {
-			inventoryInputs = List.of();
-		} else {
-			inventoryInputs = recipeChainInventoryProvider.getInventoryInputs(groupId, -1);
-		}
+		List<RecipeChainInput> inventoryInputs = recipeChainInventoryProvider.getTooltipInventoryInputs(groupId);
 		List<RecipeChainInput> groupInputs = bookmarkList.getRecipeChainTooltipInputs(groupId);
 		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(
 			groupInputs,

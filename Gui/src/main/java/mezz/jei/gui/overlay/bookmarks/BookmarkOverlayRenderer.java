@@ -12,7 +12,6 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
-import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
@@ -21,7 +20,6 @@ import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.IPaged;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
-import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -404,12 +402,9 @@ public class BookmarkOverlayRenderer {
 
 	private static List<RecipeChainInput> getRecipeChainTooltipInventoryInputs(int groupId) {
 		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.screen instanceof RecipesGui) {
-			return List.of();
-		}
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		RecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
-		return inventoryProvider.getInventoryInputs(groupId, -1);
+		PlayerInventoryRecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
+		return inventoryProvider.getTooltipInventoryInputs(groupId);
 	}
 
 	private static String getRecipeChainTooltipLabel(RecipeChainTooltipSectionType type) {
