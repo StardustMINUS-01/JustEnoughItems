@@ -1,47 +1,46 @@
 package mezz.jei.gui.config;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.config.file.GsonArrayFileHelper;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
+import mezz.jei.common.config.file.JsonArrayFileHelper;
 import mezz.jei.common.util.DeduplicatingRunner;
-import mezz.jei.common.util.PathUtil;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
-import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.RegistryOps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public class BookmarkJsonConfig implements IBookmarkConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final Duration SAVE_DELAY_TIME = Duration.ofSeconds(5);
-	private static final int VERSION = 1;
+	private static final int VERSION = 2;
 
 	private final Path jeiConfigurationDir;
 	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
-	private final BookmarkConfig iniBookmarkConfig;
-	private @Nullable BookmarkList bookmarkList;
+	private BookmarkList bookmarkList;
+	private IIngredientManager ingredientManager;
+	private ICodecHelper codecHelper;
 
 	public BookmarkJsonConfig(Path jeiConfigurationDir) {
 		this.jeiConfigurationDir = jeiConfigurationDir;
-		this.iniBookmarkConfig = new BookmarkConfig(jeiConfigurationDir);
 	}
 
 	private static Optional<Path> getPath(Path jeiConfigurationDir) {
@@ -57,6 +56,10 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 			});
 	}
 
+	private RegistryOps<JsonElement> getRegistryOps(RegistryAccess registryAccess) {
+		return registryAccess.createSerializationContext(JsonOps.INSTANCE);
+	}
+
 	@Override
 	public boolean saveBookmarks(
 		IRecipeManager recipeManager,
@@ -68,25 +71,38 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		List<IBookmark> bookmarks,
 		Codec<IBookmark> bookmarkCodec
 	) {
+		BookmarkList bookmarkList = this.bookmarkList;
+		if (bookmarkList == null) {
+			return false;
+		}
+		this.ingredientManager = ingredientManager;
+		this.codecHelper = codecHelper;
+		List<IBookmark> bookmarksSnapshot = List.copyOf(bookmarks);
 		return getPath(jeiConfigurationDir)
 			.map(path -> {
-				delayedSave.run(() -> save(path, ingredientManager));
+				delayedSave.run(() -> save(path, registryAccess, bookmarksSnapshot, bookmarkCodec));
 				return true;
 			})
 			.orElse(false);
 	}
 
-	private boolean save(Path path, IIngredientManager ingredientManager) {
-		BookmarkList bookmarkList = this.bookmarkList;
-		if (bookmarkList == null) {
-			return false;
-		}
-		List<JsonElement> elements = BookmarkJsonSerializer.serialize(bookmarkList, ingredientManager);
+	private boolean save(Path path, RegistryAccess registryAccess, Collection<IBookmark> bookmarks, Codec<IBookmark> bookmarkCodec) {
+		Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
+		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
+		List<BookmarkConfigEntry> entries = BookmarkJsonSerializer.createEntries(bookmarkList, bookmarks);
 		try {
-			GsonArrayFileHelper.write(path, VERSION, elements);
+			JsonArrayFileHelper.write(
+				path,
+				VERSION,
+				entries,
+				entryCodec,
+				registryOps,
+				error -> LOGGER.error("Encountered an error when saving bookmark config to file {}\n{}", path, error),
+				(entry, exception) -> LOGGER.error("Encountered an exception when saving bookmark config to file {}\n{}", path, entry, exception)
+			);
 			LOGGER.debug("Saved bookmarks config to file: {}", path);
 			return true;
-		} catch (IOException e) {
+		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to save bookmarks config to file {}", path, e);
 			return false;
 		}
@@ -105,57 +121,28 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		BookmarkFactory bookmarkFactory
 	) {
 		this.bookmarkList = bookmarkList;
-		Optional<Path> jsonPath = getPath(jeiConfigurationDir);
-		if (jsonPath.isEmpty()) {
+		this.ingredientManager = ingredientManager;
+		this.codecHelper = codecHelper;
+		Optional<Path> optionalPath = getPath(jeiConfigurationDir);
+		if (optionalPath.isEmpty() || !Files.exists(optionalPath.get())) {
 			return;
 		}
-		Path path = jsonPath.get();
-		if (Files.exists(path)) {
-			loadJson(path, bookmarkList, recipeManager, focusFactory, ingredientManager);
-			return;
-		}
-		Optional<Path> iniPath = BookmarkConfig.getPath(jeiConfigurationDir);
-		if (iniPath.isPresent() && Files.exists(iniPath.get())) {
-			iniBookmarkConfig.loadBookmarks(
-				recipeManager,
-				focusFactory,
-				guiHelper,
-				ingredientManager,
-				registryAccess,
-				bookmarkList
+		Path path = optionalPath.get();
+		Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
+		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
+		try (BufferedReader reader = Files.newBufferedReader(path)) {
+			List<BookmarkConfigEntry> entries = JsonArrayFileHelper.read(
+				reader,
+				VERSION,
+				entryCodec,
+				registryOps,
+				(element, error) -> LOGGER.error("Encountered an error when loading bookmark config from file {}\n{}\n{}", path, element, error),
+				(element, exception) -> LOGGER.error("Encountered an exception when loading bookmark config from file {}\n{}", path, element, exception)
 			);
-			if (save(path, ingredientManager)) {
-				Path legacyPath = iniPath.get();
-				try {
-					Path backupPath = legacyPath.resolveSibling(legacyPath.getFileName() + ".bak");
-					PathUtil.moveAtomicReplace(legacyPath, backupPath);
-					LOGGER.info("Backed up legacy bookmarks config file to '{}'", backupPath);
-				} catch (IOException e) {
-					LOGGER.error("Failed to back up legacy bookmarks config file '{}'", legacyPath, e);
-				}
-			}
+			BookmarkJsonSerializer.applyEntries(entries, bookmarkList);
+			LOGGER.debug("Loaded bookmarks config from file: {}", path);
+		} catch (RuntimeException | IOException e) {
+			LOGGER.error("Failed to load bookmarks config from file {}", path, e);
 		}
 	}
-
-	private static void loadJson(
-		Path path,
-		BookmarkList bookmarkList,
-		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		IIngredientManager ingredientManager
-	) {
-		JsonArray elements = GsonArrayFileHelper.read(path, VERSION).orElse(null);
-		if (elements == null) {
-			LOGGER.error("Failed to load bookmarks config from file {}: missing or invalid content", path);
-			return;
-		}
-		RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(
-			recipeManager,
-			focusFactory,
-			new TypedIngredientSerializer(ingredientManager)
-		);
-		BookmarkJsonSerializer.deserialize(elements, bookmarkList, recipeBookmarkSerializer, ingredientManager);
-		LOGGER.debug("Loaded bookmarks config from file: {}", path);
-	}
-
 }

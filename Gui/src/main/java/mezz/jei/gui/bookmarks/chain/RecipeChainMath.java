@@ -27,7 +27,7 @@ import java.util.Set;
 public final class RecipeChainMath {
 	public static final ResourceLocation ROOT_RECIPE_UID = ResourceLocation.fromNamespaceAndPath("jei", "recipe-autocrafting");
 	private static final ResourceLocation ROOT_RECIPE_TYPE_UID = ResourceLocation.fromNamespaceAndPath("jei", "autocrafting");
-	private static final BookmarkIngredientKey ROOT_KEY = new BookmarkIngredientKey("minecraft:item", "minecraft:fire", null);
+	private static final BookmarkIngredientKey ROOT_KEY = new BookmarkIngredientKey("minecraft:item", "minecraft:fire");
 
 	private final List<RecipeChainInput> initialItems = new ArrayList<>();
 	private final List<RecipeChainInput> recipeIngredients = new ArrayList<>();

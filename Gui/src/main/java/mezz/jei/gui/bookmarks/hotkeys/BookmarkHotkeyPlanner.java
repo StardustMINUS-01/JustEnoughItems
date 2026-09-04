@@ -64,7 +64,7 @@ public final class BookmarkHotkeyPlanner {
 	private static void addRecipeBookmarkActions(List<BookmarkHotkeyAvailability> actions, BookmarkHotkeyContext context) {
 		add(actions, BookmarkHotkeyAction.REMOVE_RECIPE_BOOKMARK, BookmarkHotkeySupport.SUPPORTED);
 		addScrollActions(actions);
-		add(actions, BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST, BookmarkHotkeySupport.SUPPORTED);
+		add(actions, BookmarkHotkeyAction.TOGGLE_INPUT_NONCONSUMABLE, BookmarkHotkeySupport.SUPPORTED);
 		if (context.canTransferRecipe()) {
 			add(actions, BookmarkHotkeyAction.TRANSFER_RECIPE_ONCE, BookmarkHotkeySupport.SUPPORTED);
 		}

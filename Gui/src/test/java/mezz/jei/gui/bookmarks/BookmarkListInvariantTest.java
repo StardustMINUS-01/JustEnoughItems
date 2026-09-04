@@ -14,10 +14,14 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.bookmarks.BookmarkGroupingPlan;
+import mezz.jei.gui.overlay.bookmarks.BookmarkItemMovePlan;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPanelLayout;
+import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.Component;
@@ -30,8 +34,12 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -67,7 +75,7 @@ public class BookmarkListInvariantTest {
 	@Test
 	public void removingLastBookmarkInGroupRemovesEmptyGroupMetadata() {
 		BookmarkList bookmarks = bookmarkList();
-		String groupId = "group_1";
+		int groupId = 1;
 		TestBookmark bookmark = bookmark("plate");
 
 		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines"));
@@ -76,7 +84,7 @@ public class BookmarkListInvariantTest {
 
 		bookmarks.remove(bookmark);
 
-		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id().equals(groupId)));
+		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id() == groupId));
 	}
 
 	@Test
@@ -101,7 +109,7 @@ public class BookmarkListInvariantTest {
 	@Test
 	public void removingRecipeBlockInCraftingGroupKeepsLooseItemBookmark() {
 		BookmarkList bookmarks = bookmarkList();
-		String groupId = "group_1";
+		int groupId = 1;
 		TestBookmark result = bookmark("result");
 		TestBookmark input = bookmark("input");
 		TestBookmark loose = bookmark("loose");
@@ -128,7 +136,7 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(result, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result));
 
 		Assertions.assertEquals(1, bookmarks.getBookmarks().size());
 		Assertions.assertEquals(groupId, ((RecipeBookmark<?, ?>) bookmarks.getBookmarks().get(0)).getEqualityScope());
@@ -148,9 +156,9 @@ public class BookmarkListInvariantTest {
 			groupedResult,
 			metadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.RESULT, RECIPE, 4, 3, 5000, Set.of(key("iron"), key("gold")))
 		);
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult));
 		IBookmark currentGroupedResult = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.findFirst()
 			.orElseThrow();
 		Assertions.assertEquals(groupId, bookmarks.getBookmarkGroupId(currentGroupedResult));
@@ -184,7 +192,7 @@ public class BookmarkListInvariantTest {
 			groupedResult,
 			metadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.RESULT, RECIPE, 4, 3, 5000, Set.of(key("iron")))
 		);
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult));
 		IBookmark currentGroupedResult = bookmarks.getBookmarks().get(0);
 
 		boolean changed = bookmarks.moveBookmarksToGroup(List.of(currentGroupedResult), BookmarkGroupManager.DEFAULT_GROUP_ID);
@@ -207,9 +215,9 @@ public class BookmarkListInvariantTest {
 		bookmarks.moveBookmarkMetadataFromConfig(groupedResult, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 		TestBookmark groupedLoose = bookmark("loose");
 		bookmarks.addToListWithoutNotifying(groupedLoose, false);
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult, groupedLoose));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult, groupedLoose));
 		List<IBookmark> groupedBookmarks = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.toList();
 		Assertions.assertEquals(2, groupedBookmarks.size());
 
@@ -232,7 +240,7 @@ public class BookmarkListInvariantTest {
 		RecipeBookmark<Object, ItemStack> groupResult = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		bookmarks.addToListWithoutNotifying(groupResult, false);
 		bookmarks.moveBookmarkMetadataFromConfig(groupResult, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupResult));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupResult));
 
 		RecipeBookmark<Object, ItemStack> defaultResult = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		bookmarks.addToListWithoutNotifying(defaultResult, false);
@@ -243,7 +251,7 @@ public class BookmarkListInvariantTest {
 		Assertions.assertFalse(changed);
 		Assertions.assertEquals(BookmarkGroupManager.DEFAULT_GROUP_ID, bookmarks.getBookmarkGroupId(defaultResult));
 		Assertions.assertEquals(1, bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.count());
 	}
 
@@ -254,10 +262,10 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(result, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 
-		String groupId = bookmarks.addRecipeBookmarkGroup("Machines", List.of(result));
+		int groupId = bookmarks.addRecipeBookmarkGroup("Machines", List.of(result));
 
 		IBookmark grouped = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.findFirst()
 			.orElseThrow();
 		Assertions.assertEquals(groupId, ((RecipeBookmark<?, ?>) grouped).getEqualityScope());
@@ -273,9 +281,9 @@ public class BookmarkListInvariantTest {
 		RecipeBookmark<Object, ItemStack> groupedResult = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		bookmarks.addToListWithoutNotifying(groupedResult, false);
 		bookmarks.moveBookmarkMetadataFromConfig(groupedResult, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(groupedResult));
 		IBookmark currentGrouped = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.findFirst()
 			.orElseThrow();
 
@@ -300,9 +308,9 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(loose, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
 		IBookmark currentResult = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == BookmarkItemType.RESULT)
 			.findFirst()
 			.orElseThrow();
@@ -322,9 +330,9 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(input, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
 		IBookmark currentResult = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == BookmarkItemType.RESULT)
 			.findFirst()
 			.orElseThrow();
@@ -339,8 +347,8 @@ public class BookmarkListInvariantTest {
 
 		Assertions.assertEquals(2, bookmarks.getBookmarks().size());
 		Assertions.assertTrue(bookmarks.getBookmarks().stream()
-			.allMatch(b -> BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarks.getBookmarkGroupId(b))));
-		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id().equals(groupId)));
+			.allMatch(b -> bookmarks.getBookmarkGroupId(b) == BookmarkGroupManager.DEFAULT_GROUP_ID));
+		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id() == groupId));
 	}
 
 	@Test
@@ -352,10 +360,10 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(input, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
 		bookmarks.setGroupCraftingMode(groupId, true);
 		IBookmark currentResult = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == BookmarkItemType.RESULT)
 			.findFirst()
 			.orElseThrow();
@@ -364,7 +372,7 @@ public class BookmarkListInvariantTest {
 		Assertions.assertTrue(bookmarks.removeRecipeBookmark(currentResult, false));
 
 		Assertions.assertTrue(bookmarks.getBookmarks().isEmpty());
-		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id().equals(groupId)));
+		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id() == groupId));
 	}
 
 	@Test
@@ -376,9 +384,9 @@ public class BookmarkListInvariantTest {
 		bookmarks.addToListWithoutNotifying(input, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
 		IBookmark currentResult = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == BookmarkItemType.RESULT)
 			.findFirst()
 			.orElseThrow();
@@ -414,12 +422,12 @@ public class BookmarkListInvariantTest {
 		bookmarks.moveBookmarkMetadataFromConfig(inputA, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
 		bookmarks.moveBookmarkMetadataFromConfig(resultB, metadata(BookmarkItemType.RESULT, RECIPE_B, "diamond"));
 		bookmarks.moveBookmarkMetadataFromConfig(inputB, metadata(BookmarkItemType.INGREDIENT, RECIPE_B, "emerald"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(resultA, inputA, resultB, inputB));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(resultA, inputA, resultB, inputB));
 		bookmarks.setGroupViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		bookmarks.setGroupCraftingMode(groupId, true);
 		bookmarks.setGroupCollapsedRecipeIds(groupId, Set.of(RECIPE, RECIPE_B));
 		IBookmark currentResultA = bookmarks.getBookmarks().stream()
-			.filter(b -> groupId.equals(bookmarks.getBookmarkGroupId(b)))
+			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == BookmarkItemType.RESULT)
 			.filter(b -> RECIPE.equals(bookmarks.getBookmarkMetadata(b).recipeUid()))
 			.findFirst()
@@ -429,7 +437,7 @@ public class BookmarkListInvariantTest {
 
 		Assertions.assertEquals(2, bookmarks.getBookmarks().size());
 		BookmarkGroup group = bookmarks.getBookmarkGroups().stream()
-			.filter(g -> g.id().equals(groupId))
+			.filter(g -> g.id() == groupId)
 			.findFirst()
 			.orElseThrow();
 		Assertions.assertEquals(Set.of(RECIPE_B), group.collapsedRecipeIds());
@@ -441,7 +449,7 @@ public class BookmarkListInvariantTest {
 		RecipeBookmark<Object, ItemStack> result = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		bookmarks.addToListWithoutNotifying(result, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result));
 		bookmarks.setGroupViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		bookmarks.setGroupCraftingMode(groupId, true);
 		bookmarks.setGroupCollapsedRecipeIds(groupId, Set.of(RECIPE));
@@ -449,7 +457,7 @@ public class BookmarkListInvariantTest {
 		bookmarks.setGroupCraftingMode(groupId, false);
 
 		BookmarkGroup group = bookmarks.getBookmarkGroups().stream()
-			.filter(g -> g.id().equals(groupId))
+			.filter(g -> g.id() == groupId)
 			.findFirst()
 			.orElseThrow();
 		Assertions.assertFalse(group.craftingMode());
@@ -460,7 +468,7 @@ public class BookmarkListInvariantTest {
 	@Test
 	public void togglingRecipeInsideCollapsedClosureTogglesTheRoot() {
 		BookmarkList bookmarks = bookmarkList();
-		String groupId = createTwoRecipeChain(bookmarks);
+		int groupId = createTwoRecipeChain(bookmarks);
 		bookmarks.setGroupCollapsedRecipeIds(groupId, Set.of(RECIPE));
 
 		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
@@ -473,7 +481,7 @@ public class BookmarkListInvariantTest {
 	@Test
 	public void togglingMiddleRecipeFlipsItsMultiplier() {
 		BookmarkList bookmarks = bookmarkList();
-		String groupId = createTwoRecipeChain(bookmarks);
+		int groupId = createTwoRecipeChain(bookmarks);
 
 		Assertions.assertTrue(bookmarks.toggleGroupCollapsedRecipeId(groupId, RECIPE_B));
 		Assertions.assertEquals(Set.of(RECIPE_B), bookmarks.getCollapsedRecipeIds(groupId));
@@ -543,7 +551,7 @@ public class BookmarkListInvariantTest {
 	@Test
 	public void displayEntryUsesColumnAwareBorderData() {
 		BookmarkList bookmarks = bookmarkList();
-		String groupId = "group_1";
+		int groupId = 1;
 		TestBookmark result = bookmark("plate");
 		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Machines", BookmarkViewMode.DEFAULT, true, false, Set.of()));
 		bookmarks.addToListWithoutNotifying(result, false);
@@ -562,7 +570,7 @@ public class BookmarkListInvariantTest {
 	@Test
 	public void displayEntryUsesLatestNonUniformRowLayout() {
 		BookmarkList bookmarks = bookmarkList();
-		String groupId = "group_1";
+		int groupId = 1;
 		TestBookmark first = bookmark("plate");
 		TestBookmark second = bookmark("gear");
 		TestBookmark third = bookmark("machine");
@@ -589,7 +597,7 @@ public class BookmarkListInvariantTest {
 		BookmarkList bookmarks = bookmarkList();
 		TestBookmark catalyst = bookmark("mold");
 		bookmarks.addToListWithoutNotifying(catalyst, false);
-		bookmarks.moveBookmarkMetadataFromConfig(catalyst, metadata(BookmarkItemType.CATALYST, RECIPE, "mold"));
+		bookmarks.moveBookmarkMetadataFromConfig(catalyst, metadata(BookmarkItemType.NONCONSUMABLE, RECIPE, "mold"));
 
 		long multiplierBefore = bookmarks.getBookmarkMetadata(catalyst).multiplier();
 
@@ -606,7 +614,7 @@ public class BookmarkListInvariantTest {
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
 
 		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
-		Assertions.assertEquals(BookmarkItemType.CATALYST, bookmarks.getBookmarkMetadata(input).type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, bookmarks.getBookmarkMetadata(input).type());
 
 		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
 		Assertions.assertEquals(BookmarkItemType.INGREDIENT, bookmarks.getBookmarkMetadata(input).type());
@@ -624,14 +632,14 @@ public class BookmarkListInvariantTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			RECIPE_TYPE,
 			RECIPE,
-			Set.of(new BookmarkIngredientKey("test:item", "ingot", null))
+			Set.of(new BookmarkIngredientKey("test:item", "ingot"))
 		);
 		bookmarks.addToListWithoutNotifying(input, false);
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata);
 
 		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
 		BookmarkItemMetadata toggled = bookmarks.getBookmarkMetadata(input);
-		Assertions.assertEquals(BookmarkItemType.CATALYST, toggled.type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, toggled.type());
 		Assertions.assertEquals(3, toggled.multiplier());
 		Assertions.assertEquals(4, toggled.factor());
 	}
@@ -672,11 +680,11 @@ public class BookmarkListInvariantTest {
 
 		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
 		BookmarkItemMetadata afterToggle = bookmarks.getBookmarkMetadata(input);
-		Assertions.assertEquals(BookmarkItemType.CATALYST, afterToggle.type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, afterToggle.type());
 		Assertions.assertEquals(2, afterToggle.multiplier());
 	}
 
-	private static String createTwoRecipeChain(BookmarkList bookmarks) {
+	private static int createTwoRecipeChain(BookmarkList bookmarks) {
 		RecipeBookmark<Object, ItemStack> aResult = recipeBookmark(RECIPE, Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		RecipeBookmark<Object, ItemStack> aInput = recipeBookmark(RECIPE, Items.GOLD_INGOT, RecipeIngredientRole.INPUT);
 		RecipeBookmark<Object, ItemStack> bResult = recipeBookmark(RECIPE_B, Items.GOLD_INGOT, RecipeIngredientRole.OUTPUT);
@@ -689,7 +697,7 @@ public class BookmarkListInvariantTest {
 		bookmarks.moveBookmarkMetadataFromConfig(aInput, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
 		bookmarks.moveBookmarkMetadataFromConfig(bResult, metadata(BookmarkItemType.RESULT, RECIPE_B, "gold"));
 		bookmarks.moveBookmarkMetadataFromConfig(bInput, metadata(BookmarkItemType.INGREDIENT, RECIPE_B, "diamond"));
-		String groupId = bookmarks.createGroupForBookmarks("Machines", List.of(aResult, aInput, bResult, bInput));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(aResult, aInput, bResult, bInput));
 		bookmarks.setGroupViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		bookmarks.setGroupCraftingMode(groupId, true);
 		return groupId;
@@ -697,6 +705,55 @@ public class BookmarkListInvariantTest {
 
 	private static BookmarkList bookmarkList() {
 		return new BookmarkList(null, null, null, null, null, null, null);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"0.25,1,0,false", "0.5,0,0,true", "0.74,0,0,true", "0.75,2,1,false"})
+	public void crossGroupDragPreservesQuarterRowBoundaries(double fraction, int groupId, int offset, boolean rejected) {
+		var before = new BookmarkPanelLayout.RowSlot<IBookmark>(bookmark("before"), 1, new ImmutableRect2i(0, 0, 20, 20));
+		var target = new BookmarkPanelLayout.RowSlot<IBookmark>(bookmark("target"), 0, new ImmutableRect2i(0, 20, 20, 20));
+		var after = new BookmarkPanelLayout.RowSlot<IBookmark>(bookmark("after"), 2, new ImmutableRect2i(0, 40, 20, 20));
+		Map<Integer, BookmarkGroup> groups = Map.of(
+			1, new BookmarkGroup(1, "Before").withViewMode(BookmarkViewMode.TODO_LIST),
+			2, new BookmarkGroup(2, "After").withViewMode(BookmarkViewMode.TODO_LIST)
+		);
+		var plan = BookmarkItemMovePlan.createCrossGroup(List.of(before, target, after), target, 20 + fraction * 20, groups, Set.of(), Map.of());
+		Assertions.assertEquals(new BookmarkItemMovePlan(target.item(), groupId, offset, rejected), plan);
+		Assertions.assertTrue(BookmarkItemMovePlan.createCrossGroup(List.of(target), target, 20 + fraction * 20, groups, Set.of(), Map.of()).rejected());
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {0, 1})
+	public void movingRecipeUsesTargetBlockBoundary(int offset) {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark result = bookmark("result");
+		TestBookmark input = bookmark("input");
+		TestBookmark moving = bookmark("moving");
+		bookmarks.addToListWithoutNotifying(result, false);
+		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.addToListWithoutNotifying(moving, false);
+		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "plate"));
+		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
+		bookmarks.moveBookmarkMetadataFromConfig(moving, metadata(BookmarkItemType.RESULT, RECIPE_B, "machine"));
+		new BookmarkMoveSelection(List.of(moving), true, false, Set.of(RECIPE_B))
+			.moveToBookmark(bookmarks, offset == 0 ? input : result, 0, offset);
+		Assertions.assertEquals(offset == 0 ? List.of(moving, result, input) : List.of(result, input, moving), bookmarks.getBookmarks());
+	}
+
+	@Test
+	public void elementsPreservePlaceholdersBetweenNonUniformGroupRows() {
+		BookmarkList bookmarks = bookmarkList();
+		TestBookmark loose = bookmark("loose");
+		TestBookmark grouped = bookmark("grouped");
+		bookmarks.addToListWithoutNotifying(loose, false);
+		bookmarks.addToListWithoutNotifying(grouped, false);
+		bookmarks.addGroupFromConfig(new BookmarkGroup(1, "Group"));
+		bookmarks.moveBookmarkMetadataFromConfig(grouped, BookmarkItemMetadata.defaultForGroup(1));
+		List<IElement<?>> elements = bookmarks.getElements(3, List.of(2, 3));
+		Assertions.assertEquals(3, elements.size());
+		Assertions.assertEquals(Optional.of(loose), elements.get(0).getBookmark());
+		Assertions.assertSame(LayoutPlaceholderElement.INSTANCE, elements.get(1));
+		Assertions.assertEquals(Optional.of(grouped), elements.get(2).getBookmark());
 	}
 
 	private static TestBookmark bookmark(String id) {
@@ -712,12 +769,12 @@ public class BookmarkListInvariantTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			RECIPE_TYPE,
 			recipeUid,
-			Set.of(new BookmarkIngredientKey("test:item", ingredientUid, null))
+			Set.of(new BookmarkIngredientKey("test:item", ingredientUid))
 		);
 	}
 
 	private static BookmarkItemMetadata metadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		ResourceLocation recipeUid,
 		String ingredientUid
@@ -730,12 +787,12 @@ public class BookmarkListInvariantTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			RECIPE_TYPE,
 			recipeUid,
-			Set.of(new BookmarkIngredientKey("test:item", ingredientUid, null))
+			Set.of(new BookmarkIngredientKey("test:item", ingredientUid))
 		);
 	}
 
 	private static BookmarkItemMetadata metadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		ResourceLocation recipeUid,
 		long factor,
@@ -771,7 +828,7 @@ public class BookmarkListInvariantTest {
 	}
 
 	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid, null);
+		return new BookmarkIngredientKey("test:item", uid);
 	}
 
 	private record TestTypedIngredient<T>(IIngredientType<T> type, T ingredient) implements ITypedIngredient<T> {

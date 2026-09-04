@@ -74,7 +74,7 @@ public class Ae2BookmarkPullTransferHandlerTest {
 	@Test
 	public void snapshotProviderReadsStoredItemEntriesFromAe2ClientRepo() {
 		TestMenu menu = new TestMenu(7);
-		BookmarkIngredientKey diamondKey = new BookmarkIngredientKey("test:item", "diamond", null);
+		BookmarkIngredientKey diamondKey = new BookmarkIngredientKey("test:item", "diamond");
 		Ae2BookmarkStorageSnapshotProvider provider = new Ae2BookmarkStorageSnapshotProvider(
 			currentMenu -> currentMenu == menu ?
 				Optional.of(List.of(new BookmarkExternalStorageSnapshots.Entry(new ItemStack(Items.DIAMOND), 9))) :

@@ -21,17 +21,18 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 
 public class BookmarkDisplayGeneratorTest {
-	private static final String GROUP_ID = "group_1";
+	private static final int GROUP_ID = 1;
 	private static final ResourceLocation PLATE_RECIPE = ResourceLocation.parse("test:plate");
 	private static final ResourceLocation MACHINE_RECIPE = ResourceLocation.parse("test:machine");
 
 	@Test
 	public void collapsedRecipeFlattensClosureIntoAnchorAndShadows() {
-		List<String> orderedItems = List.of("plate", "ingot", "machine", "machine_plate");
+		List<String> orderedItems = new LinkedList<>(List.of("plate", "ingot", "machine", "machine_plate"));
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
 			"ingot", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "ingot", 2, 1),
@@ -50,6 +51,7 @@ public class BookmarkDisplayGeneratorTest {
 
 		Assertions.assertEquals(List.of(0, 1), slots.stream().map(slot -> slot.slotIndex()).toList());
 		Assertions.assertEquals(List.of("machine", "ingot"), slots.stream().map(slot -> slot.entry().item()).toList());
+		Assertions.assertEquals(List.of(2, 1), slots.stream().map(slot -> slot.entry().sourceIndex()).toList());
 		Assertions.assertFalse(slots.get(0).shadow());
 		Assertions.assertTrue(slots.get(1).shadow());
 		Assertions.assertEquals(MACHINE_RECIPE, slots.get(0).entry().displayRecipeUid().orElseThrow());
@@ -150,7 +152,7 @@ public class BookmarkDisplayGeneratorTest {
 		List<String> orderedItems = List.of("plate", "mold");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
-			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
+			"mold", metadata(BookmarkItemType.NONCONSUMABLE, PLATE_RECIPE, "mold", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
@@ -163,7 +165,7 @@ public class BookmarkDisplayGeneratorTest {
 		);
 
 		Assertions.assertEquals(List.of("plate", "mold"), slots.stream().map(slot -> slot.entry().item()).toList());
-		Assertions.assertEquals(BookmarkItemType.CATALYST, slots.get(1).entry().metadata().type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, slots.get(1).entry().metadata().type());
 		Assertions.assertTrue(slots.get(1).entry().recipeChainItem().isEmpty());
 	}
 
@@ -198,7 +200,7 @@ public class BookmarkDisplayGeneratorTest {
 		List<String> orderedItems = List.of("plate", "mold");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
-			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
+			"mold", metadata(BookmarkItemType.NONCONSUMABLE, PLATE_RECIPE, "mold", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
@@ -218,7 +220,7 @@ public class BookmarkDisplayGeneratorTest {
 		List<String> orderedItems = List.of("plate", "mold");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
-			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
+			"mold", metadata(BookmarkItemType.NONCONSUMABLE, PLATE_RECIPE, "mold", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(PLATE_RECIPE));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(PLATE_RECIPE));
@@ -616,7 +618,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
 			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
 			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
-			"cat_b", metadata(BookmarkItemType.CATALYST, recipeB, "cat_b", 1, 1)
+			"cat_b", metadata(BookmarkItemType.NONCONSUMABLE, recipeB, "cat_b", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
@@ -750,7 +752,7 @@ public class BookmarkDisplayGeneratorTest {
 	}
 
 	private static BookmarkItemMetadata metadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		ResourceLocation recipeUid,
 		String ingredientUid,
@@ -765,7 +767,7 @@ public class BookmarkDisplayGeneratorTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			ResourceLocation.parse("minecraft:crafting"),
 			recipeUid,
-			Set.of(new BookmarkIngredientKey("test:item", ingredientUid, null))
+			Set.of(new BookmarkIngredientKey("test:item", ingredientUid))
 		);
 	}
 }

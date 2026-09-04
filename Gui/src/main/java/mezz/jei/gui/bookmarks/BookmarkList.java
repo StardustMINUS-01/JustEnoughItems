@@ -8,7 +8,6 @@ import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusGroup;
@@ -190,7 +189,7 @@ public class BookmarkList implements IIngredientGridSource {
 		saveBookmarks();
 	}
 
-	void moveBookmarks(List<IBookmark> bookmarks, IBookmark targetBookmark, String targetGroupId, int offset) {
+	void moveBookmarks(List<IBookmark> bookmarks, IBookmark targetBookmark, int targetGroupId, int offset) {
 		List<IBookmark> movingBookmarks = bookmarks.stream()
 			.filter(bookmarksSet::contains)
 			.distinct()
@@ -201,18 +200,18 @@ public class BookmarkList implements IIngredientGridSource {
 			return;
 		}
 
-		Set<String> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
+		Set<Integer> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
 		bookmarksList.removeAll(movingBookmarks);
 		int targetIndex = bookmarksList.indexOf(targetBookmark);
 		List<IBookmark> placedBookmarks = new ArrayList<>();
 		boolean changed = false;
 		for (IBookmark bookmark : movingBookmarks) {
-			String previousGroupId = bookmarkGroups.getGroupId(bookmark);
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetGroupId)) {
+			int previousGroupId = bookmarkGroups.getGroupId(bookmark);
+			if ((targetGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 				if (releaseBookmarkToDefault(bookmark)) {
 					placedBookmarks.add(bookmark);
 				}
-				changed = changed || !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(previousGroupId);
+				changed = changed || !(previousGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID);
 			} else if (!isDuplicateInGroup(bookmark, targetGroupId)) {
 				bookmarkGroups.moveItemToGroup(bookmark, targetGroupId);
 				ensureBookmarkScope(bookmark);
@@ -413,7 +412,7 @@ public class BookmarkList implements IIngredientGridSource {
 		if (recipeUid == null || !targetMetadata.type().isRecipeAssociated()) {
 			return remove(bookmark);
 		}
-		String groupId = targetMetadata.groupId();
+		int groupId = targetMetadata.groupId();
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.filter(BookmarkGroup::craftingMode).isPresent()) {
 			Set<ResourceLocation> relatedRecipes = getRelatedRecipeIds(groupId, recipeUid);
@@ -441,11 +440,11 @@ public class BookmarkList implements IIngredientGridSource {
 		return removeRecipes(groupId, Set.of(recipeUid));
 	}
 
-	private boolean removeRecipes(String groupId, Set<ResourceLocation> recipeUids) {
+	private boolean removeRecipes(int groupId, Set<ResourceLocation> recipeUids) {
 		List<IBookmark> removedBookmarks = bookmarksList.stream()
 			.filter(candidate -> {
 				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
-				return groupId.equals(metadata.groupId()) &&
+				return groupId == metadata.groupId() &&
 					metadata.recipeUid() != null &&
 					recipeUids.contains(metadata.recipeUid());
 			})
@@ -464,7 +463,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	private Set<ResourceLocation> getRelatedRecipeIds(String groupId, ResourceLocation recipeUid) {
+	private Set<ResourceLocation> getRelatedRecipeIds(int groupId, ResourceLocation recipeUid) {
 		return bookmarkGroups.getRecipeChainDetails(groupId)
 			.map(details -> {
 				Set<ResourceLocation> directRelations = details.recipeRelations().get(recipeUid);
@@ -489,12 +488,12 @@ public class BookmarkList implements IIngredientGridSource {
 			);
 	}
 
-	private void normalizeIncompleteRecipes(String groupId) {
+	private void normalizeIncompleteRecipes(int groupId) {
 		Map<ResourceLocation, Integer> recipeStates = new HashMap<>();
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (!groupId.equals(metadata.groupId()) || recipeUid == null || !metadata.type().isGraphMember()) {
+			if (groupId != metadata.groupId() || recipeUid == null || !metadata.type().isGraphMember()) {
 				continue;
 			}
 			int bit = metadata.type().isGraphInput() ? 1 : 2;
@@ -503,7 +502,7 @@ public class BookmarkList implements IIngredientGridSource {
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (!groupId.equals(metadata.groupId()) || recipeUid == null || !metadata.type().isGraphMember()) {
+			if (groupId != metadata.groupId() || recipeUid == null || !metadata.type().isGraphMember()) {
 				continue;
 			}
 			if (recipeStates.getOrDefault(recipeUid, 0) != 3) {
@@ -520,10 +519,10 @@ public class BookmarkList implements IIngredientGridSource {
 
 	private void removeEmptyGroupsWithoutNotifying() {
 		List<BookmarkGroup> emptyGroups = bookmarkGroups.getGroups().stream()
-			.filter(group -> !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(group.id()))
+			.filter(group -> !(group.id() == BookmarkGroupManager.DEFAULT_GROUP_ID))
 			.filter(group -> bookmarksList.stream()
 				.map(bookmarkGroups::getGroupId)
-				.noneMatch(group.id()::equals))
+				.noneMatch(groupId -> group.id() == groupId))
 			.toList();
 		for (BookmarkGroup emptyGroup : emptyGroups) {
 			bookmarkGroups.removeGroup(emptyGroup.id());
@@ -599,7 +598,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public Optional<String> addRecipeLayoutProjectionBookmarkGroup(
+	public Optional<Integer> addRecipeLayoutProjectionBookmarkGroup(
 		List<RecipeLayoutProjection> recipeLayouts,
 		boolean preserveAmount
 	) {
@@ -610,7 +609,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return addRecipeLayoutProjectionBookmarkGroup(title, recipeLayouts, preserveAmount);
 	}
 
-	private Optional<String> addRecipeLayoutProjectionBookmarkGroup(
+	private Optional<Integer> addRecipeLayoutProjectionBookmarkGroup(
 		String title,
 		List<RecipeLayoutProjection> recipeLayouts,
 		boolean preserveAmount
@@ -627,13 +626,13 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	public Optional<IRecipeLayoutDrawable<?>> createRecipeLayoutDrawable(String groupId, ResourceLocation recipeUid) {
+	public Optional<IRecipeLayoutDrawable<?>> createRecipeLayoutDrawable(int groupId, ResourceLocation recipeUid) {
 		if (recipeManager == null || focusFactory == null) {
 			return Optional.empty();
 		}
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-			if (!groupId.equals(metadata.groupId()) || !recipeUid.equals(metadata.recipeUid())) {
+			if (groupId != metadata.groupId() || !recipeUid.equals(metadata.recipeUid())) {
 				continue;
 			}
 			if (bookmark instanceof RecipeBookmark recipeBookmark) {
@@ -748,10 +747,11 @@ public class BookmarkList implements IIngredientGridSource {
 			return existingIndex;
 		}
 		BookmarkItemMetadata metadata = recipeBookmark.metadata();
-		for (int index = 0; index < bookmarksList.size(); index++) {
-			BookmarkItemMetadata existingMetadata = bookmarkGroups.getItemMetadata(bookmarksList.get(index));
+		for (var iterator = bookmarksList.listIterator(); iterator.hasNext();) {
+			int index = iterator.nextIndex();
+			BookmarkItemMetadata existingMetadata = bookmarkGroups.getItemMetadata(iterator.next());
 			if (existingMetadata.type() == metadata.type() &&
-				existingMetadata.groupId().equals(metadata.groupId()) &&
+				existingMetadata.groupId() == metadata.groupId() &&
 				Objects.equals(existingMetadata.recipeTypeUid(), metadata.recipeTypeUid()) &&
 				Objects.equals(existingMetadata.recipeUid(), metadata.recipeUid()) &&
 				existingMetadata.permutations().equals(metadata.permutations())) {
@@ -771,11 +771,11 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 	}
 
-	private void keepRecipeBlocksContiguous(String groupId) {
+	private void keepRecipeBlocksContiguous(int groupId) {
 		Set<RecipeBlockKey> keys = new LinkedHashSet<>();
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-			if (groupId.equals(metadata.groupId())) {
+			if (groupId == metadata.groupId()) {
 				createRecipeBlockKey(metadata).ifPresent(keys::add);
 			}
 		}
@@ -809,7 +809,7 @@ public class BookmarkList implements IIngredientGridSource {
 
 	private static boolean matchesRecipeBlock(BookmarkItemMetadata metadata, RecipeBlockKey key) {
 		return metadata.type().isRecipeAssociated() &&
-			key.groupId().equals(metadata.groupId()) &&
+			key.groupId() == metadata.groupId() &&
 			key.recipeTypeUid().equals(metadata.recipeTypeUid()) &&
 			key.recipeUid().equals(metadata.recipeUid());
 	}
@@ -824,14 +824,14 @@ public class BookmarkList implements IIngredientGridSource {
 			.filter(bookmark -> {
 				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
 				return metadata.type().isRecipeAssociated() &&
-					targetMetadata.groupId().equals(metadata.groupId()) &&
+					targetMetadata.groupId() == metadata.groupId() &&
 					recipeUid.equals(metadata.recipeUid()) &&
 					recipeTypeUid.equals(metadata.recipeTypeUid());
 			})
 			.findFirst();
 	}
 
-	public String addRecipeBookmarkGroup(String title, List<IBookmark> recipeBookmarks) {
+	public int addRecipeBookmarkGroup(String title, List<IBookmark> recipeBookmarks) {
 		if (recipeBookmarks.isEmpty()) {
 			return BookmarkGroupManager.DEFAULT_GROUP_ID;
 		}
@@ -845,7 +845,7 @@ public class BookmarkList implements IIngredientGridSource {
 			}
 		}
 
-		String groupId = bookmarkGroups.createGroup(title);
+		int groupId = bookmarkGroups.createGroup(title);
 		for (IBookmark bookmark : addedOrExistingBookmarks) {
 			bookmarkGroups.moveItemToGroup(bookmark, groupId);
 		}
@@ -863,7 +863,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return groupId;
 	}
 
-	private String addRecipeBookmarkEntryGroup(String title, List<RecipeBookmarkEntry> recipeBookmarks) {
+	private int addRecipeBookmarkEntryGroup(String title, List<RecipeBookmarkEntry> recipeBookmarks) {
 		boolean addToFront = clientConfig != null && clientConfig.addBookmarksToFrontEnabled().getValue();
 		List<RecipeBookmarkEntry> addedOrExistingBookmarks = new ArrayList<>();
 		for (RecipeBookmarkEntry recipeBookmark : recipeBookmarks) {
@@ -873,7 +873,7 @@ public class BookmarkList implements IIngredientGridSource {
 			}
 		}
 
-		String groupId = bookmarkGroups.createGroup(title);
+		int groupId = bookmarkGroups.createGroup(title);
 		for (RecipeBookmarkEntry recipeBookmark : addedOrExistingBookmarks) {
 			IBookmark bookmark = recipeBookmark.bookmark();
 			bookmarkGroups.moveItemToGroup(bookmark, groupId);
@@ -1067,7 +1067,7 @@ public class BookmarkList implements IIngredientGridSource {
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			recipeCategory.getRecipeType().getUid(),
 			recipeUid,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			ingredient,
 			ingredientManager,
 			factor
@@ -1138,7 +1138,7 @@ public class BookmarkList implements IIngredientGridSource {
 			.map(GtmVirtualCircuitCompat.VirtualInput::ingredient)
 			.anyMatch(candidate -> sameIngredient(ingredient, candidate));
 		BookmarkItemType type = virtualInput ?
-			BookmarkItemType.CATALYST : BookmarkItemType.fromRecipeRole(role);
+			BookmarkItemType.NONCONSUMABLE : BookmarkItemType.fromRecipeRole(role);
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForRecipeSlotWithFactor(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			recipeCategory,
@@ -1217,20 +1217,12 @@ public class BookmarkList implements IIngredientGridSource {
 		if (displaySlots.isEmpty()) {
 			return List.of();
 		}
-		Map<Integer, BookmarkDisplaySlot<IBookmark>> slotByIndex = new HashMap<>();
-		int maxSlotIndex = 0;
+		List<IElement<?>> elements = new ArrayList<>(displaySlots.getLast().slotIndex() + 1);
 		for (BookmarkDisplaySlot<IBookmark> displaySlot : displaySlots) {
-			slotByIndex.put(displaySlot.slotIndex(), displaySlot);
-			maxSlotIndex = Math.max(maxSlotIndex, displaySlot.slotIndex());
-		}
-		List<IElement<?>> elements = new ArrayList<>(maxSlotIndex + 1);
-		for (int slotIndex = 0; slotIndex <= maxSlotIndex; slotIndex++) {
-			BookmarkDisplaySlot<IBookmark> displaySlot = slotByIndex.get(slotIndex);
-			if (displaySlot == null) {
+			while (elements.size() < displaySlot.slotIndex()) {
 				elements.add(LayoutPlaceholderElement.INSTANCE);
-			} else {
-				elements.add(createDisplayElement(displaySlot.entry()));
 			}
+			elements.add(createDisplayElement(displaySlot.entry()));
 		}
 		return List.copyOf(elements);
 	}
@@ -1284,7 +1276,7 @@ public class BookmarkList implements IIngredientGridSource {
 	public <R> RecipeBookmark<R, ?> getMatchingBookmark(RecipeType<R> recipeType, R recipe) {
 		for (IBookmark bookmark : bookmarksList) {
 			if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
-				if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarkGroups.getGroupId(bookmark)) &&
+				if ((bookmarkGroups.getGroupId(bookmark) == BookmarkGroupManager.DEFAULT_GROUP_ID) &&
 					recipeBookmark.getRecipeCategory().getRecipeType().equals(recipeType) &&
 					recipeBookmark.getRecipe().equals(recipe)) {
 					@SuppressWarnings("unchecked")
@@ -1314,11 +1306,11 @@ public class BookmarkList implements IIngredientGridSource {
 		return bookmarkGroups.getGroups();
 	}
 
-	public Optional<RecipeChainDetails> getRecipeChainDetails(String groupId) {
+	public Optional<RecipeChainDetails> getRecipeChainDetails(int groupId) {
 		return bookmarkGroups.getRecipeChainDetails(groupId);
 	}
 
-	public List<RecipeChainInput> getRecipeChainInputs(String groupId) {
+	public List<RecipeChainInput> getRecipeChainInputs(int groupId) {
 		return hydrateRecipeInputs(bookmarkGroups.getRecipeChainInputs(bookmarksList, groupId));
 	}
 
@@ -1327,7 +1319,7 @@ public class BookmarkList implements IIngredientGridSource {
 	 * are already refreshed with the bookmark group, so only legacy entries that
 	 * have no saved permutations need recipe-layout hydration here.
 	 */
-	public List<RecipeChainInput> getRecipeChainTooltipInputs(String groupId) {
+	public List<RecipeChainInput> getRecipeChainTooltipInputs(int groupId) {
 		List<RecipeChainInput> recipeInputs = bookmarkGroups.getRecipeChainInputs(bookmarksList, groupId);
 		List<RecipeChainInput> inputs = new ArrayList<>(recipeInputs.size());
 		for (RecipeChainInput input : recipeInputs) {
@@ -1346,7 +1338,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return List.copyOf(inputs);
 	}
 
-	public List<RecipeChainInput> getGroupRecipeInputs(String groupId) {
+	public List<RecipeChainInput> getGroupRecipeInputs(int groupId) {
 		return hydrateRecipeInputs(bookmarkGroups.getGroupRecipeInputs(bookmarksList, groupId));
 	}
 
@@ -1444,7 +1436,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return Optional.empty();
 	}
 
-	public Set<ResourceLocation> getCollapsedRecipeIds(String groupId) {
+	public Set<ResourceLocation> getCollapsedRecipeIds(int groupId) {
 		return bookmarkGroups.getCollapsedRecipeIds(groupId);
 	}
 
@@ -1453,29 +1445,29 @@ public class BookmarkList implements IIngredientGridSource {
 		if (index < 0) {
 			return Optional.empty();
 		}
-		String groupId = bookmarkGroups.getGroupId(bookmark);
+		int groupId = bookmarkGroups.getGroupId(bookmark);
 		return bookmarkGroups.getRecipeChainDetails(groupId)
 			.map(RecipeChainDetails::calculatedItems)
 			.map(items -> items.get(index));
 	}
 
-	public boolean isGroupCraftingMode(String groupId) {
+	public boolean isGroupCraftingMode(int groupId) {
 		return bookmarkGroups.isCraftingMode(groupId);
 	}
 
-	public String createGroup(String title) {
-		String groupId = bookmarkGroups.createGroup(title);
+	public int createGroup(String title) {
+		int groupId = bookmarkGroups.createGroup(title);
 		notifyListenersOfChange();
 		saveBookmarks();
 		return groupId;
 	}
 
 	public void addMissingRecipeChainGroup(
-		String sourceGroupId,
+		int sourceGroupId,
 		List<RecipeChainTooltipModel.Item> missingItems
 	) {
 		BookmarkGroup sourceGroup = bookmarkGroups.getGroup(sourceGroupId).orElseThrow();
-		String groupId = bookmarkGroups.createGroup(sourceGroup.title());
+		int groupId = bookmarkGroups.createGroup(sourceGroup.title());
 		for (RecipeChainTooltipModel.Item item : missingItems) {
 			ITypedIngredient<?> ingredient = item.ingredient();
 			IBookmark bookmark = IngredientBookmark.create(ingredient, ingredientManager)
@@ -1492,8 +1484,8 @@ public class BookmarkList implements IIngredientGridSource {
 		saveBookmarks();
 	}
 
-	public String createGroupForBookmarks(String title, List<IBookmark> bookmarks) {
-		String groupId = bookmarkGroups.createGroup(title);
+	public int createGroupForBookmarks(String title, List<IBookmark> bookmarks) {
+		int groupId = bookmarkGroups.createGroup(title);
 		for (IBookmark bookmark : bookmarks) {
 			if (bookmarksSet.contains(bookmark)) {
 				bookmarkGroups.moveItemToGroup(bookmark, groupId);
@@ -1505,18 +1497,18 @@ public class BookmarkList implements IIngredientGridSource {
 		return groupId;
 	}
 
-	public void moveBookmarkToGroup(IBookmark bookmark, String groupId) {
+	public void moveBookmarkToGroup(IBookmark bookmark, int groupId) {
 		if (bookmarksSet.contains(bookmark)) {
-			Set<String> sourceGroupIds = collectSourceGroupIds(List.of(bookmark));
+			Set<Integer> sourceGroupIds = collectSourceGroupIds(List.of(bookmark));
 			boolean changed = false;
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-				String previousGroupId = bookmarkGroups.getGroupId(bookmark);
-				if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(previousGroupId)) {
+			if ((groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
+				int previousGroupId = bookmarkGroups.getGroupId(bookmark);
+				if (!(previousGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 					releaseBookmarkToDefault(bookmark);
 					changed = true;
 				}
 			} else if (!isDuplicateInGroup(bookmark, groupId)) {
-				if (!groupId.equals(bookmarkGroups.getGroupId(bookmark))) {
+				if (groupId != bookmarkGroups.getGroupId(bookmark)) {
 					bookmarkGroups.moveItemToGroup(bookmark, groupId);
 					ensureBookmarkScope(bookmark);
 					changed = true;
@@ -1530,7 +1522,7 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 	}
 
-	public boolean moveBookmarksToGroup(List<IBookmark> bookmarks, String groupId) {
+	public boolean moveBookmarksToGroup(List<IBookmark> bookmarks, int groupId) {
 		List<IBookmark> movingBookmarks = bookmarks.stream()
 			.filter(bookmarksSet::contains)
 			.distinct()
@@ -1538,13 +1530,13 @@ public class BookmarkList implements IIngredientGridSource {
 		if (movingBookmarks.isEmpty()) {
 			return false;
 		}
-		Set<String> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
+		Set<Integer> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
 		boolean changed = false;
 		for (IBookmark bookmark : movingBookmarks) {
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-				String previousGroupId = bookmarkGroups.getGroupId(bookmark);
+			if ((groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
+				int previousGroupId = bookmarkGroups.getGroupId(bookmark);
 				releaseBookmarkToDefault(bookmark);
-				changed = changed || !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(previousGroupId);
+				changed = changed || !(previousGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID);
 			} else if (!isDuplicateInGroup(bookmark, groupId)) {
 				bookmarkGroups.moveItemToGroup(bookmark, groupId);
 				ensureBookmarkScope(bookmark);
@@ -1563,7 +1555,7 @@ public class BookmarkList implements IIngredientGridSource {
 		bookmarkGroups.addGroup(group);
 	}
 
-	public void moveBookmarkToGroupFromConfig(IBookmark bookmark, String groupId) {
+	public void moveBookmarkToGroupFromConfig(IBookmark bookmark, int groupId) {
 		moveBookmarkMetadataFromConfig(bookmark, BookmarkItemMetadata.defaultForGroup(groupId));
 	}
 
@@ -1578,7 +1570,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return bookmarkGroups.getItemMetadata(bookmark);
 	}
 
-	public String getBookmarkGroupId(IBookmark bookmark) {
+	public int getBookmarkGroupId(IBookmark bookmark) {
 		return bookmarkGroups.getGroupId(bookmark);
 	}
 
@@ -1604,11 +1596,11 @@ public class BookmarkList implements IIngredientGridSource {
 				expanded.add(bookmark);
 				continue;
 			}
-			String groupId = metadata.groupId();
+			int groupId = metadata.groupId();
 			ResourceLocation recipeTypeUid = metadata.recipeTypeUid();
 			for (IBookmark candidate : bookmarksList) {
 				BookmarkItemMetadata candidateMetadata = bookmarkGroups.getItemMetadata(candidate);
-				if (groupId.equals(candidateMetadata.groupId()) &&
+				if (groupId == candidateMetadata.groupId() &&
 					Objects.equals(recipeTypeUid, candidateMetadata.recipeTypeUid()) &&
 					recipeUid.equals(candidateMetadata.recipeUid())) {
 					expanded.add(candidate);
@@ -1618,26 +1610,26 @@ public class BookmarkList implements IIngredientGridSource {
 		return List.copyOf(expanded);
 	}
 
-	private Set<String> collectSourceGroupIds(List<IBookmark> bookmarks) {
-		Set<String> sourceGroupIds = new HashSet<>();
+	private Set<Integer> collectSourceGroupIds(List<IBookmark> bookmarks) {
+		Set<Integer> sourceGroupIds = new HashSet<>();
 		for (IBookmark bookmark : bookmarks) {
-			String groupId = bookmarkGroups.getGroupId(bookmark);
-			if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+			int groupId = bookmarkGroups.getGroupId(bookmark);
+			if (!(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 				sourceGroupIds.add(groupId);
 			}
 		}
 		return sourceGroupIds;
 	}
 
-	private void cleanupAfterGroupChange(Set<String> sourceGroupIds) {
-		for (String groupId : sourceGroupIds) {
+	private void cleanupAfterGroupChange(Set<Integer> sourceGroupIds) {
+		for (int groupId : sourceGroupIds) {
 			normalizeIncompleteRecipes(groupId);
 			pruneCollapsedRecipeIds(groupId);
 		}
 		removeEmptyGroupsWithoutNotifying();
 	}
 
-	private void pruneCollapsedRecipeIds(String groupId) {
+	private void pruneCollapsedRecipeIds(int groupId) {
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.isEmpty() || group.get().collapsedRecipeIds().isEmpty()) {
 			return;
@@ -1646,7 +1638,7 @@ public class BookmarkList implements IIngredientGridSource {
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (groupId.equals(metadata.groupId()) &&
+			if (groupId == metadata.groupId() &&
 				recipeUid != null &&
 				group.get().collapsedRecipeIds().contains(recipeUid)) {
 				remaining.add(recipeUid);
@@ -1658,8 +1650,8 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private boolean releaseBookmarkToDefault(IBookmark bookmark) {
-		String currentGroupId = bookmarkGroups.getGroupId(bookmark);
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(currentGroupId)) {
+		int currentGroupId = bookmarkGroups.getGroupId(bookmark);
+		if ((currentGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 			return true;
 		}
 		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
@@ -1691,7 +1683,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private Optional<IBookmark> findIdenticalDefaultBookmark(IBookmark bookmark) {
 		return bookmarksList.stream()
 			.filter(candidate -> candidate != bookmark)
-			.filter(candidate -> BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarkGroups.getGroupId(candidate)))
+			.filter(candidate -> (bookmarkGroups.getGroupId(candidate) == BookmarkGroupManager.DEFAULT_GROUP_ID))
 			.filter(candidate -> candidate.equals(bookmark))
 			.findFirst();
 	}
@@ -1699,7 +1691,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private Optional<IBookmark> findDefaultMergeTarget(IBookmark source, RecipeMergeKey mergeKey) {
 		return bookmarksList.stream()
 			.filter(candidate -> candidate != source)
-			.filter(candidate -> BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarkGroups.getGroupId(candidate)))
+			.filter(candidate -> (bookmarkGroups.getGroupId(candidate) == BookmarkGroupManager.DEFAULT_GROUP_ID))
 			.filter(candidate -> {
 				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
 				return createMergeKey(candidate, metadata)
@@ -1709,7 +1701,7 @@ public class BookmarkList implements IIngredientGridSource {
 			.findFirst();
 	}
 
-	private boolean isDuplicateInGroup(IBookmark bookmark, String groupId) {
+	private boolean isDuplicateInGroup(IBookmark bookmark, int groupId) {
 		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
 		Optional<RecipeMergeKey> mergeKey = createMergeKey(bookmark, metadata);
 		if (mergeKey.isEmpty()) {
@@ -1718,7 +1710,7 @@ public class BookmarkList implements IIngredientGridSource {
 		RecipeMergeKey key = mergeKey.get();
 		return bookmarksList.stream()
 			.filter(candidate -> candidate != bookmark)
-			.filter(candidate -> groupId.equals(bookmarkGroups.getGroupId(candidate)))
+			.filter(candidate -> groupId == bookmarkGroups.getGroupId(candidate))
 			.anyMatch(candidate -> createMergeKey(candidate, bookmarkGroups.getItemMetadata(candidate))
 				.map(key::equals)
 				.orElse(false));
@@ -1745,7 +1737,7 @@ public class BookmarkList implements IIngredientGridSource {
 			if (value instanceof ItemStack stack && !stack.isEmpty()) {
 				return stack.getItemHolder()
 					.unwrapKey()
-					.map(key -> new BookmarkIngredientKey(VanillaTypes.ITEM_STACK.getUid(), key.location().toString(), null));
+					.map(key -> new BookmarkIngredientKey(VanillaTypes.ITEM_STACK.getUid(), key.location().toString()));
 			}
 		}
 		return Optional.empty();
@@ -1771,8 +1763,8 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private void ensureBookmarkScope(IBookmark bookmark) {
-		String groupId = bookmarkGroups.getGroupId(bookmark);
-		Object desiredScope = BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) ? null : groupId;
+		int groupId = bookmarkGroups.getGroupId(bookmark);
+		Object desiredScope = (groupId == BookmarkGroupManager.DEFAULT_GROUP_ID) ? null : groupId;
 		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
 			if (!Objects.equals(recipeBookmark.getEqualityScope(), desiredScope)) {
 				replaceBookmarkInstance(bookmark, recipeBookmark.withEqualityScope(desiredScope));
@@ -1800,9 +1792,10 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	private int identityIndexOf(IBookmark bookmark) {
-		for (int i = 0; i < bookmarksList.size(); i++) {
-			if (bookmarksList.get(i) == bookmark) {
-				return i;
+		for (var iterator = bookmarksList.listIterator(); iterator.hasNext();) {
+			int index = iterator.nextIndex();
+			if (iterator.next() == bookmark) {
+				return index;
 			}
 		}
 		return -1;
@@ -1812,18 +1805,18 @@ public class BookmarkList implements IIngredientGridSource {
 		if (!bookmarksSet.contains(bookmark) || shift == 0) {
 			return false;
 		}
-		String groupId = bookmarkGroups.getGroupId(bookmark);
+		int groupId = bookmarkGroups.getGroupId(bookmark);
 		boolean groupCollapsed = getBookmarkGroups().stream()
-			.filter(group -> group.id().equals(groupId))
+			.filter(group -> group.id() == groupId)
 			.findFirst()
 			.map(BookmarkGroup::collapsed)
 			.orElse(false);
-		if (groupCollapsed && !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+		if (groupCollapsed && !(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 			return shiftGroupAmount(groupId, shift);
 		}
 
 		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
-		if (targetMetadata.type().isCatalyst()) {
+		if (targetMetadata.type().isNonConsumable()) {
 			return false;
 		}
 		ResourceLocation recipeUid = targetMetadata.recipeUid();
@@ -1832,7 +1825,7 @@ public class BookmarkList implements IIngredientGridSource {
 			long multiplier = getShiftedRecipeMultiplier(groupId, recipeUid, shift);
 			for (IBookmark candidate : bookmarksList) {
 				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
-				if (groupId.equals(metadata.groupId()) &&
+				if (groupId == metadata.groupId() &&
 					recipeUid.equals(metadata.recipeUid()) &&
 					metadata.type().isGraphMember() &&
 					metadata.multiplier() != multiplier) {
@@ -1854,7 +1847,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return changed;
 	}
 
-	public boolean shiftGroupAmount(String groupId, long shift) {
+	public boolean shiftGroupAmount(int groupId, long shift) {
 		if (shift == 0) {
 			return false;
 		}
@@ -1865,7 +1858,7 @@ public class BookmarkList implements IIngredientGridSource {
 		boolean changed = false;
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-			if (groupId.equals(metadata.groupId()) && metadata.type().scalesWithMultiplier() && metadata.factor() > 0) {
+			if (groupId == metadata.groupId() && metadata.type().scalesWithMultiplier() && metadata.factor() > 0) {
 				long multiplier = shiftMultiplier(metadata.multiplier(), shift, 0);
 				if (metadata.multiplier() != multiplier) {
 					bookmarkGroups.setItemMetadata(bookmark, metadata.withMultiplier(multiplier));
@@ -1880,13 +1873,13 @@ public class BookmarkList implements IIngredientGridSource {
 		return changed;
 	}
 
-	private boolean shiftCraftingGroupAmount(String groupId, long shift, RecipeChainDetails chainDetails) {
+	private boolean shiftCraftingGroupAmount(int groupId, long shift, RecipeChainDetails chainDetails) {
 		Map<ResourceLocation, Long> recipeMultipliers = new HashMap<>();
 		List<IBookmark> shiftedBookmarks = new ArrayList<>();
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (groupId.equals(metadata.groupId()) &&
+			if (groupId == metadata.groupId() &&
 				recipeUid != null &&
 				metadata.type().isGraphMember() &&
 				metadata.factor() > 0 &&
@@ -1932,7 +1925,7 @@ public class BookmarkList implements IIngredientGridSource {
 			currentIndex = 0;
 		}
 		int nextIndex = Math.floorMod(currentIndex - (int) Math.signum(shift), permutations.size());
-		Optional<ITypedIngredient<?>> nextIngredient = resolvePermutation(permutations.get(nextIndex));
+		Optional<ITypedIngredient<?>> nextIngredient = Optional.ofNullable(permutations.get(nextIndex).typedIngredient());
 		if (nextIngredient.isEmpty()) {
 			return false;
 		}
@@ -1953,8 +1946,8 @@ public class BookmarkList implements IIngredientGridSource {
 		BookmarkItemType type = metadata.type();
 		BookmarkItemType toggledType;
 		if (type == BookmarkItemType.INGREDIENT) {
-			toggledType = BookmarkItemType.CATALYST;
-		} else if (type == BookmarkItemType.CATALYST) {
+			toggledType = BookmarkItemType.NONCONSUMABLE;
+		} else if (type == BookmarkItemType.NONCONSUMABLE) {
 			toggledType = BookmarkItemType.INGREDIENT;
 		} else {
 			return false;
@@ -1966,17 +1959,6 @@ public class BookmarkList implements IIngredientGridSource {
 		notifyListenersOfChange();
 		saveBookmarks();
 		return true;
-	}
-
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private Optional<ITypedIngredient<?>> resolvePermutation(BookmarkIngredientKey key) {
-		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
-			.flatMap(type -> resolvePermutation((IIngredientType) type, key.ingredientUid()))
-			.map(typedIngredient -> (ITypedIngredient<?>) typedIngredient);
-	}
-
-	private <T> Optional<ITypedIngredient<T>> resolvePermutation(IIngredientType<T> type, String ingredientUid) {
-		return ingredientManager.getTypedIngredientByUid(type, ingredientUid);
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -2016,7 +1998,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	private long getShiftedRecipeMultiplier(String groupId, ResourceLocation recipeUid, long shift) {
+	private long getShiftedRecipeMultiplier(int groupId, ResourceLocation recipeUid, long shift) {
 		boolean recipeInMiddle = bookmarkGroups.getRecipeChainDetails(groupId)
 			.map(details -> details.middleRecipes().contains(recipeUid))
 			.orElse(false);
@@ -2024,7 +2006,7 @@ public class BookmarkList implements IIngredientGridSource {
 		long multiplier = Long.MAX_VALUE;
 		for (IBookmark bookmark : bookmarksList) {
 			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-			if (groupId.equals(metadata.groupId()) &&
+			if (groupId == metadata.groupId() &&
 				recipeUid.equals(metadata.recipeUid()) &&
 				metadata.type().isGraphMember() &&
 				metadata.factor() > 0) {
@@ -2042,25 +2024,25 @@ public class BookmarkList implements IIngredientGridSource {
 		return Math.min(Integer.MAX_VALUE, Math.max(minMultiplier, multiplier + shift));
 	}
 
-	public void setGroupCraftingMode(String groupId, boolean craftingMode) {
+	public void setGroupCraftingMode(int groupId, boolean craftingMode) {
 		bookmarkGroups.setCraftingMode(groupId, craftingMode);
 		notifyListenersOfChange();
 		saveBookmarks();
 	}
 
-	public void setGroupViewMode(String groupId, BookmarkViewMode viewMode) {
+	public void setGroupViewMode(int groupId, BookmarkViewMode viewMode) {
 		bookmarkGroups.setViewMode(groupId, viewMode);
 		notifyListenersOfChange();
 		saveBookmarks();
 	}
 
-	public void setGroupCollapsedRecipeIds(String groupId, Set<ResourceLocation> collapsedRecipeIds) {
+	public void setGroupCollapsedRecipeIds(int groupId, Set<ResourceLocation> collapsedRecipeIds) {
 		bookmarkGroups.setCollapsedRecipeIds(groupId, collapsedRecipeIds);
 		notifyListenersOfChange();
 		saveBookmarks();
 	}
 
-	public boolean toggleGroupCollapsedRecipeId(String groupId, ResourceLocation recipeUid) {
+	public boolean toggleGroupCollapsedRecipeId(int groupId, ResourceLocation recipeUid) {
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.isEmpty()) {
 			return false;
@@ -2087,7 +2069,7 @@ public class BookmarkList implements IIngredientGridSource {
 			long toMultiplier = collapsed ? 0 : 1;
 			for (IBookmark bookmark : bookmarksList) {
 				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-				if (groupId.equals(metadata.groupId()) &&
+				if (groupId == metadata.groupId() &&
 					collapsedRecipeId.equals(metadata.recipeUid()) &&
 					metadata.multiplier() == fromMultiplier) {
 					bookmarkGroups.setItemMetadata(bookmark, metadata.withMultiplier(toMultiplier));
@@ -2100,7 +2082,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public boolean toggleGroupViewMode(String groupId) {
+	public boolean toggleGroupViewMode(int groupId) {
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.isEmpty()) {
 			return false;
@@ -2111,7 +2093,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public boolean toggleGroupCollapsed(String groupId) {
+	public boolean toggleGroupCollapsed(int groupId) {
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
 		if (group.isEmpty()) {
 			return false;
@@ -2122,9 +2104,9 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public boolean removeGroup(String groupId) {
+	public boolean removeGroup(int groupId) {
 		List<IBookmark> removedBookmarks = bookmarksList.stream()
-			.filter(bookmark -> groupId.equals(bookmarkGroups.getGroupId(bookmark)))
+			.filter(bookmark -> groupId == bookmarkGroups.getGroupId(bookmark))
 			.toList();
 		if (!bookmarkGroups.removeGroup(groupId)) {
 			return false;
@@ -2137,17 +2119,17 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public boolean moveGroupToBookmark(String groupId, IBookmark targetBookmark) {
+	public boolean moveGroupToBookmark(int groupId, IBookmark targetBookmark) {
 		return moveGroupToBookmark(groupId, targetBookmark, 0);
 	}
 
-	public boolean moveGroupToEnd(String groupId) {
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+	public boolean moveGroupToEnd(int groupId) {
+		if ((groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 			return false;
 		}
 
 		List<IBookmark> groupBookmarks = bookmarksList.stream()
-			.filter(bookmark -> groupId.equals(bookmarkGroups.getGroupId(bookmark)))
+			.filter(bookmark -> groupId == bookmarkGroups.getGroupId(bookmark))
 			.toList();
 		if (groupBookmarks.isEmpty()) {
 			return false;
@@ -2161,13 +2143,13 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public boolean moveGroupToBookmark(String groupId, IBookmark targetBookmark, int offset) {
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) || !bookmarksSet.contains(targetBookmark)) {
+	public boolean moveGroupToBookmark(int groupId, IBookmark targetBookmark, int offset) {
+		if ((groupId == BookmarkGroupManager.DEFAULT_GROUP_ID) || !bookmarksSet.contains(targetBookmark)) {
 			return false;
 		}
 
 		List<IBookmark> groupBookmarks = bookmarksList.stream()
-			.filter(bookmark -> groupId.equals(bookmarkGroups.getGroupId(bookmark)))
+			.filter(bookmark -> groupId == bookmarkGroups.getGroupId(bookmark))
 			.toList();
 		if (groupBookmarks.isEmpty() || groupBookmarks.contains(targetBookmark)) {
 			return false;
@@ -2223,7 +2205,7 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 	}
 
-	private static BookmarkItemMetadata createDefaultMetadata(IBookmark bookmark, String groupId) {
+	private static BookmarkItemMetadata createDefaultMetadata(IBookmark bookmark, int groupId) {
 		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
 			return recipeBookmark.createDefaultMetadata(groupId);
 		}
@@ -2233,7 +2215,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private record RecipeBookmarkEntry(IBookmark bookmark, BookmarkItemMetadata metadata) {
 	}
 
-	private record RecipeBlockKey(String groupId, ResourceLocation recipeTypeUid, ResourceLocation recipeUid) {
+	private record RecipeBlockKey(int groupId, ResourceLocation recipeTypeUid, ResourceLocation recipeUid) {
 	}
 
 	private record RecipeMergeKey(

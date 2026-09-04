@@ -1,37 +1,30 @@
 package mezz.jei.gui.bookmarks;
 
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
 
 public record BookmarkIngredientKey(
 	String ingredientTypeUid,
 	String ingredientUid,
-	@Nullable String serializedIngredient
+	@Nullable ITypedIngredient<?> typedIngredient
 ) implements Comparable<BookmarkIngredientKey> {
-	public static final String LEGACY_TYPE_UID = "legacy";
 	public static final String UNKNOWN_TYPE_UID = "unknown";
 	private static final String ITEM_STACK_TYPE_UID = "minecraft:item_stack";
 
 	public BookmarkIngredientKey {
 		ingredientTypeUid = clean(ingredientTypeUid, UNKNOWN_TYPE_UID);
 		ingredientUid = clean(ingredientUid, "fallback:unknown");
-		serializedIngredient = serializedIngredient == null || serializedIngredient.isBlank() ? null : serializedIngredient;
+	}
+
+	public BookmarkIngredientKey(String ingredientTypeUid, String ingredientUid) {
+		this(ingredientTypeUid, ingredientUid, null);
 	}
 
 	public static BookmarkIngredientKey of(String ingredientTypeUid, String ingredientUid) {
-		return new BookmarkIngredientKey(ingredientTypeUid, ingredientUid, null);
-	}
-
-	public static BookmarkIngredientKey fallback(String ingredientUid) {
-		return new BookmarkIngredientKey(UNKNOWN_TYPE_UID, ingredientUid, null);
-	}
-
-	public static BookmarkIngredientKey legacy(String value) {
-		int separatorIndex = value.indexOf('|');
-		if (separatorIndex > 0 && separatorIndex + 1 < value.length()) {
-			return new BookmarkIngredientKey(value.substring(0, separatorIndex), value.substring(separatorIndex + 1), null);
-		}
-		return new BookmarkIngredientKey(LEGACY_TYPE_UID, value, null);
+		return new BookmarkIngredientKey(ingredientTypeUid, ingredientUid);
 	}
 
 	public String stableKey() {
@@ -63,7 +56,7 @@ public record BookmarkIngredientKey(
 		if (itemNamespace(baseUid)
 			.map(CraftingStackMatcher::isNbtRelaxedCraftingNamespace)
 			.orElse(false)) {
-			return new BookmarkIngredientKey(ingredientTypeUid, baseUid, null);
+			return new BookmarkIngredientKey(ingredientTypeUid, baseUid);
 		}
 		return this;
 	}
@@ -74,20 +67,19 @@ public record BookmarkIngredientKey(
 		if (type != 0) {
 			return type;
 		}
-		int uid = ingredientUid.compareTo(other.ingredientUid);
-		if (uid != 0) {
-			return uid;
-		}
-		if (serializedIngredient == null && other.serializedIngredient == null) {
-			return 0;
-		}
-		if (serializedIngredient == null) {
-			return -1;
-		}
-		if (other.serializedIngredient == null) {
-			return 1;
-		}
-		return serializedIngredient.compareTo(other.serializedIngredient);
+		return ingredientUid.compareTo(other.ingredientUid);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		return obj instanceof BookmarkIngredientKey other &&
+			ingredientTypeUid.equals(other.ingredientTypeUid) &&
+			ingredientUid.equals(other.ingredientUid);
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(ingredientTypeUid, ingredientUid);
 	}
 
 	private static String clean(String value, String fallback) {

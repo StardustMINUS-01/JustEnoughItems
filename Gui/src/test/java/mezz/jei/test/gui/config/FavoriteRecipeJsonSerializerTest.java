@@ -1,7 +1,15 @@
 package mezz.jei.test.gui.config;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.JsonElement;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
+import com.mojang.serialization.MapCodec;
+import mezz.jei.api.helpers.ICodecHelper;
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.api.ingredients.IIngredientType;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.subtypes.UidContext;
+import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.config.FavoriteRecipeJsonSerializer;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
@@ -10,94 +18,118 @@ import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class FavoriteRecipeJsonSerializerTest {
-	private static final BookmarkIngredientKey QUARTZ_GLASS = key("ae2:quartz_glass");
-	private static final BookmarkIngredientKey CERTUS_QUARTZ_DUST = key("ae2:certus_quartz_dust");
-	private static final BookmarkIngredientKey WHITE_GLASS = key("minecraft:white_stained_glass");
-	private static final BookmarkIngredientKey PLAIN_GLASS = key("minecraft:glass");
-	private static final FocusedRecipe QUARTZ_GLASS_RECIPE = recipe("minecraft:crafting", "ae2:decorative/quartz_glass");
+	private static final IIngredientType<String> TYPE = new IIngredientType<>() {
+		@Override
+		public Class<? extends String> getIngredientClass() {
+			return String.class;
+		}
+
+		@Override
+		public String getUid() {
+			return "test:string";
+		}
+	};
+	private static final IIngredientManager INGREDIENT_MANAGER = ingredientManager();
 
 	@Test
-	public void roundTripsEntryWithFlattenedRecipeAndInputs() {
+	public void codecRoundTripsTypedTargetAndOrderedInputs() {
+		BookmarkIngredientKey target = key("target");
+		BookmarkIngredientKey first = key("first");
+		BookmarkIngredientKey second = key("second");
 		FavoriteRecipeStore.Entry entry = new FavoriteRecipeStore.Entry(
-			QUARTZ_GLASS,
-			QUARTZ_GLASS_RECIPE,
-			Map.of(
-				0, new FavoriteRecipeStore.FavoriteSlotInput(CERTUS_QUARTZ_DUST, List.of(CERTUS_QUARTZ_DUST)),
-				1, new FavoriteRecipeStore.FavoriteSlotInput(WHITE_GLASS, List.of(WHITE_GLASS, PLAIN_GLASS))
-			)
+			target,
+			new FocusedRecipe(ResourceLocation.parse("test:crafting"), ResourceLocation.parse("test:recipe")),
+			Map.of(4, new FavoriteRecipeStore.FavoriteSlotInput(second, List.of(first, second)))
 		);
+		Codec<FavoriteRecipeStore.Entry> codec = FavoriteRecipeJsonSerializer.create(codecHelper(), INGREDIENT_MANAGER);
 
-		JsonObject json = FavoriteRecipeJsonSerializer.serializeEntry(entry);
-		Optional<FavoriteRecipeStore.Entry> decoded = FavoriteRecipeJsonSerializer.deserializeEntry(json);
-
-		Assertions.assertEquals(entry, decoded.orElseThrow());
-		Assertions.assertEquals("minecraft:crafting", json.get("recipeType").getAsString());
-		Assertions.assertEquals("ae2:decorative/quartz_glass", json.get("recipe").getAsString());
-		Assertions.assertFalse(json.has("recipeTypeUid"));
-		Assertions.assertTrue(json.get("recipe").isJsonPrimitive());
-		Assertions.assertTrue(json.getAsJsonObject("inputs").getAsJsonObject("1").has("permutations"));
-	}
-
-	@Test
-	public void roundTripsSerializedIngredient() {
-		BookmarkIngredientKey nbtKey = new BookmarkIngredientKey("minecraft:item_stack", "minecraft:iron_pickaxe:tag", "{Damage:3}");
-		FavoriteRecipeStore.Entry entry = new FavoriteRecipeStore.Entry(
-			QUARTZ_GLASS,
-			QUARTZ_GLASS_RECIPE,
-			Map.of(0, new FavoriteRecipeStore.FavoriteSlotInput(nbtKey, List.of(nbtKey)))
-		);
-
-		FavoriteRecipeStore.Entry decoded = FavoriteRecipeJsonSerializer.deserializeEntry(
-			FavoriteRecipeJsonSerializer.serializeEntry(entry)
-		).orElseThrow();
+		JsonElement encoded = codec.encodeStart(JsonOps.INSTANCE, entry).getOrThrow();
+		FavoriteRecipeStore.Entry decoded = codec.parse(JsonOps.INSTANCE, encoded).getOrThrow();
 
 		Assertions.assertEquals(entry, decoded);
+		Assertions.assertEquals("test:crafting", encoded.getAsJsonObject().get("recipeType").getAsString());
+		Assertions.assertEquals(List.of(first, second), decoded.inputs().get(4).permutations());
+		Assertions.assertNotNull(decoded.target().typedIngredient());
+		Assertions.assertTrue(decoded.inputs().get(4).permutations().stream().allMatch(key -> key.typedIngredient() != null));
 	}
 
-	@Test
-	public void missingInputsDefaultsToEmptyMap() {
-		JsonObject json = JsonParser.parseString("""
-			{
-				"type": "favorite",
-				"recipeType": "minecraft:crafting",
-				"recipe": "ae2:decorative/quartz_glass",
-				"target": { "type": "minecraft:item_stack", "uid": "ae2:quartz_glass" }
+	private static BookmarkIngredientKey key(String value) {
+		ITypedIngredient<String> ingredient = new TypedIngredient(value);
+		return new BookmarkIngredientKey(TYPE.getUid(), value, ingredient);
+	}
+
+	private static ICodecHelper codecHelper() {
+		MapCodec<ITypedIngredient<?>> typedIngredientCodec = Codec.STRING
+			.fieldOf("ingredient")
+			.xmap(TypedIngredient::new, ingredient -> (String) ingredient.getIngredient());
+		return (ICodecHelper) Proxy.newProxyInstance(
+			ICodecHelper.class.getClassLoader(),
+			new Class<?>[]{ICodecHelper.class},
+			(proxy, method, args) -> switch (method.getName()) {
+				case "getTypedIngredientCodec" -> typedIngredientCodec;
+				default -> throw new UnsupportedOperationException(method.getName());
 			}
-			""").getAsJsonObject();
-
-		FavoriteRecipeStore.Entry decoded = FavoriteRecipeJsonSerializer.deserializeEntry(json).orElseThrow();
-
-		Assertions.assertEquals(QUARTZ_GLASS_RECIPE, decoded.recipe());
-		Assertions.assertEquals(QUARTZ_GLASS, decoded.target());
-		Assertions.assertTrue(decoded.inputs().isEmpty());
+		);
 	}
 
-	@Test
-	public void invalidElementIsSkipped() {
-		Assertions.assertTrue(FavoriteRecipeJsonSerializer.deserializeEntry(JsonParser.parseString("\"garbage\"")).isEmpty());
-		Assertions.assertTrue(FavoriteRecipeJsonSerializer.deserializeEntry(JsonParser.parseString("{}")).isEmpty());
-		Assertions.assertTrue(FavoriteRecipeJsonSerializer.deserializeEntry(
-			JsonParser.parseString("""
-				{
-					"type": "favorite",
-					"recipeType": "minecraft:crafting",
-					"recipe": "not a resource location",
-					"target": { "type": "item_stack", "uid": "ae2:quartz_glass" }
+	private static IIngredientManager ingredientManager() {
+		IIngredientHelper<String> helper = new IIngredientHelper<>() {
+			@Override
+			public IIngredientType<String> getIngredientType() {
+				return TYPE;
+			}
+
+			@Override
+			public String getDisplayName(String ingredient) {
+				return ingredient;
+			}
+
+			@Override
+			public String getUniqueId(String ingredient, UidContext context) {
+				return ingredient;
+			}
+
+			@Override
+			public ResourceLocation getResourceLocation(String ingredient) {
+				return ResourceLocation.parse("test:" + ingredient);
+			}
+
+			@Override
+			public String copyIngredient(String ingredient) {
+				return ingredient;
+			}
+
+			@Override
+			public String getErrorInfo(String ingredient) {
+				return ingredient;
+			}
+		};
+		return (IIngredientManager) Proxy.newProxyInstance(
+			IIngredientManager.class.getClassLoader(),
+			new Class<?>[]{IIngredientManager.class},
+			(proxy, method, args) -> {
+				if ("getIngredientHelper".equals(method.getName())) {
+					return helper;
 				}
-				""")
-		).isEmpty());
+				throw new UnsupportedOperationException(method.getName());
+			}
+		);
 	}
 
-	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("minecraft:item_stack", uid, null);
-	}
+	private record TypedIngredient(String ingredient) implements ITypedIngredient<String> {
+		@Override
+		public IIngredientType<String> getType() {
+			return TYPE;
+		}
 
-	private static FocusedRecipe recipe(String recipeTypeUid, String recipeUid) {
-		return new FocusedRecipe(ResourceLocation.parse(recipeTypeUid), ResourceLocation.parse(recipeUid));
+		@Override
+		public String getIngredient() {
+			return ingredient;
+		}
 	}
 }

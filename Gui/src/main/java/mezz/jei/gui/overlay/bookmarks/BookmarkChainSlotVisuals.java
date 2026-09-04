@@ -15,7 +15,7 @@ public final class BookmarkChainSlotVisuals {
 	private static final int INGREDIENT_COLOR = 0x6645DA75;
 	private static final int RESULT_COLOR = 0x9966CCFF;
 	private static final int REMAINDER_COLOR = 0x55A033A0;
-	private static final int CATALYST_COLOR = 0x66E8C135;
+	private static final int NONCONSUMABLE_COLOR = 0x66E8C135;
 	private static final int RESULTS_MARKER_BACKGROUND_COLOR = 0x3366CCFF;
 	private static final int REMAINDER_MARKER_BACKGROUND_COLOR = 0x33A033A0;
 	private static final int CHANCE_AMOUNT_TEXT_COLOR = 0xFFFFAA00;
@@ -78,12 +78,12 @@ public final class BookmarkChainSlotVisuals {
 		}
 
 		BookmarkItemMetadata metadata = entry.metadata();
-		if ((metadata.type().isGraphInput() && displayMode != BookmarkSlotDisplayMode.DEFAULT || metadata.type().isCatalyst()) && metadata.recipeUid() != null) {
+		if ((metadata.type().isGraphInput() && displayMode != BookmarkSlotDisplayMode.DEFAULT || metadata.type().isNonConsumable()) && metadata.recipeUid() != null) {
 			Optional<String> recipeMarkerText = getRecipeMarkerText(metadata, recipeMarkerMode);
 			return Optional.of(new BookmarkSlotVisuals(
 				displayMode == BookmarkSlotDisplayMode.DEFAULT ?
 					OptionalInt.empty() :
-					OptionalInt.of(metadata.type().isCatalyst() ? CATALYST_COLOR : INGREDIENT_COLOR),
+					OptionalInt.of(metadata.type().isNonConsumable() ? NONCONSUMABLE_COLOR : INGREDIENT_COLOR),
 				OptionalInt.empty(),
 				formatPositiveAmount(metadata, metadata.amount()),
 				getAmountTextColor(metadata),
@@ -245,7 +245,7 @@ public final class BookmarkChainSlotVisuals {
 	}
 
 	private static Optional<String> getRecipeMarkerText(BookmarkItemMetadata metadata, BookmarkRecipeMarkerMode recipeMarkerMode) {
-		if (metadata.type().isCatalyst()) {
+		if (metadata.type().isNonConsumable()) {
 			return Optional.of("C");
 		}
 		if (recipeMarkerMode == BookmarkRecipeMarkerMode.TEXT &&

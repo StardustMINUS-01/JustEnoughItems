@@ -135,8 +135,8 @@ public class BookmarkOverlayLayout {
 		if (rowSlots.isEmpty() || pageAreas.isEmpty()) {
 			return BoundaryConnections.NONE;
 		}
-		String firstGroupId = rowSlots.getFirst().groupId();
-		String lastGroupId = rowSlots.getLast().groupId();
+		int firstGroupId = rowSlots.getFirst().groupId();
+		int lastGroupId = rowSlots.getLast().groupId();
 		int previousRowEnd = firstDisplaySlotIndex;
 		int previousRowStart = previousRowEnd <= 0 ? 0 : BookmarkRowLayout.rowStart(
 			previousRowEnd - 1,
@@ -155,27 +155,27 @@ public class BookmarkOverlayLayout {
 		List<BookmarkDisplaySlot<T>> displaySlots,
 		int rowStart,
 		int rowEnd,
-		String visibleGroupId
+		int visibleGroupId
 	) {
-		if (rowStart >= rowEnd || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(visibleGroupId)) {
+		if (rowStart >= rowEnd || (visibleGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 			return false;
 		}
 		int slotIndex = lowerBound(displaySlots, rowStart);
-		String adjacentGroupId = null;
+		int adjacentGroupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
 		for (int i = slotIndex; i < displaySlots.size(); i++) {
 			BookmarkDisplaySlot<T> displaySlot = displaySlots.get(i);
 			if (displaySlot.slotIndex() >= rowEnd) {
 				break;
 			}
-			String groupId = displaySlot.entry().metadata().groupId();
-			if (adjacentGroupId == null || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(adjacentGroupId)) {
+			int groupId = displaySlot.entry().metadata().groupId();
+			if (adjacentGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID) {
 				adjacentGroupId = groupId;
 			}
-			if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+			if (!(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 				break;
 			}
 		}
-		return visibleGroupId.equals(adjacentGroupId);
+		return visibleGroupId == adjacentGroupId;
 	}
 
 	private static <T> int lowerBound(List<BookmarkDisplaySlot<T>> displaySlots, int slotIndex) {
@@ -222,7 +222,7 @@ public class BookmarkOverlayLayout {
 				firstDisplaySlotIndex + i,
 				bookmark.get()
 			);
-			String groupId = displaySlot
+			int groupId = displaySlot
 				.map(slot -> slot.entry().metadata().groupId())
 				.orElseGet(() -> this.bookmarkList.getBookmarkGroupId(bookmark.get()));
 			boolean shadow = displaySlot
@@ -280,7 +280,7 @@ public class BookmarkOverlayLayout {
 		return new BookmarkPanelLayout.RowSlot<>(slot.bookmark(), slot.groupId(), slot.area());
 	}
 
-	record GroupPanelSlot(IBookmark bookmark, String groupId, ImmutableRect2i area) {
+	record GroupPanelSlot(IBookmark bookmark, int groupId, ImmutableRect2i area) {
 	}
 
 	record VisibleSlotKey(ImmutableRect2i area, int bookmarkIdentity) {

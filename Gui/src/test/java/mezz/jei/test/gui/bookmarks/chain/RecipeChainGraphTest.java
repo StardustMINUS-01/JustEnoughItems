@@ -77,6 +77,6 @@ public class RecipeChainGraphTest {
 	}
 
 	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid, null);
+		return new BookmarkIngredientKey("test:item", uid);
 	}
 }

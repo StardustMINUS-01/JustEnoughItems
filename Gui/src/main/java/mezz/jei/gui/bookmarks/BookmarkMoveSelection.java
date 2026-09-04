@@ -35,7 +35,7 @@ public record BookmarkMoveSelection(
 		List<IBookmark> recipeBookmarks = bookmarkList.getBookmarks().stream()
 			.filter(bookmark -> {
 				BookmarkItemMetadata bookmarkMetadata = bookmarkList.getBookmarkMetadata(bookmark);
-				return metadata.groupId().equals(bookmarkMetadata.groupId()) &&
+				return metadata.groupId() == bookmarkMetadata.groupId() &&
 					bookmarkMetadata.type().isRecipeAssociated() &&
 					recipeIds.contains(bookmarkMetadata.recipeUid());
 			})
@@ -46,14 +46,14 @@ public record BookmarkMoveSelection(
 		return new BookmarkMoveSelection(recipeBookmarks, true, canCrossGroupMove(bookmarkList, metadata), recipeIds);
 	}
 
-	public void moveToBookmark(BookmarkList bookmarkList, IBookmark targetBookmark, String targetGroupId, int offset) {
+	public void moveToBookmark(BookmarkList bookmarkList, IBookmark targetBookmark, int targetGroupId, int offset) {
 		MoveTarget target = getEffectiveTarget(bookmarkList, targetBookmark, targetGroupId, offset);
 		bookmarkList.moveBookmarks(bookmarks, target.bookmark(), targetGroupId, target.offset());
 	}
 
-	private static boolean canMoveRecipe(BookmarkList bookmarkList, String groupId) {
+	private static boolean canMoveRecipe(BookmarkList bookmarkList, int groupId) {
 		return bookmarkList.getBookmarkGroups().stream()
-			.filter(group -> group.id().equals(groupId))
+			.filter(group -> group.id() == groupId)
 			.findFirst()
 			.map(group -> group.craftingMode() || !group.collapsed() && group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
@@ -61,7 +61,7 @@ public record BookmarkMoveSelection(
 
 	private static boolean canCrossGroupMove(BookmarkList bookmarkList, BookmarkItemMetadata metadata) {
 		return bookmarkList.getBookmarkGroups().stream()
-			.filter(group -> group.id().equals(metadata.groupId()))
+			.filter(group -> group.id() == metadata.groupId())
 			.findFirst()
 			.map(group -> !group.collapsed() && group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
@@ -76,7 +76,7 @@ public record BookmarkMoveSelection(
 		recipeIds.add(recipeUid);
 
 		bookmarkList.getBookmarkGroups().stream()
-			.filter(group -> group.id().equals(metadata.groupId()))
+			.filter(group -> group.id() == metadata.groupId())
 			.findFirst()
 			.filter(group -> group.collapsedRecipeIds().contains(recipeUid))
 			.flatMap(group -> bookmarkList.getRecipeChainDetails(group.id()))
@@ -89,7 +89,7 @@ public record BookmarkMoveSelection(
 	private MoveTarget getEffectiveTarget(
 		BookmarkList bookmarkList,
 		IBookmark targetBookmark,
-		String targetGroupId,
+		int targetGroupId,
 		int offset
 	) {
 		if (!movesRecipe) {
@@ -101,25 +101,20 @@ public record BookmarkMoveSelection(
 		if (targetRecipeUid == null ||
 			!targetMetadata.type().isRecipeAssociated() ||
 			recipeIds.contains(targetRecipeUid) ||
-			!targetGroupId.equals(targetMetadata.groupId())) {
+			targetGroupId != targetMetadata.groupId()) {
 			return new MoveTarget(targetBookmark, offset);
 		}
 
-		List<IBookmark> recipeBookmarks = bookmarkList.getBookmarks().stream()
-			.filter(bookmark -> {
-				BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
-				return targetGroupId.equals(metadata.groupId()) &&
-					metadata.type().isRecipeAssociated() &&
-					targetRecipeUid.equals(metadata.recipeUid());
-			})
-			.toList();
-		if (recipeBookmarks.isEmpty()) {
-			return new MoveTarget(targetBookmark, offset);
+		List<IBookmark> orderedBookmarks = bookmarkList.getBookmarks();
+		for (IBookmark bookmark : offset <= 0 ? orderedBookmarks : orderedBookmarks.reversed()) {
+			BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
+			if (targetGroupId == metadata.groupId() &&
+				metadata.type().isRecipeAssociated() &&
+				targetRecipeUid.equals(metadata.recipeUid())) {
+				return new MoveTarget(bookmark, offset <= 0 ? 0 : 1);
+			}
 		}
-		if (offset <= 0) {
-			return new MoveTarget(recipeBookmarks.get(0), 0);
-		}
-		return new MoveTarget(recipeBookmarks.get(recipeBookmarks.size() - 1), 1);
+		return new MoveTarget(targetBookmark, offset);
 	}
 
 	private record MoveTarget(IBookmark bookmark, int offset) {

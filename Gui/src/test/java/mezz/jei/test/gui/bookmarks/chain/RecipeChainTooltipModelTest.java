@@ -64,7 +64,7 @@ public class RecipeChainTooltipModelTest {
 		List<RecipeChainInput> inputs = List.of(
 			input(0, recipe(recipeUid, BookmarkItemType.RESULT, key("machine"), 1)),
 			input(1, recipe(recipeUid, BookmarkItemType.INGREDIENT, key("gear"), 2)),
-			input(2, recipe(recipeUid, BookmarkItemType.CATALYST, key("mold"), 1))
+			input(2, recipe(recipeUid, BookmarkItemType.NONCONSUMABLE, key("mold"), 1))
 		);
 		RecipeChainDetails details = RecipeChainMath.refresh(inputs, Set.of());
 		List<RecipeChainInput> inventory = List.of(input(-1, item(key("gear"), 2)));
@@ -137,10 +137,10 @@ public class RecipeChainTooltipModelTest {
 	}
 
 	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid, null);
+		return new BookmarkIngredientKey("test:item", uid);
 	}
 
 	private static BookmarkIngredientKey itemKey(String uid) {
-		return new BookmarkIngredientKey("minecraft:item_stack", uid, null);
+		return new BookmarkIngredientKey("minecraft:item_stack", uid);
 	}
 }

@@ -1,6 +1,8 @@
 package mezz.jei.gui.startup;
 
+import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -42,6 +44,8 @@ import mezz.jei.gui.collapsible.CollapsibleState;
 import mezz.jei.gui.config.CollapsibleConfig;
 import mezz.jei.gui.config.CollapsibleRulesReloadController;
 import mezz.jei.gui.config.CollapsibleStateStore;
+import mezz.jei.gui.config.BookmarkConfigEntry;
+import mezz.jei.gui.config.BookmarkConfigEntryCodec;
 import mezz.jei.gui.config.ConfigFileImporter;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
@@ -78,6 +82,7 @@ import mezz.jei.gui.input.handlers.FocusInputHandler;
 import mezz.jei.gui.input.handlers.GlobalInputHandler;
 import mezz.jei.gui.input.handlers.GuiAreaInputHandler;
 import mezz.jei.gui.input.handlers.UserInputRouter;
+import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
@@ -87,6 +92,7 @@ import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.RegistryOps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -140,7 +146,12 @@ public class JeiGuiStarter {
 		IClientToggleState toggleState = Internal.getClientToggleState();
 		ScrollStep scrollStep = new ScrollStep();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
-		FavoriteRecipeConfig favoriteRecipeConfig = configData.favoriteRecipeConfig();
+		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(
+			configData.configDir(),
+			codecHelper,
+			ingredientManager,
+			registryAccess
+		);
 		RecipePreferenceConfig recipePreferenceConfig = configData.recipePreferenceConfig();
 		CollapsibleConfig collapsibleConfig = configData.collapsibleConfig();
 		CollapsibleStateStore collapsibleStateStore = configData.collapsibleStateStore();
@@ -205,6 +216,8 @@ public class JeiGuiStarter {
 
 		BookmarkFactory bookmarkFactory = new BookmarkFactory(codecHelper, registryAccess, ingredientManager);
 		Codec<IBookmark> bookmarkCodec = BookmarkCodec.create(codecHelper, ingredientManager, recipeManager, bookmarkFactory).codec();
+		Codec<BookmarkConfigEntry> bookmarkEntryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
+		RegistryOps<JsonElement> bookmarkRegistryOps = registryAccess.createSerializationContext(JsonOps.INSTANCE);
 
 		LookupHistory lookupHistory = new LookupHistory(
 			recipeManager,
@@ -406,7 +419,9 @@ public class JeiGuiStarter {
 				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.favoriteTreeDepth().getValue()),
 				favoriteRecipes::getFavorite,
 				clientConfig,
-				recipesGui
+				recipesGui,
+				bookmarkEntryCodec,
+				bookmarkRegistryOps
 			),
 			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection, scrollStep),
 			new GlobalInputHandler(toggleState),
@@ -419,7 +434,7 @@ public class JeiGuiStarter {
 		);
 		ClientInputHandler clientInputHandler = new ClientInputHandler(
 			charTypedHandlers,
-			new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList),
+			new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList, bookmarkEntryCodec, bookmarkRegistryOps),
 			userInputRouter,
 			dragRouter,
 			keyMappings,
@@ -437,6 +452,7 @@ public class JeiGuiStarter {
 		return new JeiEventHandlers(
 			guiEventHandler,
 			clientInputHandler,
+			new WorldInputHandler(bookmarkOverlay, recipesGui, focusUtil, ingredientManager),
 			resourceReloadHandler
 		);
 	}

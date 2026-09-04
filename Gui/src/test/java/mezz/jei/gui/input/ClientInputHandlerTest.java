@@ -42,7 +42,7 @@ public class ClientInputHandlerTest {
 				return true;
 			}
 		};
-		ChatLinkInputHandler chatLinkInputHandler = new ChatLinkInputHandler(null, null, null, null) {
+		ChatLinkInputHandler chatLinkInputHandler = new ChatLinkInputHandler(null, null, null, null, null, null) {
 			@Override
 			public boolean handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 				return false;

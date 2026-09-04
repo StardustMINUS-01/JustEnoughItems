@@ -29,6 +29,8 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	private final IElement<T> delegate;
 	private final BookmarkDisplayEntry<?> displayEntry;
 	private final BookmarkPermutationTooltipState permutationTooltipState;
+	private final Object candidateTooltipSourceKey;
+	private final List<BookmarkIngredientKey> permutationKeys;
 
 	public ProjectedBookmarkElement(IElement<T> delegate, BookmarkDisplayEntry<?> displayEntry) {
 		this(delegate, displayEntry, new BookmarkPermutationTooltipState());
@@ -42,6 +44,8 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 		this.delegate = delegate;
 		this.displayEntry = displayEntry;
 		this.permutationTooltipState = permutationTooltipState;
+		this.candidateTooltipSourceKey = Integer.valueOf(displayEntry.sourceIndex());
+		this.permutationKeys = List.copyOf(displayEntry.metadata().permutations());
 	}
 
 	@Override
@@ -84,7 +88,7 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	public void getTooltip(JeiTooltip tooltip, IngredientGridTooltipHelper tooltipHelper, IIngredientRenderer<T> ingredientRenderer, IIngredientHelper<T> ingredientHelper) {
 		ITypedIngredient<T> typedIngredient = createTooltipIngredient(getTypedIngredient(), ingredientHelper, displayEntry);
 		boolean showToggleInputCatalyst = displayEntry.metadata().type().isGraphInput() ||
-			displayEntry.metadata().type().isCatalyst();
+			displayEntry.metadata().type().isNonConsumable();
 		tooltipHelper.getIngredientTooltip(
 			tooltip,
 			typedIngredient,
@@ -100,11 +104,10 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	}
 
 	private void addPermutationTooltip(JeiTooltip tooltip) {
-		List<BookmarkIngredientKey> permutationKeys = List.copyOf(displayEntry.metadata().permutations());
 		BookmarkCandidateTooltipHelper.addTo(
 			tooltip,
 			permutationTooltipState,
-			displayEntry.sourceIndex(),
+			candidateTooltipSourceKey,
 			getTypedIngredient(),
 			permutationKeys
 		);

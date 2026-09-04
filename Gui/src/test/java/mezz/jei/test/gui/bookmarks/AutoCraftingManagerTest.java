@@ -112,7 +112,7 @@ public class AutoCraftingManagerTest {
 	}
 
 	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid, null);
+		return new BookmarkIngredientKey("test:item", uid);
 	}
 
 	private record Craft(ResourceLocation recipeUid, int multiplier) {

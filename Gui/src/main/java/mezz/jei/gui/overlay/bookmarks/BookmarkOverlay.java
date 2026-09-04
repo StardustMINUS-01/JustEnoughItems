@@ -87,7 +87,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	private static final int GROUP_CHAIN_COLOR = 0xFF4FA3FF;
 	private static final int FAVORITE_RECIPE_ROW_COLOR = 0x6645DA75;
 	private static final int GROUP_PLACEHOLDER_COLOR = 0x66222222;
-	private static final String GROUPING_PREVIEW_GROUP_ID = "__nei_grouping_preview__";
+	private static final int GROUPING_PREVIEW_GROUP_ID = -1;
 
 	public record LayoutAreas(
 		ImmutableRect2i contentsLayoutArea,
@@ -844,7 +844,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return layout.getPanelSnapshotForRendering();
 	}
 
-	boolean canStartGroupDrop(String groupId) {
+	boolean canStartGroupDrop(int groupId) {
 		return BookmarkGroupDropBridge.canStartGroupDrop(bookmarkList, groupId);
 	}
 
@@ -981,7 +981,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			.findFirst();
 	}
 
-	private Optional<String> getGroupIdUnderMouse(double mouseX, double mouseY) {
+	private Optional<Integer> getGroupIdUnderMouse(double mouseX, double mouseY) {
 		return this.contents.getSlots()
 			.filter(slot -> slot.getArea().contains(mouseX, mouseY))
 			.map(IngredientListSlot::getOptionalElement)
@@ -992,12 +992,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			.findFirst();
 	}
 
-	private Optional<String> getGroupIdUnderMouseGroupPanel(double mouseX, double mouseY) {
+	private Optional<Integer> getGroupIdUnderMouseGroupPanel(double mouseX, double mouseY) {
 		return getGroupPanelSlotUnderMouse(mouseX, mouseY)
 			.map(GroupPanelSlot::groupId);
 	}
 
-	public Optional<String> getPullGroupIdUnderMouse(double mouseX, double mouseY) {
+	public Optional<Integer> getPullGroupIdUnderMouse(double mouseX, double mouseY) {
 		if (hasDefaultGroupBookmarks() && getDefaultGroupControlArea().contains(mouseX, mouseY)) {
 			return Optional.of(BookmarkGroupManager.DEFAULT_GROUP_ID);
 		}
@@ -1005,7 +1005,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			.or(() -> getGroupIdUnderMouse(mouseX, mouseY));
 	}
 
-	public Optional<String> getPatternEncodeGroupIdUnderMouse(double mouseX, double mouseY) {
+	public Optional<Integer> getPatternEncodeGroupIdUnderMouse(double mouseX, double mouseY) {
 		if (hasDefaultGroupBookmarks() && getDefaultGroupControlArea().contains(mouseX, mouseY)) {
 			return Optional.of(BookmarkGroupManager.DEFAULT_GROUP_ID);
 		}
@@ -1014,7 +1014,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	public boolean removeGroupUnderMouseGroupPanel(UserInput input) {
 		Optional<GroupPanelSlot> slot = getGroupPanelSlotUnderMouse(input.getMouseX(), input.getMouseY())
-			.filter(groupPanelSlot -> !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupPanelSlot.groupId()));
+			.filter(groupPanelSlot -> !(groupPanelSlot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID));
 		if (slot.isEmpty()) {
 			return false;
 		}
@@ -1062,17 +1062,21 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> getFavoriteRecipeElementPanelSlots() {
-		return this.favoriteContents.getSlots()
+		List<FavoriteRecipeElementPanelSlot> elementSlots = this.favoriteContents.getSlots()
 			.map(slot -> slot.getOptionalElement()
 				.filter(FavoriteRecipeElement.class::isInstance)
 				.map(element -> (FavoriteRecipeElement<?>) element)
-				.map(element -> new BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>(
-					element,
-					element.getRecipeRowGroupId(),
-					slot.getArea(),
-					false
-				)))
+				.map(element -> new FavoriteRecipeElementPanelSlot(element, slot.getArea())))
 			.flatMap(Optional::stream)
+			.toList();
+		Map<FocusedRecipe, Integer> rowIds = new HashMap<>();
+		return elementSlots.stream()
+			.map(slot -> new BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>(
+				slot.element(),
+				rowIds.computeIfAbsent(slot.element().getFocusedRecipe(), recipe -> rowIds.size() + 1),
+				slot.area(),
+				false
+			))
 			.toList();
 	}
 
@@ -1080,18 +1084,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		if (favoritePanelState.displayMode() != FavoriteRecipePanelState.DisplayMode.RECIPE_ROWS) {
 			return List.of();
 		}
-		List<BookmarkPanelLayout.PanelSlot<FocusedRecipe>> panelSlots = this.favoriteContents.getSlots()
-			.map(slot -> slot.getOptionalElement()
-				.filter(FavoriteRecipeElement.class::isInstance)
-				.map(FavoriteRecipeElement.class::cast)
-				.filter(FavoriteRecipeElement::isVisible)
-				.map(element -> new BookmarkPanelLayout.PanelSlot<>(
-					element.getFocusedRecipe(),
-					element.getRecipeRowGroupId(),
-					slot.getArea(),
-					false
-				)))
-			.flatMap(Optional::stream)
+		List<BookmarkPanelLayout.PanelSlot<FocusedRecipe>> panelSlots = getFavoriteRecipeElementPanelSlots().stream()
+			.filter(slot -> slot.item().isVisible())
+			.map(slot -> new BookmarkPanelLayout.PanelSlot<>(slot.item().getFocusedRecipe(), slot.groupId(), slot.area(), false))
 			.toList();
 		return BookmarkPanelLayout.createRowSlots(panelSlots);
 	}
@@ -1115,7 +1110,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		if (defaultGroupBookmarksVersion != bookmarkVersion) {
 			defaultGroupBookmarksVersion = bookmarkVersion;
 			defaultGroupHasBookmarks = bookmarkList.getBookmarks().stream()
-				.anyMatch(bookmark -> BookmarkGroupManager.DEFAULT_GROUP_ID.equals(bookmarkList.getBookmarkGroupId(bookmark)));
+				.anyMatch(bookmark -> (bookmarkList.getBookmarkGroupId(bookmark) == BookmarkGroupManager.DEFAULT_GROUP_ID));
 		}
 		return defaultGroupHasBookmarks;
 	}
@@ -1254,7 +1249,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		public ActionDragTarget(
 			ImmutableRect2i area,
 			IBookmark bookmark,
-			String targetGroupId,
+			int targetGroupId,
 			BookmarkList bookmarkList,
 			int offset,
 			Runnable action
@@ -1279,21 +1274,21 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	public static class DragTarget implements IBookmarkDragTarget {
 		private final ImmutableRect2i area;
 		private final IBookmark bookmark;
-		private final String targetGroupId;
+		private final int targetGroupId;
 		private final BookmarkList bookmarkList;
 		private final int offset;
 		private final List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots;
 		private final List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots;
 		private final @Nullable BookmarkPanelLayout.RowSlot<IBookmark> targetRow;
 
-		public DragTarget(ImmutableRect2i area, IBookmark bookmark, String targetGroupId, BookmarkList bookmarkList, int offset) {
+		public DragTarget(ImmutableRect2i area, IBookmark bookmark, int targetGroupId, BookmarkList bookmarkList, int offset) {
 			this(area, bookmark, targetGroupId, bookmarkList, offset, List.of(), List.of(), null);
 		}
 
 		public DragTarget(
 			ImmutableRect2i area,
 			IBookmark bookmark,
-			String targetGroupId,
+			int targetGroupId,
 			BookmarkList bookmarkList,
 			int offset,
 			List<? extends BookmarkPanelLayout.RowSlot<? extends IBookmark>> rowSlots,
@@ -1305,7 +1300,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		public DragTarget(
 			ImmutableRect2i area,
 			IBookmark bookmark,
-			String targetGroupId,
+			int targetGroupId,
 			BookmarkList bookmarkList,
 			int offset,
 			List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
@@ -1361,8 +1356,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				selection.moveToBookmark(bookmarkList, plan.targetBookmark(), plan.targetGroupId(), plan.offset());
 				return;
 			}
-			String sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
-			if (!sourceGroupId.equals(targetGroupId)) {
+			int sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
+			if (sourceGroupId != targetGroupId) {
 				return;
 			}
 			selection.moveToBookmark(bookmarkList, this.bookmark, targetGroupId, offset);
@@ -1385,11 +1380,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			if (targetRow == null || rowSlots.isEmpty()) {
 				return Optional.empty();
 			}
-			String sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
-			if (!sourceGroupId.equals(targetRow.groupId()) && !selection.crossGroupMove()) {
+			int sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
+			if (sourceGroupId != targetRow.groupId() && !selection.crossGroupMove()) {
 				return Optional.empty();
 			}
-			if (sourceGroupId.equals(targetRow.groupId())) {
+			if (sourceGroupId == targetRow.groupId()) {
 				return Optional.of(BookmarkItemMovePlan.createSameGroupByRow(
 					panelSlots,
 					rowSlots,
@@ -1412,8 +1407,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 
 		private ImmutableRect2i getPreviewArea(IBookmark bookmark, BookmarkItemMovePlan plan) {
-			String sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
-			if (sourceGroupId.equals(plan.targetGroupId()) && targetRow != null) {
+			int sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
+			if (sourceGroupId == plan.targetGroupId() && targetRow != null) {
 				ImmutableRect2i rowArea = rowSlots.stream()
 					.filter(row -> row.item().equals(plan.targetBookmark()))
 					.findFirst()
@@ -1426,16 +1421,16 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 
 		private boolean isCrossGroupFallback(IBookmark bookmark) {
-			String sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
-			return !sourceGroupId.equals(targetGroupId);
+			int sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
+			return sourceGroupId != targetGroupId;
 		}
 
-		private static Map<String, Set<ResourceLocation>> getRecipeIdsByGroup(
+		private static Map<Integer, Set<ResourceLocation>> getRecipeIdsByGroup(
 			BookmarkList bookmarkList,
 			List<IBookmark> ignoredBookmarks
 		) {
 			Set<IBookmark> ignored = new HashSet<>(ignoredBookmarks);
-			Map<String, Set<ResourceLocation>> recipeIdsByGroup = new HashMap<>();
+			Map<Integer, Set<ResourceLocation>> recipeIdsByGroup = new HashMap<>();
 			for (IBookmark bookmark : bookmarkList.getBookmarks()) {
 				if (ignored.contains(bookmark)) {
 					continue;

@@ -1,5 +1,8 @@
 package mezz.jei.gui.input.handlers;
 
+import com.google.gson.JsonElement;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DynamicOps;
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -49,6 +52,7 @@ import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
+import mezz.jei.gui.config.BookmarkConfigEntry;
 import net.minecraft.client.Minecraft;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipesGui;
@@ -75,10 +79,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final IConnectionToServer serverConnection;
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
 	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
-	private final Function<FocusedRecipe, Optional<String>> favoriteTreeSaver;
+	private final Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
 	private final IClientConfig clientConfig;
 	private final RecipesGui recipesGui;
+	private final Codec<BookmarkConfigEntry> bookmarkEntryCodec;
+	private final DynamicOps<JsonElement> bookmarkRegistryOps;
 
 	public BookmarkInputHandler(
 		CombinedRecipeFocusSource focusSource,
@@ -88,10 +94,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		IConnectionToServer serverConnection,
 		BookmarkAutoCraftingRunner autoCraftingRunner,
 		ClientCraftingGridClickRunner clientCraftingGridClickRunner,
-		Function<FocusedRecipe, Optional<String>> favoriteTreeSaver,
+		Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
 		IClientConfig clientConfig,
-		RecipesGui recipesGui
+		RecipesGui recipesGui,
+		Codec<BookmarkConfigEntry> bookmarkEntryCodec,
+		DynamicOps<JsonElement> bookmarkRegistryOps
 	) {
 		this.focusSource = focusSource;
 		this.bookmarkList = bookmarkList;
@@ -105,6 +113,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.favoriteRecipeLookup = favoriteRecipeLookup;
 		this.clientConfig = clientConfig;
 		this.recipesGui = recipesGui;
+		this.bookmarkEntryCodec = bookmarkEntryCodec;
+		this.bookmarkRegistryOps = bookmarkRegistryOps;
 	}
 
 	@Override
@@ -145,7 +155,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
 		}
-		Optional<String> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+		Optional<Integer> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
 			.filter(bookmarkList::isGroupCraftingMode);
 		if (groupId.isEmpty()) {
 			return Optional.empty();
@@ -159,7 +169,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 
-		String hoveredGroupId = groupId.get();
+		int hoveredGroupId = groupId.get();
 		AbstractContainerMenu menu = containerScreen.getMenu();
 		boolean craftAll = isCraftAllModifier(input.getModifiers());
 		boolean handled;
@@ -223,7 +233,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		return Optional.of(handler);
 	}
 
-	private List<RecipeChainInput> getAutoCraftingInventoryInputs(String groupId) {
+	private List<RecipeChainInput> getAutoCraftingInventoryInputs(int groupId) {
 		return recipeChainInventoryProvider.getInventoryInputs(groupId, -1);
 	}
 
@@ -232,7 +242,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
 		}
-		Optional<String> groupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
+		Optional<Integer> groupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
 		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
 		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handle(
 			input,
@@ -363,7 +373,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 		Optional<String> snapshot = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
-			.flatMap(groupId -> BookmarkJsonSerializer.serializeGroupSnapshot(bookmarkList, groupId, ingredientManager));
+			.flatMap(groupId -> BookmarkJsonSerializer.serializeGroupSnapshot(
+				bookmarkList,
+				groupId,
+				bookmarkEntryCodec,
+				bookmarkRegistryOps
+			));
 		if (snapshot.isEmpty()) {
 			return Optional.empty();
 		}
@@ -375,12 +390,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	}
 
 	private Optional<IUserInputHandler> handleSaveMissingRecipeChain(UserInput input) {
-		Optional<String> optionalGroupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+		Optional<Integer> optionalGroupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
 			.filter(bookmarkList::isGroupCraftingMode);
 		if (optionalGroupId.isEmpty()) {
 			return Optional.empty();
 		}
-		String groupId = optionalGroupId.get();
+		int groupId = optionalGroupId.get();
 		Minecraft minecraft = Minecraft.getInstance();
 		List<RecipeChainInput> inventoryInputs;
 		if (minecraft.screen instanceof RecipesGui) {
@@ -418,7 +433,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
 		}
-		Optional<String> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
+		Optional<Integer> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
 		if (groupId.isEmpty()) {
 			return Optional.empty();
 		}

@@ -1,4 +1,4 @@
-﻿{
+{
   "_comment": "Tooltips",
   "jei.tooltip.config": "JEI Config",
   "jei.tooltip.show.recipes": "Show all recipes",
@@ -196,6 +196,11 @@
   "key.jei.searchIngredientInTerminal": "Search Hovered Ingredient in Terminal",
   "key.jei.shareToChat": "Share Item or Bookmark Group to Chat",
   "jei.chat.bookmark_group.hover": "Click to save this bookmark group (%s entries)",
+
+  "jei.key.category.world.target": "JEI (World Target)",
+  "key.jei.bookmarkWorldTarget": "Bookmark World Target",
+  "key.jei.showWorldTargetRecipe": "Show World Target Recipes",
+  "key.jei.showWorldTargetUses": "Show World Target Uses",
 
   "jei.key.category.search": "JEI (Search Filter)",
   "key.jei.clearSearchBar": "Clear Search Filter",

@@ -4,9 +4,10 @@ import appeng.client.gui.widgets.AETextField;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler.Target;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.common.Internal;
+import mezz.jei.gui.input.handlers.IngredientClipboardText;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 import java.util.Optional;
@@ -54,12 +55,12 @@ public class JeiSearchTextGhostIngredientHandler<T extends Screen> implements IG
 			.findFirst();
 	}
 
-	private static Optional<String> toSearchText(ITypedIngredient<?> ingredient) {
-		return ingredient.getItemStack()
-			.filter(stack -> !stack.isEmpty())
-			.map(ItemStack::getHoverName)
-			.map(name -> name.getString().trim())
-			.filter(text -> !text.isEmpty());
+	private static <I> Optional<String> toSearchText(ITypedIngredient<I> ingredient) {
+		String searchText = IngredientClipboardText.getIngredientName(
+			ingredient,
+			Internal.getJeiRuntime().getIngredientManager()
+		).trim();
+		return searchText.isEmpty() ? Optional.empty() : Optional.of(searchText);
 	}
 
 	private record SearchTextTarget<I>(

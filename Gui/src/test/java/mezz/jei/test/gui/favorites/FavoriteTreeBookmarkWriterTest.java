@@ -58,18 +58,18 @@ public class FavoriteTreeBookmarkWriterTest {
 			},
 			(layouts, preserveAmount) -> {
 				projections.addAll(layouts);
-				return Optional.of("group");
+				return Optional.of(1);
 			}
 		);
 
-		Optional<String> groupId = writer.save(
+		Optional<Integer> groupId = writer.save(
 			ROOT,
 			2,
 			Optional.of(OUTPUT_KEY),
 			Map.of(1, key("white"))
 		);
 
-		Assertions.assertEquals(Optional.of("group"), groupId);
+		Assertions.assertEquals(Optional.of(1), groupId);
 		Assertions.assertEquals(2, projections.size());
 		Assertions.assertSame(rootLayout, projections.get(0).layout());
 		Assertions.assertSame(whiteLayout, projections.get(1).layout());

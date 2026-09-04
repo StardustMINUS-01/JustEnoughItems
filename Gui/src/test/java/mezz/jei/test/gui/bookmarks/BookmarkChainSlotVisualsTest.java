@@ -52,7 +52,7 @@ public class BookmarkChainSlotVisualsTest {
 	public void catalystBookmarkShowsYellowCatalystMarker() {
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			1,
 			1,
 			BookmarkItemMetadata.CHANCE_FULL,
@@ -92,7 +92,7 @@ public class BookmarkChainSlotVisualsTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			ResourceLocation.parse("minecraft:crafting"),
 			ResourceLocation.parse("test:plate"),
-			Set.of(new BookmarkIngredientKey("test:item", "plate", null))
+			Set.of(new BookmarkIngredientKey("test:item", "plate"))
 		);
 		BookmarkSlotBorder border = new BookmarkSlotBorder(0x99A033A0, true, false, true, false);
 		BookmarkDisplayEntry<Object> entry = entry(metadata).withBorder(border);
@@ -106,7 +106,7 @@ public class BookmarkChainSlotVisualsTest {
 	public void catalystBookmarkShowsYellowHighlightInRealMode() {
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			1,
 			1,
 			BookmarkItemMetadata.CHANCE_FULL,

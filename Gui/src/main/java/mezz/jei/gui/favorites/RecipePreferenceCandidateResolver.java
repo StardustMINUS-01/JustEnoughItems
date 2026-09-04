@@ -3,7 +3,6 @@ package mezz.jei.gui.favorites;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -76,7 +75,7 @@ public final class RecipePreferenceCandidateResolver {
 		return new RecipePreferenceCandidateResolver(
 			source,
 			source,
-			key -> resolveTypedIngredient(key, ingredientManager),
+			key -> Optional.ofNullable(key.typedIngredient()),
 			rulesSupplier
 		);
 	}
@@ -191,20 +190,6 @@ public final class RecipePreferenceCandidateResolver {
 				return size() > limit;
 			}
 		};
-	}
-
-	@SuppressWarnings({"removal", "rawtypes", "unchecked"})
-	private static Optional<ITypedIngredient<?>> resolveTypedIngredient(
-		BookmarkIngredientKey key,
-		IIngredientManager ingredientManager
-	) {
-		Optional<IIngredientType<?>> type = ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid());
-		if (type.isEmpty()) {
-			return Optional.empty();
-		}
-		IIngredientType rawType = type.get();
-		return ingredientManager.getTypedIngredientByUid(rawType, key.ingredientUid())
-			.map(ingredient -> (ITypedIngredient<?>) ingredient);
 	}
 
 	private static final class JeiRecipeCandidateSource implements IRecipeCandidateFinder, IRecipeCandidateFactory {

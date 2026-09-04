@@ -9,6 +9,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
@@ -41,7 +42,7 @@ public class BookmarkItemMetadataFactoryTest {
 		IIngredientManager ingredientManager = ingredientManager();
 		TestToolIngredient wrench = new TestToolIngredient("neutronium_wrench", 1, 0, 10_000, 2);
 		BookmarkItemMetadata inventoryMetadata = BookmarkItemMetadataFactory.createForCraftingAvailable(
-			"default",
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			typed(wrench),
 			1,
 			ingredientManager
@@ -61,7 +62,7 @@ public class BookmarkItemMetadataFactoryTest {
 	public void syntheticVirtualCircuitRecipeInputHasZeroCost() {
 		IIngredientManager ingredientManager = ingredientManager();
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
-			"default",
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			CRAFTING,
 			MACHINE_RECIPE,
 			BookmarkItemType.INGREDIENT,
@@ -78,21 +79,33 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	@Test
+	public void permutationKeyKeepsItsTypedIngredientWithoutChangingStableIdentity() {
+		IIngredientManager ingredientManager = ingredientManager();
+		ITypedIngredient<TestToolIngredient> original = typed(new TestToolIngredient("mold", 1, 0, 0, 0));
+
+		BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(original, ingredientManager);
+		BookmarkIngredientKey sameIdentity = BookmarkIngredientKey.of(key.ingredientTypeUid(), key.ingredientUid());
+
+		Assertions.assertSame(original, key.typedIngredient());
+		Assertions.assertEquals(sameIdentity, key);
+		Assertions.assertEquals(sameIdentity.hashCode(), key.hashCode());
+	}
+
+	@Test
 	public void replacingPermutationsPreservesCatalystType() {
-		BookmarkItemMetadata catalyst = ingredient(key("mold"), 1).withType(BookmarkItemType.CATALYST);
+		BookmarkItemMetadata catalyst = ingredient(key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE);
 
 		BookmarkItemMetadata replaced = catalyst.withPermutations(Set.of(key("hydrated_mold")));
 
-		Assertions.assertEquals(BookmarkItemType.CATALYST, replaced.type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, replaced.type());
 		Assertions.assertEquals(Set.of(key("hydrated_mold")), replaced.permutations());
 	}
 
 	@Test
-	public void catalystTypeIgnoresEveryMultiplier() {
-		BookmarkItemType catalystType = BookmarkItemType.valueOf("CATALYST");
-		BookmarkItemMetadata catalyst = new BookmarkItemMetadata(
-			"default",
-			catalystType,
+	public void nonConsumableTypeIgnoresEveryMultiplier() {
+		BookmarkItemMetadata nonConsumable = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.NONCONSUMABLE,
 			64,
 			100,
 			BookmarkItemMetadata.CHANCE_FULL,
@@ -101,8 +114,8 @@ public class BookmarkItemMetadataFactoryTest {
 			Set.of(key("ferric_chloride"))
 		);
 
-		Assertions.assertEquals(100, catalyst.amount());
-		Assertions.assertEquals(100, catalyst.amount(9));
+		Assertions.assertEquals(100, nonConsumable.amount());
+		Assertions.assertEquals(100, nonConsumable.amount(9));
 	}
 
 	@Test
@@ -120,26 +133,26 @@ public class BookmarkItemMetadataFactoryTest {
 		Assertions.assertEquals(RecipeIngredientRole.INPUT, BookmarkItemType.INGREDIENT.recipeRole());
 		Assertions.assertTrue(BookmarkItemType.INGREDIENT.isGraphInput());
 
-		Assertions.assertTrue(BookmarkItemType.CATALYST.isRecipeAssociated());
-		Assertions.assertEquals(RecipeIngredientRole.INPUT, BookmarkItemType.CATALYST.recipeRole());
-		Assertions.assertTrue(BookmarkItemType.CATALYST.isCatalyst());
-		Assertions.assertFalse(BookmarkItemType.CATALYST.isGraphInput());
-		Assertions.assertFalse(BookmarkItemType.CATALYST.scalesWithMultiplier());
+		Assertions.assertTrue(BookmarkItemType.NONCONSUMABLE.isRecipeAssociated());
+		Assertions.assertEquals(RecipeIngredientRole.INPUT, BookmarkItemType.NONCONSUMABLE.recipeRole());
+		Assertions.assertTrue(BookmarkItemType.NONCONSUMABLE.isNonConsumable());
+		Assertions.assertFalse(BookmarkItemType.NONCONSUMABLE.isGraphInput());
+		Assertions.assertFalse(BookmarkItemType.NONCONSUMABLE.scalesWithMultiplier());
 	}
 
 	@Test
 	public void syntheticCatalystIsCreatedAsACatalyst() {
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
-			"default",
+			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			CRAFTING,
 			MACHINE_RECIPE,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			typed(new TestToolIngredient("mold", 3, 0, 0, 0)),
 			ingredientManager(),
 			3
 		);
 
-		Assertions.assertEquals(BookmarkItemType.CATALYST, metadata.type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, metadata.type());
 		Assertions.assertEquals(3, metadata.amount(9));
 	}
 
@@ -148,15 +161,15 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	private static BookmarkItemMetadata result(BookmarkIngredientKey key, long multiplier) {
-		return new BookmarkItemMetadata("default", mezz.jei.gui.bookmarks.BookmarkItemType.RESULT, multiplier, 1, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, mezz.jei.gui.bookmarks.BookmarkItemType.RESULT, multiplier, 1, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
 	}
 
 	private static BookmarkItemMetadata ingredient(BookmarkIngredientKey key, long factor) {
-		return new BookmarkItemMetadata("default", mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT, 1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key), key, 5_000);
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT, 1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key), key, 5_000);
 	}
 
 	private static BookmarkIngredientKey key(String name) {
-		return new BookmarkIngredientKey(TOOL_TYPE.getUid(), "test:" + name, null);
+		return new BookmarkIngredientKey(TOOL_TYPE.getUid(), "test:" + name);
 	}
 
 	private static ITypedIngredient<TestToolIngredient> typed(TestToolIngredient ingredient) {

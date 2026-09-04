@@ -11,7 +11,7 @@ public class BookmarkHotkeyRouterTest {
 		BookmarkHotkeyContext context = recipeBookmarkContext();
 
 		Assertions.assertEquals(
-			Optional.of(BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST),
+			Optional.of(BookmarkHotkeyAction.TOGGLE_INPUT_NONCONSUMABLE),
 			BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, false, true, false)
 		);
 	}
@@ -43,7 +43,7 @@ public class BookmarkHotkeyRouterTest {
 			BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, true, true, false)
 		);
 		Assertions.assertNotEquals(
-			Optional.of(BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST),
+			Optional.of(BookmarkHotkeyAction.TOGGLE_INPUT_NONCONSUMABLE),
 			BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, true, true, false)
 		);
 	}

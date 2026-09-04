@@ -58,7 +58,7 @@ public class RecipeChainPlanTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			CRAFTING,
 			recipeUid,
-			Set.of(new BookmarkIngredientKey("test:item", item, null))
+			Set.of(new BookmarkIngredientKey("test:item", item))
 		);
 	}
 }

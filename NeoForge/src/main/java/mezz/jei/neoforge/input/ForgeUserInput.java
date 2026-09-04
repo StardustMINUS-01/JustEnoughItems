@@ -5,6 +5,7 @@ import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.input.UserInput;
 import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 
 import java.util.Optional;
 
@@ -26,6 +27,11 @@ public final class ForgeUserInput {
 		double mouseY = MouseUtil.getY();
 		int modifiers = keyEvent.getModifiers();
 		return new UserInput(input, mouseX, mouseY, modifiers, InputType.EXECUTE);
+	}
+
+	public static UserInput fromEvent(InputEvent.Key keyEvent) {
+		InputConstants.Key input = InputConstants.getKey(keyEvent.getKey(), keyEvent.getScanCode());
+		return new UserInput(input, 0, 0, keyEvent.getModifiers(), InputType.IMMEDIATE);
 	}
 
 	public static Optional<UserInput> fromEvent(ScreenEvent.MouseButtonPressed event) {

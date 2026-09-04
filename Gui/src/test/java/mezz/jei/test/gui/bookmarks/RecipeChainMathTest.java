@@ -114,7 +114,7 @@ public class RecipeChainMathTest {
 	public void catalystInputDoesNotBecomeAConsumedMaterialRequirement() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("mold"), 1).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PLATE_RECIPE, key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE))
 		), Set.of());
 
 		Assertions.assertFalse(details.missedItems().containsKey(key("mold")));
@@ -325,11 +325,10 @@ public class RecipeChainMathTest {
 
 	@Test
 	public void initialItemWithSubtypeCanSatisfyBaseItemIngredientForCrafting() {
-		BookmarkIngredientKey baseMachine = new BookmarkIngredientKey("minecraft:item_stack", "mekanism:ultimate_injecting_factory", null);
+		BookmarkIngredientKey baseMachine = new BookmarkIngredientKey("minecraft:item_stack", "mekanism:ultimate_injecting_factory");
 		BookmarkIngredientKey chargedMachine = new BookmarkIngredientKey(
 			"minecraft:item_stack",
-			"mekanism:ultimate_injecting_factory:{mekData:{EnergyContainers:[{Container:0,stored:\"1000\"}]}}",
-			null
+			"mekanism:ultimate_injecting_factory:{mekData:{EnergyContainers:[{Container:0,stored:\"1000\"}]}}"
 		);
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
@@ -347,13 +346,11 @@ public class RecipeChainMathTest {
 	public void initialItemWithDifferentSubtypeCanSatisfySameItemIngredientForCrafting() {
 		BookmarkIngredientKey emptyMachine = new BookmarkIngredientKey(
 			"minecraft:item_stack",
-			"mekanism:elite_injecting_factory:empty:empty:empty",
-			null
+			"mekanism:elite_injecting_factory:empty:empty:empty"
 		);
 		BookmarkIngredientKey chargedMachine = new BookmarkIngredientKey(
 			"minecraft:item_stack",
-			"mekanism:elite_injecting_factory:mekanism:oxygen:stored_energy",
-			null
+			"mekanism:elite_injecting_factory:mekanism:oxygen:stored_energy"
 		);
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
@@ -371,13 +368,11 @@ public class RecipeChainMathTest {
 	public void initialItemWithDifferentSubtypeDoesNotSatisfySameItemIngredientOutsideRelaxedNamespaces() {
 		BookmarkIngredientKey emptyMachine = new BookmarkIngredientKey(
 			"minecraft:item_stack",
-			"minecraft:furnace:empty",
-			null
+			"minecraft:furnace:empty"
 		);
 		BookmarkIngredientKey chargedMachine = new BookmarkIngredientKey(
 			"minecraft:item_stack",
-			"minecraft:furnace:charged",
-			null
+			"minecraft:furnace:charged"
 		);
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
@@ -855,6 +850,6 @@ public class RecipeChainMathTest {
 	}
 
 	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid, null);
+		return new BookmarkIngredientKey("test:item", uid);
 	}
 }

@@ -1,129 +1,127 @@
 package mezz.jei.gui.config;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.runtime.IIngredientManager;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
-import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
-import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
-import mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer;
-import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
-import net.minecraft.resources.ResourceLocation;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public final class BookmarkJsonSerializer {
-	private static final Logger LOGGER = LogManager.getLogger();
-	private static final String TYPE_GROUP = "group";
-	private static final String TYPE_RECIPE = "recipe";
-	private static final String TYPE_ITEM = "item";
-	private static final int GROUP_SNAPSHOT_VERSION = 1;
+	private static final int GROUP_SNAPSHOT_VERSION = 2;
 
 	private BookmarkJsonSerializer() {
 	}
 
-	public static List<JsonElement> serialize(BookmarkList bookmarkList, IIngredientManager ingredientManager) {
-		List<JsonElement> elements = new ArrayList<>();
-		for (BookmarkGroup group : bookmarkList.getBookmarkGroups()) {
-			if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(group.id())) {
-				elements.add(serializeGroup(group));
-			}
-		}
-		for (IBookmark bookmark : bookmarkList.getBookmarks()) {
-			elements.add(serializeBookmark(bookmark, bookmarkList.getBookmarkMetadata(bookmark), ingredientManager));
-		}
-		return List.copyOf(elements);
+	public static List<BookmarkConfigEntry> createEntries(BookmarkList bookmarkList) {
+		return createEntries(bookmarkList, bookmarkList.getBookmarks());
 	}
 
-	public static JsonObject serializeGroup(BookmarkGroup group) {
-		return BookmarkGroupConfigSerializer.serializeGroupJson(group);
+	static List<BookmarkConfigEntry> createEntries(BookmarkList bookmarkList, Collection<IBookmark> bookmarks) {
+		List<BookmarkConfigEntry> entries = new ArrayList<>();
+		bookmarkList.getBookmarkGroups().stream()
+			.filter(group -> group.id() != BookmarkGroupManager.DEFAULT_GROUP_ID)
+			.map(BookmarkConfigEntry::group)
+			.forEach(entries::add);
+		for (IBookmark bookmark : bookmarks) {
+			entries.add(BookmarkConfigEntry.bookmark(bookmark, bookmarkList.getBookmarkMetadata(bookmark)));
+		}
+		return List.copyOf(entries);
+	}
+
+	public static void applyEntries(List<BookmarkConfigEntry> entries, BookmarkList bookmarkList) {
+		for (BookmarkConfigEntry entry : entries) {
+			if (entry.group() != null) {
+				bookmarkList.addGroupFromConfig(entry.group());
+			} else if (entry.bookmark() != null && entry.metadata() != null) {
+				bookmarkList.addToListWithoutNotifying(entry.bookmark(), false);
+				bookmarkList.moveBookmarkMetadataFromConfig(entry.bookmark(), entry.metadata());
+			}
+		}
+		bookmarkList.notifyListenersOfChange();
 	}
 
 	public static Optional<String> serializeGroupSnapshot(
 		BookmarkList bookmarkList,
-		String groupId,
-		IIngredientManager ingredientManager
+		int groupId,
+		Codec<BookmarkConfigEntry> entryCodec,
+		DynamicOps<JsonElement> registryOps
 	) {
 		Optional<BookmarkGroup> optionalGroup = bookmarkList.getBookmarkGroups().stream()
-			.filter(group -> group.id().equals(groupId))
+			.filter(group -> group.id() == groupId)
 			.findFirst();
 		if (optionalGroup.isEmpty()) {
 			return Optional.empty();
 		}
-		List<IBookmark> bookmarks = bookmarkList.getBookmarks().stream()
-			.filter(bookmark -> groupId.equals(bookmarkList.getBookmarkGroupId(bookmark)))
+		List<BookmarkConfigEntry> bookmarks = bookmarkList.getBookmarks().stream()
+			.filter(bookmark -> groupId == bookmarkList.getBookmarkGroupId(bookmark))
+			.map(bookmark -> BookmarkConfigEntry.bookmark(bookmark, bookmarkList.getBookmarkMetadata(bookmark)))
 			.toList();
 		if (bookmarks.isEmpty() || bookmarks.size() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_ENTRIES) {
 			return Optional.empty();
 		}
 
-		BookmarkGroup group = optionalGroup.get();
-		String title = group.title().substring(0, Math.min(group.title().length(), JeiChatItemLinks.MAX_BOOKMARK_GROUP_TITLE_LENGTH));
-		group = new BookmarkGroup(group.id(), title, group.viewMode(), group.collapsed(), group.craftingMode(), group.collapsedRecipeIds());
-		JsonArray serializedBookmarks = new JsonArray();
-		for (IBookmark bookmark : bookmarks) {
-			serializedBookmarks.add(serializeBookmark(bookmark, bookmarkList.getBookmarkMetadata(bookmark), ingredientManager));
-		}
-		JsonObject snapshot = new JsonObject();
-		snapshot.addProperty("version", GROUP_SNAPSHOT_VERSION);
-		snapshot.add("group", serializeGroup(group));
-		snapshot.add("bookmarks", serializedBookmarks);
-		String encoded = Base64.getUrlEncoder()
-			.withoutPadding()
-			.encodeToString(snapshot.toString().getBytes(StandardCharsets.UTF_8));
-		return JeiChatItemLinks.isBookmarkGroupLinkLengthValid(encoded) ?
-			Optional.of(encoded) :
-			Optional.empty();
+		BookmarkGroup sourceGroup = optionalGroup.get();
+		String title = sourceGroup.title().substring(0, Math.min(sourceGroup.title().length(), JeiChatItemLinks.MAX_BOOKMARK_GROUP_TITLE_LENGTH));
+		BookmarkGroup group = new BookmarkGroup(
+			sourceGroup.id(),
+			title,
+			sourceGroup.viewMode(),
+			sourceGroup.collapsed(),
+			sourceGroup.craftingMode(),
+			sourceGroup.collapsedRecipeIds()
+		);
+		GroupSnapshot snapshot = new GroupSnapshot(GROUP_SNAPSHOT_VERSION, group, bookmarks);
+		return createGroupSnapshotCodec(entryCodec)
+			.encodeStart(registryOps, snapshot)
+			.result()
+			.map(JsonElement::toString)
+			.map(json -> Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8)))
+			.filter(JeiChatItemLinks::isBookmarkGroupLinkLengthValid);
 	}
 
-	public static Optional<String> deserializeGroupSnapshot(
+	public static Optional<Integer> deserializeGroupSnapshot(
 		String encoded,
 		BookmarkList bookmarkList,
-		@Nullable RecipeBookmarkSerializer recipeBookmarkSerializer,
-		IIngredientManager ingredientManager
+		Codec<BookmarkConfigEntry> entryCodec,
+		DynamicOps<JsonElement> registryOps
 	) {
-		// Shared snapshots are remote player input, so malformed Base64 and JSON are rejected here.
+		// Shared snapshots are remote player input, so malformed Base64, JSON, and entries are rejected here.
 		try {
 			if (!JeiChatItemLinks.isBookmarkGroupLinkLengthValid(encoded)) {
 				return Optional.empty();
 			}
 			String jsonText = new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
-			JsonObject snapshot = JsonParser.parseString(jsonText).getAsJsonObject();
-			if (snapshot.get("version").getAsInt() != GROUP_SNAPSHOT_VERSION) {
+			Optional<GroupSnapshot> decoded = createGroupSnapshotCodec(entryCodec)
+				.parse(registryOps, JsonParser.parseString(jsonText))
+				.result();
+			if (decoded.isEmpty()) {
 				return Optional.empty();
 			}
-			BookmarkGroup sharedGroup = deserializeGroup(snapshot.get("group")).orElseThrow();
-			JsonArray serializedBookmarks = snapshot.getAsJsonArray("bookmarks");
-			if (sharedGroup.title().length() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
-				serializedBookmarks.isEmpty() ||
-				serializedBookmarks.size() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_ENTRIES) {
+			GroupSnapshot snapshot = decoded.get();
+			if (snapshot.version() != GROUP_SNAPSHOT_VERSION ||
+				snapshot.group().title().length() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
+				snapshot.bookmarks().isEmpty() ||
+				snapshot.bookmarks().size() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_ENTRIES ||
+				snapshot.bookmarks().stream().anyMatch(entry -> entry.bookmark() == null || entry.metadata() == null)) {
 				return Optional.empty();
 			}
 
-			String groupId = bookmarkList.createGroup(sharedGroup.title());
+			BookmarkGroup sharedGroup = snapshot.group();
+			int groupId = bookmarkList.createGroup(sharedGroup.title());
 			bookmarkList.addGroupFromConfig(new BookmarkGroup(
 				groupId,
 				sharedGroup.title(),
@@ -132,16 +130,19 @@ public final class BookmarkJsonSerializer {
 				sharedGroup.craftingMode(),
 				sharedGroup.collapsedRecipeIds()
 			));
-			for (JsonElement element : serializedBookmarks) {
-				element.getAsJsonObject().addProperty("group", groupId);
+			boolean imported = false;
+			for (BookmarkConfigEntry entry : snapshot.bookmarks()) {
+				IBookmark bookmark = withGroupId(entry.bookmark(), groupId);
+				if (bookmarkList.addToListWithoutNotifying(bookmark, false)) {
+					bookmarkList.moveBookmarkMetadataFromConfig(bookmark, entry.metadata().withGroupId(groupId));
+					imported = true;
+				}
 			}
-			deserialize(serializedBookmarks, bookmarkList, recipeBookmarkSerializer, ingredientManager);
-			boolean imported = bookmarkList.getBookmarks().stream()
-				.anyMatch(bookmark -> groupId.equals(bookmarkList.getBookmarkGroupId(bookmark)));
 			if (!imported) {
 				bookmarkList.removeGroup(groupId);
 				return Optional.empty();
 			}
+			bookmarkList.notifyListenersOfChange();
 			bookmarkList.setGroupViewMode(groupId, sharedGroup.viewMode());
 			return Optional.of(groupId);
 		} catch (RuntimeException e) {
@@ -149,232 +150,22 @@ public final class BookmarkJsonSerializer {
 		}
 	}
 
-	public static Optional<BookmarkGroup> deserializeGroup(JsonElement element) {
-		if (!element.isJsonObject()) {
-			return Optional.empty();
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static IBookmark withGroupId(IBookmark bookmark, int groupId) {
+		if (bookmark instanceof IngredientBookmark<?> ingredientBookmark) {
+			return ingredientBookmark.withEqualityScope(groupId);
 		}
-		JsonObject json = element.getAsJsonObject();
-		if (!json.has("type") || !TYPE_GROUP.equals(json.get("type").getAsString())) {
-			return Optional.empty();
-		}
-		Optional<BookmarkGroup> group = BookmarkGroupConfigSerializer.deserializeGroupJson(json);
-		if (group.isEmpty()) {
-			LOGGER.error("Failed to load bookmark group from json:\n{}", element);
-		}
-		return group;
+		return ((RecipeBookmark) bookmark).withEqualityScope(groupId);
 	}
 
-	private static JsonObject serializeBookmark(
-		IBookmark bookmark,
-		BookmarkItemMetadata metadata,
-		IIngredientManager ingredientManager
-	) {
-		BookmarkIngredientKey ingredientKey = BookmarkItemMetadataFactory.createPermutationKey(
-			bookmark.getElement().getTypedIngredient(),
-			ingredientManager
-		);
-		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
-			JsonObject json = new JsonObject();
-			json.addProperty("type", TYPE_RECIPE);
-			addGroup(json, metadata);
-			json.addProperty("kind", metadata.type().name());
-			json.addProperty("recipeType", recipeBookmark.getRecipeCategory().getRecipeType().getUid().toString());
-			json.addProperty("recipe", recipeBookmark.getRecipeUid().toString());
-			json.add("ingredient", BookmarkIngredientKeySerializer.serialize(ingredientKey));
-			addMetadata(json, metadata);
-			return json;
-		}
-		JsonObject json = new JsonObject();
-		json.addProperty("type", TYPE_ITEM);
-		addGroup(json, metadata);
-		json.add("ingredient", BookmarkIngredientKeySerializer.serialize(ingredientKey));
-		long amount = BookmarkIngredientAmountResolver.getAmount(bookmark.getElement().getTypedIngredient(), ingredientManager);
-		if (amount > 1) {
-			json.addProperty("amount", amount);
-		}
-		addMetadata(json, metadata);
-		return json;
+	private static Codec<GroupSnapshot> createGroupSnapshotCodec(Codec<BookmarkConfigEntry> entryCodec) {
+		return RecordCodecBuilder.create(instance -> instance.group(
+			Codec.INT.fieldOf("version").forGetter(GroupSnapshot::version),
+			BookmarkConfigEntryCodec.GROUP_CODEC.fieldOf("group").forGetter(GroupSnapshot::group),
+			entryCodec.listOf().fieldOf("bookmarks").forGetter(GroupSnapshot::bookmarks)
+		).apply(instance, GroupSnapshot::new));
 	}
 
-	public static void deserialize(
-		JsonArray elements,
-		BookmarkList bookmarkList,
-		@Nullable RecipeBookmarkSerializer recipeBookmarkSerializer,
-		IIngredientManager ingredientManager
-	) {
-		for (JsonElement element : elements) {
-			try {
-				Optional<BookmarkGroup> group = deserializeGroup(element);
-				if (group.isPresent()) {
-					bookmarkList.addGroupFromConfig(group.get());
-					continue;
-				}
-				if (!element.isJsonObject()) {
-					continue;
-				}
-				JsonObject json = element.getAsJsonObject();
-				String type = json.get("type").getAsString();
-				switch (type) {
-					case TYPE_RECIPE -> deserializeRecipe(json, bookmarkList, recipeBookmarkSerializer, ingredientManager);
-					case TYPE_ITEM -> deserializeItem(json, bookmarkList, ingredientManager);
-					default -> LOGGER.error("Failed to load unknown bookmark type from json:\n{}", element);
-				}
-			} catch (RuntimeException e) {
-				LOGGER.error("Failed to load bookmark from json:\n{}", element, e);
-			}
-		}
-		bookmarkList.notifyListenersOfChange();
-	}
-
-	private static void deserializeRecipe(
-		JsonObject json,
-		BookmarkList bookmarkList,
-		@Nullable RecipeBookmarkSerializer recipeBookmarkSerializer,
-		IIngredientManager ingredientManager
-	) {
-		if (recipeBookmarkSerializer == null) {
-			return;
-		}
-		String groupId = json.has("group") ? json.get("group").getAsString() : BookmarkGroupManager.DEFAULT_GROUP_ID;
-		BookmarkItemType type = json.has("kind") ?
-			BookmarkItemType.valueOf(json.get("kind").getAsString()) :
-			BookmarkItemType.RESULT;
-		RecipeIngredientRole displayRole = type.recipeRole() == RecipeIngredientRole.INPUT ?
-			RecipeIngredientRole.INPUT :
-			RecipeIngredientRole.OUTPUT;
-		ResourceLocation recipeTypeUid = ResourceLocation.parse(json.get("recipeType").getAsString());
-		ResourceLocation recipeUid = ResourceLocation.parse(json.get("recipe").getAsString());
-		BookmarkIngredientKey ingredientKey = BookmarkIngredientKeySerializer.deserialize(json.get("ingredient"));
-		Optional<ITypedIngredient<?>> output = resolveIngredient(ingredientKey, ingredientManager);
-		if (output.isEmpty()) {
-			LOGGER.error("Failed to load bookmarked recipe ingredient from json:\n{}", json);
-			return;
-		}
-		Optional<RecipeBookmark<?, ?>> bookmark = recipeBookmarkSerializer.createBookmark(
-			recipeTypeUid,
-			recipeUid,
-			output.get(),
-			displayRole
-		);
-		if (bookmark.isEmpty()) {
-			LOGGER.error("Failed to load bookmarked recipe from json:\n{}", json);
-			return;
-		}
-		IBookmark resolvedBookmark = bookmark.get();
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-			resolvedBookmark = ((RecipeBookmark<?, ?>) bookmark.get()).withEqualityScope(groupId);
-		}
-		bookmarkList.addToListWithoutNotifying(resolvedBookmark, false);
-		bookmarkList.moveBookmarkMetadataFromConfig(
-			resolvedBookmark,
-			deserializeMetadata(json, groupId, type, recipeTypeUid, recipeUid)
-		);
-	}
-
-	private static void deserializeItem(JsonObject json, BookmarkList bookmarkList, IIngredientManager ingredientManager) {
-		String groupId = json.has("group") ? json.get("group").getAsString() : BookmarkGroupManager.DEFAULT_GROUP_ID;
-		BookmarkIngredientKey ingredientKey = BookmarkIngredientKeySerializer.deserialize(json.get("ingredient"));
-		Optional<ITypedIngredient<?>> ingredient = resolveIngredient(ingredientKey, ingredientManager);
-		if (ingredient.isEmpty()) {
-			LOGGER.error("Failed to load bookmarked item from json:\n{}", json);
-			return;
-		}
-		long amount = json.has("amount") ? json.get("amount").getAsLong() : 1;
-		IBookmark bookmark = amount > 1 ?
-			IngredientBookmark.createWithAmount(ingredient.get(), amount, ingredientManager) :
-			IngredientBookmark.create(ingredient.get(), ingredientManager);
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
-			bookmark = ((IngredientBookmark<?>) bookmark).withEqualityScope(groupId);
-		}
-		bookmarkList.addToListWithoutNotifying(bookmark, false);
-		bookmarkList.moveBookmarkMetadataFromConfig(
-			bookmark,
-			deserializeMetadata(json, groupId, BookmarkItemType.ITEM, null, null)
-		);
-	}
-
-	private static BookmarkItemMetadata deserializeMetadata(
-		JsonObject json,
-		String groupId,
-		BookmarkItemType type,
-		@Nullable ResourceLocation recipeTypeUid,
-		@Nullable ResourceLocation recipeUid
-	) {
-		long multiplier = json.has("multiplier") ? json.get("multiplier").getAsLong() : 1;
-		long factor = json.has("factor") ? json.get("factor").getAsLong() : 1;
-		long chance = json.has("chance") ? json.get("chance").getAsLong() : BookmarkItemMetadata.CHANCE_FULL;
-		Set<BookmarkIngredientKey> permutations = json.has("permutations") ?
-			json.getAsJsonArray("permutations")
-				.asList()
-				.stream()
-				.map(BookmarkIngredientKeySerializer::deserialize)
-				.collect(Collectors.toUnmodifiableSet()) :
-			Set.of();
-		BookmarkIngredientKey containerItem = json.has("containerItem") ?
-			BookmarkIngredientKeySerializer.deserialize(json.get("containerItem")) :
-			null;
-		long containerItemCraftingUses = json.has("containerItemCraftingUses") ?
-			json.get("containerItemCraftingUses").getAsLong() :
-			1;
-		BookmarkIngredientKey brokenContainerItem = json.has("brokenContainerItem") ?
-			BookmarkIngredientKeySerializer.deserialize(json.get("brokenContainerItem")) :
-			null;
-		return new BookmarkItemMetadata(
-			groupId,
-			type,
-			multiplier,
-			factor,
-			chance,
-			recipeTypeUid,
-			recipeUid,
-			permutations,
-			containerItem,
-			containerItemCraftingUses,
-			brokenContainerItem
-		);
-	}
-
-	private static void addGroup(JsonObject json, BookmarkItemMetadata metadata) {
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(metadata.groupId())) {
-			json.addProperty("group", metadata.groupId());
-		}
-	}
-
-	private static void addMetadata(JsonObject json, BookmarkItemMetadata metadata) {
-		if (metadata.multiplier() != 1) {
-			json.addProperty("multiplier", metadata.multiplier());
-		}
-		if (metadata.factor() != 1) {
-			json.addProperty("factor", metadata.factor());
-		}
-		if (metadata.chance() != BookmarkItemMetadata.CHANCE_FULL) {
-			json.addProperty("chance", metadata.chance());
-		}
-		if (!metadata.permutations().isEmpty()) {
-			JsonArray permutations = new JsonArray();
-			metadata.permutations().stream()
-				.sorted(Comparator.naturalOrder())
-				.map(BookmarkIngredientKeySerializer::serialize)
-				.forEach(permutations::add);
-			json.add("permutations", permutations);
-		}
-		if (metadata.containerItem() != null) {
-			json.add("containerItem", BookmarkIngredientKeySerializer.serialize(metadata.containerItem()));
-		}
-		if (metadata.containerItemCraftingUses() != 1) {
-			json.addProperty("containerItemCraftingUses", metadata.containerItemCraftingUses());
-		}
-		if (metadata.brokenContainerItem() != null) {
-			json.add("brokenContainerItem", BookmarkIngredientKeySerializer.serialize(metadata.brokenContainerItem()));
-		}
-	}
-
-	@SuppressWarnings("removal")
-	private static Optional<ITypedIngredient<?>> resolveIngredient(
-		BookmarkIngredientKey key,
-		IIngredientManager ingredientManager
-	) {
-		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
-			.flatMap(type -> ingredientManager.getTypedIngredientByUid(type, key.ingredientUid()));
+	private record GroupSnapshot(int version, BookmarkGroup group, List<BookmarkConfigEntry> bookmarks) {
 	}
 }

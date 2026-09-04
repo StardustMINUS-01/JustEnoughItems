@@ -13,7 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.Set;
 
 public record BookmarkGroup(
-	String id,
+	int id,
 	String title,
 	BookmarkViewMode viewMode,
 	boolean collapsed,
@@ -24,7 +24,7 @@ public record BookmarkGroup(
 		collapsedRecipeIds = Set.copyOf(collapsedRecipeIds);
 	}
 
-	public BookmarkGroup(String id, String title) {
+	public BookmarkGroup(int id, String title) {
 		this(id, title, BookmarkViewMode.DEFAULT, false, false, Set.of());
 	}
 

@@ -4,7 +4,6 @@ import mezz.jei.common.platform.Services;
 import mezz.jei.gui.config.BookmarkJsonConfig;
 import mezz.jei.gui.config.CollapsibleConfig;
 import mezz.jei.gui.config.CollapsibleStateStore;
-import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
@@ -17,7 +16,6 @@ import java.nio.file.Path;
 public record GuiConfigData(
 	Path configDir,
 	IBookmarkConfig bookmarkConfig,
-	FavoriteRecipeConfig favoriteRecipeConfig,
 	RecipePreferenceConfig recipePreferenceConfig,
 	CollapsibleConfig collapsibleConfig,
 	CollapsibleStateStore collapsibleStateStore,
@@ -29,7 +27,6 @@ public record GuiConfigData(
 		Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
 
 		IBookmarkConfig bookmarkConfig = new BookmarkJsonConfig(configDir);
-		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(configDir);
 		RecipePreferenceConfig recipePreferenceConfig = new RecipePreferenceConfig(configDir);
 		CollapsibleConfig collapsibleConfig = new CollapsibleConfig(configDir);
 		CollapsibleStateStore collapsibleStateStore = new CollapsibleStateStore(configDir);
@@ -40,7 +37,6 @@ public record GuiConfigData(
 		return new GuiConfigData(
 			configDir,
 			bookmarkConfig,
-			favoriteRecipeConfig,
 			recipePreferenceConfig,
 			collapsibleConfig,
 			collapsibleStateStore,

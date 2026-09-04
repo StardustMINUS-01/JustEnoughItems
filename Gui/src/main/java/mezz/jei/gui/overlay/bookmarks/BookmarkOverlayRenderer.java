@@ -113,7 +113,7 @@ public class BookmarkOverlayRenderer {
 				);
 				continue;
 			}
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(slot.groupId())) {
+			if ((slot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 				drawGroupPanelPlaceholderLine(guiGraphics, slot.area());
 			} else {
 				drawGroupPanelLine(
@@ -157,7 +157,7 @@ public class BookmarkOverlayRenderer {
 			});
 	}
 
-	int getGroupPanelColor(String groupId) {
+	int getGroupPanelColor(int groupId) {
 		return bookmarkList.getRecipeChainDetails(groupId).isPresent() ? groupChainColor : groupNoneColor;
 	}
 
@@ -279,7 +279,7 @@ public class BookmarkOverlayRenderer {
 			if (!overlay.hasDefaultGroupBookmarks()) {
 				return false;
 			}
-			String groupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
+			int groupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
 			boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 			JeiTooltip tooltip = new JeiTooltip();
 			addRecipeChainTooltip(tooltip, groupId);
@@ -300,8 +300,8 @@ public class BookmarkOverlayRenderer {
 			return false;
 		}
 
-		String groupId = slot.get().groupId();
-		boolean grouped = !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId);
+		int groupId = slot.get().groupId();
+		boolean grouped = !(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID);
 		boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 		JeiTooltip tooltip = new JeiTooltip();
 		addRecipeChainTooltip(tooltip, groupId);
@@ -346,7 +346,7 @@ public class BookmarkOverlayRenderer {
 		return Internal.getServerConnection().canSendPacket(PacketShareBookmarkGroup.TYPE);
 	}
 
-	private void addRecipeChainTooltip(JeiTooltip tooltip, String groupId) {
+	private void addRecipeChainTooltip(JeiTooltip tooltip, int groupId) {
 		if (!bookmarkList.isGroupCraftingMode(groupId)) {
 			return;
 		}
@@ -402,7 +402,7 @@ public class BookmarkOverlayRenderer {
 		return recipeChainTooltipShiftVersion;
 	}
 
-	private static List<RecipeChainInput> getRecipeChainTooltipInventoryInputs(String groupId) {
+	private static List<RecipeChainInput> getRecipeChainTooltipInventoryInputs(int groupId) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.screen instanceof RecipesGui) {
 			return List.of();
@@ -433,7 +433,7 @@ public class BookmarkOverlayRenderer {
 	}
 
 	private record RecipeChainHoverTooltip(
-		String groupId,
+		int groupId,
 		long bookmarkVersion,
 		long shiftVersion,
 		boolean shiftDown,
@@ -441,7 +441,7 @@ public class BookmarkOverlayRenderer {
 		List<RecipeChainTooltipSection> sections
 	) {
 		public static RecipeChainHoverTooltip create(
-			String groupId,
+			int groupId,
 			long bookmarkVersion,
 			long shiftVersion,
 			boolean shiftDown,
@@ -456,13 +456,13 @@ public class BookmarkOverlayRenderer {
 		}
 
 		public boolean matches(
-			String groupId,
+			int groupId,
 			long bookmarkVersion,
 			long shiftVersion,
 			boolean shiftDown,
 			boolean controlDown
 		) {
-			return this.groupId.equals(groupId) &&
+			return this.groupId == groupId &&
 				this.bookmarkVersion == bookmarkVersion &&
 				this.shiftVersion == shiftVersion &&
 				this.shiftDown == shiftDown &&

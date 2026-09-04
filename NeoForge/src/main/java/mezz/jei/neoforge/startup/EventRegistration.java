@@ -1,19 +1,27 @@
 package mezz.jei.neoforge.startup;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
+import mezz.jei.common.Internal;
 import mezz.jei.neoforge.events.RuntimeEventSubscriptions;
 import mezz.jei.neoforge.input.ForgeUserInput;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.input.ClientInputHandler;
 import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ContainerScreenEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
 import java.util.List;
@@ -22,9 +30,43 @@ public class EventRegistration {
 	public static void registerEvents(RuntimeEventSubscriptions subscriptions, JeiEventHandlers eventHandlers) {
 		ClientInputHandler clientInputHandler = eventHandlers.clientInputHandler();
 		registerClientInputHandler(subscriptions, clientInputHandler);
+		registerWorldInputHandler(subscriptions, eventHandlers.worldInputHandler());
 
 		GuiEventHandler guiEventHandler = eventHandlers.guiEventHandler();
 		registerGuiHandler(subscriptions, guiEventHandler);
+	}
+
+	private static void registerWorldInputHandler(RuntimeEventSubscriptions subscriptions, WorldInputHandler handler) {
+		subscriptions.register(InputEvent.Key.class, event -> {
+			Minecraft minecraft = Minecraft.getInstance();
+			if (event.getAction() == InputConstants.PRESS && minecraft.screen == null) {
+				handler.handleUserInput(
+					ForgeUserInput.fromEvent(event),
+					Internal.getKeyMappings(),
+					() -> getPickedStack(minecraft)
+				);
+			}
+		});
+	}
+
+	private static ItemStack getPickedStack(Minecraft minecraft) {
+		if (minecraft.player == null || minecraft.level == null || minecraft.hitResult == null) {
+			return ItemStack.EMPTY;
+		}
+		if (minecraft.hitResult instanceof BlockHitResult hitResult) {
+			var pos = hitResult.getBlockPos();
+			var state = minecraft.level.getBlockState(pos);
+			return state.getBlock().getCloneItemStack(state, hitResult, minecraft.level, pos, minecraft.player);
+		}
+		if (minecraft.hitResult instanceof EntityHitResult hitResult) {
+			if (hitResult.getEntity() instanceof ItemEntity itemEntity) {
+				return itemEntity.getItem();
+			}
+			ItemStack pickedStack = hitResult.getEntity().getPickedResult(hitResult);
+			// NeoForge permits null when an entity has no pick-block representation.
+			return pickedStack == null ? ItemStack.EMPTY : pickedStack;
+		}
+		return ItemStack.EMPTY;
 	}
 
 	private static void registerClientInputHandler(RuntimeEventSubscriptions subscriptions, ClientInputHandler handler) {
@@ -184,6 +226,7 @@ public class EventRegistration {
 	@SuppressWarnings("removal")
 	public static List<Class<?>> getClientInputEventTypes() {
 		return List.of(
+			InputEvent.Key.class,
 			ScreenEvent.Init.Post.class,
 			ScreenEvent.KeyPressed.Pre.class,
 			ScreenEvent.KeyPressed.Post.class,

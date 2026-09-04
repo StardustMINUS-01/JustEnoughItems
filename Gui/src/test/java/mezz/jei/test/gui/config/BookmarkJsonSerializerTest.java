@@ -1,30 +1,34 @@
 package mezz.jei.test.gui.config;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import mezz.jei.api.recipe.IFocus;
-import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IFocusGroup;
-import mezz.jei.api.recipe.IRecipeLookup;
-import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkList;
-import mezz.jei.gui.bookmarks.BookmarkViewMode;
+import mezz.jei.gui.bookmarks.BookmarkType;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
-import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
+import mezz.jei.gui.config.BookmarkConfigEntry;
+import mezz.jei.gui.config.BookmarkConfigEntryCodec;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -38,10 +42,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class BookmarkJsonSerializerTest {
 	private static final ResourceLocation RECIPE_UID = ResourceLocation.fromNamespaceAndPath("test", "glass");
@@ -55,36 +59,112 @@ public class BookmarkJsonSerializerTest {
 	}
 
 	@Test
-	public void groupRoundTrips() {
-		BookmarkGroup group = new BookmarkGroup(
-			"group_1",
-			"Machines",
-			BookmarkViewMode.TODO_LIST,
-			true,
-			true,
-			Set.of(ResourceLocation.parse("test:plate"))
-		);
+	public void groupCodecUsesIntegerIds() {
+		BookmarkGroup group = new BookmarkGroup(2, "Machines");
 
-		BookmarkGroup decoded = BookmarkJsonSerializer.deserializeGroup(
-			BookmarkJsonSerializer.serializeGroup(group)
-		).orElseThrow();
+		JsonElement encoded = BookmarkConfigEntryCodec.GROUP_CODEC.encodeStart(JsonOps.INSTANCE, group).getOrThrow();
+		BookmarkGroup decoded = BookmarkConfigEntryCodec.GROUP_CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
 
+		Assertions.assertEquals(2, encoded.getAsJsonObject().get("id").getAsInt());
 		Assertions.assertEquals(group, decoded);
+	}
+
+	@Test
+	public void defaultIngredientBookmarkUsesOfficialV2ShapeWithoutForkData() {
+		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS));
+		IBookmark bookmark = IngredientBookmark.create(glass, INGREDIENT_MANAGER);
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+
+		JsonElement encoded = codec.encodeStart(
+			JsonOps.INSTANCE,
+			BookmarkConfigEntry.bookmark(bookmark, BookmarkItemMetadata.defaultForGroup(0))
+		).getOrThrow();
+		BookmarkConfigEntry decoded = codec.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+		Assertions.assertEquals("INGREDIENT", encoded.getAsJsonObject().get("bookmarkType").getAsString());
+		Assertions.assertFalse(encoded.getAsJsonObject().has("forkData"));
+		Assertions.assertEquals(0, decoded.metadata().groupId());
+		Assertions.assertEquals(bookmark, decoded.bookmark());
+	}
+
+	@Test
+	public void forkDataRoundTripsAmountAndOrderedCandidates() {
+		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS, 4));
+		ITypedIngredient<ItemStack> whiteGlass = typed(new ItemStack(Items.WHITE_STAINED_GLASS));
+		IBookmark bookmark = IngredientBookmark.createWithAmount(glass, 4, INGREDIENT_MANAGER);
+		BookmarkIngredientKey glassKey = BookmarkItemMetadataFactory.createPermutationKey(glass, INGREDIENT_MANAGER);
+		BookmarkIngredientKey whiteGlassKey = BookmarkItemMetadataFactory.createPermutationKey(whiteGlass, INGREDIENT_MANAGER);
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			2,
+			BookmarkItemType.ITEM,
+			2,
+			3,
+			5_000,
+			null,
+			null,
+			new LinkedHashSet<>(List.of(glassKey, whiteGlassKey))
+		);
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+
+		JsonElement encoded = codec.encodeStart(JsonOps.INSTANCE, BookmarkConfigEntry.bookmark(bookmark, metadata)).getOrThrow();
+		BookmarkConfigEntry decoded = codec.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+		Assertions.assertEquals(4, encoded.getAsJsonObject().getAsJsonObject("forkData").get("amount").getAsLong());
+		Assertions.assertFalse(encoded.getAsJsonObject().has("count"));
+		Assertions.assertEquals(metadata, decoded.metadata());
+		Assertions.assertEquals(List.of(glassKey, whiteGlassKey), List.copyOf(decoded.metadata().permutations()));
+		Assertions.assertTrue(decoded.metadata().permutations().stream().allMatch(key -> key.typedIngredient() != null));
+		Assertions.assertEquals(4, decoded.bookmark().getElement().getTypedIngredient().getItemStack().orElseThrow().getCount());
+	}
+
+	@Test
+	public void nonConsumableRecipeRestoresSelectedInputWithoutDisplayRoleField() {
+		ITypedIngredient<ItemStack> selected = typed(new ItemStack(Items.WHITE_STAINED_GLASS));
+		RecipeBookmark<Object, ItemStack> bookmark = new RecipeBookmark<>(
+			new TestRecipeCategory(),
+			new Object(),
+			RECIPE_UID,
+			selected,
+			RecipeIngredientRole.INPUT
+		);
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
+			3,
+			BookmarkItemType.NONCONSUMABLE,
+			1,
+			1,
+			BookmarkItemMetadata.CHANCE_FULL,
+			RECIPE_TYPE.getUid(),
+			RECIPE_UID,
+			Set.of(BookmarkItemMetadataFactory.createPermutationKey(selected, INGREDIENT_MANAGER))
+		);
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+
+		JsonElement encoded = codec.encodeStart(JsonOps.INSTANCE, BookmarkConfigEntry.bookmark(bookmark, metadata)).getOrThrow();
+		BookmarkConfigEntry decoded = codec.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+		Assertions.assertFalse(encoded.toString().contains("displayRole"));
+		Assertions.assertEquals("NONCONSUMABLE", encoded.getAsJsonObject().getAsJsonObject("forkData").get("kind").getAsString());
+		RecipeBookmark<?, ?> decodedBookmark = (RecipeBookmark<?, ?>) decoded.bookmark();
+		Assertions.assertEquals(RecipeIngredientRole.INPUT, decodedBookmark.getDisplayRole());
+		Assertions.assertEquals(Items.WHITE_STAINED_GLASS, decodedBookmark.getRecipeOutput().getItemStack().orElseThrow().getItem());
 	}
 
 	@Test
 	public void itemBookmarkRoundTripsThroughList() {
 		BookmarkList source = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
-		source.addGroupFromConfig(new BookmarkGroup("group_1", "Machines"));
+		source.addGroupFromConfig(new BookmarkGroup(1, "Machines"));
 		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS, 4));
 		IBookmark itemBookmark = IngredientBookmark.create(glass, INGREDIENT_MANAGER);
 		source.addToListWithoutNotifying(itemBookmark, false);
 
-		List<JsonElement> elements = BookmarkJsonSerializer.serialize(source, INGREDIENT_MANAGER);
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+		List<BookmarkConfigEntry> entries = BookmarkJsonSerializer.createEntries(source).stream()
+			.map(entry -> codec.parse(JsonOps.INSTANCE, codec.encodeStart(JsonOps.INSTANCE, entry).getOrThrow()).getOrThrow())
+			.toList();
 		BookmarkList decoded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
-		BookmarkJsonSerializer.deserialize(toArray(elements), decoded, null, INGREDIENT_MANAGER);
+		BookmarkJsonSerializer.applyEntries(entries, decoded);
 
-		Assertions.assertTrue(decoded.getBookmarkGroups().stream().anyMatch(group -> group.id().equals("group_1")));
+		Assertions.assertTrue(decoded.getBookmarkGroups().stream().anyMatch(group -> group.id() == 1));
 		Assertions.assertEquals(1, decoded.getBookmarks().size());
 		Assertions.assertTrue(decoded.getBookmarks().getFirst() instanceof IngredientBookmark);
 	}
@@ -92,7 +172,7 @@ public class BookmarkJsonSerializerTest {
 	@Test
 	public void recipeBookmarkRoundTripsThroughList() {
 		BookmarkList source = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
-		source.addGroupFromConfig(new BookmarkGroup("group_1", "Machines"));
+		source.addGroupFromConfig(new BookmarkGroup(1, "Machines"));
 		Object recipe = new Object();
 		ITypedIngredient<ItemStack> output = typed(new ItemStack(Items.GLASS));
 		RecipeBookmark<Object, ItemStack> recipeBookmark = new RecipeBookmark<>(
@@ -104,9 +184,12 @@ public class BookmarkJsonSerializerTest {
 		);
 		source.addToListWithoutNotifying(recipeBookmark, false);
 
-		List<JsonElement> elements = BookmarkJsonSerializer.serialize(source, INGREDIENT_MANAGER);
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+		List<BookmarkConfigEntry> entries = BookmarkJsonSerializer.createEntries(source).stream()
+			.map(entry -> codec.parse(JsonOps.INSTANCE, codec.encodeStart(JsonOps.INSTANCE, entry).getOrThrow()).getOrThrow())
+			.toList();
 		BookmarkList decoded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
-		BookmarkJsonSerializer.deserialize(toArray(elements), decoded, recipeBookmarkSerializer(recipe), INGREDIENT_MANAGER);
+		BookmarkJsonSerializer.applyEntries(entries, decoded);
 
 		Assertions.assertEquals(1, decoded.getBookmarks().size());
 		Assertions.assertTrue(decoded.getBookmarks().getFirst() instanceof RecipeBookmark);
@@ -117,72 +200,56 @@ public class BookmarkJsonSerializerTest {
 	public void groupSnapshotImportsWithFreshGroupId() {
 		BookmarkList source = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
 		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS, 4));
-		String sharedGroupId = source.addRecipeBookmarkGroup(
+		int sharedGroupId = source.addRecipeBookmarkGroup(
 			"Shared Machines",
 			List.of(IngredientBookmark.createWithAmount(glass, 4, INGREDIENT_MANAGER))
 		);
 		source.setGroupCraftingMode(sharedGroupId, true);
 
-		String snapshot = BookmarkJsonSerializer.serializeGroupSnapshot(source, sharedGroupId, INGREDIENT_MANAGER).orElseThrow();
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+		String snapshot = BookmarkJsonSerializer.serializeGroupSnapshot(source, sharedGroupId, codec, JsonOps.INSTANCE).orElseThrow();
 		BookmarkList decoded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
-		decoded.addGroupFromConfig(new BookmarkGroup("group_1", "Existing"));
+		decoded.addGroupFromConfig(new BookmarkGroup(1, "Existing"));
 		decoded.addToListWithoutNotifying(IngredientBookmark.create(typed(new ItemStack(Items.GLASS)), INGREDIENT_MANAGER), false);
 
-		String importedGroupId = BookmarkJsonSerializer.deserializeGroupSnapshot(snapshot, decoded, null, INGREDIENT_MANAGER).orElseThrow();
+		int importedGroupId = BookmarkJsonSerializer.deserializeGroupSnapshot(
+			snapshot,
+			decoded,
+			codec,
+			JsonOps.INSTANCE
+		).orElseThrow();
 
-		Assertions.assertEquals("group_2", importedGroupId);
+		Assertions.assertEquals(2, importedGroupId);
 		BookmarkGroup importedGroup = decoded.getBookmarkGroups().getLast();
 		Assertions.assertEquals("Shared Machines", importedGroup.title());
 		Assertions.assertTrue(importedGroup.craftingMode());
 		Assertions.assertEquals(2, decoded.getBookmarks().size());
 	}
 
-	private static JsonArray toArray(List<JsonElement> elements) {
-		JsonArray array = new JsonArray();
-		elements.forEach(array::add);
-		return array;
-	}
-
-	private static RecipeBookmarkSerializer recipeBookmarkSerializer(Object recipe) {
-		IRecipeLookup<Object> lookup = new IRecipeLookup<>() {
-			@Override
-			public IRecipeLookup<Object> limitFocus(java.util.Collection<? extends IFocus<?>> focuses) {
-				return this;
-			}
-
-			@Override
-			public IRecipeLookup<Object> includeHidden() {
-				return this;
-			}
-
-			@Override
-			public Stream<Object> get() {
-				return Stream.of(recipe);
-			}
-		};
-		IRecipeManager recipeManager = (IRecipeManager) Proxy.newProxyInstance(
+	private static Codec<BookmarkConfigEntry> createEntryCodec() {
+		MapCodec<ITypedIngredient<?>> typedIngredientCodec = RecordCodecBuilder.mapCodec(instance -> instance.group(
+			Codec.STRING.optionalFieldOf("type", VanillaTypes.ITEM_STACK.getUid())
+				.forGetter(ingredient -> ingredient.getType().getUid()),
+			ResourceLocation.CODEC.fieldOf("ingredient")
+				.forGetter(ingredient -> BuiltInRegistries.ITEM.getKey(ingredient.getItemStack().orElseThrow().getItem())),
+			Codec.INT.optionalFieldOf("count", 1)
+				.forGetter(ingredient -> ingredient.getItemStack().orElseThrow().getCount())
+		).apply(instance, (type, id, count) -> typed(new ItemStack(BuiltInRegistries.ITEM.get(id), count))));
+		ICodecHelper codecHelper = (ICodecHelper) Proxy.newProxyInstance(
 			BookmarkJsonSerializerTest.class.getClassLoader(),
-			new Class<?>[]{IRecipeManager.class},
+			new Class<?>[]{ICodecHelper.class},
 			(proxy, method, args) -> switch (method.getName()) {
-				case "getRecipeType" -> Optional.of(RECIPE_TYPE);
-				case "getRecipeCategory" -> new TestRecipeCategory();
-				case "createRecipeLookup" -> lookup;
+				case "getTypedIngredientCodec" -> typedIngredientCodec;
 				default -> throw new UnsupportedOperationException(method.getName());
 			}
 		);
-		IFocusFactory focusFactory = (IFocusFactory) Proxy.newProxyInstance(
-			BookmarkJsonSerializerTest.class.getClassLoader(),
-			new Class<?>[]{IFocusFactory.class},
-			(proxy, method, args) -> switch (method.getName()) {
-				case "createFocus" -> new TestFocus((ITypedIngredient<?>) args[1]);
-				default -> throw new UnsupportedOperationException(method.getName());
-			}
-		);
-		return new RecipeBookmarkSerializer(
-			recipeManager,
-			focusFactory,
-			new TypedIngredientSerializer(INGREDIENT_MANAGER)
-		);
+		MapCodec<IBookmark> bookmarkCodec = RecordCodecBuilder.mapCodec(instance -> instance.group(
+			Codec.STRING.fieldOf("bookmarkType").forGetter(bookmark -> bookmark.getType().name()),
+			typedIngredientCodec.forGetter(bookmark -> bookmark.getElement().getTypedIngredient())
+		).apply(instance, (type, ingredient) -> BookmarkType.valueOf(type) == BookmarkType.RECIPE ?
+			new RecipeBookmark<>(new TestRecipeCategory(), new Object(), RECIPE_UID, ingredient, RecipeIngredientRole.OUTPUT) :
+			IngredientBookmark.create(ingredient, INGREDIENT_MANAGER)));
+		return BookmarkConfigEntryCodec.create(codecHelper, INGREDIENT_MANAGER, bookmarkCodec.codec());
 	}
 
 	private static IIngredientManager ingredientManager() {
@@ -242,6 +309,13 @@ public class BookmarkJsonSerializerTest {
 			}
 
 			@Override
+			public ItemStack copyWithAmount(ItemStack ingredient, long amount) {
+				ItemStack copy = ingredient.copy();
+				copy.setCount((int) amount);
+				return copy;
+			}
+
+			@Override
 			public String getErrorInfo(ItemStack ingredient) {
 				return ingredient.toString();
 			}
@@ -260,24 +334,6 @@ public class BookmarkJsonSerializerTest {
 				return stack;
 			}
 		};
-	}
-
-	private record TestFocus(ITypedIngredient<?> ingredient) implements IFocus<Object> {
-		@Override
-		public RecipeIngredientRole getRole() {
-			return RecipeIngredientRole.OUTPUT;
-		}
-
-		@Override
-		@SuppressWarnings("unchecked")
-		public ITypedIngredient<Object> getTypedValue() {
-			return (ITypedIngredient<Object>) ingredient;
-		}
-
-		@Override
-		public <T> Optional<IFocus<T>> checkedCast(IIngredientType<T> ingredientType) {
-			return Optional.empty();
-		}
 	}
 
 	private record TestRecipeCategory() implements IRecipeCategory<Object> {

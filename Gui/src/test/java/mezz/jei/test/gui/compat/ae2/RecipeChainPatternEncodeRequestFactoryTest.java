@@ -289,7 +289,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	public void processingBookmarkRequestKeepsSavedCatalystsInTheirOwnSlots() {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		BookmarkItemMetadata catalyst = ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3)
-			.withType(BookmarkItemType.CATALYST);
+			.withType(BookmarkItemType.NONCONSUMABLE);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
@@ -311,7 +311,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater")).withType(BookmarkItemType.CATALYST))
+			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater")).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", GTRecipe.class),
@@ -338,7 +338,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater")).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater")).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", GTRecipe.class),
@@ -361,7 +361,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater"), 0).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater"), 0).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", GTRecipe.class),
@@ -383,7 +383,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.CATALYST))
+			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", GTRecipe.class),
@@ -410,7 +410,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.CATALYST))
+			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", GTRecipe.class),
@@ -462,7 +462,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", String.class),
@@ -485,7 +485,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", String.class),
@@ -786,7 +786,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		);
 		List<RecipeChainInput> savedInputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handleSingleRecipe(

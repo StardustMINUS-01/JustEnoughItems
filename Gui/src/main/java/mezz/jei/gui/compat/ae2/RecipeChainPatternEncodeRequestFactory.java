@@ -351,7 +351,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 			}
 			switch (metadata.type()) {
 				case INGREDIENT -> sparseInputs.add(stack.get());
-				case CATALYST -> {
+				case NONCONSUMABLE -> {
 					int sourceSlot = sparseInputs.size();
 					sparseInputs.add(stack.get());
 					catalysts.add(new JeiPatternCatalyst(sourceSlot, stack.get()));

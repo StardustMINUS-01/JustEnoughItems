@@ -47,6 +47,9 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping quickMove;
 	private final IJeiKeyMapping searchIngredientInTerminal;
 	private final IJeiKeyMapping shareToChat;
+	private final IJeiKeyMapping bookmarkWorldTarget;
+	private final IJeiKeyMapping showWorldTargetRecipe;
+	private final IJeiKeyMapping showWorldTargetUses;
 
 	private final IJeiKeyMapping showRecipe;
 	private final IJeiKeyMapping showUses;
@@ -98,6 +101,8 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 
 		String mouseHoverCategoryName = Translator.translateToLocal("jei.key.category.mouse.hover");
 		IJeiKeyMappingCategoryBuilder mouseHover = inputHelper.createKeyMappingCategoryBuilder(mouseHoverCategoryName);
+		String worldTargetCategoryName = Translator.translateToLocal("jei.key.category.world.target");
+		IJeiKeyMappingCategoryBuilder worldTarget = inputHelper.createKeyMappingCategoryBuilder(worldTargetCategoryName);
 
 		String searchCategoryName = Translator.translateToLocal("jei.key.category.search");
 		IJeiKeyMappingCategoryBuilder search = inputHelper.createKeyMappingCategoryBuilder(searchCategoryName);
@@ -249,6 +254,21 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 				.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
 				.buildKeyboardKey(GLFW.GLFW_KEY_L)
 				.register(registerMethod);
+
+		bookmarkWorldTarget = worldTarget.createMapping("key.jei.bookmarkWorldTarget")
+			.setContext(JeiKeyConflictContext.IN_GAME)
+			.buildUnbound()
+			.register(registerMethod);
+
+		showWorldTargetRecipe = worldTarget.createMapping("key.jei.showWorldTargetRecipe")
+			.setContext(JeiKeyConflictContext.IN_GAME)
+			.buildUnbound()
+			.register(registerMethod);
+
+		showWorldTargetUses = worldTarget.createMapping("key.jei.showWorldTargetUses")
+			.setContext(JeiKeyConflictContext.IN_GAME)
+			.buildUnbound()
+			.register(registerMethod);
 
 		// Search Bar
 		hoveredClearSearchBar = search.createMapping("key.jei.clearSearchBar")
@@ -552,6 +572,21 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getShareToChat() {
 		return shareToChat;
+	}
+
+	@Override
+	public IJeiKeyMapping getBookmarkWorldTarget() {
+		return bookmarkWorldTarget;
+	}
+
+	@Override
+	public IJeiKeyMapping getShowWorldTargetRecipe() {
+		return showWorldTargetRecipe;
+	}
+
+	@Override
+	public IJeiKeyMapping getShowWorldTargetUses() {
+		return showWorldTargetUses;
 	}
 
 	@Override

@@ -17,7 +17,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public record BookmarkItemMetadata(
-	String groupId,
+	int groupId,
 	BookmarkItemType type,
 	long multiplier,
 	long factor,
@@ -32,7 +32,7 @@ public record BookmarkItemMetadata(
 	public static final long CHANCE_FULL = 10_000L;
 
 	public BookmarkItemMetadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		long multiplier,
 		long factor,
@@ -45,7 +45,7 @@ public record BookmarkItemMetadata(
 	}
 
 	public BookmarkItemMetadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		long multiplier,
 		long factor,
@@ -59,7 +59,7 @@ public record BookmarkItemMetadata(
 	}
 
 	public BookmarkItemMetadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		long multiplier,
 		long factor,
@@ -74,17 +74,16 @@ public record BookmarkItemMetadata(
 	}
 
 	public BookmarkItemMetadata {
-		groupId = groupId == null ? BookmarkGroupManager.DEFAULT_GROUP_ID : groupId;
 		type = type == null ? BookmarkItemType.ITEM : type;
 		permutations = permutations == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(permutations));
 		containerItemCraftingUses = containerItem == null ? 1 : Math.max(0, containerItemCraftingUses);
 	}
 
-	public static BookmarkItemMetadata defaultForGroup(String groupId) {
+	public static BookmarkItemMetadata defaultForGroup(int groupId) {
 		return new BookmarkItemMetadata(groupId, BookmarkItemType.ITEM, 1, 1, CHANCE_FULL, null, null, Set.of(), null, 1, null);
 	}
 
-	public BookmarkItemMetadata withGroupId(String groupId) {
+	public BookmarkItemMetadata withGroupId(int groupId) {
 		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
 	}
 
@@ -141,8 +140,8 @@ public record BookmarkItemMetadata(
 		return equalsRecipe(metadata.recipeUid(), metadata.groupId());
 	}
 
-	public boolean equalsRecipe(@Nullable ResourceLocation recipeUid, String groupId) {
-		return this.groupId.equals(groupId) && recipeUid != null && recipeUid.equals(this.recipeUid);
+	public boolean equalsRecipe(@Nullable ResourceLocation recipeUid, int groupId) {
+		return this.groupId == groupId && recipeUid != null && recipeUid.equals(this.recipeUid);
 	}
 
 	public boolean emptyFactor() {
@@ -150,7 +149,7 @@ public record BookmarkItemMetadata(
 	}
 
 	public boolean isDefault() {
-		return BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) &&
+		return groupId == BookmarkGroupManager.DEFAULT_GROUP_ID &&
 			type == BookmarkItemType.ITEM &&
 			multiplier == 1 &&
 			factor == 1 &&

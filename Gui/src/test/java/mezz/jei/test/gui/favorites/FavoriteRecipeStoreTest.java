@@ -300,7 +300,7 @@ public class FavoriteRecipeStoreTest {
 	}
 
 	private static BookmarkIngredientKey target(String uid) {
-		return new BookmarkIngredientKey("minecraft:item_stack", uid, null);
+		return new BookmarkIngredientKey("minecraft:item_stack", uid);
 	}
 
 	private static FocusedRecipe recipe(String uid) {

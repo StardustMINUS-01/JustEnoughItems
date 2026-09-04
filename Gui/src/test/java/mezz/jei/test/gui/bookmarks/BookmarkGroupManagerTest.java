@@ -13,8 +13,32 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 import java.util.List;
+import java.util.LinkedList;
 
 public class BookmarkGroupManagerTest {
+	@Test
+	public void recipeInputsPreserveSourceIndicesAcrossOtherGroups() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		int groupId = groups.createGroup("Machines");
+		groups.setItemMetadata("result", BookmarkItemMetadata.defaultForGroup(groupId));
+		groups.setItemMetadata("input", BookmarkItemMetadata.defaultForGroup(groupId));
+		var inputs = groups.getGroupRecipeInputs(new LinkedList<>(List.of("before", "result", "between", "input")), groupId);
+		Assertions.assertEquals(List.of(1, 3), inputs.stream().map(input -> input.index()).toList());
+		Assertions.assertEquals(List.of(groups.getItemMetadata("result"), groups.getItemMetadata("input")), inputs.stream().map(input -> input.metadata()).toList());
+	}
+
+	@Test
+	public void reusesSmallestAvailablePositiveGroupId() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+
+		Assertions.assertEquals(1, groups.createGroup("One"));
+		Assertions.assertEquals(2, groups.createGroup("Two"));
+		Assertions.assertEquals(3, groups.createGroup("Three"));
+		Assertions.assertTrue(groups.removeGroup(2));
+		Assertions.assertEquals(2, groups.createGroup("Replacement"));
+		Assertions.assertEquals(4, groups.createGroup("Four"));
+	}
+
 	@Test
 	public void defaultGroupExistsAndCannotBeRemoved() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
@@ -30,7 +54,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void collapsedGroupKeepsEveryNonIngredientVisible() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.addItem("iron", false);
 		groups.addItem("gear", false);
@@ -46,7 +70,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void compactGroupConvertedToChainKeepsDefaultView() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.setCraftingMode(groupId, true);
 
@@ -58,7 +82,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void newLineGroupConvertedToChainKeepsViewMode() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 
 		groups.setCraftingMode(groupId, true);
@@ -71,7 +95,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void chainConvertedToGroupKeepsViewMode() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		groups.setCraftingMode(groupId, true);
 
@@ -85,7 +109,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void viewModeAndCollapseToggleIndependently() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.toggleViewMode(groupId);
 		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, groups.getGroup(groupId).orElseThrow().viewMode());
@@ -114,7 +138,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void removingGroupMovesItsItemsBackToDefaultGroup() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.addItem("gear", false);
 		groups.moveItemToGroup("gear", groupId);
@@ -127,7 +151,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void itemMetadataCarriesRecipeChainFieldsWhenMovedBetweenGroups() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.addItem("gear", false);
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			groupId,
@@ -137,7 +161,7 @@ public class BookmarkGroupManagerTest {
 			10_000,
 			ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"),
 			ResourceLocation.fromNamespaceAndPath("minecraft", "iron_pickaxe"),
-			Set.of(new BookmarkIngredientKey("minecraft:item_stack", "minecraft:iron_ingot", null))
+			Set.of(new BookmarkIngredientKey("minecraft:item_stack", "minecraft:iron_ingot"))
 		);
 
 		groups.setItemMetadata("gear", metadata);
@@ -152,7 +176,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void craftingGroupRefreshesRecipeChainDetailsFromOrderedItems() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setCraftingMode(groupId, true);
 		groups.addItem("plate", false);
 		groups.addItem("ingot", false);
@@ -176,7 +200,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void recipeChainDetailsRebuildLazilyAfterMarkingDirty() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setCraftingMode(groupId, true);
 		groups.addItem("plate", false);
 		groups.addItem("ingot", false);
@@ -193,7 +217,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void nonCraftingGroupDoesNotKeepRecipeChainDetails() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.addItem("plate", false);
 		groups.setItemMetadata("plate", metadata(groupId, BookmarkItemType.RESULT, "test:plate", "plate", 1, 1));
 
@@ -205,7 +229,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void nonCraftingGroupExposesRecipeInputsForBatchEncoding() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.addItem("plate", false);
 		groups.addItem("ingot", false);
 		groups.setItemMetadata("plate", metadata(groupId, BookmarkItemType.RESULT, "test:plate", "plate", 1, 1));
@@ -220,7 +244,7 @@ public class BookmarkGroupManagerTest {
 	}
 
 	private static BookmarkItemMetadata metadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		String recipeUid,
 		String ingredientUid,
@@ -235,7 +259,7 @@ public class BookmarkGroupManagerTest {
 			BookmarkItemMetadata.CHANCE_FULL,
 			ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"),
 			ResourceLocation.parse(recipeUid),
-			Set.of(new BookmarkIngredientKey("test:item", ingredientUid, null))
+			Set.of(new BookmarkIngredientKey("test:item", ingredientUid))
 		);
 	}
 }

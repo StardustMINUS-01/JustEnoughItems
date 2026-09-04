@@ -162,13 +162,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private Optional<IElement<?>> createElement(FavoriteRecipeStore.Entry entry) {
-		return ingredientManager.getIngredientTypeForUid(entry.target().ingredientTypeUid())
-			.flatMap(type -> createElement((IIngredientType) type, entry));
-	}
-
-	private <T> Optional<IElement<?>> createElement(IIngredientType<T> ingredientType, FavoriteRecipeStore.Entry entry) {
-		return resolveIngredient(ingredientType, entry.target().ingredientUid())
-			.map(ingredient -> createRecipeTargetElement(ingredient, entry.recipe(), entry.inputs()))
+		return resolveIngredient(entry.target())
+			.map(ingredient -> createRecipeTargetElement((ITypedIngredient) ingredient, entry.recipe(), entry.inputs()))
 			.map(element -> (IElement<?>) element);
 	}
 
@@ -217,10 +212,6 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		);
 	}
 
-	private <T> Optional<ITypedIngredient<T>> resolveIngredient(IIngredientType<T> ingredientType, String ingredientUid) {
-		return ingredientManager.getTypedIngredientByUid(ingredientType, ingredientUid);
-	}
-
 	private int createRecipeRow(
 		FavoriteRecipeStore.Entry entry,
 		BookmarkRowLayout.RowLayout rowLayout,
@@ -264,19 +255,25 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private Optional<ResolvedRecipeRowTarget> createRecipeRowTarget(FavoriteRecipeStore.Entry entry) {
-		return ingredientManager.getIngredientTypeForUid(entry.target().ingredientTypeUid())
-			.flatMap(type -> createRecipeRowTarget((IIngredientType) type, entry));
-	}
-
-	private <T> Optional<ResolvedRecipeRowTarget> createRecipeRowTarget(IIngredientType<T> ingredientType, FavoriteRecipeStore.Entry entry) {
-		return resolveIngredient(ingredientType, entry.target().ingredientUid())
+		return resolveIngredient(entry.target())
+			.map(ingredient -> (ITypedIngredient) ingredient)
 			.map(displayIngredient -> {
 				ResolvedRecipeIngredients resolvedIngredients = recipeInputsResolver.resolveIngredients(entry.recipe(), displayIngredient, entry.inputs());
 				ITypedIngredient<?> targetIngredient = resolvedIngredients.target()
 					.orElse(displayIngredient);
-				FavoriteRecipeElement<T> targetElement = createRecipeTargetElement(displayIngredient, targetIngredient, entry.recipe(), entry.inputs());
+				FavoriteRecipeElement<?> targetElement = createRecipeTargetElement(displayIngredient, targetIngredient, entry.recipe(), entry.inputs());
 				return new ResolvedRecipeRowTarget(targetElement, resolvedIngredients);
 			});
+	}
+
+	@SuppressWarnings({"removal", "rawtypes", "unchecked"})
+	private Optional<ITypedIngredient<?>> resolveIngredient(BookmarkIngredientKey key) {
+		if (key.typedIngredient() != null) {
+			return Optional.of(key.typedIngredient());
+		}
+		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
+			.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
+			.map(ingredient -> (ITypedIngredient<?>) ingredient);
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})

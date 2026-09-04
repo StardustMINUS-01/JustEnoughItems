@@ -212,10 +212,6 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		return recipe;
 	}
 
-	public String getRecipeRowGroupId() {
-		return recipe.recipeTypeUid() + "|" + recipe.recipeUid();
-	}
-
 	public boolean isFavoriteTarget() {
 		return favoriteTarget;
 	}
