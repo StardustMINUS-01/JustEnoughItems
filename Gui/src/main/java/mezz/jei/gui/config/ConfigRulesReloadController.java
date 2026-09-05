@@ -1,22 +1,23 @@
 package mezz.jei.gui.config;
 
-import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
-
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public final class RecipePreferenceRulesReloadController {
-	private final Supplier<RecipePreferenceRules> rulesLoader;
+/**
+ * Coalesces config rules file changes and reloads on the client thread.
+ */
+public final class ConfigRulesReloadController<T> {
+	private final Supplier<T> rulesLoader;
 	private final Consumer<Runnable> clientThreadExecutor;
-	private final Consumer<RecipePreferenceRules> rulesConsumer;
+	private final Consumer<T> rulesConsumer;
 	private final AtomicBoolean reloadQueued = new AtomicBoolean();
 
-	public RecipePreferenceRulesReloadController(
-		Supplier<RecipePreferenceRules> rulesLoader,
+	public ConfigRulesReloadController(
+		Supplier<T> rulesLoader,
 		Consumer<Runnable> clientThreadExecutor,
-		Consumer<RecipePreferenceRules> rulesConsumer
+		Consumer<T> rulesConsumer
 	) {
 		this.rulesLoader = Objects.requireNonNull(rulesLoader);
 		this.clientThreadExecutor = Objects.requireNonNull(clientThreadExecutor);

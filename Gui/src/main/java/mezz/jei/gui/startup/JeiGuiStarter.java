@@ -42,18 +42,17 @@ import mezz.jei.gui.collapsible.CollapsibleRules;
 import mezz.jei.gui.collapsible.CollapsibleSettings;
 import mezz.jei.gui.collapsible.CollapsibleState;
 import mezz.jei.gui.config.CollapsibleConfig;
-import mezz.jei.gui.config.CollapsibleRulesReloadController;
 import mezz.jei.gui.config.CollapsibleStateStore;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import mezz.jei.gui.config.BookmarkConfigEntryCodec;
 import mezz.jei.gui.config.ConfigFileImporter;
+import mezz.jei.gui.config.ConfigRulesReloadController;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
 import mezz.jei.gui.config.ModNameSortingConfig;
 import mezz.jei.gui.config.RecipePreferenceConfig;
-import mezz.jei.gui.config.RecipePreferenceRulesReloadController;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
@@ -324,7 +323,7 @@ public class JeiGuiStarter {
 		favoriteRecipes.setGeneratedFavoriteResolver(
 			(target, layoutCache) -> recipePreferenceCandidateResolver.resolveGeneratedFavorite(target, layoutCache)
 		);
-		RecipePreferenceRulesReloadController recipePreferenceRulesReloadController = new RecipePreferenceRulesReloadController(
+		ConfigRulesReloadController<RecipePreferenceRules> recipePreferenceRulesReloadController = new ConfigRulesReloadController<>(
 			recipePreferenceConfig::loadRules,
 			minecraft::execute,
 			rules -> {
@@ -339,7 +338,7 @@ public class JeiGuiStarter {
 		);
 		if (collapsibleManager != null) {
 			CollapsibleManager activeCollapsibleManager = collapsibleManager;
-			CollapsibleRulesReloadController collapsibleRulesReloadController = new CollapsibleRulesReloadController(
+			ConfigRulesReloadController<CollapsibleRules> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
 				collapsibleConfig::loadRules,
 				minecraft::execute,
 				rules -> activeCollapsibleManager.reload(rules, collapsibleConfig.loadSettings())

@@ -3,7 +3,7 @@ package mezz.jei.test.gui.config;
 import mezz.jei.gui.collapsible.CollapsibleRules;
 import mezz.jei.gui.collapsible.CollapsibleSettings;
 import mezz.jei.gui.config.CollapsibleConfig;
-import mezz.jei.gui.config.CollapsibleRulesReloadController;
+import mezz.jei.gui.config.ConfigRulesReloadController;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,7 +44,7 @@ public class CollapsibleConfigTest {
 		CollapsibleRules expectedRules = CollapsibleRules.EMPTY;
 		List<Runnable> clientTasks = new ArrayList<>();
 		List<CollapsibleRules> appliedRules = new ArrayList<>();
-		CollapsibleRulesReloadController controller = new CollapsibleRulesReloadController(
+		ConfigRulesReloadController<CollapsibleRules> controller = new ConfigRulesReloadController<>(
 			() -> {
 				loadCount.incrementAndGet();
 				return expectedRules;

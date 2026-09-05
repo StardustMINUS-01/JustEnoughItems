@@ -209,9 +209,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			markScreenPropertiesDirty();
 		});
 
-		lookupHistoryOverlay.getLookupHistory().addSourceListChangedListener(() -> {
-			markScreenPropertiesDirty();
-		});
 		lookupHistoryOverlay.getLookupHistory().addSourceListChangedListener(this::markScreenPropertiesDirty);
 
 		this.lookupHistoryEnabledListener = v -> markScreenPropertiesDirty();

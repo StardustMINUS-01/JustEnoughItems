@@ -24,8 +24,6 @@ import net.neoforged.neoforge.client.event.ContainerScreenEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
-import java.util.List;
-
 public class EventRegistration {
 	public static void registerEvents(RuntimeEventSubscriptions subscriptions, JeiEventHandlers eventHandlers) {
 		ClientInputHandler clientInputHandler = eventHandlers.clientInputHandler();
@@ -199,44 +197,6 @@ public class EventRegistration {
 				event.setCompact(true);
 			}
 		});
-	}
-
-	@SuppressWarnings("removal")
-	public static List<Class<?>> getGuiEventTypes() {
-		return List.of(
-			ClientTickEvent.Post.class,
-			ContainerScreenEvent.Render.Foreground.class,
-			ScreenEvent.BackgroundRendered.class,
-			ScreenEvent.Render.Post.class,
-			ScreenEvent.RenderInventoryMobEffects.class,
-			ScreenEvent.Init.Post.class,
-			ScreenEvent.Opening.class
-		);
-	}
-
-	@SuppressWarnings("removal")
-	public static List<Class<?>> getGuiRenderEventTypes() {
-		return List.of(
-			ContainerScreenEvent.Render.Foreground.class,
-			ScreenEvent.BackgroundRendered.class,
-			ScreenEvent.Render.Post.class
-		);
-	}
-
-	@SuppressWarnings("removal")
-	public static List<Class<?>> getClientInputEventTypes() {
-		return List.of(
-			InputEvent.Key.class,
-			ScreenEvent.Init.Post.class,
-			ScreenEvent.KeyPressed.Pre.class,
-			ScreenEvent.KeyPressed.Post.class,
-			ScreenEvent.KeyReleased.Pre.class,
-			ScreenEvent.CharacterTyped.Pre.class,
-			ScreenEvent.CharacterTyped.Post.class,
-			ScreenEvent.MouseButtonPressed.Pre.class,
-			ScreenEvent.MouseButtonReleased.Pre.class,
-			ScreenEvent.MouseScrolled.Pre.class
-		);
 	}
 
 	private static void runWithIdentityPose(GuiGraphics graphics, Runnable runnable) {

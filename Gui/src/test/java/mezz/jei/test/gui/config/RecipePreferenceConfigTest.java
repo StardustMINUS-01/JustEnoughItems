@@ -1,7 +1,7 @@
 package mezz.jei.test.gui.config;
 
 import mezz.jei.gui.config.RecipePreferenceConfig;
-import mezz.jei.gui.config.RecipePreferenceRulesReloadController;
+import mezz.jei.gui.config.ConfigRulesReloadController;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ public class RecipePreferenceConfigTest {
 		RecipePreferenceRules expectedRules = RecipePreferenceRules.EMPTY;
 		List<Runnable> clientTasks = new ArrayList<>();
 		List<RecipePreferenceRules> appliedRules = new ArrayList<>();
-		RecipePreferenceRulesReloadController controller = new RecipePreferenceRulesReloadController(
+		ConfigRulesReloadController<RecipePreferenceRules> controller = new ConfigRulesReloadController<>(
 			() -> {
 				loadCount.incrementAndGet();
 				return expectedRules;

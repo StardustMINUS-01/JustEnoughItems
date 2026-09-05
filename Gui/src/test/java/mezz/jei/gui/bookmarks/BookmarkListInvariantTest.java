@@ -700,6 +700,51 @@ public class BookmarkListInvariantTest {
 	}
 
 	@ParameterizedTest
+	@ValueSource(ints = {0, 1, 2})
+	public void recipeInputsPreserveSparseSourcePositionsAndSelectedIngredients(int inputSource) {
+		var ingredientManager = mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager();
+		BookmarkList bookmarks = new BookmarkList(null, null, ingredientManager, null, null, null, null);
+		int groupId = 1;
+		bookmarks.addGroupFromConfig(new BookmarkGroup(groupId, "Selected"));
+		bookmarks.setGroupCraftingMode(groupId, true);
+		Assertions.assertTrue(bookmarks.getGroupRecipeInputs(groupId).isEmpty());
+		Assertions.assertTrue(bookmarks.getRecipeChainInputs(groupId).isEmpty());
+		Assertions.assertTrue(bookmarks.getRecipeChainTooltipInputs(groupId).isEmpty());
+		List<RecipeBookmark<Object, ItemStack>> source = List.of(
+			recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT),
+			recipeBookmark(Items.GOLD_INGOT, RecipeIngredientRole.INPUT),
+			recipeBookmark(Items.DIAMOND, RecipeIngredientRole.INPUT),
+			recipeBookmark(Items.EMERALD, RecipeIngredientRole.INPUT),
+			recipeBookmark(Items.COAL, RecipeIngredientRole.INPUT)
+		);
+		List<Integer> selectedIndices = List.of(1, 3, 4);
+		for (int i = 0; i < source.size(); i++) {
+			var bookmark = source.get(i);
+			bookmarks.addToListWithoutNotifying(bookmark, false);
+			var key = BookmarkItemMetadataFactory.createPermutationKey(bookmark.getElement().getTypedIngredient(), ingredientManager);
+			bookmarks.moveBookmarkMetadataFromConfig(bookmark, metadata(
+				selectedIndices.contains(i) ? groupId : 0, BookmarkItemType.INGREDIENT, RECIPE, i + 1, 2,
+				BookmarkItemMetadata.CHANCE_FULL, Set.of(key)
+			));
+		}
+
+		var inputs = switch (inputSource) {
+			case 0 -> bookmarks.getGroupRecipeInputs(groupId);
+			case 1 -> bookmarks.getRecipeChainInputs(groupId);
+			default -> bookmarks.getRecipeChainTooltipInputs(groupId);
+		};
+
+		Assertions.assertEquals(selectedIndices, inputs.stream().map(input -> input.index()).toList());
+		List<IBookmark> stored = bookmarks.getBookmarks();
+		for (var input : inputs) {
+			var bookmark = stored.get(input.index());
+			Assertions.assertEquals(bookmarks.getBookmarkMetadata(bookmark), input.metadata());
+			Assertions.assertSame(bookmark.getElement().getTypedIngredient(), input.selectedIngredient());
+			Assertions.assertEquals(input.metadata().permutations().iterator().next(), input.selectedKey());
+		}
+	}
+
+	@ParameterizedTest
 	@CsvSource({"0.25,1,0,false", "0.5,0,0,true", "0.74,0,0,true", "0.75,2,1,false"})
 	public void crossGroupDragPreservesQuarterRowBoundaries(double fraction, int groupId, int offset, boolean rejected) {
 		var before = new BookmarkPanelLayout.RowSlot<IBookmark>(bookmark("before"), 1, new ImmutableRect2i(0, 0, 20, 20));
