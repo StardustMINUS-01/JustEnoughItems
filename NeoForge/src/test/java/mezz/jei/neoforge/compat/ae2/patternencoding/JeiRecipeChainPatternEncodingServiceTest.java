@@ -15,6 +15,7 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapedRecipe;
@@ -166,17 +167,6 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 
 	@Test
 	public void craftingGuideItemsMapSingleRowRecipeFromJeiLayoutOrder() {
-		NonNullList<Ingredient> ingredients = NonNullList.withSize(3, Ingredient.EMPTY);
-		ingredients.set(0, Ingredient.of(Items.GLOWSTONE_DUST));
-		ingredients.set(1, Ingredient.of(Items.GLASS));
-		ingredients.set(2, Ingredient.of(Items.GLOWSTONE_DUST));
-		ShapedRecipe recipe = new ShapedRecipe(
-			"",
-			CraftingBookCategory.MISC,
-			new ShapedRecipePattern(3, 1, ingredients, Optional.empty()),
-			new ItemStack(Items.GLOWSTONE),
-			false
-		);
 		List<@Nullable GenericStack> guides = emptyGuides();
 		guides.set(3, stack(Items.GLOWSTONE_DUST, 1));
 		guides.set(4, stack(Items.GLASS, 1));
@@ -184,7 +174,7 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 
 		ItemStack[] items = JeiRecipeChainPatternEncodingService.createCraftingGuideItems(
 			craftingRequest(guides),
-			new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath("test", "vibrant_glass"), recipe)
+			createSingleRowRecipe()
 		);
 
 		Assertions.assertNotNull(items);
@@ -198,17 +188,6 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 
 	@Test
 	public void craftingGuideItemsRejectTopLeftGuidesForSingleRowRecipe() {
-		NonNullList<Ingredient> ingredients = NonNullList.withSize(3, Ingredient.EMPTY);
-		ingredients.set(0, Ingredient.of(Items.GLOWSTONE_DUST));
-		ingredients.set(1, Ingredient.of(Items.GLASS));
-		ingredients.set(2, Ingredient.of(Items.GLOWSTONE_DUST));
-		ShapedRecipe recipe = new ShapedRecipe(
-			"",
-			CraftingBookCategory.MISC,
-			new ShapedRecipePattern(3, 1, ingredients, Optional.empty()),
-			new ItemStack(Items.GLOWSTONE),
-			false
-		);
 		List<@Nullable GenericStack> guides = emptyGuides();
 		guides.set(0, stack(Items.GLOWSTONE_DUST, 1));
 		guides.set(1, stack(Items.GLASS, 1));
@@ -216,7 +195,7 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 
 		ItemStack[] items = JeiRecipeChainPatternEncodingService.createCraftingGuideItems(
 			craftingRequest(guides),
-			new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath("test", "vibrant_glass"), recipe)
+			createSingleRowRecipe()
 		);
 
 		Assertions.assertNull(items);
@@ -251,6 +230,21 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 		for (int i = 3; i < items.length; i++) {
 			Assertions.assertTrue(items[i].isEmpty());
 		}
+	}
+
+	private static RecipeHolder<CraftingRecipe> createSingleRowRecipe() {
+		NonNullList<Ingredient> ingredients = NonNullList.withSize(3, Ingredient.EMPTY);
+		ingredients.set(0, Ingredient.of(Items.GLOWSTONE_DUST));
+		ingredients.set(1, Ingredient.of(Items.GLASS));
+		ingredients.set(2, Ingredient.of(Items.GLOWSTONE_DUST));
+		ShapedRecipe recipe = new ShapedRecipe(
+			"",
+			CraftingBookCategory.MISC,
+			new ShapedRecipePattern(3, 1, ingredients, Optional.empty()),
+			new ItemStack(Items.GLOWSTONE),
+			false
+		);
+		return new RecipeHolder<>(ResourceLocation.fromNamespaceAndPath("test", "vibrant_glass"), recipe);
 	}
 
 	private static List<@Nullable GenericStack> emptyGuides() {

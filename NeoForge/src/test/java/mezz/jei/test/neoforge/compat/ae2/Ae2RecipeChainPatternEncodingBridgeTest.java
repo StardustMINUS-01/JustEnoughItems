@@ -22,11 +22,15 @@ import net.neoforged.fml.loading.LoadingModList;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public class Ae2RecipeChainPatternEncodingBridgeTest {
 	@BeforeAll
@@ -97,36 +101,23 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 		Assertions.assertTrue(oversizedIngredients.isEmpty());
 	}
 
-	@Test
-	public void sendRequestsReturnsFalseForEmptyRequests() {
-		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(new TestAccess(true, true));
-
-		Assertions.assertFalse(bridge.sendRequests(null, List.of()));
-	}
-
-	@Test
-	public void sendRequestsReturnsFalseForNonTerminalMenu() {
-		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(new TestAccess(false, true));
-
-		Assertions.assertFalse(bridge.sendRequests(null, List.of(request())));
-	}
-
-	@Test
-	public void sendRequestsReturnsFalseWhenSendFails() {
-		TestAccess access = new TestAccess(true, false);
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sendRequestOutcomes")
+	public void sendRequestsHandlesAllOutcomes(String scenario, boolean terminal, boolean sendSucceeds, boolean empty, boolean expected, int expectedCalls) {
+		TestAccess access = new TestAccess(terminal, sendSucceeds);
 		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(access);
 
-		Assertions.assertFalse(bridge.sendRequests(null, List.of(request())));
-		Assertions.assertEquals(0, access.sentRequests);
+		Assertions.assertEquals(expected, bridge.sendRequests(null, empty ? List.of() : List.of(request())));
+		Assertions.assertEquals(expectedCalls, access.sentRequests);
 	}
 
-	@Test
-	public void sendRequestsReturnsTrueWhenSent() {
-		TestAccess access = new TestAccess(true, true);
-		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(access);
-
-		Assertions.assertTrue(bridge.sendRequests(null, List.of(request())));
-		Assertions.assertEquals(1, access.sentRequests);
+	private static Stream<Arguments> sendRequestOutcomes() {
+		return Stream.of(
+			Arguments.of("empty request", true, true, true, false, 0),
+			Arguments.of("nonterminal menu", false, true, false, false, 0),
+			Arguments.of("send failure", true, false, false, false, 1),
+			Arguments.of("success", true, true, false, true, 1)
+		);
 	}
 
 	private static JeiPatternEncodeRequest request() {
@@ -212,10 +203,10 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 
 		@Override
 		public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+			sentRequests++;
 			if (!sendSucceeds) {
 				return false;
 			}
-			sentRequests++;
 			return true;
 		}
 

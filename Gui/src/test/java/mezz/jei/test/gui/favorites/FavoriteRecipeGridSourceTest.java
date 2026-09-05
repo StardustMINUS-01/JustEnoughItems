@@ -72,21 +72,7 @@ public class FavoriteRecipeGridSourceTest {
 
 		Assertions.assertEquals(4, elements.size());
 		Assertions.assertEquals(1, resolver.calls);
-	}
-
-	@Test
-	public void recipeRowsReuseCachedElementsForTheSameColumnCount() {
-		FavoriteRecipeStore store = store("gear", RECIPE);
-		FavoriteRecipePanelState panelState = recipeRows();
-		CountingRecipeInputsResolver resolver = new CountingRecipeInputsResolver(
-			typed("plate"),
-			typed("bolt")
-		);
-		FavoriteRecipeGridSource source = source(store, panelState, resolver);
-
 		source.getElements(4);
-		source.getElements(4);
-
 		Assertions.assertEquals(1, resolver.calls);
 	}
 

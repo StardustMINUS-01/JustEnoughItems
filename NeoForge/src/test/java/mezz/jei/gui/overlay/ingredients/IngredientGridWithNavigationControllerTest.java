@@ -157,17 +157,6 @@ public class IngredientGridWithNavigationControllerTest {
 	}
 
 	@Test
-	public void pagedModeReportsRenderedFirstItemIndex() {
-		Fixture fixture = Fixture.create(3, 7, true, IngredientGridNavigationMode.PAGED);
-		fixture.controller.updateLayoutToFirstPage();
-
-		fixture.controller.nextPage();
-
-		assertEquals(3, fixture.grid.firstItemIndex);
-		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
-	}
-
-	@Test
 	public void scrollUpOnMultiplePagesMovesPreviousPage() {
 		// Setup: the grid starts on the second page.
 		Fixture fixture = Fixture.create(3, 7, true);
@@ -225,6 +214,8 @@ public class IngredientGridWithNavigationControllerTest {
 		Fixture fixture = Fixture.create(3, 7, true);
 		fixture.controller.updateLayoutToFirstPage();
 		assertTrue(fixture.controller.nextPage());
+		assertEquals(3, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 		fixture.closeOverlay();
 
 		// Operation: reopen the overlay using the controller's page anchor.
@@ -268,6 +259,7 @@ public class IngredientGridWithNavigationControllerTest {
 		assertEquals(1, fixture.layoutChanges);
 		assertEquals(1, fixture.controller.getPageNumber());
 		assertEquals(3, fixture.grid.firstItemIndex);
+		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 		assertEquals(0, fixture.grid.scrollOffsetY);
 	}
 
@@ -309,14 +301,6 @@ public class IngredientGridWithNavigationControllerTest {
 		assertEquals(0, fixture.controller.getPageNumber());
 		assertEquals(0, fixture.grid.firstItemIndex);
 		assertEquals(6, fixture.grid.scrollOffsetY);
-	}
-
-	@Test
-	public void smoothScrollingModeReportsRenderedFirstItemIndexAfterOneRow() {
-		Fixture fixture = Fixture.create(3, 9, true, IngredientGridNavigationMode.SMOOTH_SCROLLING);
-		fixture.controller.updateLayoutToFirstPage();
-
-		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
 		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
 		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
 
@@ -426,17 +410,6 @@ public class IngredientGridWithNavigationControllerTest {
 		assertEquals(55, fixture.grid.firstItemIndex);
 		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 		assertEquals(0, fixture.grid.scrollOffsetY);
-	}
-
-	@Test
-	public void scrollingModeReportsRenderedFirstItemIndexAfterOneRow() {
-		Fixture fixture = Fixture.create(3, 7, true, IngredientGridNavigationMode.SCROLLING);
-		fixture.controller.updateLayoutToFirstPage();
-
-		fixture.controller.handleMouseScrolled(1, 1, 0, -1);
-
-		assertEquals(3, fixture.grid.firstItemIndex);
-		assertEquals(fixture.grid.firstItemIndex, fixture.controller.getFirstItemIndex());
 	}
 
 	@ParameterizedTest

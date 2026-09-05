@@ -611,19 +611,6 @@ public class BookmarkListInvariantTest {
 		BookmarkList bookmarks = bookmarkList();
 		TestBookmark input = bookmark("ingot");
 		bookmarks.addToListWithoutNotifying(input, false);
-		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "ingot"));
-
-		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
-		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, bookmarks.getBookmarkMetadata(input).type());
-
-		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
-		Assertions.assertEquals(BookmarkItemType.INGREDIENT, bookmarks.getBookmarkMetadata(input).type());
-	}
-
-	@Test
-	public void toggleBookmarkInputCatalystKeepsAmountAndFactor() {
-		BookmarkList bookmarks = bookmarkList();
-		TestBookmark input = bookmark("ingot");
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			BookmarkItemType.INGREDIENT,
@@ -634,14 +621,19 @@ public class BookmarkListInvariantTest {
 			RECIPE,
 			Set.of(new BookmarkIngredientKey("test:item", "ingot"))
 		);
-		bookmarks.addToListWithoutNotifying(input, false);
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata);
 
 		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
-		BookmarkItemMetadata toggled = bookmarks.getBookmarkMetadata(input);
-		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, toggled.type());
-		Assertions.assertEquals(3, toggled.multiplier());
-		Assertions.assertEquals(4, toggled.factor());
+		BookmarkItemMetadata catalyst = bookmarks.getBookmarkMetadata(input);
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, catalyst.type());
+		Assertions.assertEquals(3, catalyst.multiplier());
+		Assertions.assertEquals(4, catalyst.factor());
+
+		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
+		BookmarkItemMetadata restoredInput = bookmarks.getBookmarkMetadata(input);
+		Assertions.assertEquals(BookmarkItemType.INGREDIENT, restoredInput.type());
+		Assertions.assertEquals(3, restoredInput.multiplier());
+		Assertions.assertEquals(4, restoredInput.factor());
 	}
 
 	@Test

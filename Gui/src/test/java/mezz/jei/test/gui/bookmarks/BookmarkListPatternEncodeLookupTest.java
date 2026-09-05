@@ -1,11 +1,6 @@
 package mezz.jei.test.gui.bookmarks;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotView;
-import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.gui.inputs.IJeiInputHandler;
-import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
@@ -24,8 +19,6 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
-import net.minecraft.client.gui.navigation.ScreenRectangle;
-import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -39,6 +32,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+import static mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.layout;
 
 public class BookmarkListPatternEncodeLookupTest {
 	private static final IIngredientType<String> INGREDIENT_TYPE = () -> String.class;
@@ -136,7 +131,13 @@ public class BookmarkListPatternEncodeLookupTest {
 				case "createRecipeLookup" -> recipeLookup(recipes);
 				case "getRecipeType" -> Optional.of(RECIPE_TYPE);
 				case "getRecipeCategory" -> CATEGORY;
-				case "createRecipeLayoutDrawable" -> Optional.of(new TestRecipeLayout((String) args[1]));
+				case "createRecipeLayoutDrawable" -> Optional.of(layout(
+					RECIPE_TYPE,
+					args[1],
+					ResourceLocation.fromNamespaceAndPath("test", (String) args[1]),
+					List.of(),
+					List.of(List.of(typed("plate")))
+				));
 				default -> throw new UnsupportedOperationException(method.getName());
 			}
 		);
@@ -363,107 +364,4 @@ public class BookmarkListPatternEncodeLookupTest {
 		}
 	}
 
-	private record TestRecipeLayout(String recipe) implements IRecipeLayoutDrawable<String> {
-		@Override
-		public void setPosition(int posX, int posY) {
-		}
-
-		@Override
-		public void drawRecipe(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		}
-
-		@Override
-		public void drawOverlays(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		}
-
-		@Override
-		public boolean isMouseOver(double mouseX, double mouseY) {
-			return false;
-		}
-
-		@Override
-		public <T> Optional<T> getIngredientUnderMouse(int mouseX, int mouseY, IIngredientType<T> ingredientType) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<IRecipeSlotDrawable> getRecipeSlotUnderMouse(double mouseX, double mouseY) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<RecipeSlotUnderMouse> getSlotUnderMouse(double mouseX, double mouseY) {
-			return Optional.empty();
-		}
-
-		@Override
-		public Rect2i getRect() {
-			return new Rect2i(0, 0, 1, 1);
-		}
-
-		@Override
-		public Rect2i getRectWithBorder() {
-			return getRect();
-		}
-
-		@Override
-		public Rect2i getSideButtonArea(int buttonIndex) {
-			return getRect();
-		}
-
-		@Override
-		public IRecipeSlotsView getRecipeSlotsView() {
-			return () -> List.of(new TestRecipeSlot(RecipeIngredientRole.OUTPUT, typed("plate")));
-		}
-
-		@Override
-		public IRecipeCategory<String> getRecipeCategory() {
-			return CATEGORY;
-		}
-
-		@Override
-		public String getRecipe() {
-			return recipe;
-		}
-
-		@Override
-		public IJeiInputHandler getInputHandler() {
-			return () -> ScreenRectangle.empty();
-		}
-
-		@Override
-		public void tick() {
-		}
-	}
-
-	private record TestRecipeSlot(RecipeIngredientRole role, ITypedIngredient<?> ingredient) implements IRecipeSlotView {
-		@Override
-		public Stream<ITypedIngredient<?>> getAllIngredients() {
-			return Stream.of(ingredient);
-		}
-
-		@Override
-		public List<@Nullable ITypedIngredient<?>> getAllIngredientsList() {
-			return List.of(ingredient);
-		}
-
-		@Override
-		public Optional<ITypedIngredient<?>> getDisplayedIngredient() {
-			return Optional.of(ingredient);
-		}
-
-		@Override
-		public RecipeIngredientRole getRole() {
-			return role;
-		}
-
-		@Override
-		public void drawHighlight(net.minecraft.client.gui.GuiGraphics guiGraphics, int color) {
-		}
-
-		@Override
-		public Optional<String> getSlotName() {
-			return Optional.empty();
-		}
-	}
 }

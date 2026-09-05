@@ -9,7 +9,8 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -22,33 +23,17 @@ public class AutoCraftingManagerTest {
 	private static final ResourceLocation C_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "c");
 	private static final ResourceLocation E_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "e");
 
-	@Test
-	public void shiftCraftAllDoesNotCraftAnotherTargetWhenMaterialsRemain() {
+	@ParameterizedTest(name = "expand root demand: {0}")
+	@ValueSource(booleans = {true, false})
+	public void craftAllVariantsDoNotCraftAnotherTargetWhenMaterialsRemain(boolean expandRootDemand) {
 		TestInventory inventory = chainInventory();
 		RecipeChainMath math = chainMath();
-		math.expandRootDemandForCraftAll(inventory.snapshot());
+		if (expandRootDemand) {
+			math.expandRootDemandForCraftAll(inventory.snapshot());
+		}
 
 		AutoCraftingManager.Result result = AutoCraftingManager.run(
 			math,
-			List.of(),
-			inventory::snapshot,
-			inventory::craft
-		);
-
-		Assertions.assertTrue(result.completed());
-		Assertions.assertEquals(1, inventory.amount(key("e")));
-		Assertions.assertEquals(List.of(
-			new Craft(C_RECIPE, 2),
-			new Craft(E_RECIPE, 1)
-		), inventory.crafted);
-	}
-
-	@Test
-	public void controlShiftCraftMissingDoesNotCraftAnotherTargetWhenMaterialsRemain() {
-		TestInventory inventory = chainInventory();
-
-		AutoCraftingManager.Result result = AutoCraftingManager.run(
-			chainMath(),
 			List.of(),
 			inventory::snapshot,
 			inventory::craft

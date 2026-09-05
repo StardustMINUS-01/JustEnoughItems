@@ -6,9 +6,13 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.overlay.elements.LayoutPlaceholderElement;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static mezz.jei.gui.overlay.ingredients.IngredientGridPageState.findIndexOfIngredientElement;
 import static mezz.jei.gui.overlay.ingredients.IngredientGridPageState.getFirstItemIndexForValidPage;
@@ -26,78 +30,47 @@ public class IngredientGridPageStateTest {
 	private static final IIngredientType<Object> OBJECT_TYPE = () -> Object.class;
 	private static final IIngredientType<String> STRING_TYPE = () -> String.class;
 
-	@Test
-	public void validAnchorIndexSelectsContainingPage() {
-		// Setup: a recipe/uses click remembers an ingredient, then search or bookmarks update the list so
-		// that remembered ingredient is still present but now belongs to an earlier page than the stale page start.
-		int anchorOnSecondPage = 17;
-		int itemCount = 23;
-		int pageSize = 10;
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("validPageStarts")
+	public void requestedItemSelectsAValidPage(String scenario, int requestedIndex, int itemCount, int pageSize, int expected) {
+		int firstItemIndex = getFirstItemIndexForValidPage(requestedIndex, itemCount, pageSize);
 
-		// Operation: use the anchor index as the requested item to render after the list changes.
-		int firstItemIndex = getFirstItemIndexForValidPage(anchorOnSecondPage, itemCount, pageSize);
-
-		// Assertions: the grid starts on the page containing the anchor.
-		assertEquals(10, firstItemIndex);
+		assertEquals(expected, firstItemIndex);
 	}
 
-	@Test
-	public void missingAnchorResetsToFirstPageWhenCurrentPageStillExists() {
-		// Setup: the remembered ingredient was removed by filtering or bookmark changes, but enough ingredients
-		// remain that the user's previous page would still be renderable.
-		int itemCount = 23;
-		int pageSize = 10;
-
-		// Operation: a missing anchor is represented by -1, so it has no containing page to preserve.
-		int firstItemIndex = getFirstItemIndexForValidPage(MISSING_ANCHOR, itemCount, pageSize);
-
-		// Assertions: missing the anchor resets to the first page instead of preserving an arbitrary old page.
-		assertEquals(0, firstItemIndex);
-	}
-
-	@Test
-	public void anchorIndexResetsToZeroWhenGridHasNoSlots() {
-		// Setup: exclusions or a very small screen leave no room for the overlay grid, so neither a clicked
-		// anchor nor the current page can be displayed.
-		int anchorIndex = 17;
-		int itemCount = 23;
-		int noSlots = 0;
-
-		// Operation: calculate the page start for a grid with no room.
-		int firstItemIndex = getFirstItemIndexForValidPage(anchorIndex, itemCount, noSlots);
-
-		// Assertions: without slot capacity, every anchor falls back to the neutral page start.
-		assertEquals(0, firstItemIndex);
-	}
-
-	@Test
-	public void firstItemIndexClampsToLastPage() {
-		// Setup: page navigation previously moved forward, then filtering or list rebuilds reduced the total
-		// ingredients so the stored first item points past the available entries.
-		int firstItemIndexPastEnd = 40;
-		int itemCount = 23;
-		int pageSize = 10;
-
-		// Operation: normalize the stored first item before rendering.
-		int firstItemIndex = getFirstItemIndexForValidPage(firstItemIndexPastEnd, itemCount, pageSize);
-
-		// Assertions: the closest valid page is the final partial page.
-		assertEquals(20, firstItemIndex);
-	}
-
-	@Test
-	public void requestedPageStartResetsToZeroWhenGridHasNoSlots() {
-		// Setup: the ingredient list still has entries, but screen exclusions or window size make the grid
-		// temporarily unable to render any slots.
-		int currentPageStart = 30;
-		int itemCount = 23;
-		int noSlots = 0;
-
-		// Operation: normalize the page start for an unrenderable grid.
-		int firstItemIndex = getFirstItemIndexForValidPage(currentPageStart, itemCount, noSlots);
-
-		// Assertions: no slot capacity means there is no meaningful non-zero page start.
-		assertEquals(0, firstItemIndex);
+	private static Stream<Arguments> validPageStarts() {
+		return Stream.of(
+			// Setup: a recipe/uses click remembers an ingredient, then search or bookmarks update the list so
+			// that remembered ingredient is still present but now belongs to an earlier page than the stale page start.
+			// Operation: use the anchor index as the requested item to render after the list changes.
+			// Assertions: the grid starts on the page containing the anchor.
+			Arguments.of("valid anchor selects containing page", 17, 23, 10, 10),
+			// Setup: the remembered ingredient was removed by filtering or bookmark changes, but enough ingredients
+			// remain that the user's previous page would still be renderable.
+			// Operation: a missing anchor is represented by -1, so it has no containing page to preserve.
+			// Assertions: missing the anchor resets to the first page instead of preserving an arbitrary old page.
+			Arguments.of("missing anchor resets to first page", MISSING_ANCHOR, 23, 10, 0),
+			// Setup: exclusions or a very small screen leave no room for the overlay grid, so neither a clicked
+			// anchor nor the current page can be displayed.
+			// Operation: calculate the page start for a grid with no room.
+			// Assertions: without slot capacity, every anchor falls back to the neutral page start.
+			Arguments.of("anchor resets when grid has no slots", 17, 23, 0, 0),
+			// Setup: page navigation previously moved forward, then filtering or list rebuilds reduced the total
+			// ingredients so the stored first item points past the available entries.
+			// Operation: normalize the stored first item before rendering.
+			// Assertions: the closest valid page is the final partial page.
+			Arguments.of("first item clamps to last page", 40, 23, 10, 20),
+			// Setup: the ingredient list still has entries, but screen exclusions or window size make the grid
+			// temporarily unable to render any slots.
+			// Operation: normalize the page start for an unrenderable grid.
+			// Assertions: no slot capacity means there is no meaningful non-zero page start.
+			Arguments.of("requested page resets when grid has no slots", 30, 23, 0, 0),
+			// Setup: the old page start is non-zero, but search text, edit-mode visibility, or plugin updates
+			// removed every ingredient from the source list.
+			// Operation: normalize the page start for an empty list.
+			// Assertions: an empty ingredient list always renders from index zero.
+			Arguments.of("first item is zero for empty list", 30, 0, 10, 0)
+		);
 	}
 
 	@Test
@@ -168,77 +141,50 @@ public class IngredientGridPageStateTest {
 		assertEquals(1, pageState.getPageNumber());
 	}
 
-	@Test
-	public void firstItemIndexIsZeroForEmptyList() {
-		// Setup: the old page start is non-zero, but search text, edit-mode visibility, or plugin updates
-		// removed every ingredient from the source list.
-		int currentPageStart = 30;
-		int noItems = 0;
-		int pageSize = 10;
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("pageNumbers")
+	public void pageNumberUsesValidPage(String scenario, int firstItemIndex, int pageSize, int itemCount, int expected) {
+		int pageNumber = getPageNumberForFirstItemIndex(firstItemIndex, pageSize, itemCount);
 
-		// Operation: normalize the page start for an empty list.
-		int firstItemIndex = getFirstItemIndexForValidPage(currentPageStart, noItems, pageSize);
-
-		// Assertions: an empty ingredient list always renders from index zero.
-		assertEquals(0, firstItemIndex);
+		assertEquals(expected, pageNumber);
 	}
 
-	@Test
-	public void pageNumberUsesClampedFirstItemIndex() {
-		// Setup: the navigation label is refreshed after the list shrank, and the stored first item would
-		// point to a page that no longer exists.
-		int firstItemIndexPastEnd = 40;
-		int pageSize = 10;
-		int itemCount = 23;
-
-		// Operation: calculate the displayed page number from the stale first item.
-		int pageNumber = getPageNumberForFirstItemIndex(firstItemIndexPastEnd, pageSize, itemCount);
-
-		// Assertions: page number reporting uses the clamped render page.
-		assertEquals(2, pageNumber);
+	private static Stream<Arguments> pageNumbers() {
+		return Stream.of(
+			// Setup: the navigation label is refreshed after the list shrank, and the stored first item would
+			// point to a page that no longer exists.
+			// Operation: calculate the displayed page number from the stale first item.
+			// Assertions: page number reporting uses the clamped render page.
+			Arguments.of("clamped first item", 40, 10, 23, 2),
+			// Setup: the overlay is active but has no available slots because the screen layout leaves no grid
+			// room, so pagination cannot divide the list into visible pages.
+			// Operation: calculate the displayed page number for an unrenderable grid.
+			// Assertions: page zero is reported as the stable fallback.
+			Arguments.of("empty grid", 30, 0, 23, 0)
+		);
 	}
 
-	@Test
-	public void pageNumberIsZeroForEmptyGrid() {
-		// Setup: the overlay is active but has no available slots because the screen layout leaves no grid
-		// room, so pagination cannot divide the list into visible pages.
-		int currentPageStart = 30;
-		int noSlots = 0;
-		int itemCount = 23;
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("minimumPageCounts")
+	public void pageCountIsAtLeastOne(String scenario, int itemCount, int pageSize) {
+		int pageCount = getPageCount(itemCount, pageSize);
 
-		// Operation: calculate the displayed page number for an unrenderable grid.
-		int pageNumber = getPageNumberForFirstItemIndex(currentPageStart, noSlots, itemCount);
-
-		// Assertions: page zero is reported as the stable fallback.
-		assertEquals(0, pageNumber);
-	}
-
-	@Test
-	public void pageCountIsOneForEmptyGrid() {
-		// Setup: ingredients exist, but the current screen size or exclusion areas leave the grid with no
-		// renderable slots.
-		int itemCount = 23;
-		int noSlots = 0;
-
-		// Operation: calculate the page count for a grid with no capacity.
-		int pageCount = getPageCount(itemCount, noSlots);
-
-		// Assertions: navigation still exposes a single logical page instead of zero pages.
 		assertEquals(1, pageCount);
 	}
 
-	@Test
-	public void pageCountIsAtLeastOne() {
-		// Setup: filtering, edit-mode hiding, or an ingredient reload has removed every ingredient from a grid
-		// that can normally render items.
-		int noItems = 0;
-		int pageSize = 10;
-
-		// Operation: calculate the page count for an empty ingredient list.
-		int pageCount = getPageCount(noItems, pageSize);
-
-		// Assertions: the navigation model keeps one page as its minimum.
-		assertEquals(1, pageCount);
+	private static Stream<Arguments> minimumPageCounts() {
+		return Stream.of(
+			// Setup: ingredients exist, but the current screen size or exclusion areas leave the grid with no
+			// renderable slots.
+			// Operation: calculate the page count for a grid with no capacity.
+			// Assertions: navigation still exposes a single logical page instead of zero pages.
+			Arguments.of("empty grid", 23, 0),
+			// Setup: filtering, edit-mode hiding, or an ingredient reload has removed every ingredient from a grid
+			// that can normally render items.
+			// Operation: calculate the page count for an empty ingredient list.
+			// Assertions: the navigation model keeps one page as its minimum.
+			Arguments.of("empty ingredient list", 0, 10)
+		);
 	}
 
 	@Test

@@ -200,11 +200,14 @@ public class FavoriteRecipeStoreTest {
 			IRON_PICKAXE_RECIPE,
 			Map.of(0, slotInput)
 		);
+		int[] changed = {0};
+		store.addSourceListChangedListener(() -> changed[0]++);
 
 		Assertions.assertTrue(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, slotInput, 1));
 
 		FavoriteRecipeStore.FavoriteSlotInput cycledSlotInput = store.getManualEntry(IRON_PICKAXE_RECIPE).orElseThrow().inputs().get(0);
 		Assertions.assertEquals(target("minecraft:red_sand"), cycledSlotInput.selected());
+		Assertions.assertEquals(1, changed[0]);
 	}
 
 	@Test
@@ -258,25 +261,6 @@ public class FavoriteRecipeStoreTest {
 			1
 		));
 		Assertions.assertEquals(0, changed[0]);
-	}
-
-	@Test
-	public void cycleFavoriteInputNotifiesListenersOnChange() {
-		FavoriteRecipeStore store = new FavoriteRecipeStore();
-		FavoriteRecipeStore.FavoriteSlotInput slotInput = new FavoriteRecipeStore.FavoriteSlotInput(
-			target("minecraft:sand"),
-			List.of(target("minecraft:sand"), target("minecraft:red_sand"))
-		);
-		store.setFavorite(
-			IRON_PICKAXE,
-			IRON_PICKAXE_RECIPE,
-			Map.of(0, slotInput)
-		);
-		int[] changed = {0};
-		store.addSourceListChangedListener(() -> changed[0]++);
-
-		Assertions.assertTrue(store.cycleFavoriteInputs(IRON_PICKAXE_RECIPE, slotInput, 1));
-		Assertions.assertEquals(1, changed[0]);
 	}
 
 	@Test

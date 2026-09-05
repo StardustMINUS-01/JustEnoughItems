@@ -86,8 +86,8 @@ public class ServerBookmarkPullTransferTest {
 			playerInventory.setItem(i, new ItemStack(Items.DIAMOND, 64));
 		}
 		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
+		menu.addSlots(container);
+		menu.addSlots(playerInventory);
 
 		int moved = ServerBookmarkPullTransfer.pull(
 			menu,
@@ -105,15 +105,11 @@ public class ServerBookmarkPullTransferTest {
 
 	@Test
 	public void externalHandlerConsumesCurrentMenuBeforeContainerFallback() throws Exception {
-		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
-		SimpleContainer playerInventory = playerInventory(ItemStack.EMPTY);
-		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
+		PullFixture fixture = PullFixture.create(new ItemStack(Items.DIAMOND, 10), ItemStack.EMPTY);
 
 		try (AutoCloseable ignored = ServerBookmarkPullTransfers.registerHandler(
 			(currentMenu, containerId, currentPlayerInventory, player, targets) -> {
-				if (currentMenu == menu && containerId == 7 && targets.size() == 1) {
+				if (currentMenu == fixture.menu() && containerId == 7 && targets.size() == 1) {
 					currentPlayerInventory.setItem(0, new ItemStack(Items.EMERALD, 3));
 					return OptionalInt.of(3);
 				}
@@ -121,39 +117,35 @@ public class ServerBookmarkPullTransferTest {
 			}
 		)) {
 			int moved = ServerBookmarkPullTransfers.pull(
-				menu,
+				fixture.menu(),
 				7,
-				playerInventory,
+				fixture.playerInventory(),
 				null,
-				List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
+				pullTargets(5)
 			);
 
 			assertEquals(3, moved);
-			assertEquals(10, container.getItem(0).getCount());
-			assertEquals(3, playerInventory.getItem(0).getCount());
-			assertEquals(Items.EMERALD, playerInventory.getItem(0).getItem());
+			assertEquals(10, fixture.container().getItem(0).getCount());
+			assertEquals(3, fixture.playerInventory().getItem(0).getCount());
+			assertEquals(Items.EMERALD, fixture.playerInventory().getItem(0).getItem());
 		}
 	}
 
 	@Test
 	public void fallsBackToOrdinaryContainerPullWhenNoExternalHandlerHandlesMenu() {
-		SimpleContainer container = new SimpleContainer(new ItemStack(Items.DIAMOND, 10));
-		SimpleContainer playerInventory = playerInventory(ItemStack.EMPTY);
-		TestMenu menu = new TestMenu(7);
-		menu.addContainerSlots(container);
-		menu.addPlayerSlots(playerInventory);
+		PullFixture fixture = PullFixture.create(new ItemStack(Items.DIAMOND, 10), ItemStack.EMPTY);
 
 		int moved = ServerBookmarkPullTransfers.pull(
-			menu,
+			fixture.menu(),
 			7,
-			playerInventory,
+			fixture.playerInventory(),
 			null,
-			List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), 5))
+			pullTargets(5)
 		);
 
 		assertEquals(5, moved);
-		assertEquals(5, container.getItem(0).getCount());
-		assertEquals(5, playerInventory.getItem(0).getCount());
+		assertEquals(5, fixture.container().getItem(0).getCount());
+		assertEquals(5, fixture.playerInventory().getItem(0).getCount());
 	}
 
 	@Test
@@ -188,13 +180,17 @@ public class ServerBookmarkPullTransferTest {
 		return inventory;
 	}
 
+	private static List<BookmarkPullTarget> pullTargets(int amount) {
+		return List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), amount));
+	}
+
 	private record PullFixture(SimpleContainer container, SimpleContainer playerInventory, TestMenu menu) {
 		private static PullFixture create(ItemStack containerStack, ItemStack... playerStacks) {
 			SimpleContainer container = new SimpleContainer(containerStack);
 			SimpleContainer playerInventory = ServerBookmarkPullTransferTest.playerInventory(playerStacks);
 			TestMenu menu = new TestMenu(7);
-			menu.addContainerSlots(container);
-			menu.addPlayerSlots(playerInventory);
+			menu.addSlots(container);
+			menu.addSlots(playerInventory);
 			return new PullFixture(container, playerInventory, menu);
 		}
 
@@ -204,7 +200,7 @@ public class ServerBookmarkPullTransferTest {
 				containerId,
 				playerInventory,
 				null,
-				List.of(new BookmarkPullTarget(new ItemStack(Items.DIAMOND), amount))
+				pullTargets(amount)
 			);
 		}
 	}
@@ -214,15 +210,9 @@ public class ServerBookmarkPullTransferTest {
 			super(null, containerId);
 		}
 
-		private void addContainerSlots(Container container) {
+		private void addSlots(Container container) {
 			for (int i = 0; i < container.getContainerSize(); i++) {
 				addSlot(new Slot(container, i, 0, 0));
-			}
-		}
-
-		private void addPlayerSlots(Container playerInventory) {
-			for (int i = 0; i < playerInventory.getContainerSize(); i++) {
-				addSlot(new Slot(playerInventory, i, 0, 0));
 			}
 		}
 

@@ -377,50 +377,16 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void processingBookmarkRequestMarksSavedNonConsumableInputAsCatalyst() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		ItemStack mold = new ItemStack(Items.SHEARS, 3);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.NONCONSUMABLE))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", GTRecipe.class),
-			new GTRecipe(7, mold),
-			PROCESSING_RECIPE,
-			List.of(item(Items.IRON_INGOT), typed(mold)),
-			List.of(item(Items.GOLD_INGOT))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
-
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
-		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(1, request.catalysts().size());
-		Assertions.assertEquals(1, request.catalysts().getFirst().sourceSlot());
-		Assertions.assertEquals(3, request.catalysts().getFirst().stack().amount());
-		Assertions.assertEquals(Items.SHEARS, request.catalysts().getFirst().stack().ingredient().getItemStack().orElseThrow().getItem());
-	}
-
-	@Test
 	public void processingBookmarkRequestUsesSavedNonConsumableInputWithoutLayoutSynthesis() {
 		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		ItemStack mold = new ItemStack(Items.SHEARS, 3);
 		List<RecipeChainInput> inputs = List.of(
 			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
 			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.NONCONSUMABLE))
 		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", GTRecipe.class),
-			new GTRecipe(7, mold),
-			PROCESSING_RECIPE,
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
+		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), recipeUid -> {
+			throw new AssertionError("Saved inputs must not resolve a live recipe layout");
+		});
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
