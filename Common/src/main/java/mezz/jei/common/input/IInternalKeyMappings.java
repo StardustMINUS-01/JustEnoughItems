@@ -48,6 +48,9 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getQuickMove();
 	IJeiKeyMapping getShareToChat();
 
+	IJeiKeyMapping getBookmarkWorldTarget();
+	IJeiKeyMapping getShowWorldTargetRecipe();
+	IJeiKeyMapping getShowWorldTargetUses();
 	IJeiKeyMapping getCheatOneItem();
 	IJeiKeyMapping getCheatItemStack();
 

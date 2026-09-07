@@ -3,16 +3,23 @@ package mezz.jei.gui.bookmarks;
 import mezz.jei.common.gui.CandidateTooltipWindow;
 
 import java.util.List;
+import java.util.Objects;
 
 public final class BookmarkPermutationTooltipState {
-	private int bookmarkIndex = -1;
+	private Object sourceKey;
 	private List<BookmarkIngredientKey> candidates = List.of();
 	private int windowStart;
 
 	public int updateStart(int bookmarkIndex, List<BookmarkIngredientKey> candidates, int selectedIndex) {
-		if (bookmarkIndex != this.bookmarkIndex || !this.candidates.equals(candidates)) {
-			this.bookmarkIndex = bookmarkIndex;
-			this.candidates = candidates;
+		return updateStart((Object) bookmarkIndex, candidates, selectedIndex);
+	}
+
+	public int updateStart(Object sourceKey, List<BookmarkIngredientKey> candidates, int selectedIndex) {
+		boolean sameSource = sourceKey == this.sourceKey || Objects.equals(sourceKey, this.sourceKey);
+		boolean sameCandidates = candidates == this.candidates || this.candidates.equals(candidates);
+		this.sourceKey = sourceKey;
+		this.candidates = candidates;
+		if (!(sameSource && sameCandidates)) {
 			this.windowStart = 0;
 		}
 		this.windowStart = CandidateTooltipWindow.updateStart(candidates.size(), selectedIndex, windowStart);

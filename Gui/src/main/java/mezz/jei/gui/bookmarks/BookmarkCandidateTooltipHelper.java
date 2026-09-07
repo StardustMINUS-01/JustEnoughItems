@@ -64,7 +64,7 @@ public final class BookmarkCandidateTooltipHelper {
 			return;
 		}
 		int selectedIndex = resolvedKeys.indexOf(selectedKey);
-		int windowStart = tooltipState.updateStart((int) sourceKey, resolvedKeys, selectedIndex);
+		int windowStart = tooltipState.updateStart(sourceKey, resolvedKeys, selectedIndex);
 		tooltip.add(CandidateTooltipComponent.create(ingredientManager, candidates, selectedIndex, windowStart));
 	}
 
