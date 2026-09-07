@@ -9,10 +9,10 @@ import java.util.Optional;
 class GroupPanelDragTarget implements IBookmarkDragTarget {
 	private final ImmutableRect2i area;
 	private final IBookmark targetBookmark;
-	private final String targetGroupId;
+	private final int targetGroupId;
 	private final BookmarkList bookmarkList;
 
-	public GroupPanelDragTarget(ImmutableRect2i area, IBookmark targetBookmark, String targetGroupId, BookmarkList bookmarkList) {
+	public GroupPanelDragTarget(ImmutableRect2i area, IBookmark targetBookmark, int targetGroupId, BookmarkList bookmarkList) {
 		this.area = area;
 		this.targetBookmark = targetBookmark;
 		this.targetGroupId = targetGroupId;

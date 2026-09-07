@@ -12,7 +12,7 @@ import java.util.List;
 public class BookmarkSortDragStateTest {
 	@Test
 	public void floatingGroupPanelSlotsUseSharedGroupLeftX() throws ReflectiveOperationException {
-		BookmarkSortDragState state = BookmarkSortDragState.group("group", new ImmutableRect2i(100, 50, 16, 16), 100, 50);
+		BookmarkSortDragState state = BookmarkSortDragState.group(0, new ImmutableRect2i(100, 50, 16, 16), 100, 50);
 		setPreviewSlots(state, List.of(
 			previewSlot(0, 0),
 			previewSlot(18, 18)

@@ -30,7 +30,7 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 	}
 
 	@Override
-	public List<RecipeChainInput> getInventoryInputs(String groupId, int firstSyntheticIndex) {
+	public List<RecipeChainInput> getInventoryInputs(int groupId, int firstSyntheticIndex) {
 		if (minecraft.player == null) {
 			return List.of();
 		}
@@ -55,7 +55,7 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 	}
 
 
-	public List<RecipeChainInput> getTooltipInventoryInputs(String groupId) {
+	public List<RecipeChainInput> getTooltipInventoryInputs(int groupId) {
 		return minecraft.screen instanceof RecipesGui ? List.of() : getInventoryInputs(groupId, -1);
 	}
 

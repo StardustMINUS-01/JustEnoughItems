@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class BookmarkDisplayGeneratorTest {
-	private static final String GROUP_ID = "group_1";
+	private static final int GROUP_ID = 1;
 	private static final ResourceLocation PLATE_RECIPE = new ResourceLocation("test:plate");
 	private static final ResourceLocation MACHINE_RECIPE = new ResourceLocation("test:machine");
 
@@ -38,7 +38,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"machine_plate", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "plate", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(MACHINE_RECIPE));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(MACHINE_RECIPE));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(MACHINE_RECIPE));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -102,7 +102,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine_gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1),
 			"machine_circuit", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "circuit", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -132,7 +132,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -152,7 +152,7 @@ public class BookmarkDisplayGeneratorTest {
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
 			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -176,7 +176,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -200,7 +200,7 @@ public class BookmarkDisplayGeneratorTest {
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
 			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -220,7 +220,7 @@ public class BookmarkDisplayGeneratorTest {
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
 			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(PLATE_RECIPE));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(PLATE_RECIPE));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(PLATE_RECIPE));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -250,7 +250,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_d", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_d", 1, 1),
 			"in_e", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_e", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -292,7 +292,7 @@ public class BookmarkDisplayGeneratorTest {
 			"shared_c", metadata(BookmarkItemType.INGREDIENT, recipeC, "shared", 1, 1),
 			"c2", metadata(BookmarkItemType.INGREDIENT, recipeC, "c2", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -316,7 +316,7 @@ public class BookmarkDisplayGeneratorTest {
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
 			"ingot", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "ingot", 2, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(PLATE_RECIPE));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(PLATE_RECIPE));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(PLATE_RECIPE));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -343,7 +343,7 @@ public class BookmarkDisplayGeneratorTest {
 			"screw", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "screw", 1, 1),
 			"circuit", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "circuit", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -386,7 +386,7 @@ public class BookmarkDisplayGeneratorTest {
 			"loose_2", metadata(GROUP_ID, BookmarkItemType.ITEM, null, "loose_2", 1, 1),
 			"loose_3", metadata(GROUP_ID, BookmarkItemType.ITEM, null, "loose_3", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, null, false, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, false, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
 			orderedItems,
@@ -417,7 +417,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
 			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -448,7 +448,7 @@ public class BookmarkDisplayGeneratorTest {
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
 			"ingot", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "ingot", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -473,7 +473,7 @@ public class BookmarkDisplayGeneratorTest {
 			orderedItems.add(item);
 			metadata.put(item, metadata(BookmarkItemType.INGREDIENT, recipeA, item, 1, 1));
 		}
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 		List<Integer> usableColumnsPerRow = List.of(2, 2, 3, 3, 3);
 
@@ -538,7 +538,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_d", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_d", 1, 1),
 			"in_e", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_e", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -562,7 +562,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
 			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -592,7 +592,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_d", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_d", 1, 1),
 			"in_e", metadata(BookmarkItemType.INGREDIENT, recipeC, "in_e", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -618,7 +618,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
 			"cat_b", metadata(BookmarkItemType.CATALYST, recipeB, "cat_b", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of(recipeA));
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -640,7 +640,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, null, false, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, false, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
 			orderedItems,
@@ -661,7 +661,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -687,7 +687,7 @@ public class BookmarkDisplayGeneratorTest {
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1),
 			"loose_2", metadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.ITEM, null, "loose_2", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -714,7 +714,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, null, false, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, false, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
 			orderedItems,
@@ -754,7 +754,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine_gear", metadata(BookmarkItemType.INGREDIENT, recipeB, "gear", 1, 1),
 			"machine_circuit", metadata(BookmarkItemType.INGREDIENT, recipeB, "circuit", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, null, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 		List<Integer> usableColumnsPerRow = java.util.Collections.nCopies(64, 1);
 
@@ -796,7 +796,7 @@ public class BookmarkDisplayGeneratorTest {
 	}
 
 	private static BookmarkItemMetadata metadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		ResourceLocation recipeUid,
 		String ingredientUid,

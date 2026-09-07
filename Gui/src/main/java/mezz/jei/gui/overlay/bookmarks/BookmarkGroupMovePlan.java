@@ -8,13 +8,13 @@ import java.util.Comparator;
 import java.util.List;
 
 public record BookmarkGroupMovePlan(
-	String groupId,
+	int groupId,
 	IBookmark targetBookmark,
 	int offset,
 	boolean rejected,
 	boolean appendToEnd
 ) {
-	public BookmarkGroupMovePlan(String groupId, IBookmark targetBookmark, int offset) {
+	public BookmarkGroupMovePlan(int groupId, IBookmark targetBookmark, int offset) {
 		this(groupId, targetBookmark, offset, false, false);
 	}
 
@@ -41,33 +41,33 @@ public record BookmarkGroupMovePlan(
 		int targetIndex = endIndex;
 		boolean sourceGroupAboveTarget = rowSlots.stream()
 			.limit(endIndex)
-			.anyMatch(row -> start.groupId().equals(row.groupId()));
+			.anyMatch(row -> start.groupId() == row.groupId());
 		if (sourceGroupAboveTarget) {
 			targetIndex++;
 		}
 		if (targetIndex >= rowSlots.size()) {
 			BookmarkPanelLayout.RowSlot<IBookmark> lastRow = rowSlots.get(rowSlots.size() - 1);
-			if (start.groupId().equals(lastRow.groupId())) {
+			if (start.groupId() == lastRow.groupId()) {
 				return reject(start, lastRow);
 			}
 			return appendToEnd(start, lastRow);
 		}
 
 		BookmarkPanelLayout.RowSlot<IBookmark> targetRow = rowSlots.get(targetIndex);
-		if (start.groupId().equals(targetRow.groupId())) {
+		if (start.groupId() == targetRow.groupId()) {
 			return reject(start, targetRow);
 		}
 		if (isInsideNonDefaultGroup(rowSlots, targetIndex)) {
 			return reject(start, targetRow);
 		}
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetRow.groupId())) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID != targetRow.groupId()) {
 			targetRow = findFirstRowInGroup(rowSlots, targetRow.groupId());
 		}
 		return new BookmarkGroupMovePlan(start.groupId(), targetRow.item(), 0);
 	}
 
 	public boolean apply(BookmarkList bookmarkList) {
-		if (rejected || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+		if (rejected || BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
 			return false;
 		}
 		if (appendToEnd) {
@@ -80,17 +80,17 @@ public record BookmarkGroupMovePlan(
 		if (rowIndex <= 0 || rowIndex >= rowSlots.size()) {
 			return false;
 		}
-		String groupId = rowSlots.get(rowIndex).groupId();
-		return !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) &&
-			groupId.equals(rowSlots.get(rowIndex - 1).groupId());
+		int groupId = rowSlots.get(rowIndex).groupId();
+		return BookmarkGroupManager.DEFAULT_GROUP_ID != groupId &&
+			groupId == rowSlots.get(rowIndex - 1).groupId();
 	}
 
 	private static BookmarkPanelLayout.RowSlot<IBookmark> findFirstRowInGroup(
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots,
-		String groupId
+		int groupId
 	) {
 		return rowSlots.stream()
-			.filter(row -> groupId.equals(row.groupId()))
+			.filter(row -> groupId == row.groupId())
 			.findFirst()
 			.orElseThrow();
 	}

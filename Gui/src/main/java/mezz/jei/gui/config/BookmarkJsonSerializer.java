@@ -9,6 +9,7 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
@@ -28,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -46,7 +48,7 @@ public final class BookmarkJsonSerializer {
 	public static List<JsonElement> serialize(BookmarkList bookmarkList, IIngredientManager ingredientManager) {
 		List<JsonElement> elements = new ArrayList<>();
 		for (BookmarkGroup group : bookmarkList.getBookmarkGroups()) {
-			if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(group.id())) {
+			if (BookmarkGroupManager.DEFAULT_GROUP_ID != group.id()) {
 				elements.add(serializeGroup(group));
 			}
 		}
@@ -57,7 +59,17 @@ public final class BookmarkJsonSerializer {
 	}
 
 	public static JsonObject serializeGroup(BookmarkGroup group) {
-		return BookmarkGroupConfigSerializer.serializeGroupJson(group);
+		JsonObject json = new JsonObject();
+		json.addProperty("type", TYPE_GROUP);
+		json.addProperty("id", group.id());
+		json.addProperty("title", group.title());
+		json.addProperty("viewMode", group.viewMode().name());
+		json.addProperty("collapsed", group.collapsed());
+		json.addProperty("crafting", group.craftingMode());
+		JsonArray arr = new JsonArray();
+		group.collapsedRecipeIds().stream().map(ResourceLocation::toString).forEach(arr::add);
+		json.add("collapsedRecipes", arr);
+		return json;
 	}
 
 	public static Optional<BookmarkGroup> deserializeGroup(JsonElement element) {
@@ -142,7 +154,7 @@ public final class BookmarkJsonSerializer {
 		if (recipeBookmarkSerializer == null) {
 			return;
 		}
-		String groupId = json.has("group") ? json.get("group").getAsString() : BookmarkGroupManager.DEFAULT_GROUP_ID;
+		int groupId = json.has("group") ? json.get("group").getAsInt() : BookmarkGroupManager.DEFAULT_GROUP_ID;
 		BookmarkItemType type = json.has("kind") ?
 			BookmarkItemType.valueOf(json.get("kind").getAsString()) :
 			BookmarkItemType.RESULT;
@@ -168,7 +180,7 @@ public final class BookmarkJsonSerializer {
 			return;
 		}
 		IBookmark resolvedBookmark = bookmark.get();
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID != groupId) {
 			resolvedBookmark = ((RecipeBookmark<?, ?>) bookmark.get()).withEqualityScope(groupId);
 		}
 		bookmarkList.addToListWithoutNotifying(resolvedBookmark, false);
@@ -179,7 +191,7 @@ public final class BookmarkJsonSerializer {
 	}
 
 	private static void deserializeItem(JsonObject json, BookmarkList bookmarkList, IIngredientManager ingredientManager) {
-		String groupId = json.has("group") ? json.get("group").getAsString() : BookmarkGroupManager.DEFAULT_GROUP_ID;
+		int groupId = json.has("group") ? json.get("group").getAsInt() : BookmarkGroupManager.DEFAULT_GROUP_ID;
 		BookmarkIngredientKey ingredientKey = BookmarkIngredientKeySerializer.deserialize(json.get("ingredient"));
 		Optional<ITypedIngredient<?>> ingredient = resolveIngredient(ingredientKey, ingredientManager);
 		if (ingredient.isEmpty()) {
@@ -196,7 +208,7 @@ public final class BookmarkJsonSerializer {
 
 	private static BookmarkItemMetadata deserializeMetadata(
 		JsonObject json,
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		@Nullable ResourceLocation recipeTypeUid,
 		@Nullable ResourceLocation recipeUid
@@ -236,7 +248,7 @@ public final class BookmarkJsonSerializer {
 	}
 
 	private static void addGroup(JsonObject json, BookmarkItemMetadata metadata) {
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(metadata.groupId())) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID != metadata.groupId()) {
 			json.addProperty("group", metadata.groupId());
 		}
 	}

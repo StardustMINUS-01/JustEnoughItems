@@ -66,7 +66,7 @@ public final class BookmarkGroupDropBridge {
 		return groupDropHighlightProvider;
 	}
 
-	static boolean canStartGroupDrop(BookmarkList bookmarkList, String groupId) {
+	static boolean canStartGroupDrop(BookmarkList bookmarkList, int groupId) {
 		if (groupDropHandler == null || groupDropAvailabilityProvider == null) {
 			return false;
 		}
@@ -74,7 +74,7 @@ public final class BookmarkGroupDropBridge {
 		return !ingredients.isEmpty() && groupDropAvailabilityProvider.hasDropTargets(ingredients);
 	}
 
-	static List<ITypedIngredient<?>> getGroupDropIngredients(BookmarkList bookmarkList, String groupId) {
+	static List<ITypedIngredient<?>> getGroupDropIngredients(BookmarkList bookmarkList, int groupId) {
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		Set<BookmarkIngredientKey> seen = new HashSet<>();
 		List<ITypedIngredient<?>> ingredients = new ArrayList<>();
@@ -94,7 +94,7 @@ public final class BookmarkGroupDropBridge {
 	static List<BookmarkPanelLayout.PanelSlot<IBookmark>> getGroupDropPanelSlots(
 		BookmarkList bookmarkList,
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> groupSlots,
-		String groupId
+		int groupId
 	) {
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		Set<BookmarkIngredientKey> seen = new HashSet<>();
@@ -118,8 +118,8 @@ public final class BookmarkGroupDropBridge {
 		return hoveredSlot.flatMap(slot -> getGroupDropIngredients(bookmarkList, slot.groupId()).stream().findFirst());
 	}
 
-	private static boolean isGroupDropBookmark(BookmarkList bookmarkList, String groupId, IBookmark bookmark) {
-		if (!groupId.equals(bookmarkList.getBookmarkGroupId(bookmark))) {
+	private static boolean isGroupDropBookmark(BookmarkList bookmarkList, int groupId, IBookmark bookmark) {
+		if (groupId != bookmarkList.getBookmarkGroupId(bookmark)) {
 			return false;
 		}
 		BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);

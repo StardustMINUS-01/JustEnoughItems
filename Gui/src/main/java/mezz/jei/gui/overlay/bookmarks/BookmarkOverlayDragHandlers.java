@@ -68,7 +68,7 @@ public final class BookmarkOverlayDragHandlers {
 					return Optional.empty();
 				}
 				Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
-				if (slot.filter(groupSlot -> !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupSlot.groupId())).isPresent()) {
+				if (slot.filter(groupSlot -> BookmarkGroupManager.DEFAULT_GROUP_ID != groupSlot.groupId()).isPresent()) {
 					overlay.setSortDragState(BookmarkSortDragState.group(
 						slot.get().groupId(),
 						slot.get().area(),
@@ -85,6 +85,7 @@ public final class BookmarkOverlayDragHandlers {
 						.map(bookmark -> {
 							overlay.setSortDragState(BookmarkSortDragState.item(
 								bookmark,
+								overlay.getBookmarkList().getBookmarkGroupId(bookmark),
 								clicked.getArea(),
 								input.getMouseX(),
 								input.getMouseY(),

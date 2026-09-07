@@ -140,7 +140,7 @@ public class BookmarkOverlayLayout {
 				firstDisplaySlotIndex + i,
 				bookmark.get()
 			);
-			String groupId = displaySlot
+			int groupId = displaySlot
 				.map(slot -> slot.entry().metadata().groupId())
 				.orElseGet(() -> this.bookmarkList.getBookmarkGroupId(bookmark.get()));
 			boolean shadow = displaySlot
@@ -198,7 +198,7 @@ public class BookmarkOverlayLayout {
 		return new BookmarkPanelLayout.RowSlot<>(slot.bookmark(), slot.groupId(), slot.area());
 	}
 
-	record GroupPanelSlot(IBookmark bookmark, String groupId, ImmutableRect2i area) {
+	record GroupPanelSlot(IBookmark bookmark, int groupId, ImmutableRect2i area) {
 	}
 
 	record VisibleSlotKey(ImmutableRect2i area, int bookmarkIdentity) {

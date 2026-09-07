@@ -107,9 +107,9 @@ public final class BookmarkOverlayInputHandlers {
 				return Optional.empty();
 			}
 			if (input.getInputType() == InputType.EXECUTE) {
-				String groupId = target.get().groupId();
+				int groupId = target.get().groupId();
 				boolean collapsed = overlay.getBookmarkList().getBookmarkGroups().stream()
-					.filter(group -> group.id().equals(groupId))
+					.filter(group -> group.id() == groupId)
 					.findFirst()
 					.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
 					.orElse(false);
@@ -277,7 +277,7 @@ public final class BookmarkOverlayInputHandlers {
 			}
 
 			if (groupSlot.isPresent() || defaultControl) {
-				String groupId = groupSlot.map(GroupPanelSlot::groupId).orElse(BookmarkGroupManager.DEFAULT_GROUP_ID);
+				int groupId = groupSlot.map(GroupPanelSlot::groupId).orElse(BookmarkGroupManager.DEFAULT_GROUP_ID);
 				BookmarkHotkeyContext context = groupSlot
 					.map(BookmarkOverlayInputHandlers::createGroupPanelHotkeyContext)
 					.orElseGet(BookmarkOverlayInputHandlers::createDefaultGroupControlHotkeyContext);
@@ -333,7 +333,7 @@ public final class BookmarkOverlayInputHandlers {
 		}
 	}
 
-	boolean applyGroupClickAction(String groupId, BookmarkHotkeyAction action) {
+	boolean applyGroupClickAction(int groupId, BookmarkHotkeyAction action) {
 		BookmarkList bookmarkList = overlay.getBookmarkList();
 		return switch (action) {
 			case GROUP_TOGGLE_COLLAPSED -> bookmarkList.toggleGroupCollapsed(groupId);
@@ -356,7 +356,7 @@ public final class BookmarkOverlayInputHandlers {
 	}
 
 	static BookmarkHotkeyContext createGroupPanelHotkeyContext(GroupPanelSlot slot) {
-		boolean grouped = !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(slot.groupId());
+		boolean grouped = BookmarkGroupManager.DEFAULT_GROUP_ID != slot.groupId();
 		if (!grouped) {
 			return BookmarkHotkeyContext.builder(BookmarkHotkeySubject.EMPTY_GROUP_PANEL)
 				.build();

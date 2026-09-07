@@ -34,9 +34,7 @@ public final class BookmarkGroupConfigSerializer {
 		json.addProperty("id", group.id());
 		json.addProperty("title", group.title());
 		json.addProperty("viewMode", group.viewMode().name());
-		if (group.viewMode() == BookmarkViewMode.COLLAPSED) {
-			json.addProperty("expandedViewMode", group.expandedViewMode().name());
-		}
+
 		json.addProperty("crafting", group.craftingMode());
 		if (!group.collapsedRecipeIds().isEmpty()) {
 			JsonArray collapsedRecipes = new JsonArray();
@@ -64,7 +62,7 @@ public final class BookmarkGroupConfigSerializer {
 
 	public static Optional<BookmarkGroup> deserializeGroupJson(JsonObject json) {
 		try {
-			String id = json.get("id").getAsString();
+			int id = json.get("id").getAsInt();
 			String title = json.get("title").getAsString();
 			BookmarkViewMode viewMode = json.has("viewMode") ?
 				BookmarkViewMode.valueOf(json.get("viewMode").getAsString()) :
@@ -80,13 +78,13 @@ public final class BookmarkGroupConfigSerializer {
 					.map(element -> new ResourceLocation(element.getAsString()))
 					.collect(Collectors.toUnmodifiableSet()) :
 				Set.of();
-			return Optional.of(new BookmarkGroup(id, title, viewMode, expandedViewMode, crafting, collapsedRecipeIds));
+			return Optional.of(new BookmarkGroup(id, title, viewMode, crafting, false, collapsedRecipeIds));
 		} catch (RuntimeException ignored) {
 			return Optional.empty();
 		}
 	}
 
-	public static Optional<String> deserializeBookmarkGroupId(String line) {
+	public static Optional<Integer> deserializeBookmarkGroupId(String line) {
 		if (!line.startsWith(MARKER_BOOKMARK_GROUP)) {
 			return Optional.empty();
 		}
@@ -95,11 +93,11 @@ public final class BookmarkGroupConfigSerializer {
 		if (groupId.isEmpty()) {
 			return Optional.empty();
 		}
-		return Optional.of(groupId);
+		return Optional.of(Integer.parseInt(groupId));
 	}
 
 	public static Optional<BookmarkItemMetadata> deserializeBookmarkMetadata(String line) {
-		Optional<String> legacyGroupId = deserializeBookmarkGroupId(line);
+		Optional<Integer> legacyGroupId = deserializeBookmarkGroupId(line);
 		if (legacyGroupId.isPresent()) {
 			return Optional.of(BookmarkItemMetadata.defaultForGroup(legacyGroupId.get()));
 		}
@@ -109,7 +107,7 @@ public final class BookmarkGroupConfigSerializer {
 
 		try {
 			JsonObject json = JsonParser.parseString(line.substring(MARKER_BOOKMARK_METADATA.length())).getAsJsonObject();
-			String groupId = json.has("groupId") ? json.get("groupId").getAsString() : BookmarkGroupManager.DEFAULT_GROUP_ID;
+			int groupId = json.has("groupId") ? json.get("groupId").getAsInt() : BookmarkGroupManager.DEFAULT_GROUP_ID;
 			BookmarkItemType type = json.has("type") ?
 				BookmarkItemType.valueOf(json.get("type").getAsString()) :
 				BookmarkItemType.ITEM;

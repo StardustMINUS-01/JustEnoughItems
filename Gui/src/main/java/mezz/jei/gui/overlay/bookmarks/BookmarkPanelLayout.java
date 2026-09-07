@@ -17,26 +17,26 @@ public final class BookmarkPanelLayout {
 
 	public record PanelSlot<T>(
 		T item,
-		String groupId,
+		int groupId,
 		ImmutableRect2i area,
 		boolean shadow,
 		@Nullable Object recipeKey
 	) {
-		public PanelSlot(T item, String groupId, ImmutableRect2i area, boolean shadow) {
+		public PanelSlot(T item, int groupId, ImmutableRect2i area, boolean shadow) {
 			this(item, groupId, area, shadow, null);
 		}
 	}
 
 	public record RowSlot<T>(
 		T item,
-		String groupId,
+		int groupId,
 		ImmutableRect2i area
 	) {
 	}
 
 	public record RecipeBoundaryInsertionTarget<T>(
 		T item,
-		String groupId,
+		int groupId,
 		ImmutableRect2i area,
 		int offset
 	) {
@@ -62,8 +62,8 @@ public final class BookmarkPanelLayout {
 				.findFirst();
 			if (rowSlot.isEmpty()) {
 				rowSlots.add(new RowSlot<>(panelSlot.item(), panelSlot.groupId(), withGridLeft(panelSlot.area(), gridLeftX)));
-			} else if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(rowSlot.get().groupId()) &&
-				!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(panelSlot.groupId())) {
+			} else if (BookmarkGroupManager.DEFAULT_GROUP_ID == rowSlot.get().groupId() &&
+				BookmarkGroupManager.DEFAULT_GROUP_ID != panelSlot.groupId()) {
 				int index = rowSlots.indexOf(rowSlot.get());
 				RowSlot<T> current = rowSlot.get();
 				rowSlots.set(index, new RowSlot<>(current.item(), panelSlot.groupId(), current.area()));
@@ -154,7 +154,7 @@ public final class BookmarkPanelLayout {
 
 		PanelSlot<T> anchorSlot = anchor.get();
 		List<PanelSlot<T>> recipeSlots = panelSlots.stream()
-			.filter(slot -> anchorSlot.groupId().equals(slot.groupId()))
+			.filter(slot -> anchorSlot.groupId() == slot.groupId())
 			.filter(slot -> anchorSlot.recipeKey().equals(slot.recipeKey()))
 			.sorted(Comparator.comparingInt((PanelSlot<T> slot) -> slot.area().getY()).thenComparingInt(slot -> slot.area().getX()))
 			.toList();
@@ -209,8 +209,8 @@ public final class BookmarkPanelLayout {
 	}
 
 	private static <T> boolean isConnected(RowSlot<T> first, RowSlot<T> second) {
-		return !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(first.groupId()) &&
-			first.groupId().equals(second.groupId()) &&
+		return BookmarkGroupManager.DEFAULT_GROUP_ID != first.groupId() &&
+			first.groupId() == second.groupId() &&
 			first.area().getY() + first.area().getHeight() == second.area().getY();
 	}
 
@@ -263,24 +263,24 @@ public final class BookmarkPanelLayout {
 		RowSlot<T> start,
 		RowSlot<T> end,
 		boolean exclude,
-		String previewGroupId
+		int previewGroupId
 	) {
 		List<RowSlot<T>> selectedRows = getRowsBetweenRecipeBounds(panelSlots, rowSlots, start, end);
-		String targetGroupId = getGroupingPreviewTargetGroupId(start.groupId(), exclude, previewGroupId);
+		int targetGroupId = getGroupingPreviewTargetGroupId(start.groupId(), exclude, previewGroupId);
 		List<RowSlot<T>> previewRows = rowSlots.stream()
 			.map(row -> containsRowY(selectedRows, row.area().getY()) ? withGroupId(row, targetGroupId) : row)
 			.toList();
-		if (!exclude && !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(start.groupId())) {
+		if (!exclude && BookmarkGroupManager.DEFAULT_GROUP_ID != start.groupId()) {
 			previewRows = releaseRowsOutsideExistingGroupPreview(previewRows, selectedRows, start.groupId(), start.area().getY(), end.area().getY());
 		}
 		return previewRows;
 	}
 
-	private static String getGroupingPreviewTargetGroupId(String startGroupId, boolean exclude, String previewGroupId) {
+	private static int getGroupingPreviewTargetGroupId(int startGroupId, boolean exclude, int previewGroupId) {
 		if (exclude) {
 			return BookmarkGroupManager.DEFAULT_GROUP_ID;
 		}
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(startGroupId)) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID == startGroupId) {
 			return previewGroupId;
 		}
 		return startGroupId;
@@ -289,7 +289,7 @@ public final class BookmarkPanelLayout {
 	private static <T> List<RowSlot<T>> releaseRowsOutsideExistingGroupPreview(
 		List<RowSlot<T>> rowSlots,
 		List<RowSlot<T>> selectedRows,
-		String groupId,
+		int groupId,
 		int startY,
 		int endY
 	) {
@@ -307,7 +307,7 @@ public final class BookmarkPanelLayout {
 		if (direction > 0) {
 			for (int i = endIndex + 1; i < previewRows.size(); i++) {
 				RowSlot<T> row = previewRows.get(i);
-				if (!groupId.equals(row.groupId())) {
+				if (groupId != row.groupId()) {
 					break;
 				}
 				if (row.area().getY() > maxSelectedY) {
@@ -317,7 +317,7 @@ public final class BookmarkPanelLayout {
 		} else if (direction < 0) {
 			for (int i = endIndex - 1; i >= 0; i--) {
 				RowSlot<T> row = previewRows.get(i);
-				if (!groupId.equals(row.groupId())) {
+				if (groupId != row.groupId()) {
 					break;
 				}
 				if (row.area().getY() < minSelectedY) {
@@ -342,7 +342,7 @@ public final class BookmarkPanelLayout {
 		return -1;
 	}
 
-	private static <T> RowSlot<T> withGroupId(RowSlot<T> row, String groupId) {
+	private static <T> RowSlot<T> withGroupId(RowSlot<T> row, int groupId) {
 		return new RowSlot<>(row.item(), groupId, row.area());
 	}
 
@@ -376,7 +376,7 @@ public final class BookmarkPanelLayout {
 		}
 		PanelSlot<T> anchor = boundarySlot.get();
 		return panelSlots.stream()
-			.filter(slot -> anchor.groupId().equals(slot.groupId()))
+			.filter(slot -> anchor.groupId() == slot.groupId())
 			.filter(slot -> anchor.recipeKey().equals(slot.recipeKey()))
 			.map(PanelSlot::area)
 			.mapToInt(ImmutableRect2i::getY)

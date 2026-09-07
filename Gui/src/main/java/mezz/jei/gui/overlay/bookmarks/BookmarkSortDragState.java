@@ -35,7 +35,7 @@ public final class BookmarkSortDragState {
 
 	private final Kind kind;
 	private final @Nullable IBookmark sourceBookmark;
-	private final String sourceGroupId;
+	private final int sourceGroupId;
 	private final ImmutableRect2i sourceArea;
 	private final int dragOffsetX;
 	private final int dragOffsetY;
@@ -49,7 +49,7 @@ public final class BookmarkSortDragState {
 	private BookmarkSortDragState(
 		Kind kind,
 		@Nullable IBookmark sourceBookmark,
-		String sourceGroupId,
+		int sourceGroupId,
 		ImmutableRect2i sourceArea,
 		int dragOffsetX,
 		int dragOffsetY,
@@ -70,6 +70,7 @@ public final class BookmarkSortDragState {
 
 	public static BookmarkSortDragState item(
 		IBookmark sourceBookmark,
+		int sourceGroupId,
 		ImmutableRect2i sourceArea,
 		double mouseX,
 		double mouseY,
@@ -79,7 +80,7 @@ public final class BookmarkSortDragState {
 		return new BookmarkSortDragState(
 			Kind.ITEM,
 			sourceBookmark,
-			"",
+			sourceGroupId,
 			sourceArea,
 			sourceArea.getX() - (int) Math.round(mouseX),
 			sourceArea.getY() - (int) Math.round(mouseY),
@@ -89,11 +90,11 @@ public final class BookmarkSortDragState {
 		);
 	}
 
-	public static BookmarkSortDragState group(String sourceGroupId) {
+	public static BookmarkSortDragState group(int sourceGroupId) {
 		return group(sourceGroupId, ImmutableRect2i.EMPTY, 0, 0);
 	}
 
-	public static BookmarkSortDragState group(String sourceGroupId, ImmutableRect2i sourceArea, double mouseX, double mouseY) {
+	public static BookmarkSortDragState group(int sourceGroupId, ImmutableRect2i sourceArea, double mouseX, double mouseY) {
 		return new BookmarkSortDragState(
 			Kind.GROUP,
 			null,
@@ -111,7 +112,7 @@ public final class BookmarkSortDragState {
 		return active;
 	}
 
-	public String getSourceGroupId() {
+	public int getSourceGroupId() {
 		return sourceGroupId;
 	}
 
@@ -119,8 +120,8 @@ public final class BookmarkSortDragState {
 		return DRAG_OVERLAY_COLOR;
 	}
 
-	public GroupPanelRenderMode getGroupPanelRenderMode(String groupId) {
-		if (kind == Kind.GROUP && active && !hiddenBookmarks.isEmpty() && sourceGroupId.equals(groupId)) {
+	public GroupPanelRenderMode getGroupPanelRenderMode(int groupId) {
+		if (kind == Kind.GROUP && active && !hiddenBookmarks.isEmpty() && sourceGroupId == groupId) {
 			return GroupPanelRenderMode.DRAG_PLACEHOLDER;
 		}
 		return GroupPanelRenderMode.NORMAL;
@@ -310,7 +311,7 @@ public final class BookmarkSortDragState {
 		hide(selection.bookmarks(), visiblePanelSlots, sourceArea);
 
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkPanelLayout.createRowSlots(projectedPanelSlots);
-		String currentSourceGroupId = bookmarkList.getBookmarkGroupId(sourceBookmark);
+		int currentSourceGroupId = bookmarkList.getBookmarkGroupId(sourceBookmark);
 		Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> targetSlot = findSlotAt(projectedPanelSlots, mouseX, mouseY);
 		if (selection.crossGroupMove()) {
 			return updateCrossGroupItem(bookmarkList, selection, currentSourceGroupId, projectedPanelSlots, rowSlots, targetSlot, mouseY);
@@ -321,7 +322,7 @@ public final class BookmarkSortDragState {
 	private boolean updateCrossGroupItem(
 		BookmarkList bookmarkList,
 		BookmarkMoveSelection selection,
-		String currentSourceGroupId,
+		int currentSourceGroupId,
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots,
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots,
 		Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> targetSlot,
@@ -334,7 +335,7 @@ public final class BookmarkSortDragState {
 		Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> firstColumnSlot = findFirstColumnSlotAtY(projectedPanelSlots, mouseY);
 		if (firstColumnSlot.isPresent()) {
 			BookmarkPanelLayout.PanelSlot<IBookmark> slot = firstColumnSlot.get();
-			if (currentSourceGroupId.equals(slot.groupId()) && !selection.bookmarks().contains(slot.item())) {
+			if (currentSourceGroupId == slot.groupId() && !selection.bookmarks().contains(slot.item())) {
 				return updateConcreteSlotItem(bookmarkList, selection, currentSourceGroupId, firstColumnSlot);
 			}
 			if (selection.bookmarks().contains(slot.item())) {
@@ -365,7 +366,7 @@ public final class BookmarkSortDragState {
 		}
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> targetRow = targetSlot
 			.flatMap(slot -> findRowByY(rowSlots, slot.area().getY()))
-			.filter(row -> currentSourceGroupId.equals(row.groupId()));
+			.filter(row -> currentSourceGroupId == row.groupId());
 		if (targetRow.isEmpty() || targetSlot.filter(slot -> selection.bookmarks().contains(slot.item())).isPresent()) {
 			targetSlotOverlayAreas = List.of();
 			return false;
@@ -425,7 +426,7 @@ public final class BookmarkSortDragState {
 	private boolean updateConcreteSlotItem(
 		BookmarkList bookmarkList,
 		BookmarkMoveSelection selection,
-		String currentSourceGroupId,
+		int currentSourceGroupId,
 		Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> targetSlot
 	) {
 		if (sourceBookmark == null || targetSlot.isEmpty()) {
@@ -437,7 +438,7 @@ public final class BookmarkSortDragState {
 			targetSlotOverlayAreas = List.of();
 			return false;
 		}
-		if (!currentSourceGroupId.equals(targetSlot.get().groupId())) {
+		if (currentSourceGroupId != targetSlot.get().groupId()) {
 			targetSlotOverlayAreas = List.of();
 			return false;
 		}
@@ -487,7 +488,7 @@ public final class BookmarkSortDragState {
 			return true;
 		}
 		boolean todoGroup = bookmarkList.getBookmarkGroups().stream()
-			.filter(group -> group.id().equals(sourceMetadata.groupId()))
+			.filter(group -> group.id() == sourceMetadata.groupId())
 			.findFirst()
 			.map(group -> group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
@@ -505,19 +506,19 @@ public final class BookmarkSortDragState {
 	) {
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkPanelLayout.createRowSlots(panelSlots);
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> sourceRow = rowSlots.stream()
-			.filter(row -> sourceGroupId.equals(row.groupId()))
+			.filter(row -> sourceGroupId == row.groupId())
 			.findFirst();
 		if (sourceRow.isEmpty()) {
 			return false;
 		}
 		List<IBookmark> groupBookmarks = bookmarkList.getBookmarks().stream()
-			.filter(bookmark -> sourceGroupId.equals(bookmarkList.getBookmarkGroupId(bookmark)))
+			.filter(bookmark -> sourceGroupId == bookmarkList.getBookmarkGroupId(bookmark))
 			.toList();
 		ImmutableRect2i previewOrigin = sourceRow.get().area();
 		hide(groupBookmarks, panelSlots, previewOrigin);
 
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> targetRow = BookmarkPanelLayout.findClosestRowAtY(rowSlots, mouseY);
-		if (targetRow.isEmpty() || sourceGroupId.equals(targetRow.get().groupId())) {
+		if (targetRow.isEmpty() || sourceGroupId != targetRow.get().groupId()) {
 			return false;
 		}
 		return BookmarkGroupMovePlan.create(rowSlots, sourceRow.get(), targetRow.get()).apply(bookmarkList);
@@ -583,12 +584,12 @@ public final class BookmarkSortDragState {
 	record PreviewSlot<T>(T element, int relativeX, int relativeY, int width, int height) {
 	}
 
-	private static Map<String, Set<ResourceLocation>> getRecipeIdsByGroup(
+	private static Map<Integer, Set<ResourceLocation>> getRecipeIdsByGroup(
 		BookmarkList bookmarkList,
 		List<IBookmark> ignoredBookmarks
 	) {
 		Set<IBookmark> ignored = new HashSet<>(ignoredBookmarks);
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup = new HashMap<>();
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup = new HashMap<>();
 		for (IBookmark bookmark : bookmarkList.getBookmarks()) {
 			if (ignored.contains(bookmark)) {
 				continue;

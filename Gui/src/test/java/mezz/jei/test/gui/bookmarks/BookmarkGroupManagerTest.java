@@ -30,7 +30,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void collapsedGroupKeepsEveryNonIngredientVisible() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.addItem("iron", false);
 		groups.addItem("gear", false);
@@ -46,7 +46,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void compactGroupConvertedToChainKeepsDefaultView() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.setCraftingMode(groupId, true);
 
@@ -58,7 +58,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void newLineGroupConvertedToChainKeepsViewMode() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 
 		groups.setCraftingMode(groupId, true);
@@ -71,7 +71,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void chainConvertedToGroupKeepsViewMode() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setViewMode(groupId, BookmarkViewMode.TODO_LIST);
 		groups.setCraftingMode(groupId, true);
 
@@ -83,9 +83,9 @@ public class BookmarkGroupManagerTest {
 	}
 
 	@Test
-	public void viewModeToggleCyclesAndCollapseRemembersExpandedMode() {
+	public void viewModeToggleCycles() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.toggleViewMode(groupId);
 		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, groups.getGroup(groupId).orElseThrow().viewMode());
@@ -93,25 +93,19 @@ public class BookmarkGroupManagerTest {
 		groups.toggleViewMode(groupId);
 		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
 
-		groups.toggleViewMode(groupId);
-		groups.toggleCollapsed(groupId);
-		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
-
-		groups.toggleViewMode(groupId);
-		Assertions.assertEquals(BookmarkViewMode.COLLAPSED, groups.getGroup(groupId).orElseThrow().viewMode());
-
+		// toggleCollapsed is independent of viewMode in the refactor (no COLLAPSED viewMode).
 		groups.toggleCollapsed(groupId);
 		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertTrue(groups.getGroup(groupId).orElseThrow().isCollapsed());
 
 		groups.toggleCollapsed(groupId);
-		groups.toggleCollapsed(groupId);
-		Assertions.assertEquals(BookmarkViewMode.DEFAULT, groups.getGroup(groupId).orElseThrow().viewMode());
+		Assertions.assertFalse(groups.getGroup(groupId).orElseThrow().isCollapsed());
 	}
 
 	@Test
 	public void removingGroupMovesItsItemsBackToDefaultGroup() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 
 		groups.addItem("gear", false);
 		groups.moveItemToGroup("gear", groupId);
@@ -124,7 +118,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void itemMetadataCarriesRecipeChainFieldsWhenMovedBetweenGroups() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.addItem("gear", false);
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			groupId,
@@ -149,7 +143,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void craftingGroupRefreshesRecipeChainDetailsFromOrderedItems() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setCraftingMode(groupId, true);
 		groups.addItem("plate", false);
 		groups.addItem("ingot", false);
@@ -173,7 +167,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void recipeChainDetailsRebuildLazilyAfterMarkingDirty() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.setCraftingMode(groupId, true);
 		groups.addItem("plate", false);
 		groups.addItem("ingot", false);
@@ -190,7 +184,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void nonCraftingGroupDoesNotKeepRecipeChainDetails() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.addItem("plate", false);
 		groups.setItemMetadata("plate", metadata(groupId, BookmarkItemType.RESULT, "test:plate", "plate", 1, 1));
 
@@ -202,7 +196,7 @@ public class BookmarkGroupManagerTest {
 	@Test
 	public void nonCraftingGroupExposesRecipeInputsForBatchEncoding() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
-		String groupId = groups.createGroup("Machines");
+		int groupId = groups.createGroup("Machines");
 		groups.addItem("plate", false);
 		groups.addItem("ingot", false);
 		groups.setItemMetadata("plate", metadata(groupId, BookmarkItemType.RESULT, "test:plate", "plate", 1, 1));
@@ -217,7 +211,7 @@ public class BookmarkGroupManagerTest {
 	}
 
 	private static BookmarkItemMetadata metadata(
-		String groupId,
+		int groupId,
 		BookmarkItemType type,
 		String recipeUid,
 		String ingredientUid,

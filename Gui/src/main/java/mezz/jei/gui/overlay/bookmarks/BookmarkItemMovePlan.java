@@ -13,11 +13,11 @@ import java.util.Set;
 
 public record BookmarkItemMovePlan(
 	IBookmark targetBookmark,
-	String targetGroupId,
+	int targetGroupId,
 	int offset,
 	boolean rejected
 ) {
-	public BookmarkItemMovePlan(IBookmark targetBookmark, String targetGroupId, int offset) {
+	public BookmarkItemMovePlan(IBookmark targetBookmark, int targetGroupId, int offset) {
 		this(targetBookmark, targetGroupId, offset, false);
 	}
 
@@ -51,9 +51,9 @@ public record BookmarkItemMovePlan(
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots,
 		BookmarkPanelLayout.RowSlot<IBookmark> targetRow,
 		double mouseY,
-		Map<String, BookmarkGroup> groups,
+		Map<Integer, BookmarkGroup> groups,
 		Set<ResourceLocation> movingRecipeIds,
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup
 	) {
 		return createCrossGroupPlan(rowSlots, targetRow, mouseY, groups, movingRecipeIds, recipeIdsByGroup);
 	}
@@ -63,9 +63,9 @@ public record BookmarkItemMovePlan(
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots,
 		BookmarkPanelLayout.RowSlot<IBookmark> targetRow,
 		double mouseY,
-		Map<String, BookmarkGroup> groups,
+		Map<Integer, BookmarkGroup> groups,
 		Set<ResourceLocation> movingRecipeIds,
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup
 	) {
 		BookmarkItemMovePlan plan = createCrossGroupPlan(rowSlots, targetRow, mouseY, groups, movingRecipeIds, recipeIdsByGroup);
 		if (plan.rejected()) {
@@ -75,7 +75,7 @@ public record BookmarkItemMovePlan(
 			BookmarkPanelLayout.getRecipeBoundaryInsertionTarget(panelSlots, targetRow, mouseY);
 		if (recipeBoundaryTarget.isPresent()) {
 			BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark> target = recipeBoundaryTarget.get();
-			if (plan.targetGroupId().equals(target.groupId())) {
+			if (plan.targetGroupId() == target.groupId()) {
 				return createPlan(target.item(), plan.targetGroupId(), target.offset(), movingRecipeIds, recipeIdsByGroup);
 			}
 		}
@@ -86,9 +86,9 @@ public record BookmarkItemMovePlan(
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots,
 		BookmarkPanelLayout.RowSlot<IBookmark> targetRow,
 		double mouseY,
-		Map<String, BookmarkGroup> groups,
+		Map<Integer, BookmarkGroup> groups,
 		Set<ResourceLocation> movingRecipeIds,
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup
 	) {
 		double ySlot = (mouseY - targetRow.area().getY()) / targetRow.area().getHeight();
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> beforeRow = findAdjacentRow(rowSlots, targetRow, -1);
@@ -122,13 +122,13 @@ public record BookmarkItemMovePlan(
 	private static Optional<BookmarkItemMovePlan> createNeighborPlan(
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> neighborRow,
 		BookmarkPanelLayout.RowSlot<IBookmark> targetRow,
-		Map<String, BookmarkGroup> groups,
+		Map<Integer, BookmarkGroup> groups,
 		int offset,
 		Set<ResourceLocation> movingRecipeIds,
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup
 	) {
 		return neighborRow
-			.filter(row -> !row.groupId().equals(targetRow.groupId()))
+			.filter(row -> row.groupId() != targetRow.groupId())
 			.filter(row -> canInsert(groups, row.groupId()))
 			.map(row -> createPlan(targetRow.item(), row.groupId(), offset, movingRecipeIds, recipeIdsByGroup));
 	}
@@ -137,28 +137,28 @@ public record BookmarkItemMovePlan(
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> preferredRow,
 		BookmarkPanelLayout.RowSlot<IBookmark> targetRow,
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> oppositeRow,
-		Map<String, BookmarkGroup> groups,
+		Map<Integer, BookmarkGroup> groups,
 		int offset,
 		Set<ResourceLocation> movingRecipeIds,
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup
 	) {
 		if (preferredRow.isEmpty()) {
 			return Optional.empty();
 		}
-		String preferredGroupId = preferredRow.get().groupId();
-		if (preferredGroupId.equals(targetRow.groupId())) {
+		int preferredGroupId = preferredRow.get().groupId();
+		if (preferredGroupId == targetRow.groupId()) {
 			return Optional.empty();
 		}
 
-		String targetGroupId = preferredGroupId;
-		if (!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetRow.groupId()) &&
-			!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(preferredGroupId)) {
+		int targetGroupId = preferredGroupId;
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID != targetRow.groupId() &&
+			BookmarkGroupManager.DEFAULT_GROUP_ID != preferredGroupId) {
 			targetGroupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
 		}
 
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetRow.groupId()) &&
-			!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(preferredGroupId) &&
-			oppositeRow.filter(row -> !BookmarkGroupManager.DEFAULT_GROUP_ID.equals(row.groupId())).isPresent()) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID == targetRow.groupId() &&
+			BookmarkGroupManager.DEFAULT_GROUP_ID != preferredGroupId &&
+			oppositeRow.filter(row -> BookmarkGroupManager.DEFAULT_GROUP_ID != row.groupId()).isPresent()) {
 			return Optional.empty();
 		}
 
@@ -207,8 +207,8 @@ public record BookmarkItemMovePlan(
 		return 0;
 	}
 
-	private static boolean canInsert(Map<String, BookmarkGroup> groups, String groupId) {
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+	private static boolean canInsert(Map<Integer, BookmarkGroup> groups, int groupId) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
 			return true;
 		}
 		return Optional.ofNullable(groups.get(groupId))
@@ -218,10 +218,10 @@ public record BookmarkItemMovePlan(
 
 	private static BookmarkItemMovePlan createPlan(
 		IBookmark targetBookmark,
-		String targetGroupId,
+		int targetGroupId,
 		int offset,
 		Set<ResourceLocation> movingRecipeIds,
-		Map<String, Set<ResourceLocation>> recipeIdsByGroup
+		Map<Integer, Set<ResourceLocation>> recipeIdsByGroup
 	) {
 		boolean duplicateRecipe = movingRecipeIds.stream()
 			.anyMatch(recipeIdsByGroup.getOrDefault(targetGroupId, Set.of())::contains);

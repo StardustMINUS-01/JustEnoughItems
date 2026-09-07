@@ -135,7 +135,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		return displayRole;
 	}
 
-	public BookmarkItemMetadata createDefaultMetadata(String groupId) {
+	public BookmarkItemMetadata createDefaultMetadata(int groupId) {
 		BookmarkItemType type = BookmarkItemType.fromRecipeRole(displayRole);
 		return new BookmarkItemMetadata(
 			groupId,

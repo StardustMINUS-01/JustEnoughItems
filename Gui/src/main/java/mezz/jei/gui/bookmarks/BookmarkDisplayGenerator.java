@@ -20,8 +20,8 @@ public final class BookmarkDisplayGenerator {
 	public static <T> List<BookmarkDisplaySlot<T>> generate(
 		List<T> orderedItems,
 		Function<T, BookmarkItemMetadata> metadataGetter,
-		Map<String, BookmarkGroup> groups,
-		Map<String, RecipeChainDetails> recipeChainDetails
+		Map<Integer, BookmarkGroup> groups,
+		Map<Integer, RecipeChainDetails> recipeChainDetails
 	) {
 		return generate(orderedItems, metadataGetter, groups, recipeChainDetails, 0);
 	}
@@ -29,8 +29,8 @@ public final class BookmarkDisplayGenerator {
 	public static <T> List<BookmarkDisplaySlot<T>> generate(
 		List<T> orderedItems,
 		Function<T, BookmarkItemMetadata> metadataGetter,
-		Map<String, BookmarkGroup> groups,
-		Map<String, RecipeChainDetails> recipeChainDetails,
+		Map<Integer, BookmarkGroup> groups,
+		Map<Integer, RecipeChainDetails> recipeChainDetails,
 		int columns
 	) {
 		return generate(orderedItems, metadataGetter, groups, recipeChainDetails, columns, List.of());
@@ -39,8 +39,8 @@ public final class BookmarkDisplayGenerator {
 	public static <T> List<BookmarkDisplaySlot<T>> generate(
 		List<T> orderedItems,
 		Function<T, BookmarkItemMetadata> metadataGetter,
-		Map<String, BookmarkGroup> groups,
-		Map<String, RecipeChainDetails> recipeChainDetails,
+		Map<Integer, BookmarkGroup> groups,
+		Map<Integer, RecipeChainDetails> recipeChainDetails,
 		int columns,
 		List<Integer> usableColumnsPerRow
 	) {
@@ -50,7 +50,7 @@ public final class BookmarkDisplayGenerator {
 		for (int sourceIndex = 0; sourceIndex < orderedItems.size(); sourceIndex++) {
 			T item = orderedItems.get(sourceIndex);
 			BookmarkItemMetadata metadata = metadataGetter.apply(item);
-			String groupId = metadata.groupId();
+			int groupId = metadata.groupId();
 			BookmarkGroup group = groups.get(groupId);
 			if (group != null && group.craftingMode()) {
 				RecipeChainDetails details = recipeChainDetails.get(group.id());
@@ -72,7 +72,7 @@ public final class BookmarkDisplayGenerator {
 				}
 				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, rowLayout);
 			} else if (group == null || group.viewMode() != BookmarkViewMode.COLLAPSED ||
-				BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId)) {
+				BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			} else if (isResultOnlyGroupOutput(metadata)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
@@ -83,7 +83,7 @@ public final class BookmarkDisplayGenerator {
 
 	private static <T> List<BookmarkDisplaySlot<T>> attachBorders(
 		List<BookmarkDisplaySlot<T>> displaySlots,
-		Map<String, BookmarkGroup> groups,
+		Map<Integer, BookmarkGroup> groups,
 		BookmarkRowLayout.RowLayout rowLayout
 	) {
 		if (displaySlots.isEmpty()) {
@@ -121,8 +121,8 @@ public final class BookmarkDisplayGenerator {
 		return List.copyOf(borderedSlots);
 	}
 
-	private static <T> String getBorderKey(BookmarkDisplayEntry<T> entry, Map<String, BookmarkGroup> groups) {
-		String groupId = entry.metadata().groupId();
+	private static <T> String getBorderKey(BookmarkDisplayEntry<T> entry, Map<Integer, BookmarkGroup> groups) {
+		int groupId = entry.metadata().groupId();
 		BookmarkGroup group = groups.get(groupId);
 		if (group != null && group.viewMode() == BookmarkViewMode.COLLAPSED) {
 			return "group:" + groupId;
@@ -134,7 +134,7 @@ public final class BookmarkDisplayGenerator {
 		return null;
 	}
 
-	private static <T> int getBorderColor(BookmarkDisplayEntry<T> entry, Map<String, BookmarkGroup> groups) {
+	private static <T> int getBorderColor(BookmarkDisplayEntry<T> entry, Map<Integer, BookmarkGroup> groups) {
 		BookmarkGroup group = groups.get(entry.metadata().groupId());
 		if (group != null && group.viewMode() == BookmarkViewMode.COLLAPSED) {
 			return group.craftingMode() ?
@@ -146,11 +146,11 @@ public final class BookmarkDisplayGenerator {
 
 	private static boolean isHiddenCraftingInput(
 		BookmarkGroup group,
-		String groupId,
+		int groupId,
 		BookmarkItemMetadata metadata
 	) {
 		return group.viewMode() != BookmarkViewMode.TODO_LIST &&
-			!BookmarkGroupManager.DEFAULT_GROUP_ID.equals(groupId) &&
+			BookmarkGroupManager.DEFAULT_GROUP_ID != groupId &&
 			(metadata.type().isGraphInput() || metadata.type().isCatalyst());
 	}
 
@@ -242,7 +242,7 @@ public final class BookmarkDisplayGenerator {
 			int slotIndex = nextSlotIndex(displaySlots, entry, rowLayout);
 			if (entry.viewMode() == BookmarkViewMode.COLLAPSED && rowLayout.columns() > 0) {
 				BookmarkDisplaySlot<T> previousSlot = displaySlots.get(displaySlots.size() - 1);
-				boolean sameGroup = previousSlot.entry().metadata().groupId().equals(entry.metadata().groupId());
+				boolean sameGroup = previousSlot.entry().metadata().groupId() == entry.metadata().groupId();
 				if (sameGroup && BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
 					return;
 				}
@@ -270,9 +270,9 @@ public final class BookmarkDisplayGenerator {
 		if (rowLayout.columns() <= 0) {
 			return slotIndex;
 		}
-		String previousGroupId = previous.metadata().groupId();
-		String groupId = entry.metadata().groupId();
-		if (!previousGroupId.equals(groupId) && !BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
+		int previousGroupId = previous.metadata().groupId();
+		int groupId = entry.metadata().groupId();
+		if (previousGroupId != groupId && !BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
 			slotIndex = BookmarkRowLayout.nextRowStart(slotIndex, rowLayout);
 		}
 		if (entry.viewMode() != BookmarkViewMode.TODO_LIST) {
@@ -309,7 +309,7 @@ public final class BookmarkDisplayGenerator {
 		ResourceLocation recipeUid = entry.displayRecipeUid().orElse(null);
 		ResourceLocation previousRecipeUid = previous.displayRecipeUid().orElse(null);
 		return recipeUid == null ||
-			!previousMetadata.groupId().equals(metadata.groupId()) ||
+			previousMetadata.groupId() != metadata.groupId() ||
 			!metadata.type().isGraphInput() ||
 			!recipeUid.equals(previousRecipeUid);
 	}
@@ -324,7 +324,7 @@ public final class BookmarkDisplayGenerator {
 		ResourceLocation previousRecipeUid = previous.displayRecipeUid().orElse(null);
 		return metadata.type().isRecipeAssociated() &&
 			previousMetadata.type().isRecipeAssociated() &&
-			previousMetadata.groupId().equals(metadata.groupId()) &&
+			previousMetadata.groupId() == metadata.groupId() &&
 			recipeUid != null &&
 			recipeUid.equals(previousRecipeUid);
 	}

@@ -76,7 +76,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final IConnectionToServer serverConnection;
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
 	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
-	private final Function<FocusedRecipe, Optional<String>> favoriteTreeSaver;
+	private final Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
 	private final IClientConfig clientConfig;
 	private final RecipesGui recipesGui;
@@ -89,7 +89,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		IConnectionToServer serverConnection,
 		BookmarkAutoCraftingRunner autoCraftingRunner,
 		ClientCraftingGridClickRunner clientCraftingGridClickRunner,
-		Function<FocusedRecipe, Optional<String>> favoriteTreeSaver,
+		Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
 		IClientConfig clientConfig,
 		RecipesGui recipesGui
@@ -139,7 +139,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
 		}
-		Optional<String> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+		Optional<Integer> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
 			.filter(bookmarkList::isGroupCraftingMode);
 		if (groupId.isEmpty()) {
 			return Optional.empty();
@@ -154,7 +154,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		}
 
 		PlayerInventoryRecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
-		String hoveredGroupId = groupId.get();
+		int hoveredGroupId = groupId.get();
 		AbstractContainerMenu menu = containerScreen.getMenu();
 		boolean craftAll = isCraftAllModifier(input.getModifiers());
 		if (DebugConfig.isDebugModeEnabled()) {
@@ -224,7 +224,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	}
 
 	private List<RecipeChainInput> getAutoCraftingInventoryInputs(
-		String groupId,
+		int groupId,
 		PlayerInventoryRecipeChainTooltipInventoryProvider inventoryProvider
 	) {
 		return List.copyOf(inventoryProvider.getInventoryInputs(groupId, -1));
@@ -266,7 +266,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
 		}
-		Optional<String> groupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
+		Optional<Integer> groupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
 		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
 		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handle(
 			input,
@@ -361,7 +361,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
 		}
-		Optional<String> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
+		Optional<Integer> groupId = bookmarkOverlay.getPullGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
 		if (groupId.isEmpty()) {
 			return Optional.empty();
 		}

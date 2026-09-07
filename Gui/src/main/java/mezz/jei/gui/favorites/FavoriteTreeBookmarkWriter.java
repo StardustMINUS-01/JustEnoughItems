@@ -31,11 +31,11 @@ public final class FavoriteTreeBookmarkWriter {
 		this.bookmarkGroupWriter = bookmarkGroupWriter;
 	}
 
-	public Optional<String> save(FocusedRecipe root, int depth) {
+	public Optional<Integer> save(FocusedRecipe root, int depth) {
 		return save(root, depth, Optional.empty(), Map.of());
 	}
 
-	public Optional<String> save(
+	public Optional<Integer> save(
 		FocusedRecipe root,
 		int depth,
 		Optional<BookmarkIngredientKey> selectedRootOutputKey,
@@ -93,6 +93,6 @@ public final class FavoriteTreeBookmarkWriter {
 
 	@FunctionalInterface
 	public interface BookmarkGroupWriter {
-		Optional<String> addGroup(List<RecipeLayoutProjection> recipeLayouts, boolean preserveAmount);
+		Optional<Integer> addGroup(List<RecipeLayoutProjection> recipeLayouts, boolean preserveAmount);
 	}
 }

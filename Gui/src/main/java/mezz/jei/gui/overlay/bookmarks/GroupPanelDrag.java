@@ -19,7 +19,9 @@ import java.util.List;
 import java.util.Optional;
 
 class GroupPanelDrag {
-	private static final String GROUPING_PREVIEW_GROUP_ID = "__nei_grouping_preview__";
+	private static int getGroupingPreviewGroupId() {
+		return Integer.MIN_VALUE + 1;
+	}
 	private static final int GROUP_PANEL_DRAG_THRESHOLD_MS = 250;
 
 	private final BookmarkOverlay overlay;
@@ -84,7 +86,7 @@ class GroupPanelDrag {
 			BookmarkOverlayLayout.toRowSlot(startSlot),
 			BookmarkOverlayLayout.toRowSlot(this.endSlot),
 			exclude,
-			GROUPING_PREVIEW_GROUP_ID
+			getGroupingPreviewGroupId()
 		);
 		return previewRows.stream()
 			.map(overlay::toGroupPanelSlot)
@@ -148,7 +150,7 @@ class GroupPanelDrag {
 			return;
 		}
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> groupSlots = overlay.getPanelSlots().stream()
-			.filter(slot -> startSlot.groupId().equals(overlay.getBookmarkList().getBookmarkGroupId(slot.item())))
+			.filter(slot -> startSlot.groupId() == overlay.getBookmarkList().getBookmarkGroupId(slot.item()))
 			.toList();
 		if (groupSlots.isEmpty()) {
 			return;

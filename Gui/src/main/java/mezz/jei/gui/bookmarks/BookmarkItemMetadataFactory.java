@@ -33,7 +33,7 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	public static <R, T> BookmarkItemMetadata createForRecipeSlot(
-		String groupId,
+		int groupId,
 		IRecipeCategory<R> recipeCategory,
 		ResourceLocation recipeUid,
 		BookmarkItemType type,
@@ -55,7 +55,7 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	static <R, T> BookmarkItemMetadata createForRecipeSlotWithFactor(
-		String groupId,
+		int groupId,
 		IRecipeCategory<R> recipeCategory,
 		ResourceLocation recipeUid,
 		BookmarkItemType type,
@@ -115,7 +115,7 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	public static <T> BookmarkItemMetadata createForSyntheticRecipeInput(
-		String groupId,
+		int groupId,
 		ResourceLocation recipeTypeUid,
 		ResourceLocation recipeUid,
 		BookmarkItemType type,
@@ -137,7 +137,7 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	public static <T> BookmarkItemMetadata createForCraftingAvailable(
-		String groupId,
+		int groupId,
 		ITypedIngredient<T> ingredient,
 		long amount,
 		IIngredientManager ingredientManager

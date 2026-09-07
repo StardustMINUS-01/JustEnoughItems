@@ -9,7 +9,7 @@ import java.util.Set;
 
 public record BookmarkGroupingPlan(
 	List<IBookmark> bookmarks,
-	String targetGroupId,
+	int targetGroupId,
 	boolean exclude,
 	List<IBookmark> releasedBookmarks
 ) {
@@ -26,7 +26,7 @@ public record BookmarkGroupingPlan(
 	) {
 		List<IBookmark> bookmarks = BookmarkPanelLayout.getItemsBetweenRecipeBounds(panelSlots, start, end);
 		List<IBookmark> releasedBookmarks = getReleasedBookmarks(panelSlots, start, end, bookmarks, exclude);
-		String targetGroupId = exclude ? BookmarkGroupManager.DEFAULT_GROUP_ID : start.groupId();
+		int targetGroupId = exclude ? BookmarkGroupManager.DEFAULT_GROUP_ID : start.groupId();
 		return new BookmarkGroupingPlan(bookmarks, targetGroupId, exclude, releasedBookmarks);
 	}
 
@@ -38,7 +38,7 @@ public record BookmarkGroupingPlan(
 		if (exclude) {
 			return bookmarkList.moveBookmarksToGroup(expandedBookmarks, BookmarkGroupManager.DEFAULT_GROUP_ID);
 		}
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID.equals(targetGroupId)) {
+		if (BookmarkGroupManager.DEFAULT_GROUP_ID == targetGroupId) {
 			bookmarkList.createGroupForBookmarks(newGroupTitle, expandedBookmarks);
 			return true;
 		}
@@ -62,7 +62,7 @@ public record BookmarkGroupingPlan(
 		List<IBookmark> selectedBookmarks,
 		boolean exclude
 	) {
-		if (exclude || BookmarkGroupManager.DEFAULT_GROUP_ID.equals(start.groupId())) {
+		if (exclude || BookmarkGroupManager.DEFAULT_GROUP_ID == start.groupId()) {
 			return List.of();
 		}
 
@@ -80,14 +80,14 @@ public record BookmarkGroupingPlan(
 		}
 		if (direction > 0) {
 			for (int i = endIndex + 1; i < rows.size(); i++) {
-				if (!start.groupId().equals(rows.get(i).groupId())) {
+				if (start.groupId() != rows.get(i).groupId()) {
 					break;
 				}
 				addRowItems(panelSlots, rows.get(i), selected, released);
 			}
 		} else {
 			for (int i = endIndex - 1; i >= 0; i--) {
-				if (!start.groupId().equals(rows.get(i).groupId())) {
+				if (start.groupId() != rows.get(i).groupId()) {
 					break;
 				}
 				addRowItems(panelSlots, rows.get(i), selected, released);

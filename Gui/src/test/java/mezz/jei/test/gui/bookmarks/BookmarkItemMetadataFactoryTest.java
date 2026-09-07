@@ -41,7 +41,7 @@ public class BookmarkItemMetadataFactoryTest {
 		IIngredientManager ingredientManager = ingredientManager();
 		TestToolIngredient wrench = new TestToolIngredient("neutronium_wrench", 1, 0, 10_000, 2);
 		BookmarkItemMetadata inventoryMetadata = BookmarkItemMetadataFactory.createForCraftingAvailable(
-			"default",
+			0,
 			typed(wrench),
 			1,
 			ingredientManager
@@ -61,7 +61,7 @@ public class BookmarkItemMetadataFactoryTest {
 	public void syntheticVirtualCircuitRecipeInputHasZeroCost() {
 		IIngredientManager ingredientManager = ingredientManager();
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
-			"default",
+			0,
 			CRAFTING,
 			MACHINE_RECIPE,
 			BookmarkItemType.INGREDIENT,
@@ -91,7 +91,7 @@ public class BookmarkItemMetadataFactoryTest {
 	public void catalystTypeIgnoresEveryMultiplier() {
 		BookmarkItemType catalystType = BookmarkItemType.valueOf("CATALYST");
 		BookmarkItemMetadata catalyst = new BookmarkItemMetadata(
-			"default",
+			0,
 			catalystType,
 			64,
 			100,
@@ -130,7 +130,7 @@ public class BookmarkItemMetadataFactoryTest {
 	@Test
 	public void syntheticCatalystIsCreatedAsACatalyst() {
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
-			"default",
+			0,
 			CRAFTING,
 			MACHINE_RECIPE,
 			BookmarkItemType.CATALYST,
@@ -148,11 +148,11 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	private static BookmarkItemMetadata result(BookmarkIngredientKey key, long multiplier) {
-		return new BookmarkItemMetadata("default", mezz.jei.gui.bookmarks.BookmarkItemType.RESULT, multiplier, 1, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
+		return new BookmarkItemMetadata(0, mezz.jei.gui.bookmarks.BookmarkItemType.RESULT, multiplier, 1, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
 	}
 
 	private static BookmarkItemMetadata ingredient(BookmarkIngredientKey key, long factor) {
-		return new BookmarkItemMetadata("default", mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT, 1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key), key, 5_000);
+		return new BookmarkItemMetadata(0, mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT, 1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key), key, 5_000);
 	}
 
 	private static BookmarkIngredientKey key(String name) {
