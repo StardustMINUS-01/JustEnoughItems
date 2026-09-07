@@ -1,6 +1,7 @@
 package mezz.jei.gui.bookmarks;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import mezz.jei.common.config.DebugConfig;
 import net.minecraft.nbt.CompoundTag;
@@ -51,6 +52,8 @@ public record BookmarkIngredientKey(
 	 * NBT may differ slightly (e.g. tool damage, tconstruct materials, GT tool
 	 * attributes) while still keeping each variant's snapshot for permutation.
 	 */
+	public @Nullable ITypedIngredient<?> typedIngredient() { return null; }
+
 	public boolean matches(BookmarkIngredientKey other) {
 		return ingredientTypeUid.equals(other.ingredientTypeUid) &&
 			ingredientUid.equals(other.ingredientUid);
@@ -154,6 +157,14 @@ public record BookmarkIngredientKey(
 			.replaceAll("\\{,", "{")
 			.replaceAll(",}", "}")
 			.trim();
+	}
+
+	public BookmarkIngredientKey getCraftingAvailabilityKey() {
+		if (!ITEM_STACK_TYPE_UID.equals(ingredientTypeUid) && !"item_stack".equals(ingredientTypeUid)) {
+			return this;
+		}
+		String baseUid = itemBaseId(ingredientUid);
+		return new BookmarkIngredientKey(ingredientTypeUid, baseUid, null);
 	}
 
 	@Override
