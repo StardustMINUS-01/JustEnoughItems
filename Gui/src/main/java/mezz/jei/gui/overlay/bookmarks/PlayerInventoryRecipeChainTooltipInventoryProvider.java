@@ -8,6 +8,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipInventoryProvider;
+import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlay;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import net.minecraft.client.Minecraft;
@@ -51,6 +52,11 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 			index--;
 		}
 		return List.copyOf(inputs);
+	}
+
+
+	public List<RecipeChainInput> getTooltipInventoryInputs(String groupId) {
+		return minecraft.screen instanceof RecipesGui ? List.of() : getInventoryInputs(groupId, -1);
 	}
 
 	public List<ItemStack> getAvailableStacks() {
