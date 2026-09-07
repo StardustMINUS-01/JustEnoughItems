@@ -35,6 +35,9 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 
 	private final IJeiKeyMapping bookmark;
 	private final IJeiKeyMapping favoriteRecipe;
+	private final IJeiKeyMapping bookmarkWorldTarget;
+	private final IJeiKeyMapping showWorldTargetRecipe;
+	private final IJeiKeyMapping showWorldTargetUses;
 	private final IJeiKeyMapping bookmarkPullItems;
 	private final IJeiKeyMapping toggleInputCatalyst;
 	private final IJeiKeyMapping overlayRecipe;
@@ -157,6 +160,20 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.buildUnbound()
 			.register(registerMethod);
 
+		bookmarkWorldTarget = mouseHover.createMapping("key.jei.bookmarkWorldTarget")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildUnbound()
+			.register(registerMethod);
+
+		showWorldTargetRecipe = mouseHover.createMapping("key.jei.showWorldTargetRecipe")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildUnbound()
+			.register(registerMethod);
+
+		showWorldTargetUses = mouseHover.createMapping("key.jei.showWorldTargetUses")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.buildUnbound()
+			.register(registerMethod);
 		overlayRecipe = mouseHover.createMapping("key.jei.overlayRecipe")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.buildKeyboardKey(GLFW.GLFW_KEY_S)
@@ -471,6 +488,20 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getToggleInputCatalyst() {
 		return toggleInputCatalyst;
+	}
+	@Override
+	public IJeiKeyMapping getBookmarkWorldTarget() {
+		return bookmarkWorldTarget;
+	}
+
+	@Override
+	public IJeiKeyMapping getShowWorldTargetRecipe() {
+		return showWorldTargetRecipe;
+	}
+
+	@Override
+	public IJeiKeyMapping getShowWorldTargetUses() {
+		return showWorldTargetUses;
 	}
 
 	@Override
