@@ -23,7 +23,6 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -59,31 +58,6 @@ public final class BookmarkAutoCraftingBridge {
 		Supplier<List<ItemStack>> availableStacksSupplier,
 		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
 		Consumer<PlayToServerPacket> packetSender,
-		BooleanSupplier stillValid
-	) {
-		return createTask(
-			chainInputs,
-			collapsedRecipeIds,
-			targetSlotCount,
-			containerId,
-			inventorySupplier,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			stillValid,
-			false
-		);
-	}
-
-	public static Optional<Task> createTask(
-		List<RecipeChainInput> chainInputs,
-		Set<ResourceLocation> collapsedRecipeIds,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<RecipeChainInput>> inventorySupplier,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PlayToServerPacket> packetSender,
 		BooleanSupplier stillValid,
 		boolean craftAll
 	) {
@@ -95,104 +69,13 @@ public final class BookmarkAutoCraftingBridge {
 			collapsedRecipeIds,
 			targetSlotCount,
 			containerId,
-			null,
 			inventorySupplier,
 			availableStacksSupplier,
 			recipeLayoutResolver,
 			packetSender,
-			BookmarkAutoCraftingActivator.ClientFallbackStarter.DISABLED,
-			Optional::empty,
-			true,
 			stillValid,
 			craftAll
 		));
-	}
-
-	public static Optional<Task> createClientFallbackTask(
-		List<RecipeChainInput> chainInputs,
-		Set<ResourceLocation> collapsedRecipeIds,
-		int targetSlotCount,
-		AbstractContainerMenu containerMenu,
-		Supplier<List<RecipeChainInput>> inventorySupplier,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		BookmarkAutoCraftingActivator.ClientFallbackStarter clientFallbackStarter,
-		Supplier<Optional<Boolean>> clientFallbackResult,
-		BooleanSupplier stillValid
-	) {
-		return createClientFallbackTask(
-			chainInputs,
-			collapsedRecipeIds,
-			targetSlotCount,
-			containerMenu,
-			inventorySupplier,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			clientFallbackStarter,
-			clientFallbackResult,
-			stillValid,
-			false
-		);
-	}
-
-	public static Optional<Task> createClientFallbackTask(
-		List<RecipeChainInput> chainInputs,
-		Set<ResourceLocation> collapsedRecipeIds,
-		int targetSlotCount,
-		AbstractContainerMenu containerMenu,
-		Supplier<List<RecipeChainInput>> inventorySupplier,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		BookmarkAutoCraftingActivator.ClientFallbackStarter clientFallbackStarter,
-		Supplier<Optional<Boolean>> clientFallbackResult,
-		BooleanSupplier stillValid,
-		boolean craftAll
-	) {
-		if (chainInputs.isEmpty() || targetSlotCount <= 0) {
-			return Optional.empty();
-		}
-		return Optional.of(new Task(
-			chainInputs,
-			collapsedRecipeIds,
-			targetSlotCount,
-			containerMenu.containerId,
-			containerMenu,
-			inventorySupplier,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packet -> {
-			},
-			clientFallbackStarter,
-			clientFallbackResult,
-			false,
-			stillValid,
-			craftAll
-		));
-	}
-
-	public static boolean activate(
-		List<RecipeChainInput> chainInputs,
-		Set<ResourceLocation> collapsedRecipeIds,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<RecipeChainInput>> inventorySupplier,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PlayToServerPacket> packetSender,
-		boolean simulate
-	) {
-		return activate(
-			chainInputs,
-			collapsedRecipeIds,
-			targetSlotCount,
-			containerId,
-			inventorySupplier,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			simulate,
-			false
-		);
 	}
 
 	public static boolean activate(
@@ -244,19 +127,14 @@ public final class BookmarkAutoCraftingBridge {
 		private final Set<ResourceLocation> collapsedRecipeIds;
 		private final int targetSlotCount;
 		private final int containerId;
-		private final AbstractContainerMenu clientFallbackMenu;
 		private final Supplier<List<RecipeChainInput>> inventorySupplier;
 		private final Supplier<List<ItemStack>> availableStacksSupplier;
 		private final Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver;
 		private final Consumer<PlayToServerPacket> packetSender;
-		private final BookmarkAutoCraftingActivator.ClientFallbackStarter clientFallbackStarter;
-		private final Supplier<Optional<Boolean>> clientFallbackResult;
-		private final boolean serverAckMode;
 		private final BooleanSupplier stillValid;
 		private final boolean craftAll;
 		private boolean active = true;
 		private boolean waitingForAck;
-		private boolean waitingForClientFallback;
 		private boolean waitingForInventorySync;
 		private List<RecipeChainInput> dispatchedInventorySnapshot = List.of();
 		private List<RecipeChainInput> craftAllExpansionInventorySnapshot = List.of();
@@ -272,14 +150,10 @@ public final class BookmarkAutoCraftingBridge {
 			Set<ResourceLocation> collapsedRecipeIds,
 			int targetSlotCount,
 			int containerId,
-			AbstractContainerMenu clientFallbackMenu,
 			Supplier<List<RecipeChainInput>> inventorySupplier,
 			Supplier<List<ItemStack>> availableStacksSupplier,
 			Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
 			Consumer<PlayToServerPacket> packetSender,
-			BookmarkAutoCraftingActivator.ClientFallbackStarter clientFallbackStarter,
-			Supplier<Optional<Boolean>> clientFallbackResult,
-			boolean serverAckMode,
 			BooleanSupplier stillValid,
 			boolean craftAll
 		) {
@@ -287,14 +161,10 @@ public final class BookmarkAutoCraftingBridge {
 			this.collapsedRecipeIds = Set.copyOf(collapsedRecipeIds);
 			this.targetSlotCount = targetSlotCount;
 			this.containerId = containerId;
-			this.clientFallbackMenu = clientFallbackMenu;
 			this.inventorySupplier = inventorySupplier;
 			this.availableStacksSupplier = availableStacksSupplier;
 			this.recipeLayoutResolver = recipeLayoutResolver;
 			this.packetSender = packetSender;
-			this.clientFallbackStarter = clientFallbackStarter;
-			this.clientFallbackResult = clientFallbackResult;
-			this.serverAckMode = serverAckMode;
 			this.stillValid = stillValid;
 			this.craftAll = craftAll;
 		}
@@ -324,24 +194,6 @@ public final class BookmarkAutoCraftingBridge {
 			if (waitingForAck) {
 				waitTicks++;
 				if (waitTicks > MAX_WAIT_TICKS) {
-					deactivate();
-					return false;
-				}
-				return true;
-			}
-			if (waitingForClientFallback) {
-				waitTicks++;
-				if (waitTicks > MAX_WAIT_TICKS) {
-					deactivate();
-					return false;
-				}
-				Optional<Boolean> result = clientFallbackResult.get();
-				if (result.isEmpty()) {
-					return true;
-				}
-				waitingForClientFallback = false;
-				waitTicks = 0;
-				if (!result.get()) {
 					deactivate();
 					return false;
 				}
@@ -438,30 +290,19 @@ public final class BookmarkAutoCraftingBridge {
 					if (craftedOnePacket.get()) {
 						return false;
 					}
-					if (serverAckMode) {
-						return craft(
-							recipeUid,
-							multiplier,
-							targetSlotCount,
-							containerId,
-							availableStacksSupplier,
-							recipeLayoutResolver,
-							packetSender,
-							false,
-							taskId,
-							requestId,
-							craftedOnePacket,
-							() -> dispatchedRecipeUid = recipeUid
-						);
-					}
-					return craftClientFallback(
+					return craft(
 						recipeUid,
+						multiplier,
 						targetSlotCount,
+						containerId,
 						availableStacksSupplier,
 						recipeLayoutResolver,
-						clientFallbackStarter,
-						clientFallbackMenu,
-						craftedOnePacket
+						packetSender,
+						false,
+						taskId,
+						requestId,
+						craftedOnePacket,
+						() -> dispatchedRecipeUid = recipeUid
 					);
 				},
 				craftedOnePacket::get
@@ -469,12 +310,8 @@ public final class BookmarkAutoCraftingBridge {
 			if (!result.processed() || !craftedOnePacket.get()) {
 				return false;
 			}
-			if (serverAckMode) {
-				waitingForAck = true;
-				expectedRequestId = requestId;
-			} else {
-				waitingForClientFallback = true;
-			}
+			waitingForAck = true;
+			expectedRequestId = requestId;
 			waitTicks = 0;
 			return true;
 		}
@@ -569,36 +406,6 @@ public final class BookmarkAutoCraftingBridge {
 		boolean simulate,
 		int taskId,
 		int requestId,
-		AtomicBoolean craftedOnePacket
-	) {
-		return craft(
-			recipeUid,
-			multiplier,
-			targetSlotCount,
-			containerId,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			simulate,
-			taskId,
-			requestId,
-			craftedOnePacket,
-			() -> {
-			}
-		);
-	}
-
-	private static boolean craft(
-		ResourceLocation recipeUid,
-		int multiplier,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PlayToServerPacket> packetSender,
-		boolean simulate,
-		int taskId,
-		int requestId,
 		AtomicBoolean craftedOnePacket,
 		Runnable afterCraftAccepted
 	) {
@@ -623,41 +430,6 @@ public final class BookmarkAutoCraftingBridge {
 		if (!simulate) {
 			packetSender.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, recipeUid, fill.get().multiplier(), fill.get().targetStacks()));
 		}
-		return true;
-	}
-
-	private static boolean craftClientFallback(
-		ResourceLocation recipeUid,
-		int targetSlotCount,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		BookmarkAutoCraftingActivator.ClientFallbackStarter clientFallbackStarter,
-		AbstractContainerMenu containerMenu,
-		AtomicBoolean craftedOnePacket
-	) {
-		if (containerMenu == null) {
-			return false;
-		}
-		IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutResolver.apply(recipeUid).orElse(null);
-		if (recipeLayout == null) {
-			return false;
-		}
-
-		List<ItemStack> availableStacks = copyStacks(availableStacksSupplier.get());
-		Optional<BookmarkCraftingGridFill> fill = BookmarkCraftingGridFill.create(
-			recipeLayout,
-			targetSlotCount,
-			1,
-			availableStacks
-		);
-		if (fill.isEmpty() || !canCraft(fill.get().targetStacks(), fill.get().multiplier(), availableStacks)) {
-			return false;
-		}
-
-		if (!clientFallbackStarter.start(containerMenu, fill.get().targetStacks())) {
-			return false;
-		}
-		craftedOnePacket.set(true);
 		return true;
 	}
 

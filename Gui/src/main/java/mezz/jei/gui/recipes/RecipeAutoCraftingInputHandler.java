@@ -2,19 +2,14 @@ package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
-import mezz.jei.common.Internal;
-import mezz.jei.common.network.IConnectionToServer;
-import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
-import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayActivator;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -32,29 +27,11 @@ public class RecipeAutoCraftingInputHandler implements IUserInputHandler {
 	private final Activator activator;
 
 	public RecipeAutoCraftingInputHandler(IRecipeLayoutDrawable<?> recipeLayout) {
-		this(recipeLayout, ClientFallbackStarter.DISABLED);
-	}
-
-	public RecipeAutoCraftingInputHandler(IRecipeLayoutDrawable<?> recipeLayout, ClientFallbackStarter clientFallbackStarter) {
 		this(
 			recipeLayout,
 			BookmarkGhostOverlayActivator::getCurrentOrParentContainerMenu,
 			BookmarkGhostOverlayActivator::closeRecipeGui,
-			(input, layout, menu, onActivated) -> {
-				IConnectionToServer serverConnection = Internal.getServerConnection();
-				return BookmarkAutoCraftingActivator.activate(
-					input,
-					layout,
-					menu,
-					onActivated,
-					(input.getModifiers() & GLFW.GLFW_MOD_SHIFT) != 0,
-					JeiClientSoundUtil::playClickSound,
-					serverConnection::sendPacketToServer,
-					serverConnection.isJeiOnServer(),
-					BookmarkAutoCraftingActivator.getPlayerInventoryStacks(),
-					clientFallbackStarter
-				);
-			}
+			BookmarkAutoCraftingActivator::activate
 		);
 	}
 

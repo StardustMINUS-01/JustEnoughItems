@@ -11,6 +11,7 @@ import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -62,6 +63,13 @@ public final class BookmarkAutoCraftingActivator {
 		Runnable onActivated
 	) {
 		IConnectionToServer serverConnection = Internal.getServerConnection();
+		if (!serverConnection.canSendPacket(PacketCraftingGridCraft.TYPE)) {
+			LocalPlayer player = Minecraft.getInstance().player;
+			if (!input.isSimulate() && player != null) {
+				player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);
+			}
+			return false;
+		}
 		return activate(
 			input,
 			recipeLayout,
@@ -70,22 +78,9 @@ public final class BookmarkAutoCraftingActivator {
 			(input.getModifiers() & GLFW.GLFW_MOD_SHIFT) != 0,
 			JeiClientSoundUtil::playClickSound,
 			serverConnection::sendPacketToServer,
-			serverConnection.isJeiOnServer(),
+			true,
 			getPlayerInventoryStacks()
 		);
-	}
-
-	public static boolean activate(
-		UserInput input,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		@Nullable AbstractContainerMenu containerMenu,
-		Runnable onActivated,
-		boolean hasShift,
-		Runnable playClickSound,
-		Consumer<PlayToServerPacket> packetSender,
-		boolean hasServerSupport
-	) {
-		return activate(input, recipeLayout, containerMenu, onActivated, hasShift, playClickSound, packetSender, hasServerSupport, List.of(), ClientFallbackStarter.DISABLED);
 	}
 
 	public static boolean activate(
@@ -99,22 +94,7 @@ public final class BookmarkAutoCraftingActivator {
 		boolean hasServerSupport,
 		List<ItemStack> availableStacks
 	) {
-		return activate(input, recipeLayout, containerMenu, onActivated, hasShift, playClickSound, packetSender, hasServerSupport, availableStacks, ClientFallbackStarter.DISABLED);
-	}
-
-	public static boolean activate(
-		UserInput input,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		@Nullable AbstractContainerMenu containerMenu,
-		Runnable onActivated,
-		boolean hasShift,
-		Runnable playClickSound,
-		Consumer<PlayToServerPacket> packetSender,
-		boolean hasServerSupport,
-		List<ItemStack> availableStacks,
-		ClientFallbackStarter clientFallbackStarter
-	) {
-		if (!hasShift || containerMenu == null) {
+		if (!hasServerSupport || !hasShift || containerMenu == null) {
 			return false;
 		}
 
@@ -127,12 +107,8 @@ public final class BookmarkAutoCraftingActivator {
 			.map(fill -> {
 				if (!input.isSimulate()) {
 					List<ItemStack> targetStacks = fill.targetStacks();
-					if (hasServerSupport) {
-						ResourceLocation recipeId = recipeLayout.getRecipe() instanceof RecipeHolder<?> holder ? holder.id() : null;
-						packetSender.accept(new PacketCraftingGridCraft(containerMenu.containerId, recipeId, fill.multiplier(), targetStacks));
-					} else if (!clientFallbackStarter.start(containerMenu, targetStacks)) {
-						return false;
-					}
+					ResourceLocation recipeId = recipeLayout.getRecipe() instanceof RecipeHolder<?> holder ? holder.id() : null;
+					packetSender.accept(new PacketCraftingGridCraft(containerMenu.containerId, recipeId, fill.multiplier(), targetStacks));
 					onActivated.run();
 					playClickSound.run();
 				}
@@ -160,10 +136,4 @@ public final class BookmarkAutoCraftingActivator {
 		return key.getType() + ":" + key.getValue();
 	}
 
-	@FunctionalInterface
-	public interface ClientFallbackStarter {
-		ClientFallbackStarter DISABLED = (menu, targetStacks) -> false;
-
-		boolean start(AbstractContainerMenu menu, List<ItemStack> targetStacks);
-	}
 }

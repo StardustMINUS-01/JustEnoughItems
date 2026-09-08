@@ -13,6 +13,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.api.runtime.IJeiKeyMapping;
@@ -37,7 +38,6 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingBridge;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
-import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
@@ -79,7 +79,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final PlayerInventoryRecipeChainTooltipInventoryProvider recipeChainInventoryProvider;
 	private final IConnectionToServer serverConnection;
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
-	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
 	private final Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
 	private final IClientConfig clientConfig;
@@ -94,7 +93,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		IIngredientManager ingredientManager,
 		IConnectionToServer serverConnection,
 		BookmarkAutoCraftingRunner autoCraftingRunner,
-		ClientCraftingGridClickRunner clientCraftingGridClickRunner,
 		Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
 		IClientConfig clientConfig,
@@ -109,7 +107,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.recipeChainInventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(Minecraft.getInstance(), ingredientManager);
 		this.serverConnection = serverConnection;
 		this.autoCraftingRunner = autoCraftingRunner;
-		this.clientCraftingGridClickRunner = clientCraftingGridClickRunner;
 		this.favoriteTreeSaver = favoriteTreeSaver;
 		this.favoriteRecipeLookup = favoriteRecipeLookup;
 		this.clientConfig = clientConfig;
@@ -176,6 +173,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (targetSlotCount <= 0) {
 			return Optional.empty();
 		}
+		if (!serverConnection.canSendPacket(PacketCraftingGridCraft.TYPE)) {
+			if (!input.isSimulate()) {
+				minecraft.player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);
+			}
+			return Optional.empty();
+		}
 		if (!BookmarkAutoCraftingActivator.claimAutoCraftingInput(input, craftItemsKey)) {
 			return Optional.empty();
 		}
@@ -198,40 +201,21 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				craftAll
 			);
 		} else {
-			if (serverConnection.isJeiOnServer()) {
-				handled = BookmarkAutoCraftingBridge.createTask(
-					bookmarkList.getRecipeChainInputs(hoveredGroupId),
-					bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
-					targetSlotCount,
-					menu.containerId,
-					() -> getAutoCraftingInventoryInputs(hoveredGroupId),
-					recipeChainInventoryProvider::getAvailableStacks,
-					recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
-					serverConnection::sendPacketToServer,
-					() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
-						activeScreen.getMenu() == menu,
-					craftAll
-				)
-				.map(autoCraftingRunner::start)
-				.orElse(false);
-			} else {
-				handled = BookmarkAutoCraftingBridge.createClientFallbackTask(
-						bookmarkList.getRecipeChainInputs(hoveredGroupId),
-						bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
-						targetSlotCount,
-						menu,
-						() -> getAutoCraftingInventoryInputs(hoveredGroupId),
-						recipeChainInventoryProvider::getAvailableStacks,
-						recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
-						clientCraftingGridClickRunner,
-						clientCraftingGridClickRunner::consumeLastResult,
-						() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
-							activeScreen.getMenu() == menu,
-						craftAll
-					)
-					.map(autoCraftingRunner::start)
-					.orElse(false);
-			}
+			handled = BookmarkAutoCraftingBridge.createTask(
+				bookmarkList.getRecipeChainInputs(hoveredGroupId),
+				bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
+				targetSlotCount,
+				menu.containerId,
+				() -> getAutoCraftingInventoryInputs(hoveredGroupId),
+				recipeChainInventoryProvider::getAvailableStacks,
+				recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
+				serverConnection::sendPacketToServer,
+				() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
+					activeScreen.getMenu() == menu,
+				craftAll
+			)
+			.map(autoCraftingRunner::start)
+			.orElse(false);
 		}
 		if (!handled) {
 			BookmarkAutoCraftingActivator.releaseAutoCraftingInput(input.getKey());

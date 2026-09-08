@@ -128,11 +128,13 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		}
 
 		boolean requiresCountedTransferPacket = requiresCountedTransferPacket(transferOperations.results);
-		boolean useCountedTransferPacket = requiresCountedTransferPacket && serverConnection.canSendPacket(PacketRecipeTransferCounted.TYPE);
+		if (!serverConnection.canSendPacket(requiresCountedTransferPacket ? PacketRecipeTransferCounted.TYPE : PacketRecipeTransfer.TYPE)) {
+			return handlerHelper.createUserErrorWithTooltip(Component.translatable("jei.message.server.feature_unavailable"));
+		}
 
 		if (doTransfer) {
 			boolean requireCompleteSets = transferInfo.requireCompleteSets(container, recipe);
-			if (useCountedTransferPacket) {
+			if (requiresCountedTransferPacket) {
 				PacketRecipeTransferCounted packet = PacketRecipeTransferCounted.fromSlots(
 					transferOperations.results,
 					craftingSlots,

@@ -36,7 +36,6 @@ import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
-import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
 import mezz.jei.gui.collapsible.CollapsibleManager;
 import mezz.jei.gui.collapsible.CollapsibleRules;
 import mezz.jei.gui.collapsible.CollapsibleSettings;
@@ -294,15 +293,13 @@ public class JeiGuiStarter {
 		registration.setBookmarkOverlay(bookmarkOverlay);
 
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
-		ClientCraftingGridClickRunner clientCraftingGridClickRunner = new ClientCraftingGridClickRunner();
 		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));
 
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,
 			bookmarkOverlay,
 			ingredientListOverlay,
-			bookmarkAutoCraftingRunner,
-			clientCraftingGridClickRunner
+			bookmarkAutoCraftingRunner
 		);
 
 		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
@@ -381,7 +378,6 @@ public class JeiGuiStarter {
 			favoriteRecipes,
 			favoriteRecipeConfig,
 			favoriteTreeBookmarkWriter,
-			clientCraftingGridClickRunner,
 			bookmarkOverlay::showBookmarkPanel,
 			bookmarkOverlay::showFavoritePanel,
 			recipePreferenceRulesRef::get,
@@ -414,7 +410,6 @@ public class JeiGuiStarter {
 				ingredientManager,
 				serverConnection,
 				bookmarkAutoCraftingRunner,
-				clientCraftingGridClickRunner,
 				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.favoriteTreeDepth().getValue()),
 				favoriteRecipes::getFavorite,
 				clientConfig,

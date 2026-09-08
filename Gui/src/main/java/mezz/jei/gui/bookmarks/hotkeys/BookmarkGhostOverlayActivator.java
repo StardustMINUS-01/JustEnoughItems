@@ -10,7 +10,10 @@ import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.recipes.RecipesGui;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
@@ -58,7 +61,7 @@ public final class BookmarkGhostOverlayActivator {
 			InputModifiers.hasControl(input),
 			JeiClientSoundUtil::playClickSound,
 			serverConnection::sendPacketToServer,
-			serverConnection.isJeiOnServer()
+			serverConnection.canSendPacket(PacketFillCraftingGrid.TYPE)
 		);
 	}
 
@@ -80,7 +83,7 @@ public final class BookmarkGhostOverlayActivator {
 			InputModifiers.hasControl(input),
 			JeiClientSoundUtil::playClickSound,
 			serverConnection::sendPacketToServer,
-			serverConnection.isJeiOnServer()
+			serverConnection.canSendPacket(PacketFillCraftingGrid.TYPE)
 		);
 	}
 
@@ -206,6 +209,12 @@ public final class BookmarkGhostOverlayActivator {
 		int targetSlotCount
 	) {
 		if (!hasServerSupport) {
+			if (!input.isSimulate()) {
+				LocalPlayer player = Minecraft.getInstance().player;
+				if (player != null) {
+					player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);
+				}
+			}
 			return false;
 		}
 

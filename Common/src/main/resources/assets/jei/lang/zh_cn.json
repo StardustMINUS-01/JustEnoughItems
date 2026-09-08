@@ -149,6 +149,7 @@
   "jei.tooltip.error.recipe.transfer.missing": "缺少物品",
   "jei.tooltip.error.recipe.transfer.inventory.full": "物品栏已满。",
   "jei.tooltip.error.recipe.transfer.no.server": "服务器必须安装JEI。",
+  "jei.message.server.feature_unavailable": "服务器不支持此操作，请在服务端安装或更新 JEIU。",
   "jei.tooltip.error.recipe.transfer.too.large.player.inventory": "配方太大，无法在2x2玩家合成方格中合成。",
   "jei.tooltip.error.crash": "获取原料提示框时崩溃。请查看客户端日志以了解详情。",
   "jei.tooltip.error.render.crash": "渲染原料时崩溃。请查看客户端日志以了解详情。",

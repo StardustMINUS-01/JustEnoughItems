@@ -688,35 +688,15 @@ public final class RecipeTransferGameTests {
 
 	@GameTest
 	@EmptyTemplate
-	@TestHolder(
-		description = "Uses the uncounted recipe transfer packet when counted transfer is not supported by the server."
-	)
-	public static void usesUncountedPacketWhenCountedRecipeTransferUnsupported(RecipeTransferTestHelper helper) {
-		// Setup: counted transfer is unavailable, so the count is not preserved by the packet.
-		TransferRecipe<RecipeHolder<CraftingRecipe>> recipe = stackedPlanksRecipe("uncounted_packet_counted_transfer", 3);
+	@TestHolder(description = "Rejects counted recipe transfer when the server cannot preserve ingredient quantities.")
+	public static void rejectsCountedRecipeTransferWithoutServerSupport(RecipeTransferTestHelper helper) {
+		TransferRecipe<RecipeHolder<CraftingRecipe>> recipe = stackedPlanksRecipe("unsupported_counted_transfer", 3);
 		var serverConnection = helper.createConnectionWithoutCountedTransferPacket();
 		var menu = helper.openMenu(CraftingMenu::new, new ItemStack(Items.OAK_PLANKS, 3));
 
-		// Operation: transfer through the uncounted packet path.
 		var result = helper.transfer(RecipeTypes.CRAFTING, recipe, menu, false, serverConnection);
 
-		// Assertions: only one item moves and the remaining two stay in inventory.
-		helper.assertTransferSucceeded(result);
-		helper.createMenuChecker(result.menu())
-			.assertResults(
-				RecipeTransferGameTests::getCraftingResultSlots,
-				List.of()
-			)
-			.assertCraftingArea(
-				RecipeTransferGameTests::getCraftingInputSlots,
-				List.of(
-					stackAt(CRAFTING_GRID_TOP_LEFT, Items.OAK_PLANKS)
-				)
-			)
-			.assertPlayerInventory(
-				List.of(stackAt(0, new ItemStack(Items.OAK_PLANKS, 2)))
-			)
-			.assertAllSlotsChecked();
+		helper.assertFailedTransfer(result, helper::getCraftingGridSlots, RecipeTransferErrorTooltip.class);
 		helper.succeed();
 	}
 
