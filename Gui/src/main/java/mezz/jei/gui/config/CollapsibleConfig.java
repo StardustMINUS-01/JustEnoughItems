@@ -21,23 +21,15 @@ public final class CollapsibleConfig {
 		this.path = jeiConfigurationDir.resolve(FILE_NAME);
 	}
 
-	public CollapsibleRules loadRules() {
+	public record LoadedConfig(CollapsibleRules rules, CollapsibleSettings settings) {}
+
+	public LoadedConfig load() {
 		ensureDefaultFile();
 		try {
 			return CollapsibleRulesSerializer.deserialize(Files.readAllLines(path));
 		} catch (IOException | RuntimeException e) {
-			LOGGER.error("Failed to load collapsible items rules from file {}", path, e);
-			return CollapsibleRules.EMPTY;
-		}
-	}
-
-	public CollapsibleSettings loadSettings() {
-		ensureDefaultFile();
-		try {
-			return CollapsibleRulesSerializer.deserializeSettings(Files.readAllLines(path));
-		} catch (IOException | RuntimeException e) {
-			LOGGER.error("Failed to load collapsible items settings from file {}", path, e);
-			return CollapsibleSettings.DEFAULT;
+			LOGGER.error("Failed to load collapsible items config from file {}", path, e);
+			return new LoadedConfig(CollapsibleRules.EMPTY, CollapsibleSettings.DEFAULT);
 		}
 	}
 

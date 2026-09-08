@@ -24,7 +24,6 @@ public final class CollapsibleSlotVisualsProvider {
 	private final Supplier<List<IngredientListSlot>> rawSlotsSupplier;
 	private final Supplier<CollapsibleSettings> settingsSupplier;
 	private Map<Integer, String> groupBySlotIndex = Map.of();
-	private CollapsibleSettings settings = CollapsibleSettings.DEFAULT;
 	private int slotCount;
 	private int columnCount = -1;
 	private int layoutVersion = -1;
@@ -62,7 +61,7 @@ public final class CollapsibleSlotVisualsProvider {
 		boolean right = slotIndex % columns == columns - 1 || !sameGroup(slotIndex + 1, groupId);
 		boolean top = slotIndex < columns || !sameGroup(slotIndex - columns, groupId);
 		boolean bottom = slotIndex + columns >= slotCount || !sameGroup(slotIndex + columns, groupId);
-		CollapsibleSettings settings = this.settings;
+		CollapsibleSettings settings = settingsSupplier.get();
 		int backgroundColor = collapsed ? settings.collapsedColor() : settings.expandedColor();
 		BookmarkSlotBorder border = new BookmarkSlotBorder(
 			groupId, boostAlpha(backgroundColor), left, right, top, bottom);
@@ -89,7 +88,6 @@ public final class CollapsibleSlotVisualsProvider {
 		this.dirty = false;
 		this.columnCount = context.columnCount();
 		this.layoutVersion = context.layoutVersion();
-		this.settings = settingsSupplier.get();
 		Map<Integer, String> map = new HashMap<>();
 		List<IngredientListSlot> slots = rawSlotsSupplier.get();
 		this.slotCount = slots.size();

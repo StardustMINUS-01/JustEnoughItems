@@ -1,6 +1,7 @@
 package mezz.jei.gui.collapsible;
 
 import mezz.jei.gui.config.ConfigLineReader;
+import mezz.jei.gui.config.CollapsibleConfig;
 import mezz.jei.gui.match.IngredientExpression;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,9 +20,16 @@ public final class CollapsibleRulesSerializer {
 
 	private CollapsibleRulesSerializer() {}
 
-	public static CollapsibleRules deserialize(List<String> lines) {
+	public static CollapsibleConfig.LoadedConfig deserialize(List<String> lines) {
 		List<CollapsibleGroup> groups = new ArrayList<>();
+		int collapsedColor = CollapsibleSettings.DEFAULT_COLLAPSED_COLOR;
+		int expandedColor = CollapsibleSettings.DEFAULT_EXPANDED_COLOR;
 		for (ConfigLineReader.Entry entry : ConfigLineReader.read(lines)) {
+			if ("collapsedColor".equals(entry.key())) {
+				collapsedColor = parseColor(entry.value(), collapsedColor);
+			} else if ("expandedColor".equals(entry.key())) {
+				expandedColor = parseColor(entry.value(), expandedColor);
+			}
 			if (!"item".equals(entry.key())) {
 				continue;
 			}
@@ -33,22 +41,7 @@ public final class CollapsibleRulesSerializer {
 			}
 			groups.add(CollapsibleGroup.create(value, expression.get()));
 		}
-		return new CollapsibleRules(groups);
-	}
-
-	public static CollapsibleSettings deserializeSettings(List<String> lines) {
-		int collapsedColor = CollapsibleSettings.DEFAULT_COLLAPSED_COLOR;
-		int expandedColor = CollapsibleSettings.DEFAULT_EXPANDED_COLOR;
-		for (ConfigLineReader.Entry entry : ConfigLineReader.read(lines)) {
-			switch (entry.key()) {
-				case "collapsedColor" -> collapsedColor = parseColor(entry.value(), collapsedColor);
-				case "expandedColor" -> expandedColor = parseColor(entry.value(), expandedColor);
-				default -> {
-					// Unknown keys are skipped.
-				}
-			}
-		}
-		return new CollapsibleSettings(collapsedColor, expandedColor);
+		return new CollapsibleConfig.LoadedConfig(new CollapsibleRules(groups), new CollapsibleSettings(collapsedColor, expandedColor));
 	}
 
 	private static int parseColor(String value, int fallback) {

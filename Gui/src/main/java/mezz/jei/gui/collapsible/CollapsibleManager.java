@@ -40,8 +40,15 @@ public final class CollapsibleManager {
 	}
 
 	public void reload(CollapsibleRules newRules, CollapsibleSettings newSettings) {
-		this.rules = newRules;
 		this.settings = newSettings;
+		// Rule order defines first-match priority; colors must not discard the classification cache.
+		var current = rules.groups();
+		var incoming = newRules.groups();
+		if (current.size() == incoming.size() && java.util.stream.IntStream.range(0, current.size())
+			.allMatch(i -> current.get(i).expressionText().equals(incoming.get(i).expressionText()))) {
+			return;
+		}
+		this.rules = newRules;
 		this.state.prune(newRules.groups());
 		for (Runnable listener : List.copyOf(rulesChangedListeners)) {
 			listener.run();

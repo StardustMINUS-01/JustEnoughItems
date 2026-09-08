@@ -21,6 +21,24 @@ import java.util.List;
 import java.util.Optional;
 
 public class CollapsibleSlotVisualsProviderTest {
+	@Test
+	public void changedColorIsVisibleWithoutRebuildingSlotTopology() {
+		IngredientListSlot slot = new IngredientListSlot(0, 0, 18, 18, 1);
+		slot.setElement(groupElement(group("minecraft:potion")));
+		var settings = new java.util.concurrent.atomic.AtomicReference<>(CollapsibleSettings.DEFAULT);
+		var scans = new java.util.concurrent.atomic.AtomicInteger();
+		var provider = new CollapsibleSlotVisualsProvider(() -> {
+			scans.incrementAndGet();
+			return List.of(slot);
+		}, settings::get);
+		var context = new IngredientListSlotContext(slot.getElement(), Optional.empty(), 0, -1, 0, -1, 1, 1, 1);
+		provider.apply(context).orElseThrow();
+		settings.set(new CollapsibleSettings(0x11223344, 0x55667788));
+		var border = provider.apply(context).flatMap(BookmarkSlotVisuals::border).orElseThrow();
+		Assertions.assertEquals(0x77223344, border.color());
+		Assertions.assertEquals(1, scans.get());
+	}
+
 	private static final int SLOT_SIZE = 18;
 	private static final int COLUMNS = 9;
 	private static final int ROWS = 3;
