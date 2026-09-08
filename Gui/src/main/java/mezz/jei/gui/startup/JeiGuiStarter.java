@@ -292,7 +292,7 @@ public class JeiGuiStarter {
 				new SlotPreferenceResolver(recipePreferenceCandidateResolver, recipePreferenceRulesRef::get)
 			),
 			favoriteTreeRecipeResolver::resolveLayout,
-			bookmarkList::addRecipeLayoutProjectionBookmarkGroup
+			bookmarkList::addRecipeLayoutProjectionBookmarkGroupInt
 		);
 
 		if (collapsibleManager != null) {

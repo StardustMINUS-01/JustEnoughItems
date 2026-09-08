@@ -595,7 +595,28 @@ public class BookmarkList implements IIngredientGridSource {
 		return true;
 	}
 
-	public Optional<Integer> addRecipeLayoutProjectionBookmarkGroup(
+	/**
+	 * @deprecated since 15.49.0 — the groupId type changed from String to int internally to mirror JEI 1.21.1.
+	 * This overload is kept for backward compatibility with addons (e.g. tenshis_jei_addon) compiled
+	 * against the pre-fca26f40b Optional<String> signature. The returned String is the integer groupId
+	 * rendered as a String and has no semantic meaning — addons should not parse it. Use the new
+	 * {@link #addRecipeLayoutProjectionBookmarkGroupInt(List, boolean)} if you need the integer groupId.
+	 */
+	@Deprecated
+	public Optional<String> addRecipeLayoutProjectionBookmarkGroup(
+		List<RecipeLayoutProjection> recipeLayouts,
+		boolean preserveAmount
+	) {
+		return addRecipeLayoutProjectionBookmarkGroupInt(recipeLayouts, preserveAmount).map(String::valueOf);
+	}
+
+	/**
+	 * New integer-typed entry point matching JEI 1.21.1's groupId convention. Returns the int groupId
+	 * of the freshly-created bookmark group, or {@link Optional#empty()} if no bookmarks were created.
+	 *
+	 * @since 15.49.0
+	 */
+	public Optional<Integer> addRecipeLayoutProjectionBookmarkGroupInt(
 		List<RecipeLayoutProjection> recipeLayouts,
 		boolean preserveAmount
 	) {
