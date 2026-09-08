@@ -61,6 +61,9 @@ public class IngredientFilter implements
 
 	@Nullable
 	private List<IElement<?>> ingredientListCached;
+	// One lazy ordering of existing elements, including hidden ones; never a search-history cache.
+	@Nullable
+	private List<IListElement<?>> sortedIngredients;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private boolean searchIndexDirty;
 	private boolean sortIndexesDirty;
@@ -137,6 +140,7 @@ public class IngredientFilter implements
 		updateHiddenState(element);
 
 		this.elementSearch.add(info, ingredientManager);
+		this.sortedIngredients = null;
 
 		invalidateCache();
 	}
@@ -146,6 +150,7 @@ public class IngredientFilter implements
 	}
 
 	public void rebuildItemFilter() {
+		this.sortedIngredients = null;
 		this.invalidateCache();
 		Collection<IListElement<?>> ingredients = this.elementSearch.getAllIngredients();
 		List<IListElementInfo<?>> elementInfos = IngredientListElementFactory.rebuildList(ingredientManager, ingredients, modIdHelper);
@@ -161,6 +166,7 @@ public class IngredientFilter implements
 	}
 
 	private void markSortIndexesDirty() {
+		this.sortedIngredients = null;
 		this.sortIndexesDirty = true;
 		notifyListenersOfChange();
 	}
@@ -267,18 +273,21 @@ public class IngredientFilter implements
 			.filter(s -> !s.isEmpty())
 			.toList();
 
-		Stream<IListElement<?>> elementStream;
 		if (searchTokens.isEmpty()) {
-			elementStream = this.elementSearch.getAllIngredients()
-				.parallelStream();
-		} else {
-			elementStream = searchTokens.stream()
-				.map(this::getSearchResults)
-				.flatMap(Set::stream)
-				.distinct();
+			if (sortedIngredients == null) {
+				sortedIngredients = this.elementSearch.getAllIngredients().parallelStream()
+					.sorted(ingredientComparator)
+					.toList();
+			}
+			return sortedIngredients.stream()
+				.filter(IListElement::isVisible)
+				.map(IListElement::getTypedIngredient);
 		}
 
-		return elementStream
+		return searchTokens.stream()
+			.map(this::getSearchResults)
+			.flatMap(Set::stream)
+			.distinct()
 			.filter(IListElement::isVisible)
 			.sorted(ingredientComparator)
 			.map(IListElement::getTypedIngredient);

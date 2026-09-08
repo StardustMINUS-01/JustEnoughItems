@@ -15,6 +15,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.IdentityHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Optional;
 import java.util.Set;
 
@@ -31,19 +34,27 @@ public class CollapsibleLayoutTest {
 			element("minecraft:potion"),
 			element("minecraft:splash_potion")
 		);
-		CollapsibleLayout.LayoutResult result = CollapsibleLayout.compute(
-			elements, rules, state, (members, group) -> members.getFirst(),
-			CollapsibleLayoutTest::toInfo);
+		AtomicInteger matches = new AtomicInteger();
+		CollapsibleLayout layout = CollapsibleLayout.prepare(elements, rules, ingredient -> {
+			matches.incrementAndGet();
+			return toInfo(ingredient);
+		});
+		Result result = render(layout, state);
 
 		Assertions.assertEquals(2, result.visibleElements().size());
 		Assertions.assertEquals(2, result.slotInfo().get(result.visibleElements().get(0)).groupSize());
 		Assertions.assertFalse(result.autoExpanded());
 
 		state.toggleGroup(potion.id());
-		CollapsibleLayout.LayoutResult expanded = CollapsibleLayout.compute(
-			elements, rules, state, (members, group) -> members.getFirst(),
-			CollapsibleLayoutTest::toInfo);
+		Result expanded = render(layout, state);
 		Assertions.assertEquals(3, expanded.visibleElements().size());
+		Assertions.assertTrue(expanded.slotInfo().values().stream().allMatch(info -> info.hiddenMembers().isEmpty()));
+		state.toggleGroup(potion.id());
+		Assertions.assertEquals(result.visibleElements(), render(layout, state).visibleElements());
+		Assertions.assertEquals(elements.size(), matches.get());
+		var hidden = result.slotInfo().get(elements.getFirst()).hiddenMembers();
+		Assertions.assertEquals(List.of(elements.get(1)), hidden);
+		Assertions.assertThrows(UnsupportedOperationException.class, () -> hidden.clear());
 	}
 
 	@Test
@@ -54,9 +65,8 @@ public class CollapsibleLayoutTest {
 			element("minecraft:potion"),
 			element("minecraft:potion")
 		);
-		CollapsibleLayout.LayoutResult result = CollapsibleLayout.compute(
-			elements, rules, state, (members, group) -> members.getFirst(),
-			CollapsibleLayoutTest::toInfo);
+		Result result = render(
+			elements, rules, state);
 		Assertions.assertEquals(2, result.visibleElements().size());
 		Assertions.assertTrue(result.autoExpanded());
 		Assertions.assertTrue(result.slotInfo().values().stream().allMatch(CollapsibleLayout.SlotInfo::expanded));
@@ -67,9 +77,8 @@ public class CollapsibleLayoutTest {
 		CollapsibleRules rules = new CollapsibleRules(List.of(group("minecraft:dirt")));
 		CollapsibleState state = new CollapsibleState();
 		List<IElement<?>> elements = List.of(element("minecraft:dirt"));
-		CollapsibleLayout.LayoutResult result = CollapsibleLayout.compute(
-			elements, rules, state, (members, group) -> members.getFirst(),
-			CollapsibleLayoutTest::toInfo);
+		Result result = render(
+			elements, rules, state);
 		Assertions.assertEquals(1, result.visibleElements().size());
 		Assertions.assertTrue(result.slotInfo().isEmpty());
 	}
@@ -86,9 +95,8 @@ public class CollapsibleLayoutTest {
 			element("minecraft:potion")
 		);
 		state.toggleGroup(rules.groups().getFirst().id());
-		CollapsibleLayout.LayoutResult result = CollapsibleLayout.compute(
-			elements, rules, state, (members, group) -> members.getFirst(),
-			CollapsibleLayoutTest::toInfo);
+		Result result = render(
+			elements, rules, state);
 		Assertions.assertEquals(
 			List.of("minecraft:potion", "minecraft:potion", "minecraft:potion", "minecraft:dirt", "minecraft:stone"),
 			result.visibleElements().stream()
@@ -96,6 +104,43 @@ public class CollapsibleLayoutTest {
 				.toList()
 		);
 	}
+
+	@Test
+	public void overlappingRulesKeepFirstMatchAndInterleavedGroupOrder() {
+		var broad = group("minecraft:potion");
+		var duplicate = group("minecraft:potion");
+		var splash = group("minecraft:splash_potion");
+		var state = new CollapsibleState();
+		state.toggleGroup(broad.id());
+		state.toggleGroup(splash.id());
+		var a = element("minecraft:potion");
+		var b = element("minecraft:splash_potion");
+		var c = element("minecraft:potion");
+		var dirt = element("minecraft:dirt");
+		var d = element("minecraft:splash_potion");
+		var stone = element("minecraft:stone");
+		var rules = new CollapsibleRules(List.of(broad, duplicate, splash));
+		var result = render(List.of(a, b, c, dirt, d, stone), rules, state);
+		Assertions.assertEquals(List.of(a, c, b, d, dirt, stone), result.visibleElements());
+		Assertions.assertSame(broad, result.slotInfo().get(a).group());
+		Assertions.assertEquals(List.of(dirt, stone), render(List.of(dirt, stone), CollapsibleRules.EMPTY, state).visibleElements());
+		Assertions.assertTrue(render(List.of(), rules, state).visibleElements().isEmpty());
+	}
+
+	private static Result render(List<IElement<?>> elements, CollapsibleRules rules, CollapsibleState state) {
+		return render(CollapsibleLayout.prepare(elements, rules, CollapsibleLayoutTest::toInfo), state);
+	}
+
+	private static Result render(CollapsibleLayout layout, CollapsibleState state) {
+		Map<IElement<?>, CollapsibleLayout.SlotInfo> info = new IdentityHashMap<>();
+		var visible = layout.project(state, (element, slot) -> {
+			info.put(element, slot);
+			return element;
+		});
+		return new Result(visible, info, info.values().stream().anyMatch(CollapsibleLayout.SlotInfo::autoExpanded));
+	}
+
+	private record Result(List<IElement<?>> visibleElements, Map<IElement<?>, CollapsibleLayout.SlotInfo> slotInfo, boolean autoExpanded) {}
 
 	private static CollapsibleGroup group(String expr) {
 		return CollapsibleGroup.create(expr, IngredientExpression.parseIngredient(expr).orElseThrow());

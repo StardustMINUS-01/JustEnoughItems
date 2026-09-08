@@ -21,17 +21,19 @@ public final class CollapsibleGridSource implements IIngredientGridSource {
 
 	private List<IElement<?>> foldedElements = List.of();
 	private boolean dirty = true;
+	private @Nullable CollapsibleLayout layout;
+	private boolean includeBlockTags;
 
 	public CollapsibleGridSource(IIngredientGridSource delegate, CollapsibleManager manager) {
 		this.delegate = delegate;
 		this.manager = manager;
 		delegate.addSourceListChangedListener(() -> {
-			markDirty();
+			invalidateGroups();
 			notifyListeners();
 		});
 		manager.state().addListener(this::markDirty);
 		manager.addRulesChangedListener(() -> {
-			markDirty();
+			invalidateGroups();
 			notifyListeners();
 		});
 	}
@@ -70,37 +72,27 @@ public final class CollapsibleGridSource implements IIngredientGridSource {
 		this.dirty = true;
 	}
 
+	private void invalidateGroups() {
+		layout = null;
+		markDirty();
+	}
+
 	private void updateIfDirty() {
+		boolean includeBlockTags = Internal.getJeiClientConfigs().getClientConfig().lookupBlockTagsEnabled().getValue();
+		if (this.includeBlockTags != includeBlockTags) {
+			this.includeBlockTags = includeBlockTags;
+			invalidateGroups();
+		}
 		if (!dirty) {
 			return;
 		}
-		this.dirty = false;
-		boolean includeBlockTags = Internal.getJeiClientConfigs().getClientConfig().lookupBlockTagsEnabled().getValue();
-		CollapsibleLayout.LayoutResult result = CollapsibleLayout.compute(
-			delegate.getElements(),
-			manager.rules(),
-			manager.state(),
-			(members, group) -> members.getFirst(),
-			typedIngredient -> IngredientMatchInfo.fromIngredient(typedIngredient, includeBlockTags)
-		);
-		List<IElement<?>> wrapped = new ArrayList<>(result.visibleElements().size());
-		for (IElement<?> element : result.visibleElements()) {
-			CollapsibleLayout.SlotInfo info = result.slotInfo().get(element);
-			if (info == null) {
-				wrapped.add(element);
-			} else {
-				wrapped.add(new CollapsedGroupElement<>(
-					element,
-					info.group(),
-					manager,
-					!info.expanded(),
-					!info.autoExpanded(),
-					info.groupSize(),
-					info.hiddenMembers()
-				));
-			}
+		if (layout == null) {
+			layout = CollapsibleLayout.prepare(delegate.getElements(), manager.rules(),
+				typedIngredient -> IngredientMatchInfo.fromIngredient(typedIngredient, includeBlockTags));
 		}
-		this.foldedElements = List.copyOf(wrapped);
+		this.foldedElements = layout.project(manager.state(), (element, info) -> new CollapsedGroupElement<>(
+			element, info.group(), manager, !info.expanded(), !info.autoExpanded(), info.groupSize(), info.hiddenMembers()));
+		this.dirty = false;
 	}
 
 	private void notifyListeners() {
