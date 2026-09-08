@@ -17,6 +17,9 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import java.time.Duration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +32,37 @@ public class BookmarkDisplayGeneratorTest {
 	private static final int GROUP_ID = 1;
 	private static final ResourceLocation PLATE_RECIPE = ResourceLocation.parse("test:plate");
 	private static final ResourceLocation MACHINE_RECIPE = ResourceLocation.parse("test:machine");
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void singleColumnRecipeInputsAndCollapsedShadowsDoNotSearchForANonexistentSecondColumn(boolean collapsedRecipe) {
+		var items = List.of("plate", "ingot", "screw");
+		var metadata = Map.of(
+			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
+			"ingot", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "ingot", 1, 1),
+			"screw", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "screw", 1, 1));
+		var collapsed = collapsedRecipe ? Set.of(PLATE_RECIPE) : Set.<ResourceLocation>of();
+		var group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, collapsed);
+		var details = createDetails(items, metadata, collapsed);
+		var slots = Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+			BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), 1));
+		Assertions.assertEquals(List.of(0, 1, 2), slots.stream().map(BookmarkDisplaySlot::slotIndex).toList());
+		Assertions.assertEquals(items, slots.stream().map(slot -> slot.entry().item()).toList());
+	}
+
+	@Test
+	public void variableWidthRowsOnlyIndentWhereThereIsRoom() {
+		var items = List.of("plate", "ingot", "screw", "wire", "circuit");
+		Map<String, BookmarkItemMetadata> metadata = new HashMap<>();
+		for (String item : items) {
+			metadata.put(item, metadata(item.equals("plate") ? BookmarkItemType.RESULT : BookmarkItemType.INGREDIENT, PLATE_RECIPE, item, 1, 1));
+		}
+		var group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
+		var details = createDetails(items, metadata, Set.of());
+		var slots = Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+			BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), 3, List.of(1, 1, 3)));
+		Assertions.assertEquals(List.of(0, 1, 3, 4, 5), slots.stream().map(BookmarkDisplaySlot::slotIndex).toList());
+	}
 
 	@Test
 	public void collapsedRecipeFlattensClosureIntoAnchorAndShadows() {

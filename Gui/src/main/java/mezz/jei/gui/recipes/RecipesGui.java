@@ -709,7 +709,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		if (handled) {
 			return true;
 		}
-		return super.mouseClicked(mouseX, mouseY, mouseButton);
+		return super.mouseReleased(mouseX, mouseY, mouseButton);
 	}
 
 	@Override

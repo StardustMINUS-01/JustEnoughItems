@@ -1,5 +1,7 @@
 package mezz.jei.gui.bookmarks;
 
+import mezz.jei.gui.bookmarks.tree.RecipeTreeViewState;
+
 import com.mojang.serialization.Codec;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -27,6 +29,7 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -43,6 +46,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -403,6 +407,14 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	public boolean removeRecipeBookmark(IBookmark bookmark, boolean removeFullRecipe) {
+		return removeRecipeBookmark(bookmark, removeFullRecipe, true);
+	}
+
+	public boolean removeExpandedRecipeBookmark(IBookmark bookmark) {
+		return removeRecipeBookmark(bookmark, false, false);
+	}
+
+	private boolean removeRecipeBookmark(IBookmark bookmark, boolean removeFullRecipe, boolean respectCollapsedClosure) {
 		if (!bookmarksSet.contains(bookmark)) {
 			return false;
 		}
@@ -413,7 +425,7 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 		int groupId = targetMetadata.groupId();
 		Optional<BookmarkGroup> group = bookmarkGroups.getGroup(groupId);
-		if (group.filter(BookmarkGroup::craftingMode).isPresent()) {
+		if (respectCollapsedClosure && group.filter(BookmarkGroup::craftingMode).isPresent()) {
 			Set<ResourceLocation> relatedRecipes = getRelatedRecipeIds(groupId, recipeUid);
 			if (!relatedRecipes.isEmpty()) {
 				if (!removeFullRecipe) {
@@ -594,6 +606,22 @@ public class BookmarkList implements IIngredientGridSource {
 			return false;
 		}
 		addRecipeBookmarkEntries(recipeBookmarks);
+		return true;
+	}
+
+	public boolean addRecipeToGroup(int groupId, RecipeLayoutProjection projection) {
+		if (bookmarkGroups.getGroup(groupId).isEmpty()) {
+			return false;
+		}
+		List<RecipeBookmarkEntry> entries = recipeBookmarkEntryFactory.createRecipeBookmarkEntries(projection, false, groupId == BookmarkGroupManager.DEFAULT_GROUP_ID ? null : groupId);
+		if (entries.isEmpty() || entries.getFirst().metadata().recipeUid() == null) {
+			return false;
+		}
+		var recipe = entries.getFirst().metadata();
+		if (bookmarksList.stream().map(bookmarkGroups::getItemMetadata).anyMatch(metadata ->
+			metadata.groupId() == groupId && Objects.equals(metadata.recipeTypeUid(), recipe.recipeTypeUid()) &&
+			Objects.equals(metadata.recipeUid(), recipe.recipeUid()))) { return false; }
+		addRecipeBookmarkEntries(entries.stream().map(entry -> new RecipeBookmarkEntry(entry.bookmark(), entry.metadata().withGroupId(groupId))).toList());
 		return true;
 	}
 
@@ -940,7 +968,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	private IElement<?> createDisplayElement(BookmarkDisplayEntry<IBookmark> entry) {
+	public IElement<?> createDisplayElement(BookmarkDisplayEntry<IBookmark> entry) {
 		IElement<?> element = entry.item().getElement();
 		if (!needsProjectedElement(entry)) {
 			return element;
@@ -1016,6 +1044,14 @@ public class BookmarkList implements IIngredientGridSource {
 
 	public List<BookmarkGroup> getBookmarkGroups() {
 		return bookmarkGroups.getGroups();
+	}
+
+	public Optional<RecipeTreeViewState> getTreeViewState(int groupId) {
+		return bookmarkGroups.getTreeViewState(groupId);
+	}
+
+	public void cacheTreeViewState(int groupId, RecipeTreeViewState state) {
+		bookmarkGroups.cacheTreeViewState(groupId, state);
 	}
 
 	public Optional<RecipeChainDetails> getRecipeChainDetails(int groupId) {
@@ -1510,15 +1546,21 @@ public class BookmarkList implements IIngredientGridSource {
 			return false;
 		}
 		int groupId = bookmarkGroups.getGroupId(bookmark);
-		boolean groupCollapsed = getBookmarkGroups().stream()
-			.filter(group -> group.id() == groupId)
-			.findFirst()
+		boolean groupCollapsed = bookmarkGroups.getGroup(groupId)
 			.map(BookmarkGroup::collapsed)
 			.orElse(false);
 		if (groupCollapsed && !(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
 			return shiftGroupAmount(groupId, shift);
 		}
+		return shiftRecipeAmount(bookmark, shift);
+	}
 
+	/** Adjust this recipe independently of how its group is displayed. */
+	public boolean shiftRecipeAmount(IBookmark bookmark, long shift) {
+		if (!bookmarksSet.contains(bookmark) || shift == 0) {
+			return false;
+		}
+		int groupId = bookmarkGroups.getGroupId(bookmark);
 		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
 		if (targetMetadata.type().isNonConsumable()) {
 			return false;
@@ -1640,6 +1682,91 @@ public class BookmarkList implements IIngredientGridSource {
 			permutationTooltipState.updateStart(bookmarkIndex, permutations, nextIndex);
 		}
 		return replaced;
+	}
+
+	/** An expanded editor view; does not change the group's saved display or collapse settings. */
+	public List<BookmarkDisplaySlot<IBookmark>> getGroupEditorSlots(int groupId, int columns) {
+		var group = bookmarkGroups.getGroup(groupId);
+		if (group.isEmpty()) {
+			return List.of();
+		}
+		var saved = group.get();
+		var expanded = new BookmarkGroup(groupId, saved.title(), BookmarkViewMode.TODO_LIST, false, saved.craftingMode(), Set.of());
+		var details = getRecipeChainDetails(groupId);
+		if (saved.craftingMode() && !saved.collapsedRecipeIds().isEmpty()) {
+			details = Optional.of(mezz.jei.gui.bookmarks.chain.RecipeChainMath.refresh(getRecipeChainTooltipInputs(groupId), Set.of()));
+		}
+		return BookmarkDisplayGenerator.generate(bookmarksList, this::getBookmarkMetadata, Map.of(groupId, expanded),
+			details.map(value -> Map.of(groupId, value)).orElse(Map.of()), columns, List.of(), id -> id == groupId);
+	}
+
+	/** Apply a complete saved-input projection in one transaction, splitting/merging repeated slots by quantity. */
+	public boolean applyRecipeInputChoices(List<BookmarkRecipeSelection.Choice> choices) {
+		if (ingredientManager == null || choices.stream().noneMatch(choice -> !Objects.equals(choice.before(), choice.after()))) {
+			return false;
+		}
+		Map<IBookmark, List<BookmarkRecipeSelection.Choice>> bySource = new LinkedHashMap<>();
+		for (var choice : choices) {
+			if (choice.sourceIndex() < 0 || choice.sourceIndex() >= bookmarksList.size() || choice.before() == null || choice.after() == null || choice.amount() < 0) {
+				return false;
+			}
+			IBookmark source = bookmarksList.get(choice.sourceIndex());
+			var metadata = bookmarkGroups.getItemMetadata(source);
+			if (metadata.type().recipeRole() != RecipeIngredientRole.INPUT ||
+				!getSelectedKey(source, metadata).filter(choice.before()::equals).isPresent() ||
+				(!choice.after().equals(choice.before()) && !metadata.permutations().contains(choice.after()))) { return false; }
+			bySource.computeIfAbsent(source, ignored -> new ArrayList<>()).add(choice);
+		}
+		Map<IBookmark, BookmarkItemMetadata> replacements = new LinkedHashMap<>();
+		for (var entry : bySource.entrySet()) {
+			var metadata = bookmarkGroups.getItemMetadata(entry.getKey());
+			long remaining = metadata.factor();
+			for (var choice : entry.getValue()) {
+				if (choice.amount() > remaining) {
+					return false;
+				}
+				remaining -= choice.amount();
+				var candidate = metadata.permutations().stream().filter(choice.after()::equals).findFirst().orElse(choice.after()).typedIngredient();
+				if (candidate == null && choice.after().equals(choice.before())) {
+					candidate = entry.getKey().getElement().getTypedIngredient();
+				}
+				if (candidate == null) {
+					return false;
+				}
+				IBookmark replacement = createPermutationBookmark(entry.getKey(), ingredientManager.normalizeTypedIngredient(candidate));
+				if (!mergeInputChoice(replacements, replacement, metadata.withFactor(choice.amount()))) {
+					return false;
+				}
+			}
+			if (remaining > 0 && !mergeInputChoice(replacements, entry.getKey(), metadata.withFactor(remaining))) {
+				return false;
+			}
+		}
+		if (replacements.keySet().stream().anyMatch(bookmark -> bookmarksSet.contains(bookmark) && !bySource.containsKey(bookmark))) {
+			return false;
+		}
+		int insertAt = bySource.keySet().stream().mapToInt(bookmarksList::indexOf).min().orElseThrow();
+		for (IBookmark source : bySource.keySet()) { removeBookmarkWithoutNotifying(source); }
+		for (var entry : replacements.entrySet()) {
+			bookmarksSet.add(entry.getKey());
+			bookmarksList.add(insertAt++, entry.getKey());
+			bookmarkGroups.setItemMetadata(entry.getKey(), entry.getValue());
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	private static boolean mergeInputChoice(Map<IBookmark, BookmarkItemMetadata> entries, IBookmark bookmark, BookmarkItemMetadata metadata) {
+		var previous = entries.get(bookmark);
+		if (previous != null) {
+			if (!previous.withFactor(0).equals(metadata.withFactor(0))) {
+				return false;
+			}
+			metadata = metadata.withFactor(SaturatedMath.add(previous.factor(), metadata.factor()));
+		}
+		entries.put(bookmark, metadata);
+		return true;
 	}
 
 	public boolean toggleBookmarkInputCatalyst(IBookmark bookmark) {

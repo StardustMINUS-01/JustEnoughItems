@@ -14,6 +14,10 @@ import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.transfer.RecipeTransferErrorInternal;
 import mezz.jei.common.transfer.RecipeTransferUtil;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
+import mezz.jei.gui.bookmarks.tree.RecipeTreeScreen;
+
+import java.util.Map;
+import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -54,6 +58,12 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public void updateState(IButtonState state) {
+		if (treeTarget().isPresent()) {
+			recipeTransferError = null;
+			state.setActive(true);
+			state.setVisible(true);
+			return;
+		}
 		Player player = Minecraft.getInstance().player;
 		AbstractContainerMenu parentContainer = recipesGui.getParentContainerMenu();
 		if (parentContainer != null && player != null) {
@@ -87,6 +97,15 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public boolean onPress(IJeiUserInput input) {
+		var tree = treeTarget();
+		if (tree.isPresent()) {
+			if (!input.isSimulate() && tree.get().addRecipe(recipeLayout,
+				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.selectedKeys(),
+				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.filteredCandidates())) {
+				recipesGui.onClose();
+			}
+			return true;
+		}
 		if (!input.isSimulate()) {
 			boolean maxTransfer = Screen.hasShiftDown();
 			Minecraft minecraft = Minecraft.getInstance();
@@ -124,7 +143,14 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public void getTooltips(ITooltipBuilder tooltip) {
+		if (treeTarget().isPresent()) {
+			tooltip.add(Component.translatable("jei.tree.add_recipe")); return;
+		}
 		getTooltips(this.recipeTransferError, tooltip);
+	}
+
+	private Optional<RecipeTreeScreen> treeTarget() {
+		return recipesGui.getParentScreen().filter(RecipeTreeScreen.class::isInstance).map(RecipeTreeScreen.class::cast);
 	}
 
 	static void getTooltips(@Nullable IRecipeTransferError recipeTransferError, ITooltipBuilder tooltip) {

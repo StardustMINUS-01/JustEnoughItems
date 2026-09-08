@@ -865,7 +865,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return favoritePanelState;
 	}
 
-	ScrollStep getScrollStep() {
+	public ScrollStep getScrollStep() {
 		return scrollStep;
 	}
 

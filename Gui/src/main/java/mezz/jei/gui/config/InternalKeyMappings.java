@@ -40,6 +40,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping overlayRecipe;
 	private final IJeiKeyMapping craftItems;
 	private final IJeiKeyMapping encodeRecipeChainPatterns;
+	private final IJeiKeyMapping showRecipeTree;
 	private final IJeiKeyMapping toggleBookmarkOverlay;
 	private final IJeiKeyMapping transferRecipeBookmark;
 	private final IJeiKeyMapping maxTransferRecipeBookmark;
@@ -180,6 +181,12 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
 			.buildKeyboardKey(GLFW.GLFW_KEY_Q)
+			.register(registerMethod);
+
+		showRecipeTree = mouseHover.createMapping("key.jei.showRecipeTree")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.SHIFT)
+			.buildKeyboardKey(GLFW.GLFW_KEY_B)
 			.register(registerMethod);
 
 		showRecipe1 = mouseHover.createMapping("key.jei.showRecipe")
@@ -512,6 +519,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getEncodeRecipeChainPatterns() {
 		return encodeRecipeChainPatterns;
+	}
+
+	@Override
+	public IJeiKeyMapping getShowRecipeTree() {
+		return showRecipeTree;
 	}
 
 	@Override

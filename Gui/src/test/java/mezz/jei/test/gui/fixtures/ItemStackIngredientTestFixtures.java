@@ -99,6 +99,11 @@ public final class ItemStackIngredientTestFixtures {
 			}
 
 			@Override
+			public ItemStack copyWithAmount(ItemStack ingredient, long amount) {
+				return ingredient.copyWithCount((int) Math.clamp(amount, 0, Integer.MAX_VALUE));
+			}
+
+			@Override
 			public String getErrorInfo(ItemStack ingredient) {
 				return ingredient.toString();
 			}

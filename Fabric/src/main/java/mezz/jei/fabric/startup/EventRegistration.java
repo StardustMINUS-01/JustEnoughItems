@@ -93,7 +93,7 @@ public class EventRegistration {
 		if (clientInputHandler == null) {
 			return false;
 		}
-		return !clientInputHandler.onGuiMouseScroll(mouseX, mouseY, horizontalAmount, verticalAmount);
+		return !clientInputHandler.onGuiMouseScroll(screen, mouseX, mouseY, horizontalAmount, verticalAmount);
 	}
 
 	private boolean allowMouseDrag(Screen screen, double mouseX, double mouseY, int button, double dragX, double dragY) {

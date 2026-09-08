@@ -43,6 +43,14 @@ public final class BookmarkDisplayGenerator {
 		int columns,
 		List<Integer> usableColumnsPerRow
 	) {
+		return generate(orderedItems, metadataGetter, groups, recipeChainDetails, columns, usableColumnsPerRow, group -> true);
+	}
+
+	public static <T> List<BookmarkDisplaySlot<T>> generate(
+		List<T> orderedItems, Function<T, BookmarkItemMetadata> metadataGetter,
+		Map<Integer, BookmarkGroup> groups, Map<Integer, RecipeChainDetails> recipeChainDetails,
+		int columns, List<Integer> usableColumnsPerRow, java.util.function.IntPredicate includedGroup
+	) {
 		List<BookmarkDisplaySlot<T>> displaySlots = new ArrayList<>();
 		Set<ResourceLocation> emittedBlocks = new java.util.HashSet<>();
 		BookmarkRowLayout.RowLayout rowLayout = BookmarkRowLayout.RowLayout.create(columns, usableColumnsPerRow);
@@ -51,6 +59,9 @@ public final class BookmarkDisplayGenerator {
 			T item = iterator.next();
 			BookmarkItemMetadata metadata = metadataGetter.apply(item);
 			int groupId = metadata.groupId();
+			if (!includedGroup.test(groupId)) {
+				continue;
+			}
 			BookmarkGroup group = groups.get(groupId);
 			if (group != null && group.craftingMode()) {
 				RecipeChainDetails details = recipeChainDetails.get(group.id());
@@ -277,16 +288,15 @@ public final class BookmarkDisplayGenerator {
 		if (entry.collapsed() || entry.viewMode() != BookmarkViewMode.TODO_LIST) {
 			return slotIndex;
 		}
-		while (true) {
-			boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, rowLayout);
-			if (firstColumn && startsRecipeRow(previous, entry)) {
-				return slotIndex;
-			}
-			if (!firstColumn && continuesRecipe(previous, entry)) {
-				return slotIndex;
-			}
-			slotIndex++;
+		boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, rowLayout);
+		if (!continuesRecipe(previous, entry)) {
+			return firstColumn ? slotIndex : BookmarkRowLayout.nextRowStart(slotIndex, rowLayout);
 		}
+		// Indent continued inputs only when this row actually has a second column.
+		if (firstColumn && !startsRecipeRow(previous, entry) && !BookmarkRowLayout.isRowEnd(slotIndex, rowLayout)) {
+			return slotIndex + 1;
+		}
+		return slotIndex;
 	}
 
 	private static boolean startsRecipeRow(BookmarkDisplayEntry<?> previous, BookmarkDisplayEntry<?> entry) {

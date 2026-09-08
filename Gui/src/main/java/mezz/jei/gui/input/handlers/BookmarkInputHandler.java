@@ -24,6 +24,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.tree.RecipeTreeScreen;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.bookmarks.chain.BookmarkContainerPacketHandler;
@@ -119,6 +120,16 @@ public class BookmarkInputHandler implements IUserInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getShowRecipeTree())) {
+			return bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+				.filter(bookmarkList::isGroupCraftingMode)
+				.map(groupId -> {
+					if (!input.isSimulate()) {
+						Minecraft.getInstance().setScreen(new RecipeTreeScreen(screen, bookmarkList, groupId, ingredientManager));
+					}
+					return this;
+				});
+		}
 		if (input.is(keyBindings.getShareToChat())) {
 			Optional<IUserInputHandler> shareHandler = handleGroupShare(input);
 			if (shareHandler.isPresent()) {

@@ -14,6 +14,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,6 +46,19 @@ public final class RecipeChainMath {
 	private final Map<BookmarkIngredientKey, List<RecipeChainRemainderStack>> reusableContainerItems = new LinkedHashMap<>();
 	private final Set<BookmarkIngredientKey> containerItemsBlacklist = new LinkedHashSet<>();
 	private int nextSyntheticIndex = -1;
+	private @Nullable IDemandVisitor demandVisitor;
+
+	/** Returns the visitor for this demand's children, or null to skip recording that subtree. */
+	@FunctionalInterface
+	public interface IDemandVisitor {
+		@Nullable IDemandVisitor visit(RecipeChainInput input, long requested, long remaining);
+	}
+
+	public static void visitDemands(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes, IDemandVisitor visitor) {
+		var math = new RecipeChainMath(inputs, collapsedRecipes);
+		math.demandVisitor = visitor;
+		math.calculate();
+	}
 
 	private RecipeChainMath(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes) {
 		this.collapsedRecipes = Set.copyOf(collapsedRecipes);
@@ -199,6 +213,11 @@ public final class RecipeChainMath {
 	}
 
 	private RecipeChainDetails refresh() {
+		calculate();
+		return createDetails();
+	}
+
+	private void calculate() {
 		resetCalculation();
 		for (Map.Entry<ResourceLocation, Long> outputRecipe : outputRecipes.entrySet()) {
 			ResourceLocation recipeUid = outputRecipe.getKey();
@@ -222,8 +241,6 @@ public final class RecipeChainMath {
 				}
 			}
 		}
-
-		return createDetails();
 	}
 
 	private void resetCalculation() {
@@ -252,6 +269,7 @@ public final class RecipeChainMath {
 	}
 
 	private void calculateSuitableRecipe(RecipeChainInput ingredient, long amount, List<ResourceLocation> visited) {
+		long requested = amount;
 		RecipeChainInput preferred = preferredItems.get(ingredient);
 
 		if (amount > 0) {
@@ -270,12 +288,18 @@ public final class RecipeChainMath {
 		}
 
 		if (preferred == null) {
+			if (demandVisitor != null) {
+				demandVisitor.visit(ingredient, requested, amount);
+			}
 			addRequiredAmount(ingredient, amount, Long.MAX_VALUE);
 			return;
 		}
 
 		ResourceLocation preferredRecipe = preferred.metadata().recipeUid();
 		if (preferredRecipe == null || visited.contains(preferredRecipe)) {
+			if (demandVisitor != null) {
+				demandVisitor.visit(ingredient, requested, amount);
+			}
 			addRequiredAmount(preferred, amount, Long.MAX_VALUE);
 			return;
 		}
@@ -286,10 +310,17 @@ public final class RecipeChainMath {
 			preferred.metadata().multiplierFromAmount(requiredAmount.getOrDefault(preferred, 0L)) -
 				workingMultipliers.getOrDefault(preferred, 0L)
 		);
+		IDemandVisitor childVisitor = demandVisitor == null ? null : demandVisitor.visit(ingredient, requested, amount);
 		if (multiplier > 0) {
 			addShift(preferredRecipe, multiplier);
 			visited.add(preferredRecipe);
-			prepareIngredients(preferredRecipe, multiplier, visited);
+			IDemandVisitor previousVisitor = demandVisitor;
+			demandVisitor = childVisitor;
+			try {
+				prepareIngredients(preferredRecipe, multiplier, visited);
+			} finally {
+				demandVisitor = previousVisitor;
+			}
 			visited.remove(preferredRecipe);
 		}
 	}
@@ -527,9 +558,16 @@ public final class RecipeChainMath {
 		}
 
 		Map<ResourceLocation, RecipeChainDetails.CollapsedBlock> collapsedBlocks = createCollapsedBlocks(topLevelRecipes, itemToRecipe, recipeRelations);
+		Map<Integer, Integer> suppliers = new LinkedHashMap<>();
+		preferredItems.forEach((input, result) -> {
+			if (input.metadata().type().isGraphInput()) {
+				suppliers.put(input.index(), result.index());
+			}
+		});
 
 		return new RecipeChainDetails(
 			calculatedItems,
+			suppliers,
 			itemToRecipe,
 			outputRecipes.keySet(),
 			middleRecipes,

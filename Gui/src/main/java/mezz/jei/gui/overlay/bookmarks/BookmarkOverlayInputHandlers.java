@@ -7,7 +7,6 @@ import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
@@ -15,6 +14,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyMouseButton;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkScrollHandler;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -290,27 +290,11 @@ public final class BookmarkOverlayInputHandlers {
 			}
 
 			Optional<IBookmark> bookmark = overlay.getBookmarkUnderMouse(mouseX, mouseY);
-			if (bookmark.isPresent()) {
-				BookmarkHotkeyContext context = createBookmarkHotkeyContext(bookmark.get());
-				Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, controlDown, altDown, shiftDown);
-				if (action.filter(a -> a == BookmarkHotkeyAction.SHIFT_AMOUNT || a == BookmarkHotkeyAction.SHIFT_AMOUNT_STEP).isPresent()) {
-					long step = getScrollStep(scrollDelta, action.get());
-					if (overlay.getBookmarkList().shiftBookmarkAmount(bookmark.get(), step)) {
-						playClickSound();
-						return Optional.of(this);
-					}
-				} else if (action.filter(a -> a == BookmarkHotkeyAction.CYCLE_PERMUTATION).isPresent()) {
-					long step = getScrollStep(scrollDelta, action.get());
-					if (overlay.getBookmarkList().cycleBookmarkPermutation(bookmark.get(), step)) {
-						playClickSound();
-						return Optional.of(this);
-					}
-				} else if (action.filter(a -> a == BookmarkHotkeyAction.TOGGLE_INPUT_NONCONSUMABLE).isPresent()) {
-					if (overlay.getBookmarkList().toggleBookmarkInputCatalyst(bookmark.get())) {
-						playClickSound();
-						return Optional.of(this);
-					}
-				}
+			if (bookmark.isPresent() && BookmarkScrollHandler.apply(
+				overlay.getBookmarkList(), bookmark.get(), scrollDelta, controlDown, altDown, shiftDown, overlay.getScrollStep().getEffectiveStep(),
+				step -> overlay.getBookmarkList().shiftBookmarkAmount(bookmark.get(), step))) {
+				playClickSound();
+				return Optional.of(this);
 			}
 			return Optional.empty();
 		}
@@ -368,13 +352,4 @@ public final class BookmarkOverlayInputHandlers {
 			.build();
 	}
 
-	private BookmarkHotkeyContext createBookmarkHotkeyContext(IBookmark bookmark) {
-		BookmarkItemMetadata metadata = overlay.getBookmarkList().getBookmarkMetadata(bookmark);
-		BookmarkHotkeySubject subject = metadata.recipeUid() == null ? BookmarkHotkeySubject.ITEM_BOOKMARK : BookmarkHotkeySubject.RECIPE_BOOKMARK;
-		return BookmarkHotkeyContext.builder(subject)
-			.hasIngredient(true)
-			.hasRecipe(metadata.recipeUid() != null)
-			.isBookmarkSlot(true)
-			.build();
-	}
 }

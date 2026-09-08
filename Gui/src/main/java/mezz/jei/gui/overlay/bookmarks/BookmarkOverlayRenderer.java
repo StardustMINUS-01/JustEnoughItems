@@ -383,7 +383,7 @@ public class BookmarkOverlayRenderer {
 			recipeChainHoverTooltip = hoverTooltip;
 		}
 		for (RecipeChainTooltipSection section : hoverTooltip.sections()) {
-			tooltip.add(Component.translatable(getRecipeChainTooltipLabel(section.type())).withStyle(getRecipeChainTooltipColor(section.type())));
+			tooltip.add(Component.translatable(section.type().translationKey()).withStyle(getRecipeChainTooltipColor(section.type())));
 			tooltip.add(section.component());
 		}
 	}
@@ -405,17 +405,6 @@ public class BookmarkOverlayRenderer {
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		PlayerInventoryRecipeChainTooltipInventoryProvider inventoryProvider = new PlayerInventoryRecipeChainTooltipInventoryProvider(minecraft, ingredientManager);
 		return inventoryProvider.getTooltipInventoryInputs(groupId);
-	}
-
-	private static String getRecipeChainTooltipLabel(RecipeChainTooltipSectionType type) {
-		return switch (type) {
-			case OUTPUT -> "jei.tooltip.bookmarks.group.recipe_chain.output";
-			case INPUT -> "jei.tooltip.bookmarks.group.recipe_chain.input";
-			case MISSING -> "jei.tooltip.bookmarks.group.recipe_chain.missing_items";
-			case NEEDED -> "jei.tooltip.bookmarks.group.recipe_chain.needed";
-			case AVAILABLE -> "jei.tooltip.bookmarks.group.recipe_chain.available";
-			case REMAINDER -> "jei.tooltip.bookmarks.group.recipe_chain.remainder";
-		};
 	}
 
 	private static ChatFormatting getRecipeChainTooltipColor(RecipeChainTooltipSectionType type) {

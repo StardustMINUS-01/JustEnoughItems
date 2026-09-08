@@ -91,6 +91,10 @@ public record BookmarkItemMetadata(
 		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
 	}
 
+	public BookmarkItemMetadata withFactor(long factor) {
+		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
+	}
+
 	public BookmarkItemMetadata withPermutations(Set<BookmarkIngredientKey> permutations) {
 		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
 	}

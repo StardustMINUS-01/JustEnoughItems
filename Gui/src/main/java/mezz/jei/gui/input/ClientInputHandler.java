@@ -155,15 +155,21 @@ public class ClientInputHandler {
 			mouseButton == InputConstants.MOUSE_BUTTON_RIGHT;
 	}
 
-	public boolean onGuiMouseScroll(double mouseX, double mouseY, double scrollDelta) {
-		return onGuiMouseScroll(mouseX, mouseY, 0, scrollDelta);
-	}
-
 	public boolean onGuiMouseScroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		return this.inputRouter.handleMouseScrolled(mouseX, mouseY, scrollDeltaX, scrollDeltaY);
 	}
 
+	public boolean onGuiMouseScroll(Screen screen, double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+		if (screenHelper.getGuiProperties(screen).isEmpty()) {
+			return false;
+		}
+		return onGuiMouseScroll(mouseX, mouseY, scrollDeltaX, scrollDeltaY);
+	}
+
 	public boolean onGuiMouseDragged(Screen screen, double mouseX, double mouseY, int button, double dragX, double dragY) {
+		if (screenHelper.getGuiProperties(screen).isEmpty()) {
+			return false;
+		}
 		InputConstants.Key input = InputConstants.Type.MOUSE.getOrCreate(button);
 		return this.inputRouter.handleMouseDragged(mouseX, mouseY, input, dragX, dragY);
 	}

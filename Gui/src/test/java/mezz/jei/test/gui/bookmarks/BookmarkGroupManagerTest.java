@@ -7,6 +7,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
+import mezz.jei.gui.bookmarks.tree.RecipeTreeViewState;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,45 @@ import java.util.List;
 import java.util.LinkedList;
 
 public class BookmarkGroupManagerTest {
+	@Test
+	public void treeSidebarStateIsPerGroupAndDoesNotAlterBookmarkGroupData() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		int first = groups.createGroup("first");
+		int second = groups.createGroup("second");
+		var savedGroups = groups.getGroups();
+		Assertions.assertTrue(groups.getTreeViewState(first).isEmpty());
+		var state = new RecipeTreeViewState(1, 30, 50, true, false, true, false, "iron", 0, 3,
+			new RecipeTreeViewState.Expansion(List.of(), -1));
+		groups.cacheTreeViewState(first, state);
+		Assertions.assertEquals(state, groups.getTreeViewState(first).orElseThrow());
+		Assertions.assertTrue(groups.getTreeViewState(second).isEmpty());
+		Assertions.assertEquals(savedGroups, groups.getGroups());
+		groups.cacheTreeViewState(second, state);
+		for (int i = 0; i < 14; i++) { groups.cacheTreeViewState(groups.createGroup("cached"), state); }
+		Assertions.assertTrue(groups.getTreeViewState(first).isPresent());
+		groups.cacheTreeViewState(groups.createGroup("newest"), state);
+		Assertions.assertTrue(groups.getTreeViewState(first).isPresent());
+		Assertions.assertTrue(groups.getTreeViewState(second).isEmpty());
+	}
+
+	@Test
+	public void deletedOrReloadedGroupsDoNotInheritTreeSidebarState() {
+		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();
+		int group = groups.createGroup("first");
+		var state = new RecipeTreeViewState(1, 0, 0, true, true, true, false, "", 0, 0,
+			new RecipeTreeViewState.Expansion(List.of(), -1));
+		groups.cacheTreeViewState(group, state);
+		groups.removeGroup(group);
+		Assertions.assertEquals(group, groups.createGroup("replacement"));
+		Assertions.assertTrue(groups.getTreeViewState(group).isEmpty());
+		groups.cacheTreeViewState(group, state);
+		groups.clear();
+		Assertions.assertEquals(group, groups.createGroup("new world"));
+		Assertions.assertTrue(groups.getTreeViewState(group).isEmpty());
+		groups.cacheTreeViewState(999, state);
+		Assertions.assertTrue(groups.getTreeViewState(999).isEmpty());
+	}
+
 	@Test
 	public void recipeInputsPreserveSourceIndicesAcrossOtherGroups() {
 		BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();

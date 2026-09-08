@@ -77,7 +77,7 @@ public class EventRegistration {
 			double mouseY = event.getMouseY();
 			double scrollDeltaX = event.getDeltaX();
 			double scrollDeltaY = event.getDeltaY();
-			if (handler.onGuiMouseScroll(mouseX, mouseY, scrollDeltaX, scrollDeltaY)) {
+			if (handler.onGuiMouseScroll(event.getScreen(), mouseX, mouseY, scrollDeltaX, scrollDeltaY)) {
 				event.setCanceled(true);
 			}
 		});

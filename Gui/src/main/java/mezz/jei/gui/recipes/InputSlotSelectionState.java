@@ -62,6 +62,11 @@ public final class InputSlotSelectionState {
 		return Map.copyOf(filteredCandidates);
 	}
 
+	public void setInputCandidates(Map<Integer, List<ITypedIngredient<?>>> candidates) {
+		filteredCandidates.clear();
+		candidates.forEach((index, values) -> filteredCandidates.put(index, List.copyOf(values)));
+	}
+
 	public void applyCandidateFilter(IRecipeLayoutDrawable<?> recipeLayout) {
 		filteredCandidates.clear();
 		if (candidateFilter == null) {

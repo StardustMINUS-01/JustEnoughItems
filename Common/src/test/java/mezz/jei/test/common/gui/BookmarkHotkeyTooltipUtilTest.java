@@ -15,7 +15,7 @@ public class BookmarkHotkeyTooltipUtilTest {
 	public void ingredientTooltipShowsShareHotkey() {
 		JeiTooltip tooltip = new JeiTooltip();
 
-		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, createKeyMappings(), true, false, false, false);
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, createKeyMappings(), false, true, false, false, false, false);
 
 		Assertions.assertTrue(tooltip.toString().contains("jei.tooltip.bookmarks.hotkeys.share"));
 	}
@@ -25,8 +25,8 @@ public class BookmarkHotkeyTooltipUtilTest {
 		JeiTooltip availableTooltip = new JeiTooltip();
 		JeiTooltip unavailableTooltip = new JeiTooltip();
 
-		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(availableTooltip, createKeyMappings(), true, false, false, false, true);
-		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(unavailableTooltip, createKeyMappings(), true, false, false, false, false);
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(availableTooltip, createKeyMappings(), false, true, false, false, false, true);
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(unavailableTooltip, createKeyMappings(), false, true, false, false, false, false);
 
 		Assertions.assertTrue(availableTooltip.toString().contains("jei.tooltip.bookmarks.hotkeys.search_terminal"));
 		Assertions.assertFalse(unavailableTooltip.toString().contains("jei.tooltip.bookmarks.hotkeys.search_terminal"));
@@ -36,7 +36,7 @@ public class BookmarkHotkeyTooltipUtilTest {
 	public void defaultGroupTooltipDescribesUngroupedBookmarksAndHidesUnavailablePullActions() {
 		JeiTooltip tooltip = new JeiTooltip();
 
-		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, null, true, false, false, false);
+		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, null, true, false, false, false, false);
 
 		String text = tooltip.toString();
 		Assertions.assertTrue(text.contains("jei.tooltip.bookmarks.default_group"));
@@ -48,13 +48,46 @@ public class BookmarkHotkeyTooltipUtilTest {
 	public void defaultRecipeChainTooltipShowsGroupConversionAndAvailablePullActions() {
 		JeiTooltip tooltip = new JeiTooltip();
 
-		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, createKeyMappings(), true, true, true, false);
+		BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, createKeyMappings(), true, false, true, true, false);
 
 		String text = tooltip.toString();
 		Assertions.assertFalse(text.contains("jei.tooltip.bookmarks.default_group"));
 		Assertions.assertTrue(text.contains("jei.tooltip.bookmarks.group.hotkeys.to_group"));
 		Assertions.assertTrue(text.contains("jei.tooltip.bookmarks.group.hotkeys.pull_items"));
 		Assertions.assertTrue(text.contains("V"));
+	}
+
+	@Test
+	public void controlAndAltSectionsExpandIndependently() {
+		for (boolean alt : new boolean[]{false, true}) {
+			for (boolean control : new boolean[]{false, true}) {
+				JeiTooltip tooltip = new JeiTooltip();
+				BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, createKeyMappings(), alt, control, true, true, false, true);
+				String text = tooltip.toString();
+				Assertions.assertEquals(control, text.contains("hotkeys.copy_name"));
+				Assertions.assertEquals(control, text.contains("hotkeys.encode_ae2_pattern"));
+				Assertions.assertEquals(control, text.contains("hotkeys.add_with_count"));
+				Assertions.assertEquals(alt, text.contains("hotkeys.add_with_recipe_and_count"));
+				Assertions.assertEquals(alt, text.contains("hotkeys.craft_missing"));
+				Assertions.assertEquals(!control, text.contains("hotkeys.hold_ctrl"));
+			}
+		}
+	}
+
+	@Test
+	public void groupControlActionsAndShiftTreeEntryHaveSeparateSections() {
+		JeiTooltip control = new JeiTooltip();
+		JeiTooltip alt = new JeiTooltip();
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(control, createKeyMappings(), false, true, true, true, true, true, true);
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(alt, createKeyMappings(), true, false, true, true, true, true, true);
+		Assertions.assertTrue(control.toString().contains("hotkeys.encode_ae2_patterns"));
+		Assertions.assertFalse(alt.toString().contains("hotkeys.encode_ae2_patterns"));
+		Assertions.assertTrue(alt.toString().contains("jei.tree.open"));
+		Assertions.assertFalse(control.toString().contains("jei.tree.open"));
+		Assertions.assertTrue(alt.toString().contains("hotkeys.quantity_step"));
+		JeiTooltip ordinary = new JeiTooltip();
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(ordinary, createKeyMappings(), true, false, true, false, false, false, false);
+		Assertions.assertFalse(ordinary.toString().contains("jei.tree.open"));
 	}
 
 	private static IInternalKeyMappings createKeyMappings() {

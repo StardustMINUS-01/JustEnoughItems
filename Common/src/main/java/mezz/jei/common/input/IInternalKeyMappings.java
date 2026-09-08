@@ -30,6 +30,7 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getOverlayRecipe();
 	IJeiKeyMapping getCraftItems();
 	IJeiKeyMapping getEncodeRecipeChainPatterns();
+	IJeiKeyMapping getShowRecipeTree();
 	IJeiKeyMapping getToggleBookmarkOverlay();
 
 	@Override

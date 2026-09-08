@@ -18,6 +18,7 @@ import java.util.Set;
 
 public record RecipeChainDetails(
 	Map<Integer, RecipeChainItem> calculatedItems,
+	Map<Integer, Integer> suppliers,
 	Map<Integer, ResourceLocation> itemToRecipe,
 	Set<ResourceLocation> outputRecipes,
 	Set<ResourceLocation> middleRecipes,
@@ -31,6 +32,7 @@ public record RecipeChainDetails(
 ) {
 	public RecipeChainDetails {
 		calculatedItems = Map.copyOf(calculatedItems);
+		suppliers = Map.copyOf(suppliers);
 		itemToRecipe = Map.copyOf(itemToRecipe);
 		outputRecipes = Set.copyOf(outputRecipes);
 		middleRecipes = Set.copyOf(middleRecipes);
