@@ -1,9 +1,7 @@
 package mezz.jei.gui.overlay.bookmarks;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import mezz.jei.common.Internal;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
@@ -139,18 +137,12 @@ public final class BookmarkOverlayInputHandlers {
 			}
 
 			if (overlay.getScrollStepArea().contains(input.getMouseX(), input.getMouseY())) {
-				boolean ctrlLeftClick = InputModifiers.hasControl(input) && mouseButton == InputConstants.MOUSE_BUTTON_LEFT;
-				boolean rightClick = mouseButton == InputConstants.MOUSE_BUTTON_RIGHT;
-				if (!ctrlLeftClick && !rightClick) {
+				if (mouseButton != InputConstants.MOUSE_BUTTON_RIGHT) {
 					return Optional.empty();
 				}
 				if (input.getInputType() == InputType.EXECUTE) {
-					if (ctrlLeftClick) {
-						toggleFastPickup();
-					} else {
-						overlay.getScrollStep().reset();
-						overlay.getScrollStepField().syncFromScrollStep();
-					}
+					overlay.getScrollStep().reset();
+					overlay.getScrollStepField().syncFromScrollStep();
 					playClickSound();
 				}
 				return Optional.of(this);
@@ -303,14 +295,6 @@ public final class BookmarkOverlayInputHandlers {
 			long direction = scrollDelta > 0 ? 1 : -1;
 			long step = action == BookmarkHotkeyAction.SHIFT_AMOUNT_STEP ? overlay.getScrollStep().getEffectiveStep() : SCROLL_STEP;
 			return direction * step;
-		}
-	}
-
-	private void toggleFastPickup() {
-		overlay.getToggleState().toggleFastPickupEnabled();
-		overlay.getScrollStepField().syncFromScrollStep();
-		if (overlay.getToggleState().isFastPickupEnabled()) {
-			Internal.getServerConnection().sendPacketToServer(PacketRequestCheatPermission.INSTANCE);
 		}
 	}
 

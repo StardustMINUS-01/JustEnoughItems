@@ -273,7 +273,7 @@
   "jei.config.client.cheating": "Cheating",
   "jei.config.client.cheating.description": "Config options related to Cheating.",
   "jei.config.client.cheating.giveMode": "Give Mode",
-  "jei.config.client.cheating.giveMode.description": "Choose if JEI should give ingredients directly to the inventory or pick them up with the mouse.",
+  "jei.config.client.cheating.giveMode.description": "Choose the destination for cheated ingredients.\nMouse pickup: keep the normal one-item or one-stack amounts.\nInventory: use the bookmark amount first, otherwise the quantity field; an empty field or 0 means one stack. Requires JEIU on the server. Only give what fits in the inventory, without dropping excess items.",
   "jei.config.client.cheating.cheatToHotbarUsingHotkeysEnabled": "Cheat Items to Hotbar Using Hotkeys",
   "jei.config.client.cheating.cheatToHotbarUsingHotkeysEnabled.description": "Enable cheating items into the hotbar by using Shift + numeric keys.",
   "jei.config.client.cheating.showHiddenIngredients": "Show Hidden Ingredients",

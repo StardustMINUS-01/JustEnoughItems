@@ -70,7 +70,7 @@ public class ScrollStepTextField extends EditBox {
 		}
 		if (getValue().isEmpty() && !isFocused()) {
 			Component placeholder = Component.translatable("jei.bookmark.scrollStep.oneStack");
-			guiGraphics.drawString(Minecraft.getInstance().font, placeholder, getX(), getY(), getPlaceholderColor(), true);
+			guiGraphics.drawString(Minecraft.getInstance().font, placeholder, getX(), getY(), 0xFF666666, true);
 			return;
 		}
 		super.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
@@ -93,16 +93,11 @@ public class ScrollStepTextField extends EditBox {
 	}
 
 	private void updateColor() {
-		if (Internal.getClientToggleState().isFastPickupEnabled()) {
-			setTextColor(0xFFB22222);
-		} else if (scrollStep.getValue() == 0) {
+		if (scrollStep.getValue() == 0) {
 			setTextColor(0xFF666666);
 		} else {
 			setTextColor(0xFFFFFFFF);
 		}
 	}
 
-	private int getPlaceholderColor() {
-		return Internal.getClientToggleState().isFastPickupEnabled() ? 0xFFB22222 : 0xFF666666;
-	}
 }

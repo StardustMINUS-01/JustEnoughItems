@@ -15,12 +15,6 @@ public interface IClientToggleState {
 
 	void setCheatItemsEnabled(boolean value);
 
-	boolean isFastPickupEnabled();
-
-	void toggleFastPickupEnabled();
-
-	void setFastPickupEnabled(boolean value);
-
 	boolean isBookmarkOverlayEnabled();
 
 	void toggleBookmarkEnabled();

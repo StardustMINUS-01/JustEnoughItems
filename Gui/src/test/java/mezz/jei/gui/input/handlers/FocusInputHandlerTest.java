@@ -3,7 +3,6 @@ package mezz.jei.gui.input.handlers;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IJeiKeyMapping;
-import mezz.jei.common.config.ClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.gui.input.ClickableIngredientInternal;
@@ -12,18 +11,14 @@ import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.IngredientElement;
-import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.Bootstrap;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
@@ -35,47 +30,6 @@ public class FocusInputHandlerTest {
 	public static void bootStrap() {
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
-	}
-
-	@Test
-	public void ordinaryItemUsesScrollStepValue() {
-		ScrollStep scrollStep = new ScrollStep();
-		scrollStep.setValue(33);
-
-		assertEquals(33, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.empty(), scrollStep));
-	}
-
-	@Test
-	public void ordinaryItemUsesOneStackWhenScrollStepIsZero() {
-		ScrollStep scrollStep = new ScrollStep();
-
-		assertEquals(64, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.empty(), scrollStep));
-	}
-
-	@Test
-	public void nonStackableItemUsesOneStackWhenScrollStepIsZero() {
-		ScrollStep scrollStep = new ScrollStep();
-
-		assertEquals(1, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND_SWORD), Optional.empty(), scrollStep));
-	}
-
-	@Test
-	public void chainAmountTakesPriorityOverScrollStep() {
-		ScrollStep scrollStep = new ScrollStep();
-		scrollStep.setValue(33);
-
-		assertEquals(8, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.of(8L), scrollStep));
-	}
-
-	@Test
-	public void chainAmountClampsToIntMax() {
-		ScrollStep scrollStep = new ScrollStep();
-
-		assertEquals(Integer.MAX_VALUE, FocusInputHandler.resolveFastPickupAmount(
-			stack(Items.DIAMOND),
-			Optional.of(3_000_000_000L),
-			scrollStep
-		));
 	}
 
 	@Test
@@ -97,7 +51,7 @@ public class FocusInputHandlerTest {
 			(proxy, method, args) -> method.getName().equals("getSearchIngredientInTerminal") ? matching : noMatch
 		);
 		FocusInputHandler handler = new FocusInputHandler(
-			focusSource, null, null, null, null, null, null, new ClientToggleState(), null, new ScrollStep()
+			focusSource, null, null, null, null, null, null, null
 		);
 		int[] searches = {0};
 		ExternalIngredientSearchHandlerRegistry.register((screen, searchedIngredient, simulate) -> {
@@ -127,11 +81,4 @@ public class FocusInputHandlerTest {
 		);
 	}
 
-	private static ItemStack stack() {
-		return new ItemStack(Items.DIAMOND);
-	}
-
-	private static ItemStack stack(Item item) {
-		return new ItemStack(item);
-	}
 }

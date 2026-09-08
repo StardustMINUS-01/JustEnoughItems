@@ -418,7 +418,7 @@ public class JeiGuiStarter {
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
 			ingredientListOverlay.createDeleteItemInputHandler(),
 			bookmarkOverlay.createDeleteItemInputHandler(),
-			new CheatInputHandler(recipeFocusSource, clientConfig, ingredientManager, toggleState, serverConnection),
+			new CheatInputHandler(recipeFocusSource, clientConfig, ingredientManager, toggleState, serverConnection, scrollStep),
 			ingredientListOverlay.createInputHandler(),
 			bookmarkOverlay.createInputHandler(),
 			new BookmarkInputHandler(
@@ -436,7 +436,7 @@ public class JeiGuiStarter {
 				bookmarkEntryCodec,
 				bookmarkRegistryOps
 			),
-			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, toggleState, serverConnection, scrollStep),
+			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, serverConnection),
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);

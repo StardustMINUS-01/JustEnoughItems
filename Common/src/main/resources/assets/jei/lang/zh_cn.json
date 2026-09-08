@@ -275,7 +275,7 @@
   "jei.config.client.cheating": "作弊",
   "jei.config.client.cheating.description": "与作弊相关的配置选项。",
   "jei.config.client.cheating.giveMode": "给予模式",
-  "jei.config.client.cheating.giveMode.description": "选择JEI应将原料直接放入物品栏，还是由玩家用鼠标拾取。",
+  "jei.config.client.cheating.giveMode.description": "选择作弊给予原料的位置。\n拿到光标：沿用一个或一组的数量。\n放入背包：优先使用书签数量，否则使用数量框的值；留空或为 0 时给予一组。需要服务端安装 JEIU，仅给予背包能容纳的数量，多余部分不掉落。",
   "jei.config.client.cheating.cheatToHotbarUsingHotkeysEnabled": "使用快捷键将物品放入快捷栏",
   "jei.config.client.cheating.cheatToHotbarUsingHotkeysEnabled.description": "启用后，可按Shift+数字键将物品放入快捷栏。",
   "jei.config.client.cheating.showHiddenIngredients": "显示隐藏的原料",

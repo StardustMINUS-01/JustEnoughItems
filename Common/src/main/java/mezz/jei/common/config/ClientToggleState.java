@@ -8,7 +8,6 @@ public class ClientToggleState implements IClientToggleState {
 
 	private boolean overlayEnabled = true;
 	private boolean cheatItemsEnabled = false;
-	private boolean fastPickupEnabled = false;
 	private boolean editModeEnabled = false;
 	private boolean bookmarkOverlayEnabled = true;
 
@@ -52,21 +51,6 @@ public class ClientToggleState implements IClientToggleState {
 	@Override
 	public void setCheatItemsEnabled(boolean value) {
 		cheatItemsEnabled = value;
-	}
-
-	@Override
-	public boolean isFastPickupEnabled() {
-		return fastPickupEnabled;
-	}
-
-	@Override
-	public void toggleFastPickupEnabled() {
-		setFastPickupEnabled(!fastPickupEnabled);
-	}
-
-	@Override
-	public void setFastPickupEnabled(boolean value) {
-		fastPickupEnabled = value;
 	}
 
 	@Override

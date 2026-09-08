@@ -10,7 +10,6 @@ import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
@@ -20,11 +19,9 @@ import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
-import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
@@ -40,7 +37,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,10 +48,7 @@ public class FocusInputHandler implements IUserInputHandler {
 	private final IIngredientManager ingredientManager;
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
-	private final IClientToggleState toggleState;
 	private final CommandUtil commandUtil;
-	private final IConnectionToServer serverConnection;
-	private final ScrollStep scrollStep;
 
 	public FocusInputHandler(
 		CombinedRecipeFocusSource focusSource,
@@ -65,9 +58,7 @@ public class FocusInputHandler implements IUserInputHandler {
 		IIngredientManager ingredientManager,
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory,
-		IClientToggleState toggleState,
-		IConnectionToServer serverConnection,
-		ScrollStep scrollStep
+		IConnectionToServer serverConnection
 	) {
 		this.focusSource = focusSource;
 		this.recipesGui = recipesGui;
@@ -75,25 +66,11 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.ingredientManager = ingredientManager;
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
-		this.toggleState = toggleState;
 		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
-		this.serverConnection = serverConnection;
-		this.scrollStep = scrollStep;
 	}
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		if (toggleState.isFastPickupEnabled() &&
-			input.is(keyBindings.getLeftClick()) &&
-			!InputModifiers.hasShift(input) &&
-			!InputModifiers.hasControl(input) &&
-			!InputModifiers.hasAlt(input)) {
-			Optional<IUserInputHandler> handledFastPickup = handleFastPickup(input, keyBindings);
-			if (handledFastPickup.isPresent()) {
-				return handledFastPickup;
-			}
-		}
-
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
@@ -332,31 +309,4 @@ public class FocusInputHandler implements IUserInputHandler {
 			.map(clicked -> new SameElementInputHandler(this, clicked::isMouseOver));
 	}
 
-	private Optional<IUserInputHandler> handleFastPickup(UserInput input, IInternalKeyMappings keyBindings) {
-		if (!serverConnection.isJeiOnServer()) {
-			return Optional.empty();
-		}
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
-			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
-				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
-				if (!itemStack.isEmpty()) {
-					int amount = resolveFastPickupAmount(itemStack, clicked.getCheatGiveAmount(), scrollStep);
-					if (!input.isSimulate()) {
-						commandUtil.fastPickupStack(itemStack.copyWithCount(amount));
-					}
-					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-					consumer.accept(handler);
-				}
-			})
-			.findFirst();
-	}
-
-	static int resolveFastPickupAmount(ItemStack itemStack, Optional<Long> cheatGiveAmount, ScrollStep scrollStep) {
-		if (cheatGiveAmount.isPresent()) {
-			long amount = Math.max(1, cheatGiveAmount.get());
-			return (int) Math.min(Integer.MAX_VALUE, amount);
-		}
-		long amount = scrollStep.getValue() == 0 ? itemStack.getMaxStackSize() : scrollStep.getValue();
-		return (int) Math.min(Integer.MAX_VALUE, amount);
-	}
 }

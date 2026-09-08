@@ -12,11 +12,11 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -85,26 +85,6 @@ public final class ServerCommandUtil {
 		} else {
 			if (LOGGER.isDebugEnabled()) {
 				LOGGER.debug("Player '{} ({})' tried to cheat an ItemStack '{}' but does not have permission.", sender.getName(), sender.getUUID(), itemStack.getDisplayName());
-			}
-			IConnectionToClient connection = context.connection();
-			connection.sendPacketToClient(new PacketCheatPermission(false, serverConfig), sender);
-		}
-	}
-
-	public static void executeFastPickup(ServerPacketContext context, ItemStack itemStack) {
-		ServerPlayer sender = context.player();
-		IServerConfig serverConfig = context.serverConfig();
-		if (hasPermissionForCheatMode(sender, serverConfig)) {
-			if (itemStack.isEmpty()) {
-				if (LOGGER.isDebugEnabled()) {
-					LOGGER.debug("Player '{} ({})' tried to fast pickup an empty ItemStack.", sender.getName(), sender.getUUID());
-				}
-				return;
-			}
-			giveToInventoryFastPickup(sender, itemStack);
-		} else {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("Player '{} ({})' tried to fast pickup an ItemStack '{}' but does not have permission.", sender.getName(), sender.getUUID(), itemStack.getDisplayName());
 			}
 			IConnectionToClient connection = context.connection();
 			connection.sendPacketToClient(new PacketCheatPermission(false, serverConfig), sender);
@@ -189,31 +169,39 @@ public final class ServerCommandUtil {
 	 */
 	@SuppressWarnings("JavadocReference")
 	private static void giveToInventory(Player entityplayermp, ItemStack itemStack) {
-		ItemStack itemStackCopy = itemStack.copy();
-		boolean flag = entityplayermp.getInventory().add(itemStack);
-		if (flag && itemStack.isEmpty()) {
-			itemStack.setCount(1);
-			ItemEntity entityitem = entityplayermp.drop(itemStack, false);
-			if (entityitem != null) {
-				entityitem.makeFakeItem();
+		ServerPlayer sender = (ServerPlayer) entityplayermp;
+		Inventory inventory = entityplayermp.getInventory();
+		int remaining = itemStack.getCount();
+		ItemStack template = itemStack.copyWithCount(1);
+		// Avoid Inventory.add's offhand insertion and creative-mode remainder deletion.
+		for (int slot = 0; slot < inventory.items.size() && remaining > 0; slot++) {
+			int previousRemaining = remaining;
+			ItemStack current = inventory.items.get(slot);
+			if (current.isEmpty()) {
+				int amount = Math.min(remaining, inventory.getMaxStackSize(template));
+				ItemStack added = template.copyWithCount(amount);
+				added.setPopTime(5);
+				inventory.setItem(slot, added);
+				remaining -= amount;
+			} else if (current.isStackable() && canStack(current, template)) {
+				int amount = Math.min(remaining, inventory.getMaxStackSize(current) - current.getCount());
+				if (amount > 0) {
+					current.grow(amount);
+					current.setPopTime(5);
+					remaining -= amount;
+				}
 			}
-
-			entityplayermp.level().playSound(null, entityplayermp.getX(), entityplayermp.getY(), entityplayermp.getZ(), SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F, ((entityplayermp.getRandom().nextFloat() - entityplayermp.getRandom().nextFloat()) * 0.7F + 1.0F) * 2.0F);
-			entityplayermp.inventoryMenu.broadcastChanges();
-		} else {
-			ItemEntity entityitem = entityplayermp.drop(itemStack, false);
-			if (entityitem != null) {
-				entityitem.setNoPickUpDelay();
-				entityitem.setTarget(entityplayermp.getUUID());
+			if (remaining < previousRemaining) {
+				// Creative item tabs ignore ordinary menu updates for non-hotbar slots.
+				sender.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, slot, inventory.items.get(slot)));
 			}
 		}
-
-		notifyGive(entityplayermp, itemStackCopy);
-	}
-
-	private static void giveToInventoryFastPickup(Player player, ItemStack itemStack) {
-		player.getInventory().add(itemStack);
-		player.inventoryMenu.broadcastChanges();
+		int given = itemStack.getCount() - remaining;
+		if (given > 0) {
+			inventory.setChanged();
+			entityplayermp.level().playSound(null, entityplayermp.getX(), entityplayermp.getY(), entityplayermp.getZ(), SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F, ((entityplayermp.getRandom().nextFloat() - entityplayermp.getRandom().nextFloat()) * 0.7F + 1.0F) * 2.0F);
+			notifyGive(entityplayermp, template.copyWithCount(given));
+		}
 	}
 
 	private static void notifyGive(Player player, ItemStack stack) {
@@ -222,7 +210,8 @@ public final class ServerCommandUtil {
 		}
 		CommandSourceStack commandSource = player.createCommandSourceStack();
 		int count = stack.getCount();
-		Component stackTextComponent = stack.getDisplayName();
+		// Chat hover item counts are limited to 99; the message carries the actual give count separately.
+		Component stackTextComponent = stack.copyWithCount(1).getDisplayName();
 		Component displayName = player.getDisplayName();
 		Component message = Component.translatable("commands.give.success.single", count, stackTextComponent, displayName);
 		commandSource.sendSuccess(() -> message, true);
