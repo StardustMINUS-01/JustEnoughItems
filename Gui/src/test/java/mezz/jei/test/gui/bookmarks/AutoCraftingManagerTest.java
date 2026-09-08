@@ -1,9 +1,6 @@
 package mezz.jei.test.gui.bookmarks;
 
-import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
-import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.chain.AutoCraftingManager;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
@@ -18,8 +15,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.ingredient;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.input;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.item;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.key;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.result;
+
 public class AutoCraftingManagerTest {
-	private static final ResourceLocation CRAFTING = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
 	private static final ResourceLocation C_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "c");
 	private static final ResourceLocation E_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "e");
 
@@ -67,38 +69,6 @@ public class AutoCraftingManagerTest {
 		return inventory;
 	}
 
-	private static RecipeChainInput input(int index, BookmarkItemMetadata metadata) {
-		return new RecipeChainInput(index, metadata);
-	}
-
-	private static BookmarkItemMetadata item(BookmarkIngredientKey key, long amount) {
-		return metadata(null, BookmarkItemType.ITEM, key, amount, 1);
-	}
-
-	private static BookmarkItemMetadata result(ResourceLocation recipeUid, BookmarkIngredientKey key, long factor, long multiplier) {
-		return metadata(recipeUid, BookmarkItemType.RESULT, key, factor, multiplier);
-	}
-
-	private static BookmarkItemMetadata ingredient(ResourceLocation recipeUid, BookmarkIngredientKey key, long factor) {
-		return metadata(recipeUid, BookmarkItemType.INGREDIENT, key, factor, 1);
-	}
-
-	private static BookmarkItemMetadata metadata(ResourceLocation recipeUid, BookmarkItemType type, BookmarkIngredientKey key, long factor, long multiplier) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			type,
-			multiplier,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			CRAFTING,
-			recipeUid,
-			Set.of(key)
-		);
-	}
-
-	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid);
-	}
 
 	private record Craft(ResourceLocation recipeUid, int multiplier) {
 	}
