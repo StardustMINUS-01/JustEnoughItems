@@ -121,6 +121,7 @@ public final class BookmarkDisplayGenerator {
 			int above = BookmarkRowLayout.above(slotIndex, rowLayout);
 			int below = BookmarkRowLayout.below(slotIndex, rowLayout);
 			BookmarkDisplayEntry<T> entry = slot.entry().withBorder(new BookmarkSlotBorder(
+				key,
 				getBorderColor(slot.entry(), groups),
 				(rowLayout.columns() > 0 && BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) || !key.equals(borderKeys.get(slotIndex - 1)),
 				(rowLayout.columns() > 0 && BookmarkRowLayout.isRowEnd(slotIndex, rowLayout)) || !key.equals(borderKeys.get(slotIndex + 1)),
@@ -140,7 +141,7 @@ public final class BookmarkDisplayGenerator {
 		}
 		ResourceLocation blockId = entry.collapsedBlockId();
 		if (blockId != null) {
-			return "recipe:" + blockId;
+			return "recipe:" + groupId + ":" + blockId;
 		}
 		return null;
 	}

@@ -50,6 +50,7 @@ public class IngredientListRenderer {
 	private final List<IngredientListSlot> slots = new ArrayList<>();
 	private final ListMultiMap<IIngredientType<?>, BatchRenderElement<?>> renderElementsByType = new ListMultiMap<>();
 	private final List<IDrawable> renderOverlays = new ArrayList<>();
+	private final BorderVertexTracker borderVertices = new BorderVertexTracker();
 	private final IIngredientManager ingredientManager;
 	private final boolean searchable;
 	private Function<IngredientListSlotContext, Optional<BookmarkSlotVisuals>> slotVisualsResolver = context -> Optional.empty();
@@ -65,6 +66,7 @@ public class IngredientListRenderer {
 	}
 
 	public void clear() {
+		borderVertices.clear();
 		slots.clear();
 		renderElementsByType.clear();
 		renderOverlays.clear();
@@ -241,6 +243,7 @@ public class IngredientListRenderer {
 	}
 
 	private void renderSlotBorders(GuiGraphics guiGraphics) {
+		borderVertices.clear();
 		Matrix4f matrix = guiGraphics.pose().last().pose();
 		BufferBuilder bufferBuilder = null;
 		int hoveredSlotIndex = hoveredSlot.map(slots::indexOf).orElse(-1);
@@ -253,7 +256,25 @@ public class IngredientListRenderer {
 					bufferBuilder = Tesselator.getInstance()
 						.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 				}
-				drawBorder(bufferBuilder, matrix, slot.getArea(), border.get());
+				BookmarkSlotBorder frame = border.get();
+				ImmutableRect2i area = slot.getArea();
+				drawBorder(bufferBuilder, matrix, area, frame);
+				int x = area.getX();
+				int y = area.getY();
+				int right = x + area.getWidth();
+				int bottom = y + area.getHeight();
+				if (frame.left() || frame.top()) {
+					drawBorderVertex(bufferBuilder, matrix, frame, x, y);
+				}
+				if (frame.right() || frame.top()) {
+					drawBorderVertex(bufferBuilder, matrix, frame, right, y);
+				}
+				if (frame.left() || frame.bottom()) {
+					drawBorderVertex(bufferBuilder, matrix, frame, x, bottom);
+				}
+				if (frame.right() || frame.bottom()) {
+					drawBorderVertex(bufferBuilder, matrix, frame, right, bottom);
+				}
 			}
 		}
 		if (bufferBuilder != null) {
@@ -276,16 +297,22 @@ public class IngredientListRenderer {
 		float width = area.getWidth();
 		float height = area.getHeight();
 		if (border.left()) {
-			addQuad(bufferBuilder, matrix, x - 0.5F, y - 0.5F, x + 0.5F, y + height + 0.5F, color);
+			addQuad(bufferBuilder, matrix, x - 0.5F, y + 0.5F, x + 0.5F, y + height - 0.5F, color);
 		}
 		if (border.right()) {
-			addQuad(bufferBuilder, matrix, x + width - 0.5F, y - 0.5F, x + width + 0.5F, y + height + 0.5F, color);
+			addQuad(bufferBuilder, matrix, x + width - 0.5F, y + 0.5F, x + width + 0.5F, y + height - 0.5F, color);
 		}
 		if (border.top()) {
-			addQuad(bufferBuilder, matrix, x - 0.5F, y - 0.5F, x + width + 0.5F, y + 0.5F, color);
+			addQuad(bufferBuilder, matrix, x + 0.5F, y - 0.5F, x + width - 0.5F, y + 0.5F, color);
 		}
 		if (border.bottom()) {
-			addQuad(bufferBuilder, matrix, x - 0.5F, y + height - 0.5F, x + width + 0.5F, y + height + 0.5F, color);
+			addQuad(bufferBuilder, matrix, x + 0.5F, y + height - 0.5F, x + width - 0.5F, y + height + 0.5F, color);
+		}
+	}
+
+	private void drawBorderVertex(BufferBuilder buffer, Matrix4f matrix, BookmarkSlotBorder border, int x, int y) {
+		if (borderVertices.claim(border.frameKey(), x, y)) {
+			addQuad(buffer, matrix, x - 0.5F, y - 0.5F, x + 0.5F, y + 0.5F, border.color());
 		}
 	}
 

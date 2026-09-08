@@ -65,7 +65,7 @@ public final class CollapsibleSlotVisualsProvider {
 		CollapsibleSettings settings = this.settings;
 		int backgroundColor = collapsed ? settings.collapsedColor() : settings.expandedColor();
 		BookmarkSlotBorder border = new BookmarkSlotBorder(
-			boostAlpha(backgroundColor), left, right, top, bottom);
+			groupId, boostAlpha(backgroundColor), left, right, top, bottom);
 		return Optional.of(new BookmarkSlotVisuals(
 			OptionalInt.of(backgroundColor),
 			OptionalInt.empty(),

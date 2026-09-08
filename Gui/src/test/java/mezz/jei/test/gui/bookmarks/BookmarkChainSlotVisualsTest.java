@@ -94,7 +94,7 @@ public class BookmarkChainSlotVisualsTest {
 			ResourceLocation.parse("test:plate"),
 			Set.of(new BookmarkIngredientKey("test:item", "plate"))
 		);
-		BookmarkSlotBorder border = new BookmarkSlotBorder(0x99A033A0, true, false, true, false);
+		BookmarkSlotBorder border = new BookmarkSlotBorder("recipe", 0x99A033A0, true, false, true, false);
 		BookmarkDisplayEntry<Object> entry = entry(metadata).withBorder(border);
 
 		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(entry).orElseThrow();

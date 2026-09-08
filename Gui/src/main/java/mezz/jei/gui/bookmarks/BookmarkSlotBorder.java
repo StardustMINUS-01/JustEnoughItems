@@ -14,6 +14,7 @@ package mezz.jei.gui.bookmarks;
  * not share the same border key, so all marked slots merge into one rectangle.
  */
 public record BookmarkSlotBorder(
+	String frameKey,
 	int color,
 	boolean left,
 	boolean right,
