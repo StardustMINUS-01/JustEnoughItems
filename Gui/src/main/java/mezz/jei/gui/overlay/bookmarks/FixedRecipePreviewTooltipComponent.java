@@ -4,7 +4,7 @@ import mezz.jei.api.gui.IRecipeLayoutDrawable;
 
 public class FixedRecipePreviewTooltipComponent<R> extends PreviewTooltipComponent<R> {
 	public FixedRecipePreviewTooltipComponent(IRecipeLayoutDrawable<R> drawable) {
-		super(drawable);
+		super(drawable, mezz.jei.gui.overlay.elements.RecipeBookmarkElement.getCurrentRecipeTransferService());
 	}
 
 	@Override

@@ -6,7 +6,6 @@ import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
@@ -139,6 +138,16 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 		List<ITypedIngredient<?>> ingredientList = List.of(ingredients);
 		return new IRecipeSlotView() {
 			@Override
+			public java.util.stream.Stream<ITypedIngredient<?>> getDisplayedIngredients() {
+				return getAllIngredients();
+			}
+
+			@Override
+			public Optional<net.minecraft.tags.TagKey<?>> getTagKey() {
+				return Optional.empty();
+			}
+
+			@Override
 			public java.util.stream.Stream<ITypedIngredient<?>> getAllIngredients() {
 				return ingredientList.stream();
 			}
@@ -171,17 +180,7 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 
 	private static ITypedIngredient<ItemStack> item(net.minecraft.world.level.ItemLike item) {
 		ItemStack stack = new ItemStack(item);
-		return new ITypedIngredient<>() {
-			@Override
-			public IIngredientType<ItemStack> getType() {
-				return VanillaTypes.ITEM_STACK;
-			}
-
-			@Override
-			public ItemStack getIngredient() {
-				return stack;
-			}
-		};
+		return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(VanillaTypes.ITEM_STACK, stack);
 	}
 
 	private static final class TestAccess implements Ae2RecipeChainPatternEncodingBridge.Access {

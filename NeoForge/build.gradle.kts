@@ -48,7 +48,8 @@ repositories {
 }
 
 val gameTestJunitResultsDir = layout.buildDirectory.dir("test-results/gameTest")
-val commonClientTestFixturesSource = project(":Common").layout.projectDirectory.dir("src/clientTestFixtures/java")
+val commonProjectDirectory = project(":Common").layout.projectDirectory
+val commonClientTestFixturesSource = commonProjectDirectory.dir("src/clientTestFixtures/java")
 
 sourceSets {
 	named("test") {
@@ -86,6 +87,9 @@ configurations.named("gameTestImplementation") {
 }
 configurations.named("clientGameTestImplementation") {
 	extendsFrom(configurations.implementation.get())
+}
+configurations.named("clientGameTestCompileOnly") {
+	extendsFrom(configurations.compileOnly.get())
 }
 
 tasks.named<JavaCompile>(sourceSets.main.get().compileJavaTaskName) {
@@ -128,6 +132,7 @@ val neoForgeServerWithoutJeiRunName = "neoForgeServerWithoutJei"
 val vanillaServerRunName = "vanillaServer"
 val clientRecipeSyncTestProperty = "jei.clientRecipeSyncTest"
 val clientRecipeSyncTestRunName = "clientRecipeSyncTest"
+val clientResourcePackName = "jei-client-test-pack"
 val clientRecipeSyncTestCaseRuns = listOf(
 	"clientRecipeSyncSingleplayer" to "singleplayer",
 	"clientRecipeSyncNeoForgeServerWithJei" to "neoforgeServerWithJei",
@@ -154,7 +159,7 @@ fun Configuration.singleFileContents(): Provider<String> =
 
 dependencies {
 	dependencyProjects.forEach {
-		implementation(it)
+		compileOnly(it)
 	}
 	modShadeImplementation("net.mezzdev:baked-substring-index:${bakedSubstringIndexVersion}") {
 		isTransitive = false
@@ -351,6 +356,18 @@ val writeClientRecipeSyncTestOptionsTasks = clientRecipeSyncRuns.associate { (ru
 	}
 }
 
+val copyClientResourcePackTasks = clientRecipeSyncRuns.associate { (runName, _) ->
+	runName to tasks.register<Sync>("copy${capitalizedRunName(runName)}ResourcePack") {
+		from(layout.projectDirectory.file("src/clientGameTest/templates/resourcepacks/$clientResourcePackName/pack.mcmeta"))
+		// Override JEI's 16x16 config button with an existing 32x32 texture to catch stale atlas coordinates.
+		from(commonProjectDirectory.file("src/main/resources/assets/jei/textures/jei/atlas/gui/icons/shapeless_icon_v2.png")) {
+			into("assets/jei/textures/jei/atlas/gui/icons")
+			rename { "config_button.png" }
+		}
+		into(clientRecipeSyncTestGameDirectory(runName).dir("resourcepacks/$clientResourcePackName"))
+	}
+}
+
 val cleanGameTestJunitResults = tasks.register<Delete>("cleanGameTestJunitResults") {
 	description = "Deletes NeoForge game test JUnit result files before running game tests."
 	delete(gameTestJunitResultsDir)
@@ -365,7 +382,8 @@ clientRecipeSyncRuns.forEach { (runName, _) ->
 		dependsOn(
 			writeExternalServerLaunchProperties,
 			copyClientRecipeSyncTestFmlConfigTasks.getValue(runName),
-			writeClientRecipeSyncTestOptionsTasks.getValue(runName)
+			writeClientRecipeSyncTestOptionsTasks.getValue(runName),
+			copyClientResourcePackTasks.getValue(runName)
 		)
 	}
 }
@@ -447,7 +465,8 @@ publishing {
 	publications {
 		register<MavenPublication>("neoforgeJar") {
 			artifactId = baseArchivesName
-			from(components["modShade"])
+			artifact(shadedJar)
+			artifact(shadedSourcesJar)
 		}
 	}
 	repositories {

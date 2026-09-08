@@ -7,6 +7,7 @@ import mezz.jei.fabric.input.KeyboardHandlerExtension;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.input.ClientInputHandler;
 import mezz.jei.gui.input.InputType;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -16,7 +17,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.jetbrains.annotations.Nullable;
 
 public class EventRegistration {
@@ -44,6 +44,7 @@ public class EventRegistration {
 		JeiScreenEvents.DRAW_BACKGROUND.register(this::drawBackground);
 		JeiScreenEvents.DRAW_FOREGROUND.register(this::drawForeground);
 		JeiScreenEvents.ALLOW_MOUSE_DRAG.register(this::allowMouseDrag);
+		JeiScreenEvents.ALLOW_TOOLTIP.register(this::allowTooltip);
 	}
 
 	private void registerScreenEvents(Screen screen) {
@@ -56,6 +57,17 @@ public class EventRegistration {
 		ScreenMouseEvents.allowMouseRelease(screen).register(this::allowMouseRelease);
 		ScreenMouseEvents.allowMouseScroll(screen).register(this::allowMouseScroll);
 		ScreenEvents.afterTick(screen).register(this::afterTick);
+		ScreenEvents.beforeRender(screen).register(this::beforeRender);
+	}
+
+	private void beforeRender(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		if (guiEventHandler != null) {
+			guiEventHandler.updateForScreenRender(screen, mouseX, mouseY);
+		}
+	}
+
+	private boolean allowTooltip(GuiGraphics guiGraphics) {
+		return guiEventHandler == null || !PinnedTooltipManager.shouldSuppressExternalTooltip();
 	}
 
 	private boolean allowMouseClick(Screen screen, double mouseX, double mouseY, int button) {
@@ -125,13 +137,13 @@ public class EventRegistration {
 
 	private void drawBackground(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		if (guiEventHandler != null) {
-			guiEventHandler.drawForScreen(screen, guiGraphics, mouseX, mouseY);
+			guiEventHandler.drawForScreenBackground(screen, guiGraphics);
 		}
 	}
 
-	private void drawForeground(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	private void drawForeground(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (guiEventHandler != null) {
-			guiEventHandler.drawForContainerScreen(screen, guiGraphics, mouseX, mouseY);
+			guiEventHandler.drawForScreenForeground(screen, guiGraphics, mouseX, mouseY);
 		}
 	}
 

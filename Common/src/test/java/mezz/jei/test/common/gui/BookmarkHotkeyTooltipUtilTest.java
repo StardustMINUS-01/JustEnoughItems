@@ -93,7 +93,7 @@ public class BookmarkHotkeyTooltipUtilTest {
 	private static IInternalKeyMappings createKeyMappings() {
 		IJeiKeyMapping key = (IJeiKeyMapping) Proxy.newProxyInstance(
 			IJeiKeyMapping.class.getClassLoader(),
-			new Class<?>[]{IJeiKeyMapping.class},
+			new Class<?>[]{mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers.class},
 			(proxy, method, args) -> method.getName().equals("getTranslatedKeyMessage") ? Component.literal("V") : false
 		);
 		return (IInternalKeyMappings) Proxy.newProxyInstance(

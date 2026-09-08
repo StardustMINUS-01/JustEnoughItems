@@ -5,6 +5,7 @@ import mezz.jei.api.gui.handlers.IGuiClickableArea;
 import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.gui.placement.HorizontalAlignment;
 import mezz.jei.api.gui.placement.VerticalAlignment;
+import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
@@ -20,6 +21,7 @@ import mezz.jei.api.runtime.IScreenHelper;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientGridConfig;
+import mezz.jei.common.gui.GridScrollMath;
 import mezz.jei.common.config.IngredientGridLayoutMode;
 import mezz.jei.common.config.IngredientGridNavigationMode;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -269,7 +271,7 @@ public class IngredientGridWithNavigationControllerTest {
 		// visible elements as a fallback anchor.
 		Fixture fixture = Fixture.create(3, 3, 30, true, IngredientGridNavigationMode.SCROLLING);
 		fixture.controller.updateLayoutToFirstPage();
-		int hiddenRows = IngredientGridScrollState.getHiddenRows(30, 3, 3);
+		int hiddenRows = GridScrollMath.getHiddenRows(30, 3, 3);
 		fixture.controller.setScrollOffsetY(3 / (float) hiddenRows);
 		fixture.closeOverlay();
 
@@ -436,7 +438,7 @@ public class IngredientGridWithNavigationControllerTest {
 		// Setup: a clicked ingredient is one row down in a ten-row viewport.
 		Fixture fixture = Fixture.create(10, 10, 1000, true, IngredientGridNavigationMode.SCROLLING);
 		fixture.controller.updateLayoutToFirstPage();
-		int hiddenRows = IngredientGridScrollState.getHiddenRows(1000, 10, 10);
+		int hiddenRows = GridScrollMath.getHiddenRows(1000, 10, 10);
 		fixture.controller.setScrollOffsetY(20 / (float) hiddenRows);
 		IElement<?> clickedElement = fixture.source.getElements().get(210);
 		IClickableIngredientInternal<?> clickableIngredient = fixture.controller.createPageAnchorIngredient(
@@ -842,9 +844,15 @@ public class IngredientGridWithNavigationControllerTest {
 		return List.copyOf(elements);
 	}
 
-	private record TestTypedIngredient(TestIngredient ingredient) implements mezz.jei.api.ingredients.ITypedIngredient<TestIngredient> {
+	private record TestTypedIngredient(TestIngredient ingredient) implements ITypedIngredient<TestIngredient> {
 		@Override
-		public mezz.jei.api.ingredients.IIngredientType<TestIngredient> getType() {
+		public ITypedIngredient<TestIngredient> normalize(IIngredientHelper<TestIngredient> ingredientHelper) {
+			TestIngredient normalized = ingredientHelper.normalizeIngredient(ingredient);
+			return new TestTypedIngredient(normalized);
+		}
+
+		@Override
+		public IIngredientType<TestIngredient> getType() {
 			return TestIngredient.TYPE;
 		}
 

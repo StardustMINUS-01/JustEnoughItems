@@ -53,6 +53,8 @@ public interface IClientConfig {
 
 	IJeiConfigValue<Boolean> catchRenderErrorsEnabled();
 
+	IJeiConfigValue<Boolean> recipeSyncWarningEnabled();
+
 	IJeiConfigValue<Boolean> lookupFluidContentsEnabled();
 
 	IJeiConfigValue<Boolean> lookupBlockTagsEnabled();
@@ -62,6 +64,8 @@ public interface IClientConfig {
 	IJeiConfigValue<Integer> dragDelayMs();
 
 	IJeiConfigValue<Integer> smoothScrollRate();
+
+	IJeiConfigValue<Boolean> recipeSlotCyclingEnabled();
 
 	IJeiConfigValue<List<IngredientSortStage>> ingredientSorterStages();
 

@@ -86,13 +86,13 @@ public class ClientInputHandlerTest {
 	public void focusedTextFieldOnlyRoutesTerminalSearchHotkeyBeforeScreen() {
 		IJeiKeyMapping searchKey = (IJeiKeyMapping) Proxy.newProxyInstance(
 			IJeiKeyMapping.class.getClassLoader(),
-			new Class<?>[]{IJeiKeyMapping.class},
+			new Class<?>[]{mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers.class},
 			(proxy, method, args) -> method.getName().equals("isActiveAndMatches") && SEARCH_KEY.equals(args[0])
 		);
 		IInternalKeyMappings keyMappings = (IInternalKeyMappings) Proxy.newProxyInstance(
 			IInternalKeyMappings.class.getClassLoader(),
 			new Class<?>[]{IInternalKeyMappings.class},
-			(proxy, method, args) -> method.getName().equals("getSearchIngredientInTerminal") ? searchKey : null
+			(proxy, method, args) -> method.getName().equals("getSearchIngredientInTerminal") || method.getName().equals("getFocusSearch") ? searchKey : null
 		);
 		UserInputRouter inputRouter = new UserInputRouter("test") {
 			@Override

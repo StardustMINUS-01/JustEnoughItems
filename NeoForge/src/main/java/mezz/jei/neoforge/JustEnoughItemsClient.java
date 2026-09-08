@@ -3,6 +3,8 @@ package mezz.jei.neoforge;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.Internal;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.RecipeSlotOptionsTooltipComponent;
 import mezz.jei.common.gui.IngredientTooltipComponent;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.network.IConnectionToServer;
@@ -11,7 +13,12 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.config.InternalKeyMappings;
+import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
+import mezz.jei.common.gui.IngredientsTooltipComponent;
+import mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent;
+import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
+import mezz.jei.library.plugins.vanilla.cooking.JeiSmeltingRecipe;
 import mezz.jei.library.recipes.RecipeSerializers;
 import mezz.jei.library.startup.JeiStarter;
 import mezz.jei.library.startup.StartData;
@@ -90,7 +97,8 @@ public class JustEnoughItemsClient {
 		deferredRegister.register(modEventBus);
 
 		Supplier<RecipeSerializer<?>> jeiShaped = deferredRegister.register("jei_shaped", JeiShapedRecipe.Serializer::new);
-		RecipeSerializers.register(jeiShaped);
+		Supplier<RecipeSerializer<?>> jeiSmelting = deferredRegister.register("jei_smelting", () -> JeiSmeltingRecipe.SERIALIZER);
+		RecipeSerializers.register(jeiShaped, jeiSmelting);
 
 		Ae2BookmarkStorageSnapshotProvider.createIfLoaded()
 			.ifPresent(BookmarkExternalStorageSnapshots::registerProvider);
@@ -129,10 +137,16 @@ public class JustEnoughItemsClient {
 	private void onRegisterClientTooltipEvent(RegisterClientTooltipComponentFactoriesEvent event) {
 		TooltipComponentFactories.register(event);
 		event.register(IngredientTooltipComponent.class, Function.identity());
+		event.register(IngredientsTooltipComponent.class, Function.identity());
+		event.register(PreviewTooltipComponent.class, Function.identity());
+		event.register(RecipeSlotOptionsTooltipComponent.class, Function.identity());
+		event.register(TagContentTooltipComponent.class, Function.identity());
+		event.register(InteractiveIngredientGridTooltipComponent.class, Function.identity());
 	}
 
 	private ResourceManagerReloadListener createReloadListener() {
 		return (ResourceManager resourceManager) -> {
+			JeiGuiColors.onResourceManagerReload(resourceManager);
 			NeoForgeGuiPlugin.getResourceReloadHandler()
 				.ifPresent(r -> r.onResourceManagerReload(resourceManager));
 		};

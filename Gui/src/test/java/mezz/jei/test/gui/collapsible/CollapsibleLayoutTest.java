@@ -104,6 +104,11 @@ public class CollapsibleLayoutTest {
 	private static IElement<?> element(String itemId) {
 		ITypedIngredient<Object> typed = new ITypedIngredient<>() {
 			@Override
+			public ITypedIngredient<Object> normalize(mezz.jei.api.ingredients.IIngredientHelper<Object> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
+
+			@Override
 			public IIngredientType<Object> getType() {
 				return TEST_TYPE;
 			}

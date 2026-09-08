@@ -242,6 +242,16 @@ public final class RecipeLayoutTestFixtures {
 		}
 
 		@Override
+		public Stream<ITypedIngredient<?>> getDisplayedIngredients() {
+			return getAllIngredients();
+		}
+
+		@Override
+		public Optional<net.minecraft.tags.TagKey<?>> getTagKey() {
+			return Optional.empty();
+		}
+
+		@Override
 		public RecipeIngredientRole getRole() {
 			return role;
 		}

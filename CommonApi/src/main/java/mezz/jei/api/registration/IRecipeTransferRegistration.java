@@ -9,13 +9,16 @@ import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
 import mezz.jei.api.recipe.transfer.IRecipeTransferInfo;
+import mezz.jei.api.recipe.transfer.IRecipeTransferListener;
 import net.minecraft.world.inventory.MenuType;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Register recipe transfer handlers here to give JEI the information it needs to transfer recipes into the crafting area.
  * Get the instance passed in to your plugin's {@link IModPlugin#registerRecipeTransferHandlers}.
  */
+@ApiStatus.NonExtendable
 public interface IRecipeTransferRegistration {
 	/**
 	 * {@link IJeiHelpers} provides helpers and tools for addon mods.
@@ -69,4 +72,11 @@ public interface IRecipeTransferRegistration {
 	 */
 	@Deprecated(since = "19.8.1", forRemoval = true)
 	<C extends AbstractContainerMenu, R> void addUniversalRecipeTransferHandler(IRecipeTransferHandler<C, R> recipeTransferHandler);
+
+	/**
+	 * Add a listener that observes attempts to transfer recipes through JEI.
+	 *
+	 * @since 19.52.0
+	 */
+	void addRecipeTransferListener(IRecipeTransferListener recipeTransferListener);
 }

@@ -9,6 +9,8 @@ import mezz.jei.api.ingredients.rendering.BatchRenderElement;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IJeiClientConfigs;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.platform.IPlatformInputHelper;
 import mezz.jei.common.platform.Services;
 import net.minecraft.ChatFormatting;
@@ -19,6 +21,8 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,7 +71,24 @@ public final class SafeIngredientUtil {
 
 		tooltip.setIngredient(typedIngredient);
 		try {
-			ingredientRenderer.getTooltip(tooltip, ingredient, tooltipFlag);
+			Minecraft minecraft = Minecraft.getInstance();
+			Item.TooltipContext tooltipContext;
+			Player player;
+			//noinspection ConstantValue
+			if (minecraft == null) {
+				tooltipContext = Item.TooltipContext.EMPTY;
+				player = null;
+			} else {
+				tooltipContext = Item.TooltipContext.of(minecraft.level);
+				player = minecraft.player;
+			}
+			ingredientRenderer.getTooltip(
+				tooltip,
+				ingredient,
+				tooltipContext,
+				player,
+				tooltipFlag
+			);
 			if (CRASHING_INGREDIENT_RENDERERS.contains(ingredient)) {
 				getRenderErrorTooltip(tooltip);
 			}
@@ -92,7 +113,18 @@ public final class SafeIngredientUtil {
 		}
 
 		try {
-			return ingredientRenderer.getTooltip(ingredient, tooltipFlag);
+			Minecraft minecraft = Minecraft.getInstance();
+			Item.TooltipContext tooltipContext;
+			Player player;
+			//noinspection ConstantValue
+			if (minecraft == null) {
+				tooltipContext = Item.TooltipContext.EMPTY;
+				player = null;
+			} else {
+				tooltipContext = Item.TooltipContext.of(minecraft.level);
+				player = minecraft.player;
+			}
+			return ingredientRenderer.getTooltip(ingredient, tooltipContext, player, tooltipFlag);
 		} catch (RuntimeException | LinkageError e) {
 			CRASHING_INGREDIENT_TOOLTIPS.add(ingredient);
 			ErrorUtil.logIngredientCrash(e, "Caught an error getting an Ingredient's tooltip", ingredientManager, typedIngredient.getType(), ingredient);
@@ -193,8 +225,9 @@ public final class SafeIngredientUtil {
 	private static void renderError(GuiGraphics guiGraphics) {
 		Minecraft minecraft = Minecraft.getInstance();
 		Font font = minecraft.font;
-		guiGraphics.drawString(font, "ERR", 0, 0, 0xFFFF0000, false);
-		guiGraphics.drawString(font, "OR", 0, 8, 0xFFFF0000, false);
+		int color = JeiGuiColors.getColor(GuiColor.INGREDIENT_RENDER_ERROR_TEXT);
+		guiGraphics.drawString(font, "ERR", 0, 0, color, false);
+		guiGraphics.drawString(font, "OR", 0, 8, color, false);
 		RenderSystem.setShaderColor(1, 1, 1, 1);
 	}
 

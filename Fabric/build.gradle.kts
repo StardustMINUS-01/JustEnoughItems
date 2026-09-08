@@ -22,7 +22,7 @@ repositories {
     maven("https://maven.siphalor.de/") {
         // for optional AMECS integration
         content {
-            includeGroup("de.siphalor")
+            includeGroupAndSubgroups("de.siphalor")
         }
     }
 }
@@ -41,6 +41,7 @@ val parchmentMinecraftVersion: String by extra
 val parchmentVersionFabric: String by extra
 val modrinthId: String by extra
 val amecsVersionFabric: String by extra
+val amecsKeyModifiersVersionFabric: String by extra
 val amecsMinecraftVersion: String by extra
 val bakedSubstringIndexVersion: String by extra
 val suffixtreeVersion: String by extra
@@ -74,25 +75,16 @@ val clientGameTestSourceSet = sourceSets.create("clientGameTest") {
 }
 val clientGameTestWithoutAmecsSourceSet = sourceSets.create("clientGameTestWithoutAmecs") {
     runtimeClasspath += clientGameTestSourceSet.runtimeClasspath.filter {
-        !it.name.startsWith("amecsapi-")
+        !it.name.startsWith("amecs-")
     }
 }
 configurations.named(clientGameTestSourceSet.runtimeOnlyConfigurationName) {
     extendsFrom(configurations.runtimeOnly.get())
 }
 val clientTestModId = "${modId}-client-tests"
-val clientRecipeSyncTestCases = listOf(
-    "clientRecipeSyncSingleplayer" to "singleplayer",
-    "clientRecipeSyncFabricServerWithJei" to "fabricServerWithJei",
-    "clientRecipeSyncFabricServerWithoutJei" to "fabricServerWithoutJei",
-    "clientRecipeSyncVanillaServerWithoutJei" to "vanillaServerWithoutJei",
-)
 
 fun clientTestGameDirectory(runName: String) =
     layout.projectDirectory.dir("run/$runName")
-
-fun capitalizedRunName(runName: String): String =
-    runName.replaceFirstChar { it.uppercase() }
 
 dependencyProjects.forEach {
     project.evaluationDependsOn(it.path)
@@ -166,22 +158,40 @@ dependencies {
         name = "fabric-api",
         version = fabricApiVersion,
     )
-    implementation(
+    compileOnly(
         group = "com.google.code.findbugs",
         name = "jsr305",
         version = "3.0.1"
     )
-    modImplementation(
-        group = "de.siphalor",
-        name = "amecsapi-${amecsMinecraftVersion}",
+    modCompileOnly(
+        group = "de.siphalor.amecs.amecs-api-legacy",
+        name = "amecs-api-legacy-${amecsMinecraftVersion}",
         version = amecsVersionFabric
+    )
+    modLocalRuntime(
+        group = "de.siphalor.amecs.amecs-api-legacy",
+        name = "amecs-api-legacy-${amecsMinecraftVersion}",
+        version = amecsVersionFabric
+    )
+    modCompileOnly(
+        group = "de.siphalor.amecs.amecs-key-modifiers",
+        name = "amecs-key-modifiers-${amecsMinecraftVersion}",
+        version = amecsKeyModifiersVersionFabric
+    )
+    modLocalRuntime(
+        group = "de.siphalor.amecs.amecs-key-modifiers",
+        name = "amecs-key-modifiers-${amecsMinecraftVersion}",
+        version = amecsKeyModifiersVersionFabric
     )
     "clientGameTestCompileOnly"("org.jspecify:jspecify:1.0.0")
     vanillaDependencyProjects.forEach {
-        implementation(it)
+        compileOnly(it)
+        localRuntime(it)
     }
     loomDependencyProjects.forEach {
-        implementation(project(it.path, "namedElements"))
+        val namedElements = project(it.path, "namedElements")
+        compileOnly(namedElements)
+        localRuntime(namedElements)
     }
     modShadeImplementation("net.mezzdev:baked-substring-index:${bakedSubstringIndexVersion}") {
         isTransitive = false
@@ -263,62 +273,24 @@ loom {
                 "-Dfabric.log.level=debug"
             )
         }
-        clientRecipeSyncTestCases.forEach { (runName, testCase) ->
-            create(runName) {
-                client()
-                source(clientGameTestSourceSet)
-                configName = "Fabric Client Recipe Sync Test ${capitalizedRunName(testCase)}"
-                ideConfigGenerated(false)
-                runDir(loomRunDir.resolve(runName).toString())
-                property("jei.fabric.clientTest", "recipeSync")
-                property("jei.clientRecipeSyncTest", testCase)
-                vmArgs(
-                    "-Dfabric.log.level=info"
-                )
-                programArgs("--username", "JeiClientTest")
-            }
-        }
-        create("clientCreativeInventoryTest") {
+        create("clientGameTest") {
             client()
             source(clientGameTestSourceSet)
-            configName = "Fabric Client Creative Inventory Test"
+            configName = "Fabric Client Game Tests"
             ideConfigGenerated(false)
-            runDir(loomRunDir.resolve("clientCreativeInventoryTest").toString())
-            property("jei.fabric.clientTest", "creativeInventory")
+            runDir(loomRunDir.resolve("clientGameTest").toString())
+            property("jei.fabric.clientTest", "all")
             vmArgs(
                 "-Dfabric.log.level=info"
             )
             programArgs("--username", "JeiClientTest", "--width", "1280", "--height", "720")
         }
-        create("clientCreativeInventoryTestWithoutAmecs") {
+        create("clientGameTestWithoutAmecs") {
             client()
             source(clientGameTestWithoutAmecsSourceSet)
-            configName = "Fabric Client Creative Inventory Test Without AMECS"
+            configName = "Fabric Client Game Tests Without AMECS"
             ideConfigGenerated(false)
-            runDir(loomRunDir.resolve("clientCreativeInventoryTestWithoutAmecs").toString())
-            property("jei.fabric.clientTest", "creativeInventory")
-            vmArgs(
-                "-Dfabric.log.level=info"
-            )
-            programArgs("--username", "JeiClientTest", "--width", "1280", "--height", "720")
-        }
-        create("clientKeyMappingTest") {
-            client()
-            source(clientGameTestSourceSet)
-            configName = "Fabric Client Key Mapping Test"
-            ideConfigGenerated(false)
-            runDir(loomRunDir.resolve("clientKeyMappingTest").toString())
-            property("jei.fabric.clientTest", "keyMapping")
-            vmArgs(
-                "-Dfabric.log.level=info"
-            )
-            programArgs("--username", "JeiClientTest", "--width", "1280", "--height", "720")
-        }
-        create("clientKeyMappingTestWithoutAmecs") {
-            client()
-            source(clientGameTestWithoutAmecsSourceSet)
-            configName = "Fabric Client Key Mapping Test Without AMECS"
-            runDir(loomRunDir.resolve("clientKeyMappingTestWithoutAmecs").toString())
+            runDir(loomRunDir.resolve("clientGameTestWithoutAmecs").toString())
             property("jei.fabric.clientTest", "keyMapping")
             vmArgs(
                 "-Dfabric.log.level=info"
@@ -340,84 +312,45 @@ sourceSets {
     }
 }
 
-val writeClientTestOptionsTasks = (
-    clientRecipeSyncTestCases.map { it.first } +
-        listOf(
-            "clientCreativeInventoryTest",
-            "clientCreativeInventoryTestWithoutAmecs",
-            "clientKeyMappingTest",
-            "clientKeyMappingTestWithoutAmecs"
-        )
-    ).associateWith { runName ->
-        tasks.register<Copy>("write${capitalizedRunName(runName)}Options") {
-            from(layout.projectDirectory.file("src/clientGameTest/templates/options.txt"))
-            into(clientTestGameDirectory(runName))
-        }
+fun registerWriteClientTestOptionsTask(name: String, runName: String) =
+    tasks.register<Copy>(name) {
+        from(layout.projectDirectory.file("src/clientGameTest/templates/options.txt"))
+        into(clientTestGameDirectory(runName))
     }
 
-clientRecipeSyncTestCases.forEach { (runName, _) ->
-    tasks.named("run${capitalizedRunName(runName)}") {
-        dependsOn(writeClientTestOptionsTasks.getValue(runName))
-    }
+val writeClientGameTestOptions = registerWriteClientTestOptionsTask(
+    "writeClientGameTestOptions",
+    "clientGameTest"
+)
+val writeClientGameTestWithoutAmecsOptions = registerWriteClientTestOptionsTask(
+    "writeClientGameTestWithoutAmecsOptions",
+    "clientGameTestWithoutAmecs"
+)
+
+val cleanClientGameTestResults = tasks.register<Delete>("cleanClientGameTestResults") {
+    delete(
+        layout.buildDirectory.dir("test-results/fabric-client-recipe-sync"),
+        layout.buildDirectory.dir("test-results/fabric-client-creative-inventory"),
+        layout.buildDirectory.dir("test-results/fabric-client-fluid-ingredients"),
+        layout.buildDirectory.dir("test-results/fabric-client-key-mapping"),
+        layout.buildDirectory.dir("test-results/fabric-client-gametest")
+    )
+}
+val cleanClientGameTestWithoutAmecsResults = tasks.register<Delete>("cleanClientGameTestWithoutAmecsResults") {
+    delete(
+        layout.buildDirectory.dir("test-results/fabric-client-creative-inventory-without-amecs"),
+        layout.buildDirectory.dir("test-results/fabric-client-key-mapping-without-amecs"),
+        layout.buildDirectory.dir("test-results/fabric-client-gametest-without-amecs")
+    )
 }
 
-tasks.named("runClientKeyMappingTest") {
-    dependsOn(writeClientTestOptionsTasks.getValue("clientKeyMappingTest"))
+tasks.named("runClientGameTest") {
+    dependsOn(cleanClientGameTestResults, writeClientGameTestOptions)
 }
 
-tasks.named("runClientKeyMappingTestWithoutAmecs") {
-    dependsOn(writeClientTestOptionsTasks.getValue("clientKeyMappingTestWithoutAmecs"))
-}
-
-tasks.named("runClientCreativeInventoryTest") {
-    dependsOn(writeClientTestOptionsTasks.getValue("clientCreativeInventoryTest"))
-}
-
-tasks.named("runClientCreativeInventoryTestWithoutAmecs") {
-    dependsOn(writeClientTestOptionsTasks.getValue("clientCreativeInventoryTestWithoutAmecs"))
-}
-
-val clientRecipeSyncTestRunTasks = clientRecipeSyncTestCases.map { (runName, _) ->
-    tasks.named("run${capitalizedRunName(runName)}")
-}
-clientRecipeSyncTestRunTasks.zipWithNext().forEach { (previousTask, nextTask) ->
-    nextTask.configure {
-        mustRunAfter(previousTask)
-    }
-}
-
-tasks.named("runClientKeyMappingTest") {
-    mustRunAfter("runClientCreativeInventoryTest")
-}
-
-tasks.named("runClientKeyMappingTestWithoutAmecs") {
-    mustRunAfter("runClientCreativeInventoryTestWithoutAmecs")
-}
-
-tasks.named("runClientCreativeInventoryTest") {
-    mustRunAfter(clientRecipeSyncTestRunTasks)
-}
-
-tasks.named("runClientCreativeInventoryTestWithoutAmecs") {
-    mustRunAfter("runClientCreativeInventoryTest", "runClientKeyMappingTest")
-}
-
-tasks.register("runClientRecipeSyncTest") {
-    group = "mod development"
-    description = "Runs all JEI Fabric client recipe-sync test scenarios."
-    dependsOn(clientRecipeSyncTestRunTasks)
-}
-
-tasks.register("runClientGameTest") {
-    group = "mod development"
-    description = "Runs JEI Fabric client tests with AMECS support enabled."
-    dependsOn(clientRecipeSyncTestRunTasks, "runClientCreativeInventoryTest", "runClientKeyMappingTest")
-}
-
-tasks.register("runClientGameTestWithoutAmecs") {
-    group = "mod development"
-    description = "Runs JEI Fabric client tests without AMECS on the runtime classpath."
-    dependsOn("runClientCreativeInventoryTestWithoutAmecs", "runClientKeyMappingTestWithoutAmecs")
+tasks.named("runClientGameTestWithoutAmecs") {
+    dependsOn(cleanClientGameTestWithoutAmecsResults, writeClientGameTestWithoutAmecsOptions)
+    mustRunAfter("runClientGameTest")
 }
 
 val debugClassesTask = debugProject.tasks.named(debugSourceSet.classesTaskName)
@@ -450,6 +383,12 @@ tasks.named<Jar>("sourcesJar") {
 
 val shadedJar = modShade.shadeJar()
 val shadedSourcesJar = modShade.shadeSourcesJar()
+
+configurations.named("modShadeRuntimeElements") {
+    // These project dependencies are unpacked into the Fabric jar above.
+    // Do not also publish them as external Maven dependencies.
+    setExtendsFrom(emptyList())
+}
 
 publishMods {
     file.set(shadedJar.flatMap { it.archiveFile })
@@ -507,7 +446,8 @@ publishing {
             @Suppress("UnstableApiUsage")
             loom.disableDeprecatedPomGeneration(this)
             artifactId = baseArchivesName
-            from(components["modShade"])
+            artifact(shadedJar)
+            artifact(shadedSourcesJar)
         }
     }
     repositories {

@@ -3,7 +3,6 @@ package mezz.jei.gui.overlay.elements;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -158,18 +157,7 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 			return typedIngredient;
 		}
 		T ingredient = ingredientHelper.copyWithAmount(typedIngredient.getIngredient(), amount);
-		return new TooltipIngredient<>(typedIngredient.getType(), ingredient);
+		return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(typedIngredient.getType(), ingredient);
 	}
 
-	private record TooltipIngredient<T>(IIngredientType<T> type, T ingredient) implements ITypedIngredient<T> {
-		@Override
-		public IIngredientType<T> getType() {
-			return type;
-		}
-
-		@Override
-		public T getIngredient() {
-			return ingredient;
-		}
-	}
 }

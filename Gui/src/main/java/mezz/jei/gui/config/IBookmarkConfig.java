@@ -6,6 +6,7 @@ import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
@@ -34,6 +35,7 @@ public interface IBookmarkConfig {
 		BookmarkList bookmarkList,
 		ICodecHelper codecHelper,
 		Codec<IBookmark> bookmarkCodec,
-		BookmarkFactory bookmarkFactory
+		BookmarkFactory bookmarkFactory,
+		RecipeTransferService recipeTransferService
 	);
 }

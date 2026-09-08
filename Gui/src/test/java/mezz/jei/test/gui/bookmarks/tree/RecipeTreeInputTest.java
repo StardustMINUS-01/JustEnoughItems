@@ -1,7 +1,6 @@
 package mezz.jei.test.gui.bookmarks.tree;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.tree.RecipeTreeInput;
 import mezz.jei.gui.input.InputType;
@@ -60,7 +59,8 @@ class RecipeTreeInputTest {
 			}));
 	}
 
-	private record Key(int code) implements IJeiKeyMapping {
+	private record Key(int code) implements mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers {
+		@Override public boolean isActiveAndMatchesAllowingExtraModifiers(InputConstants.Key key) { return isActiveAndMatches(key); }
 		@Override public boolean isActiveAndMatches(InputConstants.Key key) { return key.getValue() == code; }
 		@Override public boolean isUnbound() { return false; }
 		@Override public Component getTranslatedKeyMessage() { return Component.literal("test"); }

@@ -280,6 +280,11 @@ public class BookmarkListVirtualCircuitTest {
 	private static ITypedIngredient<IdentityIngredient> identity(String id) {
 		return new ITypedIngredient<>() {
 			@Override
+			public ITypedIngredient<IdentityIngredient> normalize(mezz.jei.api.ingredients.IIngredientHelper<IdentityIngredient> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
+
+			@Override
 			public IIngredientType<IdentityIngredient> getType() {
 				return IDENTITY_INGREDIENT_TYPE;
 			}

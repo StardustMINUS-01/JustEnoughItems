@@ -83,6 +83,11 @@ public class BookmarkCandidateTooltipCacheTest {
 
 	private record TestTypedIngredient(IIngredientType<String> type, String ingredient) implements ITypedIngredient<String> {
 		@Override
+		public ITypedIngredient<String> normalize(mezz.jei.api.ingredients.IIngredientHelper<String> helper) {
+			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+		}
+
+		@Override
 		public IIngredientType<String> getType() {
 			return type;
 		}

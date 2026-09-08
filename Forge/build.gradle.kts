@@ -2,6 +2,7 @@ import net.minecraftforge.gradle.common.tasks.DownloadMavenArtifact
 import net.minecraftforge.gradle.common.tasks.JarExec
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import java.util.function.Supplier
 
 plugins {
 	id("java")
@@ -61,6 +62,30 @@ dependencyProjects.forEach {
 	project.evaluationDependsOn(it.path)
 }
 project.evaluationDependsOn(debugProject.path)
+
+val debugSourceSet = debugProject.sourceSets.main.get()
+val forgeDebugOutput = layout.buildDirectory.dir("sourcesSets/forgeDebug")
+val prepareForgeDebug = tasks.register<Sync>("prepareForgeDebug") {
+	from(debugSourceSet.output)
+	into(forgeDebugOutput)
+	dependsOn(debugProject.tasks.named(debugSourceSet.classesTaskName))
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+val forgeDebugSourceSet = sourceSets.create("forgeDebug") {
+	java.setSrcDirs(emptyList<String>())
+	resources.setSrcDirs(emptyList<String>())
+	output.setResourcesDir(forgeDebugOutput)
+	(output.classesDirs as ConfigurableFileCollection).setFrom(forgeDebugOutput)
+}
+tasks.named(forgeDebugSourceSet.compileJavaTaskName) {
+	enabled = false
+}
+tasks.named(forgeDebugSourceSet.processResourcesTaskName) {
+	enabled = false
+}
+tasks.named(forgeDebugSourceSet.classesTaskName) {
+	dependsOn(prepareForgeDebug)
+}
 
 java {
 	toolchain {
@@ -134,6 +159,16 @@ dependencies {
 	changelogMarkdown(project(":Changelog"))
 }
 
+val modShadeClasspath = configurations.named("modShadeClasspath")
+
+fun net.minecraftforge.gradle.common.util.RunConfig.addModShadeClasspathToMinecraftRun() {
+	lazyToken("minecraft_classpath", Supplier<String> {
+		modShadeClasspath.get()
+			.resolve()
+			.joinToString(File.pathSeparator) { it.absolutePath }
+	})
+}
+
 minecraft {
 	mappings("official", minecraftVersion)
 
@@ -149,12 +184,13 @@ minecraft {
 			taskName("runClientDev")
 			property("forge.logging.console.level", "debug")
 			workingDirectory(file("run/client/Dev"))
+			addModShadeClasspathToMinecraftRun()
 			mods {
 				create(modId) {
 					source(sourceSets.main.get())
 				}
 				create("${modId}debug") {
-					source(debugProject.sourceSets.main.get())
+					source(forgeDebugSourceSet)
 				}
 			}
 		}
@@ -163,23 +199,26 @@ minecraft {
 			parent(client)
 			workingDirectory(file("run/client/Player01"))
 			args("--username", "Player01")
+			addModShadeClasspathToMinecraftRun()
 		}
 		create("client_02") {
 			taskName("runClientPlayer02")
 			parent(client)
 			workingDirectory(file("run/client/Player02"))
 			args("--username", "Player02")
+			addModShadeClasspathToMinecraftRun()
 		}
 		create("server") {
 			taskName("Server")
 			property("forge.logging.console.level", "debug")
 			workingDirectory(file("run/server"))
+			addModShadeClasspathToMinecraftRun()
 			mods {
 				create(modId) {
 					source(sourceSets.main.get())
 				}
 				create("${modId}debug") {
-					source(debugProject.sourceSets.main.get())
+					source(forgeDebugSourceSet)
 				}
 			}
 		}
@@ -270,7 +309,8 @@ publishing {
 	publications {
 		register<MavenPublication>("forgeJar") {
 			artifactId = baseArchivesName
-			from(components["modShade"])
+			artifact(shadedJar)
+			artifact(shadedSourcesJar)
 		}
 	}
 	repositories {

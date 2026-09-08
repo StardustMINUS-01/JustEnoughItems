@@ -372,6 +372,11 @@ public class BookmarkJsonSerializerTest {
 	private static ITypedIngredient<ItemStack> typed(ItemStack stack) {
 		return new ITypedIngredient<>() {
 			@Override
+			public ITypedIngredient<ItemStack> normalize(mezz.jei.api.ingredients.IIngredientHelper<ItemStack> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
+
+			@Override
 			public IIngredientType<ItemStack> getType() {
 				return VanillaTypes.ITEM_STACK;
 			}

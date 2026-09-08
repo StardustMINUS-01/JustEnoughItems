@@ -26,6 +26,7 @@ public interface IPlatformFluidHelperInternal<T> extends IPlatformFluidHelper<T>
 	ResourceLocation getFluidId(T ingredient);
 
 	Set<ResourceLocation> getFluidTags(T ingredient);
+	boolean isEmpty(T ingredient);
 
 	DataComponentPatch getComponentsPatch(T ingredient);
 

@@ -10,6 +10,8 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import mezz.jei.api.recipe.vanilla.IJeiGrindstoneRecipe;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -68,17 +70,17 @@ public class GrindstoneRecipeCategory extends AbstractRecipeCategory<IJeiGrindst
 
 	@Override
 	public void createRecipeExtras(IRecipeExtrasBuilder builder, IJeiGrindstoneRecipe recipe, IFocusGroup focuses) {
-		builder.addRecipeArrow().setPosition(20, 12);
+		builder.addRecipeArrowWidget().setPosition(20, 12);
 
 		int maxXpReward = recipe.getMaxXpReward();
 		if (maxXpReward > 0) {
 			int minXpReward = recipe.getMinXpReward();
 			Component text = Component.translatable("gui.jei.category.grindstone.experience", minXpReward, maxXpReward);
 			builder.addText(text, getWidth(), 10)
-					.setPosition(0, 43)
-					.setColor(0xFF80FF20)
-					.setShadow(true)
-					.setTextAlignment(HorizontalAlignment.RIGHT);
+				.setPosition(0, 43)
+				.setColor(JeiGuiColors.getColor(GuiColor.GRINDSTONE_EXPERIENCE_REWARD_TEXT))
+				.setShadow(true)
+				.setTextAlignment(HorizontalAlignment.RIGHT);
 		}
 	}
 

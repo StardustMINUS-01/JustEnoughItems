@@ -873,6 +873,11 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	private static ITypedIngredient<UnsupportedIngredient> unsupported(String name) {
 		return new ITypedIngredient<>() {
 			@Override
+			public ITypedIngredient<UnsupportedIngredient> normalize(mezz.jei.api.ingredients.IIngredientHelper<UnsupportedIngredient> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
+
+			@Override
 			public IIngredientType<UnsupportedIngredient> getType() {
 				return UnsupportedIngredient.TYPE;
 			}

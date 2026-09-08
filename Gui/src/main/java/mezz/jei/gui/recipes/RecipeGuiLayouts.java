@@ -11,15 +11,12 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
-import mezz.jei.gui.input.ClickableIngredientInternal;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.input.handlers.NullInputHandler;
 import mezz.jei.gui.input.handlers.ProxyInputHandler;
-import mezz.jei.gui.overlay.elements.IElement;
-import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -41,11 +38,13 @@ import java.util.stream.Stream;
 public class RecipeGuiLayouts {
 	private static final Logger LOGGER = LogManager.getLogger();
 
+	private final RecipeSlotClickTargetFactory clickTargetFactory;
 	private final List<IRecipeLayoutWithButtons<?>> recipeLayoutsWithButtons = new ArrayList<>();
 	@Nullable
 	private IUserInputHandler cachedInputHandler;
 
-	public RecipeGuiLayouts() {
+	RecipeGuiLayouts(RecipeSlotClickTargetFactory clickTargetFactory) {
+		this.clickTargetFactory = clickTargetFactory;
 		this.cachedInputHandler = NullInputHandler.INSTANCE;
 	}
 
@@ -149,10 +148,7 @@ public class RecipeGuiLayouts {
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
 		return this.recipeLayoutsWithButtons.stream()
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
-			.map(recipeLayout -> recipeLayout.getSlotUnderMouse(mouseX, mouseY))
-			.flatMap(Optional::stream)
-			.map(RecipeGuiLayouts::getClickedIngredient)
-			.flatMap(Optional::stream);
+			.flatMap(recipeLayout -> clickTargetFactory.create(recipeLayout, mouseX, mouseY).stream());
 	}
 
 	public Optional<IRecipeLayoutWithButtons<?>> getRecipeLayoutUnderMouse(double mouseX, double mouseY) {
@@ -246,13 +242,6 @@ public class RecipeGuiLayouts {
 	public record RecipeLayoutUnderMouse(IRecipeLayoutDrawable<?> layout, RecipeSlotUnderMouse slotUnderMouse) {
 	}
 
-	private static Optional<IClickableIngredientInternal<?>> getClickedIngredient(RecipeSlotUnderMouse slotUnderMouse) {
-		return slotUnderMouse.slot().getDisplayedIngredient()
-			.map(displayedIngredient -> {
-				IElement<?> element = new IngredientElement<>(displayedIngredient);
-				return new ClickableIngredientInternal<>(element, slotUnderMouse::isMouseOver, false, true);
-			});
-	}
 
 	public boolean mouseDragged(double mouseX, double mouseY, InputConstants.Key input, double dragX, double dragY) {
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {

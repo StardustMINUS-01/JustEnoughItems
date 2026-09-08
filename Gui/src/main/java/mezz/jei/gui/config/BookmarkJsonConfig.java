@@ -9,6 +9,7 @@ import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.file.JsonArrayFileHelper;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.common.util.DeduplicatingRunner;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
@@ -118,7 +119,8 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		BookmarkList bookmarkList,
 		ICodecHelper codecHelper,
 		Codec<IBookmark> bookmarkCodec,
-		BookmarkFactory bookmarkFactory
+		BookmarkFactory bookmarkFactory,
+		RecipeTransferService recipeTransferService
 	) {
 		this.bookmarkList = bookmarkList;
 		this.ingredientManager = ingredientManager;

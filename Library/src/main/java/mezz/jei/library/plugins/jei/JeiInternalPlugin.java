@@ -16,6 +16,7 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IJeiClientConfigs;
 import mezz.jei.common.gui.textures.Textures;
+import mezz.jei.common.recipes.TagRecipeUtil;
 import mezz.jei.common.util.RegistryUtil;
 import mezz.jei.library.plugins.jei.info.IngredientInfoRecipeCategory;
 import mezz.jei.library.plugins.jei.tags.ITagInfoRecipe;
@@ -78,7 +79,8 @@ public class JeiInternalPlugin implements IModPlugin {
 		IIngredientManager ingredientManager,
 		Registry<B> registry
 	) {
-		registry.getAny()
+		registry.holders()
+			.findAny()
 			.ifPresent(holder -> {
 				IJeiHelpers jeiHelpers = registration.getJeiHelpers();
 				IGuiHelper guiHelper = jeiHelpers.getGuiHelper();
@@ -114,7 +116,8 @@ public class JeiInternalPlugin implements IModPlugin {
 	}
 
 	private static RecipeType<ITagInfoRecipe> createTagInfoRecipeType(ResourceLocation registryLocation) {
-		return RecipeType.create(registryLocation.getNamespace(), "tag_recipes/" + registryLocation.getPath(), ITagInfoRecipe.class);
+		ResourceLocation recipeTypeUid = TagRecipeUtil.getRecipeTypeUid(registryLocation);
+		return RecipeType.create(recipeTypeUid.getNamespace(), recipeTypeUid.getPath(), ITagInfoRecipe.class);
 	}
 
 	private static <B, I> boolean createAndRegisterTagCategory(

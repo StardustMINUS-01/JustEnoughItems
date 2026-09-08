@@ -28,6 +28,7 @@ public class Textures {
 	private final ScalableDrawable bookmarkListBackground;
 	private final ScalableDrawable exclusionAreaShadow;
 	private final ScalableDrawable recipeBackground;
+	private final ScalableDrawable interactiveIngredientTooltipBackground;
 	private final ScalableDrawable recipePreviewBackground;
 	private final ScalableDrawable searchBackground;
 	private final ScalableDrawable scrollbarBackground;
@@ -57,6 +58,8 @@ public class Textures {
 	private final IDrawableStatic recipePlusSign;
 	private final IDrawableStatic bookmarksFirst;
 	private final IDrawableStatic craftableFirst;
+	private final IDrawableStatic tagBadgeIcon;
+	private final IDrawableStatic listBadgeIcon;
 
 	private final IDrawableStatic brewingStandBackground;
 	private final IDrawableStatic brewingStandBlazeHeat;
@@ -83,6 +86,7 @@ public class Textures {
 		this.bookmarkListBackground = createScalableGuiSprite("bookmark_list_background_v2");
 		this.exclusionAreaShadow = createScalableGuiSprite("exclusion_area_shadow");
 		this.recipeBackground = createScalableGuiSprite("single_recipe_background_v2");
+		this.interactiveIngredientTooltipBackground = createScalableGuiSprite("interactive_ingredient_tooltip_background");
 		this.recipePreviewBackground = createScalableGuiSprite("recipe_preview_background_v2");
 		this.searchBackground = createScalableGuiSprite("search_background_v2");
 		this.scrollbarBackground = createScalableGuiSprite("scrollbar_background_v2");
@@ -119,6 +123,8 @@ public class Textures {
 		this.flameEmptyIcon = createGuiSprite("icons/flame_empty", 14, 14);
 		this.bookmarksFirst = createGuiSprite("icons/bookmarks_first", 16, 16);
 		this.craftableFirst = createGuiSprite("icons/craftable_first", 16, 16);
+		this.tagBadgeIcon = createGuiSprite("icons/tag_badge", 9, 9);
+		this.listBadgeIcon = createGuiSprite("icons/list_badge", 9, 9);
 	}
 
 	private ResourceLocation createSprite(String name) {
@@ -175,6 +181,14 @@ public class Textures {
 		return craftableFirst;
 	}
 
+	public IDrawableStatic getTagBadgeIcon() {
+		return tagBadgeIcon;
+	}
+
+	public IDrawableStatic getListBadgeIcon() {
+		return listBadgeIcon;
+	}
+
 	public IDrawableStatic getConfigButtonIcon() {
 		return configButtonIcon;
 	}
@@ -211,6 +225,10 @@ public class Textures {
 		}
 	}
 
+	public JeiGuiSpriteManager getAtlasManager() {
+		return guiSpriteManager;
+	}
+
 	public ScalableDrawable getRecipeGuiBackground() {
 		return recipeGuiBackground;
 	}
@@ -229,6 +247,10 @@ public class Textures {
 
 	public ScalableDrawable getRecipeBackground() {
 		return recipeBackground;
+	}
+
+	public ScalableDrawable getInteractiveIngredientTooltipBackground() {
+		return interactiveIngredientTooltipBackground;
 	}
 
 	public ScalableDrawable getRecipePreviewBackground() {

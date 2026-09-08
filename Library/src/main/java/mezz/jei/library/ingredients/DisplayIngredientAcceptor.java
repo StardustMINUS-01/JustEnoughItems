@@ -14,10 +14,12 @@ import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.ingredients.TypedIngredient;
+import mezz.jei.common.ingredients.TypedIngredientUtil;
+import mezz.jei.common.ingredients.itemStacks.TypedItemStack;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.library.ingredients.itemStacks.TypedItemStack;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.item.ItemStack;
@@ -34,6 +36,7 @@ import java.util.Optional;
 
 public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIngredientAcceptor> {
 	private final IIngredientManager ingredientManager;
+	private final Runnable onChange;
 	/**
 	 * A list of ingredients, including "blank" ingredients represented by {@link Optional#empty()}.
 	 * Blank ingredients are drawn as "nothing" in a rotation of ingredients, but aren't considered in lookups.
@@ -41,7 +44,12 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 	private final List<@Nullable ITypedIngredient<?>> ingredients = new ArrayList<>();
 
 	public DisplayIngredientAcceptor(IIngredientManager ingredientManager) {
+		this(ingredientManager, () -> {});
+	}
+
+	public DisplayIngredientAcceptor(IIngredientManager ingredientManager, Runnable onChange) {
 		this.ingredientManager = ingredientManager;
+		this.onChange = onChange;
 	}
 
 	@Override
@@ -50,7 +58,7 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 
 		for (Object ingredient : ingredients) {
 			@Nullable ITypedIngredient<?> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientManager, ingredient, false);
-			this.ingredients.add(typedIngredient);
+			addIngredient(typedIngredient);
 		}
 
 		return this;
@@ -75,7 +83,7 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 		Preconditions.checkNotNull(ingredients, "ingredients");
 
 		List<@Nullable ITypedIngredient<T>> typedIngredients = TypedIngredient.createAndFilterInvalidList(ingredientManager, ingredientType, ingredients, false);
-		this.ingredients.addAll(typedIngredients);
+		typedIngredients.forEach(this::addIngredient);
 
 		return this;
 	}
@@ -85,7 +93,7 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 		Preconditions.checkNotNull(ingredient, "ingredient");
 
 		List<@Nullable ITypedIngredient<ItemStack>> typedIngredients = TypedIngredient.createAndFilterInvalidList(ingredientManager, ingredient, false);
-		this.ingredients.addAll(typedIngredients);
+		typedIngredients.forEach(this::addIngredient);
 
 		return this;
 	}
@@ -103,8 +111,8 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 	public <I> DisplayIngredientAcceptor addTypedIngredient(ITypedIngredient<I> typedIngredient) {
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 
-		@Nullable ITypedIngredient<I> copy = TypedIngredient.defensivelyCopyTypedIngredientFromApi(ingredientManager, typedIngredient);
-		this.ingredients.add(copy);
+		@Nullable ITypedIngredient<I> copy = TypedIngredientUtil.checkAndValidateTypedIngredientFromApi(ingredientManager, typedIngredient);
+		addIngredient(copy);
 
 		return this;
 	}
@@ -114,7 +122,7 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 		Preconditions.checkNotNull(itemLike, "itemLike");
 
 		ITypedIngredient<ItemStack> ingredient = TypedItemStack.create(itemLike);
-		this.ingredients.add(ingredient);
+		addIngredient(ingredient);
 
 		return this;
 	}
@@ -165,7 +173,7 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 			if (o.isPresent()) {
 				this.addTypedIngredient(o.get());
 			} else {
-				this.ingredients.add(null);
+				addIngredient(null);
 			}
 		}
 
@@ -174,7 +182,12 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 
 	private <T> void addIngredientInternal(IIngredientType<T> ingredientType, @Nullable T ingredient) {
 		@Nullable ITypedIngredient<T> result = TypedIngredient.createAndFilterInvalid(ingredientManager, ingredientType, ingredient, false);
-		this.ingredients.add(result);
+		addIngredient(result);
+	}
+
+	private void addIngredient(@Nullable ITypedIngredient<?> ingredient) {
+		this.ingredients.add(ingredient);
+		onChange.run();
 	}
 
 	@UnmodifiableView
@@ -186,21 +199,25 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 		List<IFocus<?>> focuses = focusGroup.getFocuses(role).toList();
 		IntSet results = new IntOpenHashSet();
 		for (IFocus<?> focus : focuses) {
-			getMatches(focus, results);
+			boolean foundExactMatch = getMatches(focus, UidContext.Ingredient, results);
+			if (!foundExactMatch) {
+				getMatches(focus, UidContext.Recipe, results);
+			}
 		}
 		return results;
 	}
 
-	private <T> void getMatches(IFocus<T> focus, IntSet results) {
+	private <T> boolean getMatches(IFocus<T> focus, UidContext uidContext, IntSet results) {
 		List<@Nullable ITypedIngredient<?>> ingredients = getAllIngredients();
 		if (ingredients.isEmpty()) {
-			return;
+			return false;
 		}
 
 		ITypedIngredient<T> focusValue = focus.getTypedValue();
 		IIngredientType<T> ingredientType = focusValue.getType();
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(ingredientType);
-		Object focusUid = ingredientHelper.getUid(focusValue, UidContext.Ingredient);
+		Object focusUid = ingredientHelper.getUid(focusValue, uidContext);
+		boolean foundMatch = false;
 
 		for (int i = 0; i < ingredients.size(); i++) {
 			@Nullable ITypedIngredient<?> typedIngredient = ingredients.get(i);
@@ -211,10 +228,12 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 			if (ingredient == null) {
 				continue;
 			}
-			Object uniqueId = ingredientHelper.getUid(ingredient, UidContext.Ingredient);
+			Object uniqueId = ingredientHelper.getUid(ingredient, uidContext);
 			if (focusUid.equals(uniqueId)) {
 				results.add(i);
+				foundMatch = true;
 			}
 		}
+		return foundMatch;
 	}
 }

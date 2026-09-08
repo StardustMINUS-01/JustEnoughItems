@@ -29,9 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>This test class is run by two Fabric client launches:
  * <ul>
- *     <li>{@code :Fabric:runClientKeyMappingTest} runs with AMECS and its JEI integration enabled.</li>
- *     <li>{@code :Fabric:runClientKeyMappingTestWithoutAmecs} removes AMECS from the runtime classpath and exercises
- *     JEI's plain Fabric key-mapping path.</li>
+ *     <li>{@code :Fabric:runClientGameTest} includes this test with AMECS and its JEI integration enabled.</li>
+ *     <li>{@code :Fabric:runClientGameTestWithoutAmecs} removes AMECS from the runtime classpath and runs only this
+ *     test to exercise JEI's plain Fabric key-mapping path.</li>
  * </ul>
  */
 final class JeiFabricKeyMappingClientTests {
@@ -47,7 +47,11 @@ final class JeiFabricKeyMappingClientTests {
 	}
 
 	public static void register() {
-		FabricClientTestRunner.register(JUNIT_SUITE_NAME, TEST_NAME, JeiFabricKeyMappingClientTests::runTest);
+		FabricClientTestRunner.register(getTestCase());
+	}
+
+	public static FabricClientTestRunner.ClientTestCase getTestCase() {
+		return new FabricClientTestRunner.ClientTestCase(JUNIT_SUITE_NAME, TEST_NAME, JeiFabricKeyMappingClientTests::runTest);
 	}
 
 	private static void runTest() {
@@ -217,7 +221,7 @@ final class JeiFabricKeyMappingClientTests {
 			CATEGORY,
 			JeiKeyConflictContext.UNIVERSAL
 		);
-		FabricJeiKeyMapping jeiMapping = new FabricJeiKeyMapping(fabricMapping, JeiKeyConflictContext.UNIVERSAL);
+		IJeiKeyMappingInternal jeiMapping = new FabricJeiKeyMapping<>(fabricMapping);
 		assertJeiKeyMappingIsDiscoverableAndRebindable("Fabric", fabricMapping, jeiMapping, boundKey, reboundKey);
 	}
 
@@ -502,13 +506,16 @@ final class JeiFabricKeyMappingClientTests {
 			CATEGORY,
 			JeiKeyConflictContext.GUI
 		);
-		FabricJeiKeyMapping jeiMapping = new FabricJeiKeyMapping(fabricMapping, JeiKeyConflictContext.GUI);
+		IJeiKeyMappingInternal jeiMapping = new FabricJeiKeyMapping<>(fabricMapping);
 
 		if (jeiMapping.isUnbound()) {
 			throw new AssertionError("Expected bound Fabric-backed JEI mouse mapping to report bound: " + mouseKey.getName());
 		}
 		if (jeiMapping.isActiveAndMatches(mouseKey)) {
 			throw new AssertionError("Expected bound Fabric-backed JEI mouse mapping to reject input while its GUI context is inactive: " + mouseKey.getName());
+		}
+		if (fabricMapping.isActiveAndMatches(mouseKey)) {
+			throw new AssertionError("Expected the platform mapping to reject input while its GUI context is inactive: " + mouseKey.getName());
 		}
 	}
 
@@ -521,7 +528,7 @@ final class JeiFabricKeyMappingClientTests {
 			CATEGORY,
 			JeiKeyConflictContext.GUI
 		);
-		FabricJeiKeyMapping jeiMapping = new FabricJeiKeyMapping(fabricMapping, JeiKeyConflictContext.GUI);
+		IJeiKeyMappingInternal jeiMapping = new FabricJeiKeyMapping<>(fabricMapping);
 
 		fabricMapping.setKey(InputConstants.UNKNOWN);
 		KeyMapping.resetMapping();

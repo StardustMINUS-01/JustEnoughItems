@@ -7,6 +7,7 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.RecipeBookmarkElement;
 import net.minecraft.resources.ResourceLocation;
@@ -27,13 +28,15 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	private final Object equalityScope;
 	private final I ingredientIdentity;
 	private boolean visible = true;
+	private final java.util.function.Supplier<RecipeTransferService> recipeTransferService;
 
 	@Nullable
 	public static <T> RecipeBookmark<T, ?> create(
 		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
-		IIngredientManager ingredientManager
+		IIngredientManager ingredientManager,
+		RecipeTransferService recipeTransferService
 	) {
-		return create(recipeLayoutDrawable, ingredientManager, false);
+		return create(recipeLayoutDrawable, ingredientManager, false, () -> recipeTransferService);
 	}
 
 	@Nullable
@@ -41,6 +44,15 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
 		IIngredientManager ingredientManager,
 		boolean preserveAmount
+	) {
+		return create(recipeLayoutDrawable, ingredientManager, preserveAmount, RecipeBookmarkElement::getCurrentRecipeTransferService);
+	}
+
+	private static <T> @Nullable RecipeBookmark<T, ?> create(
+		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
+		IIngredientManager ingredientManager,
+		boolean preserveAmount,
+		java.util.function.Supplier<RecipeTransferService> recipeTransferService
 	) {
 		T recipe = recipeLayoutDrawable.getRecipe();
 		IRecipeCategory<T> recipeCategory = recipeLayoutDrawable.getRecipeCategory();
@@ -56,7 +68,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 				if (!preserveAmount) {
 					output = ingredientManager.normalizeTypedIngredient(output);
 				}
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, RecipeIngredientRole.OUTPUT);
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, RecipeIngredientRole.OUTPUT, null, recipeTransferService);
 			}
 		}
 		{
@@ -65,7 +77,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 				if (!preserveAmount) {
 					input = ingredientManager.normalizeTypedIngredient(input);
 				}
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, RecipeIngredientRole.INPUT);
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, RecipeIngredientRole.INPUT, null, recipeTransferService);
 			}
 		}
 
@@ -78,9 +90,10 @@ public class RecipeBookmark<R, I> implements IBookmark {
 			if (slotView.getRole() != role) {
 				continue;
 			}
-			Optional<ITypedIngredient<?>> outputOptional = slotView.getAllIngredients().findFirst();
-			if (outputOptional.isPresent()) {
-				return outputOptional.get();
+			Optional<ITypedIngredient<?>> ingredient = slotView.getDisplayedIngredient()
+				.or(() -> slotView.getAllIngredients().findFirst());
+			if (ingredient.isPresent()) {
+				return ingredient.get();
 			}
 		}
 		return null;
@@ -104,11 +117,24 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		RecipeIngredientRole displayRole,
 		@Nullable Object equalityScope
 	) {
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope, RecipeBookmarkElement::getCurrentRecipeTransferService);
+	}
+
+	private RecipeBookmark(
+		IRecipeCategory<R> recipeCategory,
+		R recipe,
+		ResourceLocation recipeUid,
+		ITypedIngredient<I> recipeOutput,
+		RecipeIngredientRole displayRole,
+		@Nullable Object equalityScope,
+		java.util.function.Supplier<RecipeTransferService> recipeTransferService
+	) {
+		this.recipeTransferService = recipeTransferService;
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
 		this.recipeOutput = recipeOutput;
-		this.element = new RecipeBookmarkElement<>(this);
+		this.element = new RecipeBookmarkElement<>(this, recipeTransferService);
 		this.displayRole = displayRole;
 		this.equalityScope = equalityScope;
 		this.ingredientIdentity = createIngredientIdentity(recipeOutput);
@@ -133,6 +159,17 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		this(recipeCategory, recipe, recipeUid, recipeOutput, displayIsOutput ? RecipeIngredientRole.OUTPUT : RecipeIngredientRole.INPUT);
 	}
 
+	public RecipeBookmark(
+		IRecipeCategory<R> recipeCategory,
+		R recipe,
+		ResourceLocation recipeUid,
+		ITypedIngredient<I> displayIngredient,
+		boolean displayIsOutput,
+		RecipeTransferService recipeTransferService
+	) {
+		this(recipeCategory, recipe, recipeUid, displayIngredient, displayIsOutput ? RecipeIngredientRole.OUTPUT : RecipeIngredientRole.INPUT, null, () -> recipeTransferService);
+	}
+
 	@Override
 	public BookmarkType getType() {
 		return BookmarkType.RECIPE;
@@ -148,6 +185,10 @@ public class RecipeBookmark<R, I> implements IBookmark {
 
 	public R getRecipe() {
 		return recipe;
+	}
+
+	public ITypedIngredient<I> getDisplayIngredient() {
+		return recipeOutput;
 	}
 
 	public ITypedIngredient<I> getRecipeOutput() {
@@ -212,7 +253,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	}
 
 	public RecipeBookmark<R, I> withEqualityScope(@Nullable Object equalityScope) {
-		return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope);
+		return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope, recipeTransferService);
 	}
 
 	@Nullable

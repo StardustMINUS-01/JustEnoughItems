@@ -11,6 +11,8 @@ import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import mezz.jei.api.recipe.vanilla.IJeiAnvilRecipe;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
@@ -69,8 +71,8 @@ public class AnvilRecipeCategory extends AbstractRecipeCategory<IJeiAnvilRecipe>
 
 	@Override
 	public void createRecipeExtras(IRecipeExtrasBuilder builder, IJeiAnvilRecipe recipe, IFocusGroup focuses) {
-		builder.addRecipePlusSign().setPosition(27, 3);
-		builder.addRecipeArrow().setPosition(76, 1);
+		builder.addRecipePlusSignWidget().setPosition(27, 3);
+		builder.addRecipeArrowWidget().setPosition(76, 1);
 
 		Integer cost = getCost(builder.getRecipeSlots());
 		if (cost != null) {
@@ -80,7 +82,10 @@ public class AnvilRecipeCategory extends AbstractRecipeCategory<IJeiAnvilRecipe>
 			Minecraft minecraft = Minecraft.getInstance();
 			LocalPlayer player = minecraft.player;
 			// Show red if the player doesn't have enough levels
-			int textColor = playerHasEnoughLevels(player, cost) ? 0xFF80FF20 : 0xFFFF6060;
+			int textColor = JeiGuiColors.getColor(GuiColor.ANVIL_EXPERIENCE_COST_ERROR_TEXT);
+			if (playerHasEnoughLevels(player, cost)) {
+				textColor = JeiGuiColors.getColor(GuiColor.ANVIL_EXPERIENCE_COST_TEXT);
+			}
 
 			builder.addText(text, getWidth() - 4, 10)
 				.setPosition(2, 27)

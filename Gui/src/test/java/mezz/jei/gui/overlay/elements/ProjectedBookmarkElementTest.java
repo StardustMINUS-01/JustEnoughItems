@@ -311,6 +311,11 @@ public class ProjectedBookmarkElementTest {
 
 	private record TestTypedIngredient<T>(IIngredientType<T> type, T ingredient) implements ITypedIngredient<T> {
 		@Override
+		public ITypedIngredient<T> normalize(mezz.jei.api.ingredients.IIngredientHelper<T> helper) {
+			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+		}
+
+		@Override
 		public IIngredientType<T> getType() {
 			return type;
 		}

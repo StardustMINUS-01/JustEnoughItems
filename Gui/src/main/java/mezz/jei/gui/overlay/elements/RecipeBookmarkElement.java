@@ -9,6 +9,7 @@ import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.helpers.IModIdHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
+import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -17,7 +18,6 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
-import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.api.runtime.IJeiRuntime;
@@ -28,7 +28,7 @@ import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
-import mezz.jei.common.transfer.RecipeTransferUtil;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
@@ -38,7 +38,6 @@ import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
-import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.recipes.RecipeCategoryIconUtil;
 import mezz.jei.gui.util.FocusUtil;
@@ -62,13 +61,30 @@ import java.util.OptionalInt;
 public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	private final RecipeBookmark<R, I> recipeBookmark;
 	private @Nullable IClientConfig clientConfig;
+	private final java.util.function.Supplier<RecipeTransferService> recipeTransferService;
 	private @Nullable PreviewTooltipComponent<R> previewTooltipComponent;
 	private @Nullable IngredientsTooltipComponent ingredientsTooltipComponent;
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private @Nullable Optional<IRecipeLayoutDrawable<R>> cachedLayoutDrawable;
 
+	public RecipeBookmarkElement(
+		RecipeBookmark<R, I> recipeBookmark,
+		RecipeTransferService recipeTransferService
+	) {
+		this(recipeBookmark, () -> recipeTransferService);
+	}
+
 	public RecipeBookmarkElement(RecipeBookmark<R, I> recipeBookmark) {
+		this(recipeBookmark, RecipeBookmarkElement::getCurrentRecipeTransferService);
+	}
+
+	public RecipeBookmarkElement(RecipeBookmark<R, I> recipeBookmark, java.util.function.Supplier<RecipeTransferService> recipeTransferService) {
 		this.recipeBookmark = recipeBookmark;
+		this.recipeTransferService = recipeTransferService;
+	}
+
+	public static RecipeTransferService getCurrentRecipeTransferService() {
+		return ((mezz.jei.gui.recipes.RecipesGui) Internal.getJeiRuntime().getRecipesGui()).getRecipeTransferService();
 	}
 
 	@Override
@@ -122,13 +138,11 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 					return false;
 				}
 
-				IRecipeTransferManager recipeTransferManager = Internal.getJeiRuntime().getRecipeTransferManager();
-				AbstractContainerMenu container = containerScreen.getMenu();
 				if (input.isSimulate()) {
-					IRecipeTransferError recipeTransferError = RecipeTransferUtil.getTransferRecipeError(recipeTransferManager, container, recipeLayout, player).orElse(null);
+					IRecipeTransferError recipeTransferError = recipeTransferService.get().getTransferRecipeError(containerScreen, recipeLayout, player).orElse(null);
 					return recipeTransferError == null || recipeTransferError.getType().allowsTransfer;
 				} else {
-					return RecipeTransferUtil.transferRecipe(recipeTransferManager, container, recipeLayout, player, transferMax);
+					return recipeTransferService.get().transferRecipe(containerScreen, recipeLayout, player, transferMax);
 				}
 			}
 		}
@@ -238,18 +252,50 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public void getTooltip(JeiTooltip tooltip, IngredientGridTooltipHelper tooltipHelper, IIngredientRenderer<I> ingredientRenderer, IIngredientHelper<I> ingredientHelper) {
-		ITypedIngredient<I> displayIngredient = recipeBookmark.getRecipeOutput();
+		getTooltip(tooltip, ingredientRenderer, ingredientHelper, false);
+	}
+
+	public void getPinnedTooltip(JeiTooltip tooltip) {
+		IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
+		IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
+		ITypedIngredient<I> displayIngredient = recipeBookmark.getDisplayIngredient();
+		IIngredientType<I> ingredientType = displayIngredient.getType();
+		IIngredientRenderer<I> ingredientRenderer = ingredientManager.getIngredientRenderer(ingredientType);
+		IIngredientHelper<I> ingredientHelper = ingredientManager.getIngredientHelper(ingredientType);
+		getTooltip(tooltip, ingredientRenderer, ingredientHelper, true);
+	}
+
+	public Optional<PreviewTooltipComponent<R>> getInteractivePreview() {
+		IJeiKeyMappingInternal pauseRecipeCycling = Internal.getKeyMappings().getPauseRecipeCycling();
+		if (pauseRecipeCycling.isUnbound() ||
+			!getBookmarkTooltipFeatures().contains(BookmarkTooltipFeature.PREVIEW)
+		) {
+			return Optional.empty();
+		}
+		PreviewTooltipComponent<R> component = this.previewTooltipComponent;
+		if (component == null) {
+			component = createPreviewTooltipComponent();
+			if (component == null) {
+				return Optional.empty();
+			}
+			this.previewTooltipComponent = component;
+		}
+		return Optional.of(component);
+	}
+
+	private void getTooltip(JeiTooltip tooltip, IIngredientRenderer<I> ingredientRenderer, IIngredientHelper<I> ingredientHelper, boolean pinned) {
+		ITypedIngredient<I> displayIngredient = recipeBookmark.getDisplayIngredient();
 		R recipe = recipeBookmark.getRecipe();
 
 		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
-		tooltip.add(Component.translatable("jei.tooltip.bookmarks.recipe", recipeCategory.getTitle()));
-
-		addBookmarkTooltipFeaturesIfEnabled(tooltip);
+		JeiTooltip bookmarkTooltip = new JeiTooltip();
+		boolean previewAdded = addBookmarkTooltipFeaturesIfEnabled(bookmarkTooltip, pinned);
 
 		if (recipeBookmark.getDisplayRole() == RecipeIngredientRole.OUTPUT) {
 			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
 			IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 			IModIdHelper modIdHelper = jeiRuntime.getJeiHelpers().getModIdHelper();
+			boolean recipeByAdded = false;
 
 			ResourceLocation recipeName = recipeCategory.getRegistryName(recipe);
 			if (recipeName != null) {
@@ -260,42 +306,63 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 					Component modName = modIdHelper.getFormattedModNameComponentForModId(recipeModId);
 					MutableComponent recipeBy = Component.translatable("jei.tooltip.recipe.by", modName);
 					tooltip.add(recipeBy.withStyle(ChatFormatting.GRAY));
+					recipeByAdded = true;
 				}
 			}
 
-			tooltip.add(Component.empty());
+			if (recipeByAdded) {
+				tooltip.add(Component.empty());
+			}
 
 			SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, displayIngredient);
+		}
+
+		if (previewAdded && !pinned) {
+			IJeiKeyMappingInternal pauseRecipeCycling = Internal.getKeyMappings().getPauseRecipeCycling();
+			if (!pauseRecipeCycling.isUnbound()) {
+				bookmarkTooltip.addKeyUsageComponent("jei.tooltip.bookmarks.preview.pin.usage", pauseRecipeCycling);
+			}
+		}
+
+		if (pinned) {
+			tooltip.addAll(bookmarkTooltip);
+		} else {
+			tooltip.addIngredientTooltipFooter(bookmarkTooltip);
 		}
 	}
 
 	public void addRecipeTooltipFeatures(JeiTooltip tooltip) {
-		addBookmarkTooltipFeaturesIfEnabled(tooltip);
+		addBookmarkTooltipFeaturesIfEnabled(tooltip, false);
 	}
 
-	private void addBookmarkTooltipFeaturesIfEnabled(JeiTooltip tooltip) {
-		JeiTooltip transferComponents = createTransferComponents();
+	private boolean addBookmarkTooltipFeaturesIfEnabled(JeiTooltip tooltip, boolean pinned) {
+		JeiTooltip transferComponents = new JeiTooltip();
+		if (!pinned) {
+			transferComponents.addAll(createTransferComponents());
+		}
 		List<BookmarkTooltipFeature> bookmarkTooltipFeatures = getBookmarkTooltipFeatures();
 
 		if (bookmarkTooltipFeatures.isEmpty() && transferComponents.isEmpty()) {
-			return;
+			return false;
 		}
 
-		if (getClientConfig().holdShiftToShowBookmarkTooltipFeaturesEnabled().getValue()) {
-			IJeiKeyMappingInternal showBookmarkTooltipFeatures = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
-			if (showBookmarkTooltipFeatures.isDown()) {
-				addBookmarkTooltipFeatures(tooltip, bookmarkTooltipFeatures);
-				tooltip.addAll(transferComponents);
-			} else {
+		if (!pinned && getClientConfig().holdShiftToShowBookmarkTooltipFeaturesEnabled().getValue()) {
+			IJeiKeyMappingInternal pauseRecipeCycling = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
+			if (pauseRecipeCycling.isUnbound()) {
+				return false;
+			}
+			if (!pauseRecipeCycling.isDown()) {
 				tooltip.addKeyUsageComponent(
 					"jei.tooltip.bookmarks.tooltips.usage",
-					showBookmarkTooltipFeatures
+					pauseRecipeCycling
 				);
+				return false;
 			}
-		} else {
-			addBookmarkTooltipFeatures(tooltip, bookmarkTooltipFeatures);
-			tooltip.addAll(transferComponents);
 		}
+
+		boolean previewAdded = addBookmarkTooltipFeatures(tooltip, bookmarkTooltipFeatures);
+		tooltip.addAll(transferComponents);
+		return previewAdded;
 	}
 
 	private List<BookmarkTooltipFeature> getBookmarkTooltipFeatures() {
@@ -309,13 +376,18 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		return clientConfig;
 	}
 
-	private void addBookmarkTooltipFeatures(JeiTooltip tooltip, List<BookmarkTooltipFeature> features) {
+	private boolean addBookmarkTooltipFeatures(JeiTooltip tooltip, List<BookmarkTooltipFeature> features) {
+		boolean previewAdded = false;
 		for (BookmarkTooltipFeature feature : features) {
 			boolean added = addBookmarkTooltipFeature(tooltip, feature);
+			if (feature == BookmarkTooltipFeature.PREVIEW && added) {
+				previewAdded = true;
+			}
 			if (!added) {
 				break;
 			}
 		}
+		return previewAdded;
 	}
 
 	private boolean addBookmarkTooltipFeature(JeiTooltip tooltip, BookmarkTooltipFeature feature) {
@@ -328,16 +400,23 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	private boolean addPreviewTooltipComponent(JeiTooltip tooltip) {
 		PreviewTooltipComponent<R> component = previewTooltipComponent;
 		if (component == null) {
-			IRecipeLayoutDrawable<R> recipeLayout = getRecipeLayoutDrawable().orElse(null);
-			if (recipeLayout == null) {
+			component = createPreviewTooltipComponent();
+			if (component == null) {
 				return false;
 			}
-			component = new FixedRecipePreviewTooltipComponent<>(recipeLayout);
 			previewTooltipComponent = component;
 		}
-
+		component.setStatic();
 		tooltip.add(component);
 		return true;
+	}
+
+	private @Nullable PreviewTooltipComponent<R> createPreviewTooltipComponent() {
+		IRecipeLayoutDrawable<R> recipeLayout = getRecipeLayoutDrawable().orElse(null);
+		if (recipeLayout == null) {
+			return null;
+		}
+		return new PreviewTooltipComponent<>(recipeLayout, recipeTransferService.get());
 	}
 
 	private boolean addIngredientsTooltipComponent(JeiTooltip tooltip) {
@@ -363,12 +442,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		Player player = minecraft.player;
 		if (player != null && screen instanceof AbstractContainerScreen<?> containerScreen) {
 			IRecipeTransferError recipeTransferError = getRecipeLayoutDrawable()
-				.flatMap(recipeLayout -> {
-					IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
-					IRecipeTransferManager recipeTransferManager = jeiRuntime.getRecipeTransferManager();
-					AbstractContainerMenu container = containerScreen.getMenu();
-					return RecipeTransferUtil.getTransferRecipeError(recipeTransferManager, container, recipeLayout, player);
-				})
+				.flatMap(recipeLayout -> recipeTransferService.get().getTransferRecipeError(containerScreen, recipeLayout, player))
 				.orElse(null);
 
 			if (recipeTransferError == null || recipeTransferError.getType().allowsTransfer) {

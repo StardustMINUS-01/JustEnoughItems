@@ -75,7 +75,6 @@ public class LookupHistoryOverlayLayoutTest {
 			gridConfig,
 			ingredientListAvailableArea(drawBackground),
 			Set.of(),
-			null,
 			100
 		);
 		LookupHistoryOverlayLayout lookupHistoryLayout = LookupHistoryOverlayLayout.calculate(
@@ -109,7 +108,6 @@ public class LookupHistoryOverlayLayoutTest {
 			gridConfig,
 			bookmarkListAvailableArea(drawBackground),
 			Set.of(),
-			null,
 			100
 		);
 		LookupHistoryOverlayLayout lookupHistoryLayout = LookupHistoryOverlayLayout.calculate(

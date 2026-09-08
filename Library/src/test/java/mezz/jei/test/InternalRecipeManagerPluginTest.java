@@ -1,6 +1,7 @@
 package mezz.jei.test;
 
 import com.mojang.serialization.Codec;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -25,6 +26,8 @@ import mezz.jei.library.recipes.collect.RecipeTypeDataMap;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -34,9 +37,11 @@ import java.util.EnumMap;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 public class InternalRecipeManagerPluginTest {
-	private static final IIngredientType<TestIngredient> INGREDIENT_TYPE = () -> TestIngredient.class;
+	private static final IIngredientType<TestIngredient> INGREDIENT_TYPE = new TestIngredientType("test");
+	private static final IIngredientType<OtherTestIngredient> OTHER_INGREDIENT_TYPE = () -> OtherTestIngredient.class;
 	private static final RecipeType<String> RECIPE_TYPE = RecipeType.create("jei", "internal_plugin_test", String.class);
 	private static final TestIngredient CATALYST = new TestIngredient(1);
 	private static final TestIngredient INPUT = new TestIngredient(2);
@@ -128,6 +133,49 @@ public class InternalRecipeManagerPluginTest {
 		assertEquals(List.of(FIRST_RECIPE), recipes);
 	}
 
+	@Test
+	public void ingredientUidsAreScopedToTheirIngredientType() {
+		IIngredientManager ingredientManager = createIngredientManager();
+		RecipeMap roleMap = createRoleMaps(ingredientManager).get(RecipeIngredientRole.INPUT);
+		ITypedIngredient<TestIngredient> input = typedIngredient(ingredientManager, INPUT);
+		ITypedIngredient<OtherTestIngredient> otherInput = ingredientManager.createTypedIngredient(
+				OTHER_INGREDIENT_TYPE,
+				new OtherTestIngredient(INPUT.number()),
+				false
+			)
+			.orElseThrow();
+		IIngredientSupplier ingredientSupplier = role -> {
+			if (role == RecipeIngredientRole.INPUT) {
+				return List.of(input);
+			}
+			return List.of();
+		};
+		roleMap.addRecipe(RECIPE_TYPE, FIRST_RECIPE, ingredientSupplier);
+
+		assertEquals(List.of(), roleMap.getRecipes(RECIPE_TYPE, otherInput));
+	}
+
+	@Test
+	public void equalIngredientTypesShareRecipeUidRows() {
+		IIngredientType<TestIngredient> equalButDistinctType = new TestIngredientType("test");
+		assertNotSame(INGREDIENT_TYPE, equalButDistinctType);
+
+		IIngredientManager ingredientManager = createIngredientManager();
+		RecipeMap roleMap = createRoleMaps(ingredientManager).get(RecipeIngredientRole.INPUT);
+		ITypedIngredient<TestIngredient> input = typedIngredient(ingredientManager, INPUT);
+		ITypedIngredient<TestIngredient> equalTypeInput = ingredientManager.createTypedIngredient(equalButDistinctType, INPUT, false)
+			.orElseThrow();
+		IIngredientSupplier ingredientSupplier = role -> {
+			if (role == RecipeIngredientRole.INPUT) {
+				return List.of(input);
+			}
+			return List.of();
+		};
+		roleMap.addRecipe(RECIPE_TYPE, FIRST_RECIPE, ingredientSupplier);
+
+		assertEquals(List.of(FIRST_RECIPE), roleMap.getRecipes(RECIPE_TYPE, equalTypeInput));
+	}
+
 	private static PluginFixture createFixture(List<String> recipes, List<TestIngredient> catalysts) {
 		IIngredientManager ingredientManager = createIngredientManager();
 		EnumMap<RecipeIngredientRole, RecipeMap> roleMaps = createRoleMaps(ingredientManager);
@@ -171,6 +219,13 @@ public class InternalRecipeManagerPluginTest {
 			new TestIngredientRenderer(),
 			Codec.INT.xmap(TestIngredient::new, TestIngredient::number)
 		);
+		builder.register(
+			OTHER_INGREDIENT_TYPE,
+			List.of(new OtherTestIngredient(INPUT.number())),
+			new OtherTestIngredientHelper(),
+			new OtherTestIngredientRenderer(),
+			Codec.INT.xmap(OtherTestIngredient::new, OtherTestIngredient::number)
+		);
 		return builder.build();
 	}
 
@@ -207,6 +262,16 @@ public class InternalRecipeManagerPluginTest {
 	}
 
 	private record TestIngredient(int number) {
+	}
+
+	private record TestIngredientType(String id) implements IIngredientType<TestIngredient> {
+		@Override
+		public Class<? extends TestIngredient> getIngredientClass() {
+			return TestIngredient.class;
+		}
+	}
+
+	private record OtherTestIngredient(int number) {
 	}
 
 	private static class TestIngredientHelper implements IIngredientHelper<TestIngredient> {
@@ -253,7 +318,83 @@ public class InternalRecipeManagerPluginTest {
 		}
 
 		@Override
+		@Deprecated(since = "19.49.0", forRemoval = true)
+		@SuppressWarnings("removal")
 		public List<Component> getTooltip(TestIngredient ingredient, TooltipFlag tooltipFlag) {
+			return getTooltip(ingredient, Item.TooltipContext.EMPTY, null, tooltipFlag);
+		}
+
+		@Override
+		@Deprecated(since = "19.49.0", forRemoval = true)
+		@SuppressWarnings("removal")
+		public void getTooltip(ITooltipBuilder tooltip, TestIngredient ingredient, TooltipFlag tooltipFlag) {
+			getTooltip(tooltip, ingredient, Item.TooltipContext.EMPTY, null, tooltipFlag);
+		}
+
+		@Override
+		public List<Component> getTooltip(TestIngredient ingredient, Item.TooltipContext tooltipContext, @Nullable Player player, TooltipFlag tooltipFlag) {
+			return List.of(Component.literal(Integer.toString(ingredient.number())));
+		}
+	}
+
+	private static class OtherTestIngredientHelper implements IIngredientHelper<OtherTestIngredient> {
+		@Override
+		public IIngredientType<OtherTestIngredient> getIngredientType() {
+			return OTHER_INGREDIENT_TYPE;
+		}
+
+		@Override
+		public String getDisplayName(OtherTestIngredient ingredient) {
+			return "Other Ingredient " + ingredient.number();
+		}
+
+		@Override
+		public String getUniqueId(OtherTestIngredient ingredient, UidContext context) {
+			return Integer.toString(ingredient.number());
+		}
+
+		@Override
+		public Object getUid(OtherTestIngredient ingredient, UidContext context) {
+			return ingredient.number();
+		}
+
+		@Override
+		public ResourceLocation getResourceLocation(OtherTestIngredient ingredient) {
+			return ResourceLocation.fromNamespaceAndPath("test_other", Integer.toString(ingredient.number()));
+		}
+
+		@Override
+		public OtherTestIngredient copyIngredient(OtherTestIngredient ingredient) {
+			return ingredient;
+		}
+
+		@Override
+		public String getErrorInfo(@Nullable OtherTestIngredient ingredient) {
+			return String.valueOf(ingredient);
+		}
+	}
+
+	private static class OtherTestIngredientRenderer implements IIngredientRenderer<OtherTestIngredient> {
+		@Override
+		public void render(GuiGraphics guiGraphics, OtherTestIngredient ingredient) {
+		}
+
+		@Override
+		@Deprecated(since = "19.49.0", forRemoval = true)
+		@SuppressWarnings("removal")
+		public List<Component> getTooltip(OtherTestIngredient ingredient, TooltipFlag tooltipFlag) {
+			return getTooltip(ingredient, Item.TooltipContext.EMPTY, null, tooltipFlag);
+		}
+
+		@Override
+		@Deprecated(since = "19.49.0", forRemoval = true)
+		@SuppressWarnings("removal")
+		public void getTooltip(ITooltipBuilder tooltip, OtherTestIngredient ingredient, TooltipFlag tooltipFlag) {
+			getTooltip(tooltip, ingredient, Item.TooltipContext.EMPTY, null, tooltipFlag);
+		}
+
+		@Override
+		public List<Component> getTooltip(OtherTestIngredient ingredient, Item.TooltipContext tooltipContext, @Nullable Player player, TooltipFlag tooltipFlag) {
 			return List.of(Component.literal(Integer.toString(ingredient.number())));
 		}
 	}

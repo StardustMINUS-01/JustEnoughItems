@@ -1,5 +1,7 @@
 package mezz.jei.api.runtime;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * Gives access to key mappings used by JEI.
  * This can be used by mods that want to use the same keys that players bind for JEI.
@@ -8,6 +10,7 @@ package mezz.jei.api.runtime;
  *
  * @since 11.0.1
  */
+@ApiStatus.NonExtendable
 public interface IJeiKeyMappings {
 	/**
 	 * @return the key mapping to show recipes.
@@ -24,4 +27,12 @@ public interface IJeiKeyMappings {
 	 * @since 11.0.1
 	 */
 	IJeiKeyMapping getShowUses();
+
+	/**
+	 * @return the key mapping to bookmark an ingredient.
+	 * The default binding is 'A'.
+	 *
+	 * @since 19.53.0
+	 */
+	IJeiKeyMapping getBookmark();
 }

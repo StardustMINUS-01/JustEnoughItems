@@ -1,26 +1,34 @@
+import mezz.jei.gradle.ValidateApiCompatibilityReports
+import net.neoforged.jarcompatibilitychecker.core.NonExtendableApiCheckMode
+import net.neoforged.jarcompatibilitychecker.gradle.CompatibilityTask
+import org.gradle.language.base.plugins.LifecycleBasePlugin
+
 plugins {
     // https://plugins.gradle.org/plugin/com.diffplug.gradle.spotless
-	id("com.diffplug.spotless") version("8.8.0")
+	id("com.diffplug.spotless") version("8.10.0")
 
     // https://plugins.gradle.org/plugin/com.dorongold.task-tree
-    id("com.dorongold.task-tree") version("4.0.0")
+    id("com.dorongold.task-tree") version("4.0.2")
 
     // https://maven.fabricmc.net/fabric-loom/fabric-loom.gradle.plugin/maven-metadata.xml
-    id("fabric-loom") version("1.11.0-alpha.26") apply(false)
+    // Loom 1.14+ requires Gradle 9, but ForgeGradle 6 requires Gradle 8.
+    id("fabric-loom") version("1.13.6") apply(false)
 
     // https://projects.neoforged.net/neoforged/moddevgradle
-    id("net.neoforged.moddev") version("2.0.142") apply(false)
+    id("net.neoforged.moddev") version("2.0.144") apply(false)
 
-    id("net.mezzdev.modshade") version("0.3.0") apply(false)
+    id("net.mezzdev.modshade") version("0.7.0") apply(false)
 
     // https://plugins.gradle.org/plugin/me.modmuss50.mod-publish-plugin
-    id("me.modmuss50.mod-publish-plugin") version("2.0.1") apply(false)
+    id("me.modmuss50.mod-publish-plugin") version("2.2.0") apply(false)
 
     // https://files.minecraftforge.net/net/minecraftforge/gradle/ForgeGradle/index.html
-    id("net.minecraftforge.gradle") version("6.0.26") apply(false)
+    id("net.minecraftforge.gradle") version("6.0.54") apply(false)
 
     // https://mvnrepository.com/artifact/org.parchmentmc.librarian.forgegradle/org.parchmentmc.librarian.forgegradle.gradle.plugin
     id("org.parchmentmc.librarian.forgegradle") version("1.2.0") apply(false)
+
+    id("net.neoforged.jarcompatibilitychecker") version("0.1.19") apply(false)
 }
 apply {
 	from("buildtools/ColoredOutput.gradle")
@@ -29,11 +37,12 @@ apply {
 repositories {
     mavenCentral()
 }
-
 // gradle.properties
 val curseHomepageUrl: String by extra
 val curseProjectId: String by extra
 val homepageUrl: String by extra
+val amecsKeyModifiersVersionFabric: String by extra
+val amecsVersionFabric: String by extra
 val fabricApiVersion: String by extra
 val fabricApiVersionRange: String by extra
 val fabricLoaderVersion: String by extra
@@ -73,7 +82,6 @@ spotless {
 		replaceRegex("method-level javadoc indentation fix", "\t\\*", "\t *")
 	}
 }
-
 subprojects {
     //adds the build number to the end of the version string if on a build server
     var buildNumber = project.findProperty("BUILD_NUMBER")
@@ -113,6 +121,8 @@ subprojects {
         exclude("**/.DS_Store")
 
         val properties = mapOf(
+            "amecsKeyModifiersVersionFabric" to amecsKeyModifiersVersionFabric,
+            "amecsVersionFabric" to amecsVersionFabric,
             "curseHomepageUrl" to curseHomepageUrl,
             "homepageUrl" to homepageUrl,
             "fabricApiVersion" to fabricApiVersion,
@@ -154,4 +164,40 @@ subprojects {
     }
 }
 
-apply(from = "gradle/api-compatibility.gradle.kts")
+val apiProjectPaths = listOf(":CommonApi", ":FabricApi", ":NeoForgeApi", ":ForgeApi")
+val apiCompatibilityReports = apiProjectPaths.associateWith { apiProjectPath ->
+    project(apiProjectPath).layout.buildDirectory.file("checkJarCompatibility/output.json")
+}
+
+apiProjectPaths.forEach { apiProjectPath ->
+    val apiProject = project(apiProjectPath)
+    apiProject.pluginManager.apply("net.neoforged.jarcompatibilitychecker")
+    apiProject.pluginManager.withPlugin("java") {
+        apiProject.tasks.named<CompatibilityTask>("checkJarCompatibility") {
+            group = LifecycleBasePlugin.VERIFICATION_GROUP
+            description = "Checks $apiProjectPath against the latest published API jar in the same major version."
+            output.set(apiCompatibilityReports.getValue(apiProjectPath))
+            mavens.set(listOf("https://maven.blamejared.com"))
+            // Match the previous CLI check and avoid loading the full Minecraft compile classpath.
+            libraries.setFrom(emptyList<Any>())
+            nonExtendableApiCheckMode.set(NonExtendableApiCheckMode.SKIP)
+            // Keep fail disabled so the target branch validator can filter its known non-extendable API exceptions.
+        }
+    }
+}
+
+val checkApiCompatibility = tasks.register<ValidateApiCompatibilityReports>("checkApiCompatibility") {
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    description = "Checks all published JEI API jars for compatibility with the latest published API jars in the same major version."
+    dependsOn(apiProjectPaths.map { "$it:checkJarCompatibility" })
+    reportFiles.from(apiCompatibilityReports.values)
+    apiSourceFiles.from(apiProjectPaths.map { apiProjectPath ->
+        project(apiProjectPath).fileTree("src/main/java") {
+            include("**/*.java")
+        }
+    })
+}
+
+tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) {
+    dependsOn(checkApiCompatibility)
+}

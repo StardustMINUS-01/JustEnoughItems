@@ -1,9 +1,13 @@
 package mezz.jei.api.gui.widgets;
 
 import mezz.jei.api.gui.placement.HorizontalAlignment;
-import mezz.jei.api.gui.placement.IPlaceable;
 import mezz.jei.api.gui.placement.VerticalAlignment;
 import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
+import org.jetbrains.annotations.ApiStatus;
+
+import java.util.Collection;
 
 /**
  * An interface to allow configuration of a text widget.
@@ -12,10 +16,13 @@ import net.minecraft.client.gui.Font;
  * then configure it using this interface.
  *
  * By default, text is aligned to the top left, and uses the minecraft client font.
+ * If text is truncated, its full text is shown first in the tooltip, followed by any text, rich
+ * components, or callback-built content configured with a {@link #setTooltip} overload.
  *
  * @since 19.19.0
  */
-public interface ITextWidget extends IPlaceable<ITextWidget> {
+@ApiStatus.NonExtendable
+public interface ITextWidget extends IRecipeWidgetBuilder<ITextWidget> {
 	/**
 	 * Set the font used by this text widget when drawing text.
 	 * Defaults to the minecraft client font.
@@ -26,7 +33,7 @@ public interface ITextWidget extends IPlaceable<ITextWidget> {
 
 	/**
 	 * Set the color used by this text widget when drawing text.
-	 * Defaults to black (0xFF000000)
+	 * Defaults to JEI's text widget color, which is black (0xFF000000) by default.
 	 *
 	 * @since 19.19.0
 	 */
@@ -129,4 +136,35 @@ public interface ITextWidget extends IPlaceable<ITextWidget> {
 	default ITextWidget alignVerticalBottom() {
 		return setTextAlignment(VerticalAlignment.BOTTOM);
 	}
+
+	@Override
+	ITextWidget setPosition(int xPos, int yPos);
+
+	@Override
+	ITextWidget setPosition(
+		int areaX,
+		int areaY,
+		int areaWidth,
+		int areaHeight,
+		HorizontalAlignment horizontalAlignment,
+		VerticalAlignment verticalAlignment
+	);
+
+	@Override
+	int getWidth();
+
+	@Override
+	int getHeight();
+
+	@Override
+	ITextWidget setTooltip(FormattedText tooltip);
+
+	@Override
+	ITextWidget setTooltip(Collection<? extends FormattedText> tooltip);
+
+	@Override
+	ITextWidget setTooltip(TooltipComponent tooltip);
+
+	@Override
+	ITextWidget setTooltip(IRecipeWidgetTooltipCallback tooltipCallback);
 }

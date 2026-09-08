@@ -5,12 +5,15 @@ import mezz.jei.api.gui.handlers.IGuiClickableArea;
 import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.config.DebugConfig;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.RectDebugger;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayRenderer;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayState;
+import mezz.jei.gui.input.IGuiInputLayer;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import net.minecraft.client.DeltaTracker;
@@ -23,6 +26,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,17 +35,20 @@ public class GuiEventHandler {
 	private final IScreenHelper screenHelper;
 	private final BookmarkOverlay bookmarkOverlay;
 	private final BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner;
+	private final List<IGuiInputLayer> inputLayers;
 
 	public GuiEventHandler(
 		IScreenHelper screenHelper,
 		BookmarkOverlay bookmarkOverlay,
 		IngredientListOverlay ingredientListOverlay,
-		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner
+		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner,
+		IGuiInputLayer... inputLayers
 	) {
 		this.screenHelper = screenHelper;
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.ingredientListOverlay = ingredientListOverlay;
 		this.bookmarkAutoCraftingRunner = bookmarkAutoCraftingRunner;
+		this.inputLayers = List.of(inputLayers);
 	}
 
 	public void onGuiInit(Screen screen) {
@@ -78,27 +85,38 @@ public class GuiEventHandler {
 	}
 
 	/**
-	 * Draws after the screen contents and before deferred tooltips are extracted.
+	 * Updates input layers before the screen can render its tooltip.
 	 */
 	public void drawForContainerScreen(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
-		BookmarkGhostOverlayState.INSTANCE.getActive(screen.getMenu())
-			.ifPresent(overlay -> BookmarkGhostOverlayRenderer.render(guiGraphics, overlay));
-		drawOverlayForegrounds(guiGraphics, mouseX, mouseY, true);
-		drawPostForeground(screen, guiProperties, guiGraphics, mouseX, mouseY);
+		drawForScreenForeground(screen, guiGraphics, mouseX, mouseY);
 	}
 
-	public void drawForScreen(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	public void updateForScreenRender(Screen screen, int mouseX, int mouseY) {
+		IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
+		updateOverlayProperties(screen, guiProperties);
+		this.inputLayers.forEach(inputLayer -> inputLayer.update(mouseX, mouseY));
+	}
+
+	/**
+	 * Draws the JEI overlay backgrounds before the screen contents are drawn.
+	 */
+	public void drawForScreenBackground(Screen screen, GuiGraphics guiGraphics) {
 		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
 		updateOverlayProperties(screen, guiProperties);
-
 		drawOverlayBackgrounds(guiGraphics);
+	}
 
-		if (screen instanceof AbstractContainerScreen<?>) {
-			return;
+	/**
+	 * Draws the JEI overlay foregrounds after the screen contents and before deferred tooltips are extracted.
+	 */
+	public void drawForScreenForeground(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
+		if (screen instanceof AbstractContainerScreen<?> containerScreen) {
+			BookmarkGhostOverlayState.INSTANCE.getActive(containerScreen.getMenu())
+				.ifPresent(overlay -> BookmarkGhostOverlayRenderer.render(guiGraphics, overlay));
 		}
-
-		drawOverlayForegrounds(guiGraphics, mouseX, mouseY, false);
+		boolean drawScreenForeground = screen instanceof AbstractContainerScreen<?>;
+		drawOverlayForegrounds(guiGraphics, mouseX, mouseY, drawScreenForeground);
 		drawPostForeground(screen, guiProperties, guiGraphics, mouseX, mouseY);
 	}
 
@@ -137,8 +155,10 @@ public class GuiEventHandler {
 
 	private void drawPostForeground(Screen screen, @Nullable IGuiProperties guiProperties, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		Minecraft minecraft = Minecraft.getInstance();
+		boolean mouseOverInputLayer = this.inputLayers.stream()
+			.anyMatch(inputLayer -> inputLayer.isMouseOver(mouseX, mouseY));
 
-		if (guiProperties != null && screen instanceof AbstractContainerScreen<?> guiContainer) {
+		if (!mouseOverInputLayer && guiProperties != null && screen instanceof AbstractContainerScreen<?> guiContainer) {
 			int guiLeft = guiProperties.guiLeft();
 			int guiTop = guiProperties.guiTop();
 			this.screenHelper.getGuiClickableArea(guiContainer, mouseX - guiLeft, mouseY - guiTop)
@@ -154,8 +174,14 @@ public class GuiEventHandler {
 				});
 		}
 
-		ingredientListOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
-		bookmarkOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+		if (!mouseOverInputLayer) {
+			ingredientListOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+			bookmarkOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+		}
+
+		for (int i = this.inputLayers.size() - 1; i >= 0; i--) {
+			this.inputLayers.get(i).draw(guiGraphics, mouseX, mouseY);
+		}
 
 		if (DebugConfig.isDebugGuisEnabled()) {
 			drawDebugInfoForScreen(screen, guiProperties, guiGraphics);
@@ -183,7 +209,7 @@ public class GuiEventHandler {
 					area.getY(),
 					area.getX() + area.getWidth(),
 					area.getY() + area.getHeight(),
-					0x44FF0000
+					JeiGuiColors.getColor(GuiColor.DEBUG_GUI_EXCLUSION_AREA)
 				);
 			}
 
@@ -194,7 +220,7 @@ public class GuiEventHandler {
 				guiProperties.guiTop(),
 				guiProperties.guiRight(),
 				guiProperties.guiBottom(),
-				0x22CCCC00
+				JeiGuiColors.getColor(GuiColor.DEBUG_GUI_AREA)
 			);
 
 			RenderSystem.setShaderColor(1f, 1f, 1f, 1f);

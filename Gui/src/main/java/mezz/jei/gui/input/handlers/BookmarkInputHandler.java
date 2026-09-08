@@ -47,6 +47,7 @@ import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
@@ -55,6 +56,7 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import net.minecraft.client.Minecraft;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPreviewTooltipController;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.gui.screens.Screen;
@@ -81,6 +83,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
 	private final Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
+	private final BookmarkPreviewTooltipController bookmarkPreviewTooltipController;
 	private final IClientConfig clientConfig;
 	private final RecipesGui recipesGui;
 	private final Codec<BookmarkConfigEntry> bookmarkEntryCodec;
@@ -95,6 +98,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		BookmarkAutoCraftingRunner autoCraftingRunner,
 		Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
+		BookmarkPreviewTooltipController bookmarkPreviewTooltipController,
 		IClientConfig clientConfig,
 		RecipesGui recipesGui,
 		Codec<BookmarkConfigEntry> bookmarkEntryCodec,
@@ -109,6 +113,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.autoCraftingRunner = autoCraftingRunner;
 		this.favoriteTreeSaver = favoriteTreeSaver;
 		this.favoriteRecipeLookup = favoriteRecipeLookup;
+		this.bookmarkPreviewTooltipController = bookmarkPreviewTooltipController;
 		this.clientConfig = clientConfig;
 		this.recipesGui = recipesGui;
 		this.bookmarkEntryCodec = bookmarkEntryCodec;
@@ -131,6 +136,13 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			Optional<IUserInputHandler> shareHandler = handleGroupShare(input);
 			if (shareHandler.isPresent()) {
 				return shareHandler;
+			}
+		}
+		if (!InputModifiers.hasShift(input) && !InputModifiers.hasControl(input) &&
+			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())) {
+			Optional<IUserInputHandler> recipeHandler = handleRecipeBookmark(input);
+			if (recipeHandler.isPresent()) {
+				return recipeHandler;
 			}
 		}
 		if (isSaveMissingInput(input, keyBindings.getBookmarkPullItems())) {
@@ -484,6 +496,9 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private Optional<IUserInputHandler> handleRecipeBookmark(UserInput input) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
+		if (bookmarkPreviewTooltipController.isMouseOver(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		Optional<IRecipeLayoutWithButtons<?>> layoutWithButtons = recipesGui.getRecipeLayoutUnderMouse(mouseX, mouseY);
 		if (layoutWithButtons.isEmpty()) {
 			return Optional.empty();

@@ -7,6 +7,7 @@ import mezz.jei.neoforge.events.RuntimeEventSubscriptions;
 import mezz.jei.neoforge.input.ForgeUserInput;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.input.ClientInputHandler;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.startup.JeiEventHandlers;
@@ -22,6 +23,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ContainerScreenEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RenderTooltipEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
 public class EventRegistration {
@@ -147,6 +149,15 @@ public class EventRegistration {
 		RuntimeEventSubscriptions subscriptions,
 		GuiEventHandler guiEventHandler
 	) {
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.Render.Pre.class, event -> {
+			Screen screen = event.getScreen();
+			guiEventHandler.updateForScreenRender(screen, event.getMouseX(), event.getMouseY());
+		});
+		subscriptions.register(EventPriority.HIGHEST, RenderTooltipEvent.Pre.class, event -> {
+			if (PinnedTooltipManager.shouldSuppressExternalTooltip()) {
+				event.setCanceled(true);
+			}
+		});
 		subscriptions.register(ClientTickEvent.Post.class, event -> {
 			if (Minecraft.getInstance().screen != null) {
 				guiEventHandler.onClientTick();
@@ -166,16 +177,14 @@ public class EventRegistration {
 			int mouseX = event.getMouseX();
 			int mouseY = event.getMouseY();
 			runWithIdentityPose(guiGraphics, () ->
-				guiEventHandler.drawForContainerScreen(containerScreen, guiGraphics, mouseX, mouseY)
+				guiEventHandler.drawForScreenForeground(containerScreen, guiGraphics, mouseX, mouseY)
 			);
 		});
 		subscriptions.register(EventPriority.HIGHEST, ContainerScreenEvent.Render.Background.class, event -> {
 			AbstractContainerScreen<?> containerScreen = event.getContainerScreen();
 			var guiGraphics = event.getGuiGraphics();
-			int mouseX = event.getMouseX();
-			int mouseY = event.getMouseY();
 			runWithIdentityPose(guiGraphics, () ->
-				guiEventHandler.drawForScreen(containerScreen, guiGraphics, mouseX, mouseY)
+				guiEventHandler.drawForScreenBackground(containerScreen, guiGraphics)
 			);
 		});
 		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.Render.Post.class, event -> {
@@ -186,9 +195,10 @@ public class EventRegistration {
 			var guiGraphics = event.getGuiGraphics();
 			int mouseX = event.getMouseX();
 			int mouseY = event.getMouseY();
-			runWithIdentityPose(guiGraphics, () ->
-				guiEventHandler.drawForScreen(screen, guiGraphics, mouseX, mouseY)
-			);
+			runWithIdentityPose(guiGraphics, () -> {
+				guiEventHandler.drawForScreenBackground(screen, guiGraphics);
+				guiEventHandler.drawForScreenForeground(screen, guiGraphics, mouseX, mouseY);
+			});
 		});
 		subscriptions.register(ScreenEvent.RenderInventoryMobEffects.class, event -> {
 			if (guiEventHandler.renderCompactPotionIndicators()) {

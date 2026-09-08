@@ -1,10 +1,13 @@
 package mezz.jei.api.gui.placement;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * Interface for things that can have their position set, and be aligned vertically and horizontally in an area.
  *
  * @since 19.19.1
  */
+@ApiStatus.NonExtendable
 public interface IPlaceable<THIS extends IPlaceable<THIS>> {
 	/**
 	 * Place this element at the given position.
@@ -17,11 +20,7 @@ public interface IPlaceable<THIS extends IPlaceable<THIS>> {
 	 *
 	 * @since 19.19.1
 	 */
-	default THIS setPosition(int areaX, int areaY, int areaWidth, int areaHeight, HorizontalAlignment horizontalAlignment, VerticalAlignment verticalAlignment) {
-		int x = areaX + horizontalAlignment.getXPos(areaWidth, getWidth());
-		int y = areaY + verticalAlignment.getYPos(areaHeight, getHeight());
-		return setPosition(x, y);
-	}
+	THIS setPosition(int areaX, int areaY, int areaWidth, int areaHeight, HorizontalAlignment horizontalAlignment, VerticalAlignment verticalAlignment);
 
 	/**
 	 * Get the width of this element.

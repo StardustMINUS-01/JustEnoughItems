@@ -184,6 +184,11 @@ public class FavoriteRecipeGridSourceTest {
 
 	private record TestTypedIngredient<V>(IIngredientType<V> type, V ingredient) implements ITypedIngredient<V> {
 		@Override
+		public ITypedIngredient<V> normalize(mezz.jei.api.ingredients.IIngredientHelper<V> helper) {
+			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+		}
+
+		@Override
 		public IIngredientType<V> getType() {
 			return type;
 		}

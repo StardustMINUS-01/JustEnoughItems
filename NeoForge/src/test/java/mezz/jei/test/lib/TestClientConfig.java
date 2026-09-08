@@ -34,11 +34,13 @@ public class TestClientConfig implements IClientConfig {
 	private final IJeiConfigValue<Boolean> ingredientsSummaryEnabled = value("ingredientsSummaryEnabled", true);
 	private final IJeiConfigValue<Boolean> lowMemorySlowSearchEnabled;
 	private final IJeiConfigValue<Boolean> catchRenderErrorsEnabled = value("catchRenderErrorsEnabled", false);
+	private final IJeiConfigValue<Boolean> recipeSyncWarningEnabled = value("recipeSyncWarningEnabled", true);
 	private final IJeiConfigValue<Boolean> lookupFluidContentsEnabled = value("lookupFluidContentsEnabled", false);
 	private final IJeiConfigValue<Boolean> lookupBlockTagsEnabled = value("lookupBlockTagsEnabled", false);
 	private final IJeiConfigValue<Boolean> showCreativeTabNamesEnabled = value("showCreativeTabNamesEnabled", false);
 	private final IJeiConfigValue<Integer> dragDelayMs = value("dragDelayMs", 0);
 	private final IJeiConfigValue<Integer> smoothScrollRate = value("smoothScrollRate", 9);
+	private final IJeiConfigValue<Boolean> recipeSlotCyclingEnabled = value("recipeSlotCyclingEnabled", false);
 	private final IJeiConfigValue<List<IngredientSortStage>> ingredientSorterStages = value("ingredientSorterStages", List.of());
 	private final IJeiConfigValue<List<RecipeSorterStage>> recipeSorterStages = value("recipeSorterStages", List.of());
 	private final IJeiConfigValue<Boolean> tagContentTooltipEnabled = value("tagContentTooltipEnabled", true);
@@ -163,6 +165,11 @@ public class TestClientConfig implements IClientConfig {
 	}
 
 	@Override
+	public IJeiConfigValue<Boolean> recipeSyncWarningEnabled() {
+		return recipeSyncWarningEnabled;
+	}
+
+	@Override
 	public IJeiConfigValue<Boolean> lookupFluidContentsEnabled() {
 		return lookupFluidContentsEnabled;
 	}
@@ -185,6 +192,11 @@ public class TestClientConfig implements IClientConfig {
 	@Override
 	public IJeiConfigValue<Integer> smoothScrollRate() {
 		return smoothScrollRate;
+	}
+
+	@Override
+	public IJeiConfigValue<Boolean> recipeSlotCyclingEnabled() {
+		return recipeSlotCyclingEnabled;
 	}
 
 	@Override

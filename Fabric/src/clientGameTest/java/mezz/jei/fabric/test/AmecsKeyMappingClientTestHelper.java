@@ -3,7 +3,7 @@ package mezz.jei.fabric.test;
 import com.mojang.blaze3d.platform.InputConstants;
 import de.siphalor.amecs.api.KeyBindingUtils;
 import de.siphalor.amecs.api.KeyModifiers;
-import de.siphalor.amecs.impl.KeyBindingManager;
+import de.siphalor.amecs.key_modifiers.impl.AmecsKeyMappingManagerLayer;
 import mezz.jei.common.input.keys.JeiKeyConflictContext;
 import mezz.jei.common.input.keys.JeiKeyModifier;
 import mezz.jei.fabric.input.AmecsHelper;
@@ -30,7 +30,7 @@ final class AmecsKeyMappingClientTestHelper {
 			new KeyModifiers(),
 			JeiKeyConflictContext.UNIVERSAL
 		);
-		AmecsJeiKeyMapping jeiMapping = new AmecsJeiKeyMapping(amecsMapping, JeiKeyConflictContext.UNIVERSAL);
+		AmecsJeiKeyMapping jeiMapping = new AmecsJeiKeyMapping(amecsMapping);
 		JeiFabricKeyMappingClientTests.assertJeiKeyMappingIsDiscoverableAndRebindable(
 			"AMECS",
 			amecsMapping,
@@ -112,7 +112,10 @@ final class AmecsKeyMappingClientTestHelper {
 
 		try {
 			KeyMapping.resetMapping();
-			List<KeyMapping> matchingMappings = KeyBindingManager.getMatchingKeyBindings(mouseKey, false).toList();
+			AmecsKeyMappingManagerLayer keyMappingLayer = new AmecsKeyMappingManagerLayer();
+			keyMappingLayer.register(inactiveJeiMapping);
+			keyMappingLayer.register(vanillaMapping);
+			List<KeyMapping> matchingMappings = keyMappingLayer.getMappingsForInput(mouseKey).toList();
 			if (matchingMappings.contains(inactiveJeiMapping)) {
 				throw new AssertionError("Expected AMECS to ignore inactive JEI mouse mapping: " + mouseKey.getName());
 			}
@@ -139,7 +142,7 @@ final class AmecsKeyMappingClientTestHelper {
 			jeiModifiers,
 			JeiKeyConflictContext.GUI
 		);
-		AmecsJeiKeyMapping jeiMapping = new AmecsJeiKeyMapping(amecsMapping, JeiKeyConflictContext.GUI);
+		AmecsJeiKeyMapping jeiMapping = new AmecsJeiKeyMapping(amecsMapping);
 
 		if (jeiMapping.isUnbound()) {
 			throw new AssertionError("Expected bound AMECS-backed JEI mouse mapping to report bound: " + mouseKey.getName());
@@ -163,7 +166,7 @@ final class AmecsKeyMappingClientTestHelper {
 			jeiModifiers,
 			JeiKeyConflictContext.GUI
 		);
-		AmecsJeiKeyMapping jeiMapping = new AmecsJeiKeyMapping(amecsMapping, JeiKeyConflictContext.GUI);
+		AmecsJeiKeyMapping jeiMapping = new AmecsJeiKeyMapping(amecsMapping);
 
 		amecsMapping.setKey(InputConstants.UNKNOWN);
 		KeyMapping.resetMapping();

@@ -3,9 +3,7 @@ package mezz.jei.gui.overlay.bookmarks;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
-import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
-import mezz.jei.common.Internal;
-import mezz.jei.common.transfer.RecipeTransferUtil;
+import mezz.jei.common.transfer.RecipeTransferService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -14,7 +12,6 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.Rect2i;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,11 +19,36 @@ public class PreviewTooltipComponent<R> implements ClientTooltipComponent, Toolt
 	private static final int UPDATE_INTERVAL_MS = 2000;
 
 	private final IRecipeLayoutDrawable<R> drawable;
+	private final RecipeTransferService recipeTransferService;
 	private @Nullable IRecipeTransferError transferError;
 	private long lastUpdateTime = 0;
+	private boolean interactive;
+	private int interactiveWidth;
+	private double mouseX = -1;
+	private double mouseY = -1;
 
-	public PreviewTooltipComponent(IRecipeLayoutDrawable<R> drawable) {
+	public PreviewTooltipComponent(
+		IRecipeLayoutDrawable<R> drawable,
+		RecipeTransferService recipeTransferService
+	) {
 		this.drawable = drawable;
+		this.recipeTransferService = recipeTransferService;
+	}
+
+	public IRecipeLayoutDrawable<R> getRecipeLayout() {
+		return drawable;
+	}
+
+	public void setInteractive(double mouseX, double mouseY, int interactiveWidth) {
+		this.interactive = true;
+		this.interactiveWidth = interactiveWidth;
+		this.mouseX = mouseX;
+		this.mouseY = mouseY;
+	}
+
+	public void setStatic() {
+		this.interactive = false;
+		this.interactiveWidth = 0;
 	}
 
 	@Override
@@ -36,23 +58,36 @@ public class PreviewTooltipComponent<R> implements ClientTooltipComponent, Toolt
 
 	@Override
 	public int getWidth(Font font) {
-		return drawable.getRect().getWidth() + 4;
+		int width = drawable.getRect().getWidth() + 4;
+		return Math.max(width, interactiveWidth);
 	}
 
 	@Override
 	public void renderImage(Font font, int x, int y, GuiGraphics guiGraphics) {
+		if (interactive) {
+			int mouseX = (int) this.mouseX;
+			int mouseY = (int) this.mouseY;
+			drawable.setPosition(x + 2, y + 5);
+			drawable.drawRecipe(guiGraphics, mouseX, mouseY);
+			return;
+		}
 		PoseStack pose = guiGraphics.pose();
 		pose.pushPose();
 		{
 			pose.translate(x + 2, y + 5, 0);
+			drawable.setPosition(0, 0);
 			drawable.drawRecipe(guiGraphics, 0, 0);
-			updateTransferError();
-			if (transferError != null) {
-				Rect2i recipeRect = drawable.getRect();
-				transferError.showError(guiGraphics, x, y, drawable.getRecipeSlotsView(), recipeRect.getX(), recipeRect.getY());
-			}
+			drawTransferError(guiGraphics, x, y);
 		}
 		pose.popPose();
+	}
+
+	private void drawTransferError(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		updateTransferError();
+		if (transferError != null) {
+			Rect2i recipeRect = drawable.getRect();
+			transferError.showError(guiGraphics, mouseX, mouseY, drawable.getRecipeSlotsView(), recipeRect.getX(), recipeRect.getY());
+		}
 	}
 
 	public void tick() {
@@ -74,9 +109,7 @@ public class PreviewTooltipComponent<R> implements ClientTooltipComponent, Toolt
 		}
 		Screen screen = Minecraft.getInstance().screen;
 		if (screen instanceof AbstractContainerScreen<?> containerScreen) {
-			AbstractContainerMenu container = containerScreen.getMenu();
-			IRecipeTransferManager recipeTransferManager = Internal.getJeiRuntime().getRecipeTransferManager();
-			transferError = RecipeTransferUtil.getTransferRecipeError(recipeTransferManager, container, drawable, player)
+			transferError = recipeTransferService.getTransferRecipeError(containerScreen, drawable, player)
 				.orElse(null);
 		} else {
 			transferError = null;

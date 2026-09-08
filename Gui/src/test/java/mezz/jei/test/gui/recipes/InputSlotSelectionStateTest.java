@@ -224,6 +224,11 @@ public class InputSlotSelectionStateTest {
 	private static ITypedIngredient<String> typed(String value) {
 		return new ITypedIngredient<>() {
 			@Override
+			public ITypedIngredient<String> normalize(mezz.jei.api.ingredients.IIngredientHelper<String> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
+
+			@Override
 			public IIngredientType<String> getType() {
 				return TYPE;
 			}

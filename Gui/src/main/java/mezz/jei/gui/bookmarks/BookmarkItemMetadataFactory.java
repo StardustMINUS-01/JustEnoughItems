@@ -194,17 +194,7 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	private static <T> ITypedIngredient<T> typedIngredient(ITypedIngredient<T> source, T ingredient) {
-		return new ITypedIngredient<>() {
-			@Override
-			public mezz.jei.api.ingredients.IIngredientType<T> getType() {
-				return source.getType();
-			}
-
-			@Override
-			public T getIngredient() {
-				return ingredient;
-			}
-		};
+		return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(source.getType(), ingredient);
 	}
 
 	private static long createContainerItemCraftingUses(

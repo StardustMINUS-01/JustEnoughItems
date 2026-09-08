@@ -15,6 +15,7 @@ import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.collapsible.CollapsibleGridSource;
 import mezz.jei.gui.collapsible.CollapsibleManager;
@@ -186,6 +187,7 @@ public final class OverlayHelper {
 		IScreenHelper screenHelper,
 		BookmarkList bookmarkList,
 		FavoriteRecipeStore favoriteRecipes,
+		RecipeTransferService recipeTransferService,
 		IIngredientGridSource lookupHistory,
 		IInternalKeyMappings keyMappings,
 		IIngredientGridConfig bookmarkListConfig,
@@ -278,6 +280,7 @@ public final class OverlayHelper {
 
 		return new BookmarkOverlay(
 			bookmarkList,
+			recipeTransferService,
 			bookmarkListGridNavigation,
 			favoriteRecipes,
 			favoritePanelState,

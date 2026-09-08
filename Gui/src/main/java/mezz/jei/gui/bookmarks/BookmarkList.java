@@ -16,6 +16,7 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.api.runtime.IBookmarkManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
@@ -53,7 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-public class BookmarkList implements IIngredientGridSource {
+public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	private final List<IBookmark> bookmarksList = new LinkedList<>();
 	private final Set<IBookmark> bookmarksSet = new HashSet<>();
 	private final BookmarkGroupManager<IBookmark> bookmarkGroups = new BookmarkGroupManager<>();
@@ -241,8 +242,13 @@ public class BookmarkList implements IIngredientGridSource {
 		return this.bookmarksSet.contains(value);
 	}
 
+	@Override
+	public boolean contains(ITypedIngredient<?> ingredient) {
+		return contains(bookmarkFactory.create(ingredient));
+	}
+
 	public <T> boolean onElementBookmarked(IElement<T> element, UserInput input, BookmarkOverlay bookmarkOverlay) {
-		if (bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
+		if (bookmarkOverlay.isBookmarkElementUnderMouse(element, input.getMouseX(), input.getMouseY())) {
 			return element.getBookmark()
 				.map(this::removeBookmarkFromOverlay)
 				.orElse(false);
@@ -364,6 +370,12 @@ public class BookmarkList implements IIngredientGridSource {
 
 	public <T> boolean addIngredientBookmark(ITypedIngredient<T> ingredient) {
 		return addIngredientBookmark(ingredient, false);
+	}
+
+	@Override
+	public boolean add(ITypedIngredient<?> ingredient) {
+		IBookmark bookmark = bookmarkFactory.create(ingredient);
+		return add(bookmark);
 	}
 
 	public void toggleBookmark(IBookmark bookmark) {
@@ -567,6 +579,11 @@ public class BookmarkList implements IIngredientGridSource {
 		bookmarkGroups.addItem(value, addToFront);
 		bookmarkGroups.setItemMetadata(value, createDefaultMetadata(value, BookmarkGroupManager.DEFAULT_GROUP_ID));
 		return true;
+	}
+
+	@Override
+	public boolean remove(ITypedIngredient<?> ingredient) {
+		return remove(bookmarkFactory.create(ingredient));
 	}
 
 	public void setFromConfigFile(List<IBookmark> bookmarks) {
@@ -944,6 +961,12 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	@Override
+	public boolean containsElement(IElement<?> element) {
+		return bookmarksList.stream()
+			.anyMatch(bookmark -> bookmark.getElement() == element);
+	}
+
+	@Override
 	public List<IElement<?>> getElements(int columns) {
 		return getElements(columns, List.of());
 	}
@@ -1013,6 +1036,7 @@ public class BookmarkList implements IIngredientGridSource {
 		return cachedDisplaySlots;
 	}
 
+	@Nullable
 	public <R> RecipeBookmark<R, ?> getMatchingBookmark(RecipeType<R> recipeType, R recipe) {
 		for (IBookmark bookmark : bookmarksList) {
 			if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {

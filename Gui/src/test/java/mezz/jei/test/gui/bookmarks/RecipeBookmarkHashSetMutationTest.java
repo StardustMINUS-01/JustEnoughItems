@@ -33,6 +33,11 @@ public class RecipeBookmarkHashSetMutationTest {
 		stack.set(DataComponents.CUSTOM_NAME, Component.literal("before"));
 		ITypedIngredient<ItemStack> typed = new ITypedIngredient<>() {
 			@Override
+			public ITypedIngredient<ItemStack> normalize(mezz.jei.api.ingredients.IIngredientHelper<ItemStack> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
+
+			@Override
 			public mezz.jei.api.ingredients.IIngredientType<ItemStack> getType() {
 				return VanillaTypes.ITEM_STACK;
 			}

@@ -7,10 +7,10 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.chat.JeiChatItemLinks;
-import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
@@ -22,6 +22,7 @@ import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -31,12 +32,10 @@ import mezz.jei.gui.recipes.RecipeGuiLayouts;
 import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.FocusUtil;
-import mezz.jei.gui.util.GiveAmount;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -115,25 +114,7 @@ public class FocusInputHandler implements IUserInputHandler {
 			return handledIngredientShortcut;
 		}
 
-		if (toggleState.isCheatItemsEnabled()) {
-			if (screen instanceof AbstractContainerScreen) {
-				if (input.is(keyBindings.getCheatItemStack())) {
-					Optional<IUserInputHandler> handler = handleGive(input, keyBindings, GiveAmount.MAX);
-					if (handler.isPresent()) {
-						return handler;
-					}
-				}
-
-				if (input.is(keyBindings.getCheatOneItem())) {
-					Optional<IUserInputHandler> handler = handleGive(input, keyBindings, GiveAmount.ONE);
-					if (handler.isPresent()) {
-						return handler;
-					}
-				}
-			}
-		}
-
-		if (input.is(keyBindings.getShowRecipe())) {
+		if (PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getShowRecipe(), keyBindings.getPauseRecipeCycling())) {
 			return handleShowRecipe(input, keyBindings);
 		}
 
@@ -145,7 +126,7 @@ public class FocusInputHandler implements IUserInputHandler {
 			return handleSearchIngredientInTerminal(screen, input, keyBindings);
 		}
 
-		if (input.is(keyBindings.getShowUses())) {
+		if (PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getShowUses(), keyBindings.getPauseRecipeCycling())) {
 			return handleShow(input, List.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.CATALYST), keyBindings);
 		}
 
@@ -349,22 +330,6 @@ public class FocusInputHandler implements IUserInputHandler {
 			.findFirst()
 			.filter(clicked -> ExternalIngredientSearchHandlerRegistry.search(screen, clicked.getTypedIngredient(), input.isSimulate()))
 			.map(clicked -> new SameElementInputHandler(this, clicked::isMouseOver));
-	}
-
-	private Optional<IUserInputHandler> handleGive(UserInput input, IInternalKeyMappings keyBindings, GiveAmount giveAmount) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
-			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
-				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
-				if (!itemStack.isEmpty()) {
-					int amount = giveAmount.getAmountForStack(itemStack);
-					if (!input.isSimulate()) {
-						commandUtil.giveStack(itemStack, amount);
-					}
-					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-					consumer.accept(handler);
-				}
-			})
-			.findFirst();
 	}
 
 	private Optional<IUserInputHandler> handleFastPickup(UserInput input, IInternalKeyMappings keyBindings) {

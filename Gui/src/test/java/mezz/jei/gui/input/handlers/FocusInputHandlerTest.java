@@ -117,10 +117,10 @@ public class FocusInputHandlerTest {
 	private static IJeiKeyMapping createKeyMapping(InputConstants.Key key) {
 		return (IJeiKeyMapping) Proxy.newProxyInstance(
 			IJeiKeyMapping.class.getClassLoader(),
-			new Class<?>[]{IJeiKeyMapping.class},
+			new Class<?>[]{mezz.jei.common.input.keys.IJeiKeyMappingInternal.class},
 			(proxy, method, args) -> switch (method.getName()) {
 				case "isActiveAndMatches", "matchesIgnoringModifiers" -> key.equals(args[0]);
-				case "isUnbound" -> false;
+				case "isUnbound", "isDown" -> false;
 				case "getTranslatedKeyMessage" -> Component.empty();
 				default -> null;
 			}
