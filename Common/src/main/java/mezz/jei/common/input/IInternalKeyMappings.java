@@ -28,6 +28,7 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 
 	@Override
 	IJeiKeyMappingWithExtraModifiers getBookmark();
+	IJeiKeyMappingWithExtraModifiers getSelectRecipeInput();
 	IJeiKeyMapping getFavoriteRecipe();
 	IJeiKeyMapping getBookmarkPullItems();
 	IJeiKeyMapping getOverlayRecipe();

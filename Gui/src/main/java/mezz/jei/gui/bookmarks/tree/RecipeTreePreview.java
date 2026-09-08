@@ -1,17 +1,28 @@
 package mezz.jei.gui.bookmarks.tree;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.common.Internal;
+import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipHelper;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipState;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkRecipeSelection;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
+import mezz.jei.gui.recipes.IIngredientCandidateSource;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
-import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 /** A bookmark-backed recipe region, without the recipe page's navigation or transfer buttons. */
 public final class RecipeTreePreview {
@@ -25,6 +36,57 @@ public final class RecipeTreePreview {
 		var border = layout.getRectWithBorder();
 		layout.setPosition(-border.getX(), -border.getY());
 		selection = new BookmarkRecipeSelection(layout, saved, manager, previousChoices);
+	}
+
+	public boolean showCandidates(GuiGraphics graphics, Area area, int x, int y,
+		BookmarkCandidateTooltipState state, BookmarkList bookmarks, Runnable refresh,
+		Supplier<RecipeTreePreview> currentPreview) {
+		var hovered = slotAt(area, x, y);
+		if (hovered.isEmpty()) {
+			return false;
+		}
+		var saved = selection.source(hovered.get().slot());
+		if (saved.isEmpty() || saved.get().metadata().permutations().size() <= 1) {
+			return false;
+		}
+		int slotIndex = layout.getRecipeSlotsView().getSlotViews().indexOf(hovered.get().slot());
+		if (slotIndex < 0) {
+			return false;
+		}
+		var keys = selection.getCandidates(hovered.get().slot()).stream()
+			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, Internal.getJeiRuntime().getIngredientManager())).toList();
+		var screen = Minecraft.getInstance().screen;
+		var source = new IIngredientCandidateSource() {
+			private long version = bookmarks.getChangeVersion();
+
+			private IRecipeSlotView slot() { return currentPreview.get().layout.getRecipeSlotsView().getSlotViews().get(slotIndex); }
+			@Override
+			public Optional<ITypedIngredient<?>> getSelectedIngredient() {
+				return slot().getDisplayedIngredient();
+			}
+			@Override
+			public boolean isValid() {
+				return Minecraft.getInstance().screen == screen && currentPreview.get() != null && bookmarks.getChangeVersion() == version && slotIndex < currentPreview.get().layout.getRecipeSlotsView().getSlotViews().size();
+			}
+			@Override
+			public boolean canSelect() {
+				return hovered.get().slot().getRole() == RecipeIngredientRole.INPUT;
+			}
+			@Override
+			public boolean select(ITypedIngredient<?> ingredient, boolean synchronize) {
+				if (!isValid() || !currentPreview.get().selection.select(slot(), ingredient, synchronize, bookmarks)) {
+					return false;
+				}
+				refresh.run();
+				version = bookmarks.getChangeVersion();
+				return true;
+			}
+		};
+		var tooltip = new JeiTooltip();
+		source.addTooltip(tooltip);
+		BookmarkCandidateTooltipHelper.addTo(tooltip, state, keys, () -> source);
+		tooltip.draw(graphics, x, y);
+		return true;
 	}
 
 	public int width() { return layout.getRectWithBorder().getWidth(); }

@@ -406,7 +406,20 @@ val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
 	archiveClassifier.set("sources")
 }
 
-val shadedJar = modShade.shadeJar()
+val modShadeJar = modShade.shadeJar()
+modShadeJar.configure {
+	destinationDirectory.set(layout.buildDirectory.dir("intermediates/modshade"))
+}
+// Repack the completed shaded archive without changing its entries or relocation rules.
+val shadedJar = tasks.register<Zip>("compactJar") {
+	from(modShadeJar.flatMap { it.archiveFile }.map { zipTree(it) })
+	archiveFileName.set(modShadeJar.flatMap { it.archiveFileName })
+	archiveExtension.set("jar")
+	destinationDirectory.set(layout.buildDirectory.dir("libs"))
+	isPreserveFileTimestamps = false
+	isReproducibleFileOrder = true
+	includeEmptyDirs = false
+}
 val shadedSourcesJar = modShade.shadeSourcesJar()
 
 publishMods {
@@ -459,6 +472,7 @@ tasks.test {
 
 tasks.assemble {
 	dependsOn(sourcesJarTask)
+	dependsOn(shadedJar)
 }
 
 publishing {

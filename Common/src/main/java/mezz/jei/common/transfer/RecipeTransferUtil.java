@@ -1,12 +1,6 @@
 package mezz.jei.common.transfer;
 
 import mezz.jei.api.gui.builder.ITooltipBuilder;
-import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
-import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
-import java.util.Optional;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.helpers.IStackHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -38,93 +32,6 @@ public final class RecipeTransferUtil {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	private RecipeTransferUtil() {
-	}
-
-	public static Optional<IRecipeTransferError> getTransferRecipeError(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player) {
-		return transferRecipe(recipeTransferManager, container, recipeLayout, player, false, false);
-	}
-
-	public static Optional<IRecipeTransferError> getTransferRecipeErrorWithSlotsView(
-		IRecipeTransferManager recipeTransferManager,
-		AbstractContainerMenu container,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player
-	) {
-		return transferRecipeWithSlotsView(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, false, false);
-	}
-
-	public static boolean transferRecipe(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player, boolean maxTransfer) {
-		return transferRecipe(recipeTransferManager, container, recipeLayout, player, maxTransfer, true)
-			.map(error -> error.getType().allowsTransfer)
-			.orElse(true);
-	}
-
-	public static boolean transferRecipeWithSlotsView(
-		IRecipeTransferManager recipeTransferManager,
-		AbstractContainerMenu container,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player,
-		boolean maxTransfer
-	) {
-		return transferRecipeWithSlotsView(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, maxTransfer, true)
-			.map(error -> error.getType().allowsTransfer)
-			.orElse(true);
-	}
-
-	// This exact signature (6 parameters, Optional return) is a mixin contract for third-party mods
-	// (e.g. DataEnergistics wraps it with @WrapMethod by its erased descriptor). Do not change it.
-	private static <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipe(
-		IRecipeTransferManager recipeTransferManager,
-		C container,
-		IRecipeLayoutDrawable<R> recipeLayout,
-		Player player,
-		boolean maxTransfer,
-		boolean doTransfer
-	) {
-		return transferRecipeWithSlotsView(
-			recipeTransferManager,
-			container,
-			recipeLayout,
-			recipeLayout.getRecipeSlotsView(),
-			player,
-			maxTransfer,
-			doTransfer
-		);
-	}
-
-	private static <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipeWithSlotsView(
-		IRecipeTransferManager recipeTransferManager,
-		C container,
-		IRecipeLayoutDrawable<R> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player,
-		boolean maxTransfer,
-		boolean doTransfer
-	) {
-		IRecipeCategory<R> recipeCategory = recipeLayout.getRecipeCategory();
-
-		Optional<IRecipeTransferHandler<C, R>> recipeTransferHandler = recipeTransferManager.getRecipeTransferHandler(container, recipeCategory);
-		if (recipeTransferHandler.isEmpty()) {
-			if (doTransfer) {
-				LOGGER.error("No Recipe Transfer handler for container {}", container.getClass());
-			}
-			return Optional.of(RecipeTransferErrorInternal.INSTANCE);
-		}
-
-		IRecipeTransferHandler<C, R> transferHandler = recipeTransferHandler.get();
-
-		try {
-			IRecipeTransferError transferError = transferHandler.transferRecipe(container, recipeLayout.getRecipe(), recipeSlotsView, player, maxTransfer, doTransfer);
-			return Optional.ofNullable(transferError);
-		} catch (RuntimeException e) {
-			LOGGER.error(
-				"Recipe transfer handler '{}' for container '{}' and recipe type '{}' threw an error: ",
-				transferHandler.getClass(), transferHandler.getContainerClass(), recipeCategory.getRecipeType(), e
-			);
-			return Optional.of(RecipeTransferErrorInternal.INSTANCE);
-		}
 	}
 
 	public static void addTransferRecipeTooltip(@Nullable IRecipeTransferError recipeTransferError, ITooltipBuilder tooltip) {

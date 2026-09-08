@@ -47,12 +47,20 @@ public class RecipeSearchQueryTest {
 	}
 
 	@Test
-	public void inputCandidateMatchingUsesOnlyInputScopedTerms() {
+	public void inputCandidateMatchingIgnoresOutputScopedTerms() {
 		RecipeSearchQuery query = RecipeSearchQuery.parse("i:silver -i:plate o:dust");
 
 		Assertions.assertTrue(query.hasInputTerms());
 		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Silver Ingot", "gtceu:silver_ingot", "c:ingots")));
 		Assertions.assertFalse(query.matchesInputCandidate(ingredient("Silver Plate", "gtceu:silver_plate", "c:plates")));
+		Assertions.assertFalse(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
+	}
+
+	@Test
+	public void plainSearchAlsoRestrictsInputCandidates() {
+		RecipeSearchQuery query = RecipeSearchQuery.parse("silver");
+		Assertions.assertTrue(query.hasInputTerms());
+		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Silver Ingot", "gtceu:silver_ingot", "c:ingots")));
 		Assertions.assertFalse(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
 	}
 

@@ -189,6 +189,20 @@ public class FavoriteRecipeStoreTest {
 	}
 
 	@Test
+	public void clickedCandidateCanSynchronizeDifferentSelectionsAndSwitchAgain() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		var family = List.of(target("minecraft:sand"), target("minecraft:red_sand"));
+		var first = new FavoriteRecipeStore.FavoriteSlotInput(family.getFirst(), family);
+		var second = new FavoriteRecipeStore.FavoriteSlotInput(family.getLast(), family);
+		store.setFavorite(IRON_PICKAXE, IRON_PICKAXE_RECIPE, Map.of(0, first, 1, second));
+		Assertions.assertTrue(store.selectFavoriteInputs(IRON_PICKAXE_RECIPE, first, family.getFirst(), true));
+		Assertions.assertTrue(store.getManualEntry(IRON_PICKAXE_RECIPE).orElseThrow().inputs().values().stream()
+			.allMatch(input -> input.selected().equals(family.getFirst())));
+		Assertions.assertTrue(store.selectFavoriteInputs(IRON_PICKAXE_RECIPE, first, family.getLast(), false));
+		Assertions.assertFalse(store.selectFavoriteInputs(IRON_PICKAXE_RECIPE, second, family.getLast(), true));
+	}
+
+	@Test
 	public void cycleFavoriteInputMovesSelectedWithinPermutations() {
 		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		FavoriteRecipeStore.FavoriteSlotInput slotInput = new FavoriteRecipeStore.FavoriteSlotInput(

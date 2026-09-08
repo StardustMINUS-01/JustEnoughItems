@@ -36,6 +36,37 @@ public class InputSlotSelectionStateTest {
 	};
 
 	@Test
+	public void gridSelectionCanBeChangedAndClearedWithoutLosingCandidates() {
+		IRecipeSlotDrawable slot = slot(List.of(typed("first"), typed("second"), typed("third")));
+		IRecipeLayoutDrawable<?> layout = layout(slot, slot);
+		InputSlotSelectionState state = new InputSlotSelectionState(ingredientManager());
+
+		Assertions.assertTrue(state.select(layout, slot, typed("second"), false, true));
+		Assertions.assertTrue(state.select(layout, slot, typed("third"), false, true));
+		Assertions.assertEquals("third", state.resolve(slot, 0).orElseThrow().getIngredient());
+		Assertions.assertEquals(3, slot.getAllIngredients().count());
+		Assertions.assertTrue(state.select(layout, slot, typed("third"), false, true));
+		Assertions.assertTrue(state.selectedKeys().isEmpty());
+		Assertions.assertEquals("first", slot.getDisplayedIngredient().orElseThrow().getIngredient());
+		Assertions.assertEquals(3, state.createTransferSlotsView(layout).getSlotViews().getFirst().getAllIngredients().count());
+	}
+
+	@Test
+	public void gridSelectionSynchronizesOnlyMatchingFamilies() {
+		IRecipeSlotDrawable first = slot(List.of(typed("first"), typed("second")));
+		IRecipeSlotDrawable second = slot(List.of(typed("first"), typed("second")));
+		IRecipeSlotDrawable other = slot(List.of(typed("third")));
+		IRecipeLayoutDrawable<?> layout = layout(first, first, second, other);
+		InputSlotSelectionState state = new InputSlotSelectionState(ingredientManager());
+
+		Assertions.assertTrue(state.select(layout, first, typed("second"), true, true));
+		Assertions.assertEquals(2, state.selectedKeys().size());
+		Assertions.assertEquals("second", state.resolve(second, 1).orElseThrow().getIngredient());
+		Assertions.assertTrue(state.select(layout, first, typed("second"), true, true));
+		Assertions.assertTrue(state.selectedKeys().isEmpty());
+	}
+
+	@Test
 	public void scrollsWrappedHoveredInputSlot() {
 		IRecipeSlotDrawable hoveredSlot = slot(List.of(typed("first"), typed("second")));
 		IRecipeSlotDrawable layoutSlot = slot(List.of(typed("first"), typed("second")));

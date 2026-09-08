@@ -1,5 +1,12 @@
 package mezz.jei.gui.recipes;
 
+import org.jetbrains.annotations.Nullable;
+
+import mezz.jei.common.gui.IRecipeSlotCandidateView;
+import mezz.jei.common.Internal;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.datafixers.util.Either;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
@@ -40,7 +47,8 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 	private final FocusUtil focusUtil;
 	private final IIngredientManager ingredientManager;
 	private final RecipeSlotClickTargetFactory clickTargetFactory;
-	private final RecipeSlotUnderMouse sourceSlot;
+	private final @Nullable RecipeSlotUnderMouse sourceSlot;
+	private final IIngredientCandidateSource source;
 	private final IMouseOverable sourceMouseOverable;
 	private final PinnedTooltipRenderer tooltipRenderer;
 	private final InteractiveIngredientGridTooltipComponent ingredientGrid;
@@ -57,10 +65,9 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		double mouseX,
 		double mouseY
 	) {
-		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot()
-			.getDisplayedIngredients()
-			.toList();
-		if (displayedIngredients.size() <= 1) {
+		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot() instanceof IRecipeSlotCandidateView candidates ?
+			candidates.getCandidates() : sourceSlot.slot().getDisplayedIngredients().toList();
+		if (displayedIngredients.isEmpty() || (displayedIngredients.size() == 1 && sourceSlot.slot().getAllIngredients().limit(2).count() <= 1)) {
 			return Optional.empty();
 		}
 		return Optional.of(new InteractiveIngredientTooltip(
@@ -95,14 +102,58 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		this.ingredientManager = ingredientManager;
 		this.clickTargetFactory = clickTargetFactory;
 		this.sourceSlot = sourceSlot;
+		var owner = recipesGui.getRecipeLayoutUnderMouse(anchorX, anchorY)
+			.filter(RecipeLayoutWithButtons.class::isInstance).map(value -> (RecipeLayoutWithButtons<?>) value);
+		this.source = new IIngredientCandidateSource() {
+
+			@Override
+			public Optional<ITypedIngredient<?>> getSelectedIngredient() {
+				return sourceSlot.slot().getDisplayedIngredient();
+			}
+			@Override
+			public void addTooltip(JeiTooltip tooltip) {
+				sourceSlot.slot().getTooltip(tooltip);
+			}
+			@Override
+			public boolean isValid() {
+				return recipesGui.isOpen();
+			}
+			@Override
+			public boolean canSelect() {
+				return owner.isPresent() && sourceSlot.slot().getRole() == RecipeIngredientRole.INPUT;
+			}
+			@Override
+			public boolean select(ITypedIngredient<?> ingredient, boolean synchronize) {
+				return owner.get().selectInputCandidate(sourceSlot.slot(), ingredient, synchronize);
+			}
+		};
 		this.sourceMouseOverable = sourceMouseOverable;
 		this.tooltipRenderer = new PinnedTooltipRenderer(anchorX, anchorY);
 		this.ingredientGrid = ingredientGrid;
 	}
 
+	InteractiveIngredientTooltip(
+		InteractiveIngredientTooltipController controller, RecipesGui recipesGui, FocusUtil focusUtil,
+		IIngredientManager ingredientManager, RecipeSlotClickTargetFactory clickTargetFactory,
+		IIngredientCandidateSource source, InteractiveIngredientGridTooltipComponent grid, int x, int y
+	) {
+		this.controller = controller;
+		this.recipesGui = recipesGui;
+		this.focusUtil = focusUtil;
+		this.ingredientManager = ingredientManager;
+		this.clickTargetFactory = clickTargetFactory;
+		this.source = source;
+		this.sourceSlot = null;
+		this.sourceMouseOverable = (mx, my) -> false;
+		this.tooltipRenderer = new PinnedTooltipRenderer(x, y);
+		this.ingredientGrid = grid;
+	}
+
+	boolean isSourceValid() { return source.isValid(); }
+
 	@Override
 	public boolean isMouseOver(double mouseX, double mouseY) {
-		if (!this.recipesGui.isOpen()) {
+		if (!this.source.isValid()) {
 			return false;
 		}
 		return this.tooltipRenderer.isMouseOver(mouseX, mouseY);
@@ -115,7 +166,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		if (ingredient.isPresent()) {
 			return ingredient.stream();
 		}
-		if (this.sourceMouseOverable.isMouseOver(mouseX, mouseY)) {
+		if (this.sourceSlot != null && this.sourceMouseOverable.isMouseOver(mouseX, mouseY)) {
 			return this.clickTargetFactory.create(this.sourceSlot, this.sourceMouseOverable)
 				.stream();
 		}
@@ -141,12 +192,17 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 	@SuppressWarnings("removal")
 	@Override
 	public void draw(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		if (!this.recipesGui.isOpen()) {
+		if (!this.source.isValid()) {
 			return;
 		}
 		JeiTooltip tooltip = new JeiTooltip();
-		this.sourceSlot.slot().getTooltip(tooltip);
+		this.source.addTooltip(tooltip);
 		replaceIngredientGrid(tooltip, this.ingredientGrid);
+		if (source.canSelect()) {
+			tooltip.add(Component.translatable(sourceSlot == null ? "jei.tooltip.bookmark.select.input" : "jei.tooltip.recipe.select.input",
+				Internal.getKeyMappings().getSelectRecipeInput().getTranslatedKeyMessage()).withStyle(ChatFormatting.GRAY));
+		}
+		this.ingredientGrid.setSelectedIngredient(this.source.getSelectedIngredient());
 		this.ingredientGrid.setMousePosition(mouseX, mouseY);
 
 		this.tooltipRenderer.draw(guiGraphics, tooltip);
@@ -205,7 +261,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		UserInput input,
 		IInternalKeyMappings keyBindings
 	) {
-		if (!this.controller.isActive(this) || !this.recipesGui.isOpen()) {
+		if (!this.controller.isActive(this) || !this.source.isValid()) {
 			return Optional.empty();
 		}
 
@@ -214,6 +270,18 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 				this.controller.hide(this);
 			}
 			return Optional.of(this);
+		}
+
+		if (source.canSelect() &&
+			keyBindings.getSelectRecipeInput().isActiveAndMatchesAllowingExtraModifiers(input.getKey())) {
+			Optional<ITypedIngredient<?>> selected = this.ingredientGrid.getTypedIngredientUnderMouse(input.getMouseX(), input.getMouseY());
+			if (selected.isPresent()) {
+				if (!input.isSimulate()) {
+					source.select(selected.get(), !Screen.hasControlDown());
+				}
+				return Optional.of(new SameElementInputHandler(this, (x, y) ->
+					this.ingredientGrid.getTypedIngredientUnderMouse(x, y).filter(selected.get()::equals).isPresent()));
+			}
 		}
 
 		boolean leftClick = input.getKey().equals(LEFT_MOUSE_BUTTON);
@@ -259,7 +327,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		double scrollDeltaX,
 		double scrollDeltaY
 	) {
-		if (this.controller.isActive(this) && this.recipesGui.isOpen() && this.ingredientGrid.isMouseOver(mouseX, mouseY)) {
+		if (this.controller.isActive(this) && this.source.isValid() && this.ingredientGrid.isMouseOver(mouseX, mouseY)) {
 			double scrollDelta = scrollDeltaY;
 			if (Math.abs(scrollDeltaX) > Math.abs(scrollDeltaY)) {
 				scrollDelta = scrollDeltaX;
@@ -278,7 +346,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		double dragX,
 		double dragY
 	) {
-		if (this.controller.isActive(this) && this.recipesGui.isOpen() && mouseKey.equals(LEFT_MOUSE_BUTTON) && dragScrollbar(mouseY)) {
+		if (this.controller.isActive(this) && this.source.isValid() && mouseKey.equals(LEFT_MOUSE_BUTTON) && dragScrollbar(mouseY)) {
 			return Optional.of(this);
 		}
 		return Optional.empty();

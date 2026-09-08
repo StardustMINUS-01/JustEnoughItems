@@ -203,19 +203,40 @@ public final class InputSlotSelectionState {
 		}
 		int direction = (int) Math.signum(scrollDelta);
 		ITypedIngredient<?> selected = candidates.get(Math.floorMod(currentIndex - direction, candidates.size()));
-		BookmarkIngredientKey selectedKey = key(selected);
+		return select(recipeLayout, inputSlots.get(inputSlotIndex), selected, synchronizeFamily, false);
+	}
 
-		if (synchronizeFamily) {
-			Set<BookmarkIngredientKey> family = permutationKeys(inputSlots.get(inputSlotIndex), inputSlotIndex);
-			for (int index = 0; index < inputSlots.size(); index++) {
-				if (family.equals(permutationKeys(inputSlots.get(index), index)) && findByKey(inputSlots.get(index), index, selectedKey).isPresent()) {
-					selectedKeys.put(index, selectedKey);
-				}
-			}
-		} else {
-			selectedKeys.put(inputSlotIndex, selectedKey);
+	public boolean select(
+		IRecipeLayoutDrawable<?> recipeLayout,
+		IRecipeSlotView sourceSlot,
+		ITypedIngredient<?> selected,
+		boolean synchronizeFamily,
+		boolean toggle
+	) {
+		if (sourceSlot.getRole() != RecipeIngredientRole.INPUT) {
+			return false;
 		}
-
+		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView().getSlotViews(RecipeIngredientRole.INPUT);
+		int inputSlotIndex = findInputSlotIndex(inputSlots, sourceSlot);
+		BookmarkIngredientKey selectedKey = key(selected);
+		if (inputSlotIndex < 0 || findByKey(inputSlots.get(inputSlotIndex), inputSlotIndex, selectedKey).isEmpty()) {
+			return false;
+		}
+		boolean clear = toggle && selectedKey.equals(selectedKeys.get(inputSlotIndex));
+		Set<BookmarkIngredientKey> family = synchronizeFamily ? permutationKeys(inputSlots.get(inputSlotIndex), inputSlotIndex) : Set.of();
+		for (int index = 0; index < inputSlots.size(); index++) {
+			if (index != inputSlotIndex && (!synchronizeFamily || !family.equals(permutationKeys(inputSlots.get(index), index)))) {
+				continue;
+			}
+			if (clear) {
+				selectedKeys.remove(index);
+				if (inputSlots.get(index) instanceof IRecipeSlotDrawable drawable) {
+					drawable.clearDisplayOverrides();
+				}
+			} else {
+				selectedKeys.put(index, selectedKey);
+			}
+		}
 		apply(recipeLayout);
 		return true;
 	}

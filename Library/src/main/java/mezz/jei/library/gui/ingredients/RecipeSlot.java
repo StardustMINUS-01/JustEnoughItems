@@ -17,7 +17,6 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
-import mezz.jei.common.gui.CandidateTooltipWindow;
 import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.IRecipeSlotCandidateView;
 import mezz.jei.common.gui.JeiTooltip;
@@ -61,7 +60,6 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	private Runnable displayOverridesChangedListener = () -> {};
 	private ImmutableRect2i rect;
 
-	private int tagContentTooltipWindowStart;
 
 	public RecipeSlot(
 		RecipeIngredientRole role,
@@ -158,7 +156,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 
 		SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient);
 		addTagNameTooltip(tooltip, ingredientManager, typedIngredient, visibleCandidates);
-		addCandidateGridToTooltip(tooltip, ingredientManager, typedIngredient, visibleCandidates);
+		addIngredientGridToTooltip(tooltip, ingredientManager, visibleCandidates);
 		if (visibleCandidates.size() > 1) {
 			var pauseRecipeCycling = Internal.getKeyMappings().getPauseRecipeCycling();
 			if (!pauseRecipeCycling.isUnbound() && !pauseRecipeCycling.isDown()) {
@@ -285,38 +283,8 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 			.toList();
 	}
 
-	private <T> void addCandidateGridToTooltip(
-		ITooltipBuilder tooltip,
-		IIngredientManager ingredientManager,
-		ITypedIngredient<T> displayed,
-		List<ITypedIngredient<?>> candidates
-	) {
-		if (!Internal.getJeiClientConfigs().getClientConfig().tagContentTooltipEnabled().getValue() || candidates.size() < 2) {
-			return;
-		}
-		IIngredientHelper<T> helper = ingredientManager.getIngredientHelper(displayed.getType());
-		Object selectedUid = helper.getUid(displayed, UidContext.Ingredient);
-		int selectedIndex = -1;
-		for (int i = 0; i < candidates.size(); i++) {
-			Optional<T> value = candidates.get(i).getIngredient(displayed.getType());
-			if (value.isPresent() && selectedUid.equals(helper.getUid(value.get(), UidContext.Ingredient))) {
-				selectedIndex = i;
-				break;
-			}
-		}
-		if (selectedIndex < 0) {
-			addIngredientGridToTooltip(tooltip, ingredientManager, candidates);
-			return;
-		}
-		tagContentTooltipWindowStart = CandidateTooltipWindow.updateStart(candidates.size(), selectedIndex, tagContentTooltipWindowStart);
-		List<ITypedIngredient<?>> normalized = candidates.stream()
-			.<ITypedIngredient<?>>map(ingredientManager::normalizeTypedIngredient)
-			.toList();
-		tooltip.add(mezz.jei.common.gui.CandidateTooltipComponent.create(ingredientManager, normalized, selectedIndex, tagContentTooltipWindowStart));
-	}
-
 	private boolean hasCandidates() {
-		return ingredients.getDisplayedIngredients()
+		return ingredients.getCandidateIngredients()
 			.limit(2)
 			.count() > 1;
 	}
@@ -469,9 +437,13 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	}
 
 	@Override
+	public List<ITypedIngredient<?>> getCandidates() {
+		return getVisibleCandidates();
+	}
+
+	@Override
 	public void setDisplayedCandidates(List<ITypedIngredient<?>> candidates) {
 		ingredients.setDisplayedCandidates(candidates);
-		this.tagContentTooltipWindowStart = 0;
 	}
 
 	@SuppressWarnings("removal")

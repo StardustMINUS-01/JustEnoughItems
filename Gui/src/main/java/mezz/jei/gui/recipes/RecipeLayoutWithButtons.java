@@ -1,5 +1,9 @@
 package mezz.jei.gui.recipes;
 
+import mezz.jei.api.ingredients.ITypedIngredient;
+
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.buttons.IIconButtonController;
@@ -275,6 +279,10 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 	@Override
 	public @Nullable RecipeBookmark<?, ?> getRecipeBookmark() {
 		return recipeBookmark;
+	}
+
+	boolean selectInputCandidate(IRecipeSlotView slot, ITypedIngredient<?> ingredient, boolean synchronizeFamily) {
+		return inputSlotSelectionState != null && inputSlotSelectionState.select(recipeLayout, slot, ingredient, synchronizeFamily, true);
 	}
 
 	Map<Integer, BookmarkIngredientKey> getInputSelections() {

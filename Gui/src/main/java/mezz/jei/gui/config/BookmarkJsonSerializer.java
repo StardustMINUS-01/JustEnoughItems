@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Optional;
 
 public final class BookmarkJsonSerializer {
-	private static final int GROUP_SNAPSHOT_VERSION = 2;
-
 	private BookmarkJsonSerializer() {
 	}
 
@@ -84,7 +82,7 @@ public final class BookmarkJsonSerializer {
 			sourceGroup.craftingMode(),
 			sourceGroup.collapsedRecipeIds()
 		);
-		GroupSnapshot snapshot = new GroupSnapshot(GROUP_SNAPSHOT_VERSION, group, bookmarks);
+		GroupSnapshot snapshot = new GroupSnapshot(JeiChatItemLinks.BOOKMARK_GROUP_SNAPSHOT_VERSION, group, bookmarks);
 		return createGroupSnapshotCodec(entryCodec)
 			.encodeStart(registryOps, snapshot)
 			.result()
@@ -112,7 +110,7 @@ public final class BookmarkJsonSerializer {
 				return Optional.empty();
 			}
 			GroupSnapshot snapshot = decoded.get();
-			if (snapshot.version() != GROUP_SNAPSHOT_VERSION ||
+			if (snapshot.version() != JeiChatItemLinks.BOOKMARK_GROUP_SNAPSHOT_VERSION ||
 				snapshot.group().title().length() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
 				snapshot.bookmarks().isEmpty() ||
 				snapshot.bookmarks().size() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_ENTRIES ||

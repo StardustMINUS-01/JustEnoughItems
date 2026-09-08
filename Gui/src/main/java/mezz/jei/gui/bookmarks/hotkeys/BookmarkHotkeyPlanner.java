@@ -2,19 +2,12 @@ package mezz.jei.gui.bookmarks.hotkeys;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public final class BookmarkHotkeyPlanner {
 	private BookmarkHotkeyPlanner() {
 	}
 
 	public static List<BookmarkHotkeyAvailability> plan(BookmarkHotkeyContext context) {
-		return plan(context, BookmarkHotkeyBridge.none());
-	}
-
-	public static List<BookmarkHotkeyAvailability> plan(BookmarkHotkeyContext context, BookmarkHotkeyBridge bridge) {
-		Objects.requireNonNull(context, "context");
-		Objects.requireNonNull(bridge, "bridge");
 		List<BookmarkHotkeyAvailability> actions = new ArrayList<>();
 		switch (context.subject()) {
 			case INGREDIENT -> addIngredientActions(actions, context);
@@ -24,16 +17,8 @@ public final class BookmarkHotkeyPlanner {
 			case DEFAULT_GROUP_CONTROL -> addDefaultGroupActions(actions, context);
 			case GROUP -> addGroupActions(actions, context);
 		}
-		addFutureIngredientActions(actions, context);
-		return actions.stream()
-			.map(action -> new BookmarkHotkeyAvailability(
-				action.action(),
-				Objects.requireNonNull(
-					bridge.getSupport(action.action(), action.support(), context),
-					"bridge support"
-				)
-			))
-			.toList();
+		addCopyActions(actions, context);
+		return List.copyOf(actions);
 	}
 
 	private static void addIngredientActions(List<BookmarkHotkeyAvailability> actions, BookmarkHotkeyContext context) {
@@ -126,14 +111,13 @@ public final class BookmarkHotkeyPlanner {
 		}
 	}
 
-	private static void addFutureIngredientActions(List<BookmarkHotkeyAvailability> actions, BookmarkHotkeyContext context) {
+	private static void addCopyActions(List<BookmarkHotkeyAvailability> actions, BookmarkHotkeyContext context) {
 		if (!context.hasIngredient()) {
 			return;
 		}
 		add(actions, BookmarkHotkeyAction.COPY_NAME, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.COPY_OREDICT, BookmarkHotkeySupport.SUPPORTED);
 		add(actions, BookmarkHotkeyAction.COPY_ID, BookmarkHotkeySupport.SUPPORTED);
-		add(actions, BookmarkHotkeyAction.FAVORITE_RECIPE, BookmarkHotkeySupport.UNSUPPORTED_FOR_NOW);
 	}
 
 	private static void add(

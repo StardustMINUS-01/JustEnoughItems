@@ -17,6 +17,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
@@ -251,6 +252,9 @@ public class BookmarkJsonSerializerTest {
 
 		Codec<BookmarkConfigEntry> codec = createEntryCodec();
 		String snapshot = BookmarkJsonSerializer.serializeGroupSnapshot(source, sharedGroupId, codec, JsonOps.INSTANCE).orElseThrow();
+		Assertions.assertTrue(JeiChatItemLinks.isValidBookmarkGroupSnapshot(snapshot));
+		Assertions.assertEquals("[Shared Machines]", JeiChatItemLinks.parse(
+			JeiChatItemLinks.createBookmarkGroupLinkMarker(snapshot).trim()).getString());
 		BookmarkList decoded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
 		decoded.addGroupFromConfig(new BookmarkGroup(1, "Existing"));
 		decoded.addToListWithoutNotifying(IngredientBookmark.create(typed(new ItemStack(Items.GLASS)), INGREDIENT_MANAGER), false);

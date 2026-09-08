@@ -233,10 +233,6 @@ public final class JeiRecipeChainPatternEncodingService {
 		}
 
 		try {
-			ForkPatternEncodingAccess fork = ForkPatternEncodingAccess.get();
-			if (fork != null) {
-				return fork.encodeProcessingPattern(inputs, outputs, request.catalysts());
-			}
 			return PatternDetailsHelper.encodeProcessingPattern(removeCatalystInputs(inputs, request.catalysts()), outputs);
 		} catch (IllegalArgumentException e) {
 			return null;
@@ -570,10 +566,6 @@ public final class JeiRecipeChainPatternEncodingService {
 		if (amount <= 0 || player.getAbilities().instabuild) {
 			return true;
 		}
-		ForkPatternEncodingAccess fork = ForkPatternEncodingAccess.get();
-		if (fork != null) {
-			return fork.hasBlankPatterns(menu, amount);
-		}
 		InternalInventory blanks = getBlankPatternInventory(menu);
 		return blanks != null && countBlankPatterns(blanks) >= amount;
 	}
@@ -581,10 +573,6 @@ public final class JeiRecipeChainPatternEncodingService {
 	private static boolean consumeBlankPatterns(PatternEncodingTermMenu menu, ServerPlayer player, int amount) {
 		if (amount <= 0 || player.getAbilities().instabuild) {
 			return true;
-		}
-		ForkPatternEncodingAccess fork = ForkPatternEncodingAccess.get();
-		if (fork != null) {
-			return fork.consumeBlankPatterns(menu, amount);
 		}
 		InternalInventory blanks = getBlankPatternInventory(menu);
 		return blanks != null && consumeBlankPatterns(blanks, amount);

@@ -4,7 +4,6 @@ import mezz.jei.api.IModPlugin;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.textures.Textures;
-import mezz.jei.common.gui.CandidateTooltipComponent;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.forge.events.PermanentEventSubscriptions;
 import mezz.jei.forge.network.NetworkHandler;
@@ -102,7 +101,6 @@ public class JustEnoughItemsClient {
 	}
 
 	private void onRegisterClientTooltipEvent(RegisterClientTooltipComponentFactoriesEvent event) {
-		event.register(CandidateTooltipComponent.class, Function.identity());
 		event.register(FixedRecipePreviewTooltipComponent.class, Function.identity());
 		event.register(IngredientsTooltipComponent.class, Function.identity());
 		event.register(PreviewTooltipComponent.class, Function.identity());

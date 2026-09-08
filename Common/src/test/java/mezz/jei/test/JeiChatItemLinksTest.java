@@ -286,7 +286,7 @@ public class JeiChatItemLinksTest {
 
 	private static String createBookmarkGroupSnapshot() {
 		String json = """
-			{"version":1,"group":{"type":"group","id":"shared","title":"Factory","viewMode":"DEFAULT","crafting":true},"bookmarks":[{"type":"item"}]}
+			{"version":2,"group":{"type":"group","id":"shared","title":"Factory","viewMode":"DEFAULT","crafting":true},"bookmarks":[{"type":"item"}]}
 			""".trim();
 		return Base64.getUrlEncoder()
 			.withoutPadding()

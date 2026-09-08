@@ -225,7 +225,7 @@ public class IngredientListRenderer {
 				ImmutableRect2i area = slot.getArea();
 				RenderSystem.enableBlend();
 				guiGraphics.fill(
-					RenderType.guiOverlay(),
+					RenderType.gui(),
 					area.getX(),
 					area.getY(),
 					area.getX() + area.getWidth(),

@@ -1,64 +1,31 @@
 package mezz.jei.gui.bookmarks;
 
-import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.gui.input.MouseUtil;
+import mezz.jei.gui.recipes.IIngredientCandidateSource;
+import mezz.jei.gui.recipes.RecipesGui;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 public final class BookmarkCandidateTooltipHelper {
-	private BookmarkCandidateTooltipHelper() {
-	}
+	private BookmarkCandidateTooltipHelper() { }
 
-	public static void addTo(
-		JeiTooltip tooltip,
-		BookmarkPermutationTooltipState tooltipState,
-		Object sourceKey,
-		ITypedIngredient<?> selectedIngredient,
-		List<BookmarkIngredientKey> permutationKeys
-	) {
-		if (!isEnabled(permutationKeys)) {
+	public static void addTo(JeiTooltip tooltip, BookmarkCandidateTooltipState state,
+		List<BookmarkIngredientKey> candidates, Supplier<IIngredientCandidateSource> source) {
+		if (!Internal.getJeiClientConfigs().getClientConfig().tagContentTooltipEnabled().getValue()) {
 			return;
 		}
-		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		BookmarkIngredientKey selectedKey = BookmarkItemMetadataFactory.createPermutationKey(selectedIngredient, ingredientManager);
-		addTo(tooltip, tooltipState, sourceKey, selectedKey, permutationKeys, ingredientManager);
+		state.getOrCreate(candidates).ifPresent(grid -> {
+			var candidateSource = source.get();
+			grid.setSelectedIngredient(candidateSource.getSelectedIngredient());
+			grid.setMousePosition(-10000, -10000);
+			tooltip.add(grid);
+			if (Internal.getKeyMappings().getPauseRecipeCycling().isDown() &&
+				Internal.getJeiRuntime().getRecipesGui() instanceof RecipesGui gui) {
+				gui.showCandidateTooltip(candidateSource, grid, (int) MouseUtil.getX(), (int) MouseUtil.getY());
+			}
+		});
 	}
-
-	public static void addTo(
-		JeiTooltip tooltip,
-		BookmarkPermutationTooltipState tooltipState,
-		Object sourceKey,
-		BookmarkIngredientKey selectedKey,
-		List<BookmarkIngredientKey> permutationKeys
-	) {
-		if (!isEnabled(permutationKeys)) {
-			return;
-		}
-		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		addTo(tooltip, tooltipState, sourceKey, selectedKey, permutationKeys, ingredientManager);
-	}
-
-	private static void addTo(
-		JeiTooltip tooltip,
-		BookmarkPermutationTooltipState tooltipState,
-		Object sourceKey,
-		BookmarkIngredientKey selectedKey,
-		List<BookmarkIngredientKey> permutationKeys,
-		IIngredientManager ingredientManager
-	) {
-		tooltipState.getOrCreateTooltip(
-			sourceKey,
-			permutationKeys,
-			selectedKey,
-			ingredientManager
-		).ifPresent(tooltip::add);
-	}
-
-	private static boolean isEnabled(List<BookmarkIngredientKey> permutationKeys) {
-		return permutationKeys.size() > 1 &&
-			Internal.getJeiClientConfigs().getClientConfig().tagContentTooltipEnabled().getValue();
-	}
-
 }

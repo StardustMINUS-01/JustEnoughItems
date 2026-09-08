@@ -1,4 +1,7 @@
 {
+  "jei.tooltip.bookmark.select.input": "%s: select matching ingredients; Ctrl: source only",
+  "jei.tooltip.recipe.select.input": "%s: select / clear matching slots; Ctrl: source slot only",
+  "key.jei.selectRecipeInput": "Select recipe input / clear selection",
   "key.jei.showRecipeTree": "View bookmark recipe tree",
   "jei.tree.title": "Recipe Tree",
   "jei.tree.search": "Search tree",

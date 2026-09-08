@@ -10,14 +10,15 @@ import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipHelper;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipState;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.bookmarks.BookmarkPermutationTooltipState;
+import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.util.FocusUtil;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,23 +28,23 @@ import java.util.Optional;
 public class ProjectedBookmarkElement<T> implements IElement<T> {
 	private final IElement<T> delegate;
 	private final BookmarkDisplayEntry<?> displayEntry;
-	private final BookmarkPermutationTooltipState permutationTooltipState;
-	private final Object candidateTooltipSourceKey;
+	private final BookmarkCandidateTooltipState permutationTooltipState;
+	private final Optional<BookmarkList> bookmarks;
 	private final List<BookmarkIngredientKey> permutationKeys;
 
 	public ProjectedBookmarkElement(IElement<T> delegate, BookmarkDisplayEntry<?> displayEntry) {
-		this(delegate, displayEntry, new BookmarkPermutationTooltipState());
+		this(delegate, displayEntry, null);
 	}
 
 	public ProjectedBookmarkElement(
 		IElement<T> delegate,
 		BookmarkDisplayEntry<?> displayEntry,
-		BookmarkPermutationTooltipState permutationTooltipState
+		BookmarkList bookmarks
 	) {
 		this.delegate = delegate;
 		this.displayEntry = displayEntry;
-		this.permutationTooltipState = permutationTooltipState;
-		this.candidateTooltipSourceKey = Integer.valueOf(displayEntry.sourceIndex());
+		this.bookmarks = Optional.ofNullable(bookmarks);
+		this.permutationTooltipState = bookmarks == null ? new BookmarkCandidateTooltipState() : bookmarks.getCandidateTooltipState();
 		this.permutationKeys = List.copyOf(displayEntry.metadata().permutations());
 	}
 
@@ -103,13 +104,9 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	}
 
 	private void addPermutationTooltip(JeiTooltip tooltip) {
-		BookmarkCandidateTooltipHelper.addTo(
-			tooltip,
-			permutationTooltipState,
-			candidateTooltipSourceKey,
-			getTypedIngredient(),
-			permutationKeys
-		);
+		bookmarks.ifPresent(list -> getBookmark().ifPresent(bookmark -> BookmarkCandidateTooltipHelper.addTo(
+			tooltip, permutationTooltipState, permutationKeys,
+			() -> list.getCandidateSource(bookmark))));
 	}
 
 	@Override

@@ -1,4 +1,7 @@
 {
+  "jei.tooltip.bookmark.select.input": "%s：指定同类材料；Ctrl：仅当前项",
+  "jei.tooltip.recipe.select.input": "%s：指定 / 取消同类槽位材料；Ctrl：仅当前槽位",
+  "key.jei.selectRecipeInput": "指定配方输入 / 取消指定",
   "key.jei.showRecipeTree": "查看书签配方树",
   "jei.tree.title": "配方树",
   "jei.tree.search": "搜索配方树",

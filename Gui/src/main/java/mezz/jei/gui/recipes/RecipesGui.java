@@ -710,6 +710,14 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		}
 	}
 
+	public boolean showCandidateTooltip(IIngredientCandidateSource source, InteractiveIngredientGridTooltipComponent grid, int x, int y) {
+		return interactiveIngredientTooltipController.show(source, grid, x, y);
+	}
+
+	public mezz.jei.gui.input.IRecipeFocusSource getCandidateFocusSource() {
+		return interactiveIngredientTooltipController;
+	}
+
 	public IGuiInputLayer getForegroundInputLayer() {
 		return this.interactiveIngredientTooltipController;
 	}

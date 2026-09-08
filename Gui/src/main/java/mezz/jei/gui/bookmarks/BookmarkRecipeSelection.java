@@ -110,6 +110,10 @@ public final class BookmarkRecipeSelection {
 		selections.apply(layout);
 	}
 
+	public List<ITypedIngredient<?>> getCandidates(IRecipeSlotView slot) {
+		return Optional.ofNullable(bindings.get(slot)).map(Binding::candidates).orElse(List.of());
+	}
+
 	public Optional<RecipeChainInput> source(IRecipeSlotView slot) {
 		return Optional.ofNullable(bindings.get(slot)).map(Binding::source);
 	}
@@ -125,6 +129,15 @@ public final class BookmarkRecipeSelection {
 		if (!selections.scroll(layout, x, y, delta, synchronize)) {
 			return false;
 		}
+		return applySelectedInputs(before, bookmarks);
+	}
+
+	public boolean select(IRecipeSlotView slot, ITypedIngredient<?> ingredient, boolean synchronize, BookmarkList bookmarks) {
+		var before = selections.selectedKeys();
+		return selections.select(layout, slot, ingredient, synchronize, false) && applySelectedInputs(before, bookmarks);
+	}
+
+	private boolean applySelectedInputs(Map<Integer, BookmarkIngredientKey> before, BookmarkList bookmarks) {
 		var after = selections.selectedKeys();
 		List<Choice> choices = inputs.entrySet().stream().map(entry -> {
 			Binding binding = entry.getValue();

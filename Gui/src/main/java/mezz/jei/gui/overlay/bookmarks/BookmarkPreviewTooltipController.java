@@ -87,6 +87,9 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 	}
 
 	private void open(double mouseX, double mouseY) {
+		if (PinnedTooltipManager.shouldSuppressExternalTooltip()) {
+			return;
+		}
 		bookmarkOverlay.getPreviewSourcesUnderMouse(mouseX, mouseY)
 			.<BookmarkPreviewTooltip>mapMulti((source, consumer) -> {
 				if (source.ingredient().getElement() instanceof RecipeBookmarkElement<?, ?> element) {

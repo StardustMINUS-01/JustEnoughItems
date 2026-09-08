@@ -37,6 +37,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping nextPage;
 
 	private final IJeiKeyMappingWithExtraModifiers bookmark;
+	private final IJeiKeyMappingWithExtraModifiers selectRecipeInput;
 	private final IJeiKeyMapping favoriteRecipe;
 	private final IJeiKeyMapping bookmarkPullItems;
 	private final IJeiKeyMapping overlayRecipe;
@@ -368,6 +369,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.buildKeyboardKey(GLFW.GLFW_KEY_PAGE_DOWN)
 			.register(registerMethod);
 
+		selectRecipeInput = recipeCategory.createMapping("key.jei.selectRecipeInput")
+			.setContext(JeiKeyConflictContext.GUI)
+			.buildMouseMiddle()
+			.register(registerMethod);
+
 		pauseRecipeCycling = recipeCategory.createMapping("key.jei.pauseRecipeCycling")
 			.setContext(JeiKeyConflictContext.GUI)
 			.buildKeyboardKey(GLFW.GLFW_KEY_LEFT_SHIFT)
@@ -506,6 +512,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMappingWithExtraModifiers getBookmark() {
 		return bookmark;
+	}
+
+	@Override
+	public IJeiKeyMappingWithExtraModifiers getSelectRecipeInput() {
+		return selectRecipeInput;
 	}
 
 	@Override

@@ -401,6 +401,7 @@ public class JeiGuiStarter {
 		);
 
 		CombinedRecipeFocusSource recipeFocusSource = new CombinedRecipeFocusSource(
+			recipesGui.getCandidateFocusSource(),
 			bookmarkPreviewTooltipController,
 			recipesGui,
 			ingredientListOverlay,

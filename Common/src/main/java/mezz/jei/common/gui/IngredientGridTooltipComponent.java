@@ -125,6 +125,11 @@ public abstract class IngredientGridTooltipComponent<T> implements ClientTooltip
 		return true;
 	}
 
+	protected void ensureIngredientVisible(int index) {
+		int row = index / this.columns;
+		this.rowOffset = Math.clamp(this.rowOffset, Math.max(0, row - this.visibleRows + 1), Math.min(row, this.maxRowOffset));
+	}
+
 	public boolean isMouseOver(double mouseX, double mouseY) {
 		return this.area.contains(mouseX, mouseY);
 	}

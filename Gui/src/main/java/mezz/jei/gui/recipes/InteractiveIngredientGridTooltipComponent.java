@@ -1,5 +1,9 @@
 package mezz.jei.gui.recipes;
 
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+
+import mezz.jei.common.Internal;
+
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;
@@ -19,6 +23,28 @@ import java.util.stream.Stream;
 
 public final class InteractiveIngredientGridTooltipComponent extends IngredientGridTooltipComponent<ITypedIngredient<?>> {
 	private final List<IRecipeSlotDrawable> slots;
+	private int selectedIndex = -1;
+	private Optional<ITypedIngredient<?>> displayedIngredient = Optional.empty();
+
+	public void setSelectedIngredient(Optional<ITypedIngredient<?>> ingredient) {
+		if (displayedIngredient.equals(ingredient)) {
+			return;
+		}
+		displayedIngredient = ingredient;
+		selectedIndex = -1;
+		if (ingredient.isEmpty()) {
+			return;
+		}
+		var manager = Internal.getJeiRuntime().getIngredientManager();
+		var key = BookmarkItemMetadataFactory.createPermutationKey(ingredient.get(), manager);
+		for (int index = 0; index < slots.size(); index++) {
+			if (key.equals(BookmarkItemMetadataFactory.createPermutationKey(getIngredient(index), manager))) {
+				selectedIndex = index;
+				ensureIngredientVisible(index);
+				break;
+			}
+		}
+	}
 
 	public InteractiveIngredientGridTooltipComponent(IRecipeManager recipeManager, List<ITypedIngredient<?>> ingredients) {
 		super(ingredients);
@@ -46,6 +72,9 @@ public final class InteractiveIngredientGridTooltipComponent extends IngredientG
 		IRecipeSlotDrawable slot = this.slots.get(index);
 		slot.setPosition(x, y);
 		slot.draw(guiGraphics, hovered);
+		if (index == selectedIndex) {
+			guiGraphics.renderOutline(x, y, 16, 16, 0xFFFFFF00);
+		}
 	}
 
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {

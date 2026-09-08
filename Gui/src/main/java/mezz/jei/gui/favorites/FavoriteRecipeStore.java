@@ -155,28 +155,30 @@ public class FavoriteRecipeStore {
 		if (inputs == null) {
 			return false;
 		}
-		Map<Integer, FavoriteSlotInput> updatedInputs = new LinkedHashMap<>(inputs);
-		boolean changed = false;
-		for (Map.Entry<Integer, FavoriteSlotInput> entry : inputs.entrySet()) {
-			FavoriteSlotInput input = entry.getValue();
-			if (!input.selected().equals(slotInput.selected()) || !input.permutations().equals(slotInput.permutations())) {
-				continue;
-			}
-			if (input.permutations().size() <= 1) {
-				continue;
-			}
-			int currentIndex = input.permutations().indexOf(input.selected());
-			if (currentIndex < 0) {
-				continue;
-			}
-			int nextIndex = Math.floorMod(currentIndex - (int) Math.signum(step), input.permutations().size());
-			updatedInputs.put(entry.getKey(), new FavoriteSlotInput(input.permutations().get(nextIndex), input.permutations()));
-			changed = true;
-		}
-		if (!changed) {
+		int index = slotInput.permutations().indexOf(slotInput.selected());
+		if (index < 0 || slotInput.permutations().size() <= 1) {
 			return false;
 		}
-		inputsByRecipe.put(recipe, Map.copyOf(updatedInputs));
+		var selected = slotInput.permutations().get(Math.floorMod(index - (int) Math.signum(step), slotInput.permutations().size()));
+		return selectFavoriteInputs(recipe, slotInput, selected, false);
+	}
+
+	public boolean selectFavoriteInputs(FocusedRecipe recipe, FavoriteSlotInput source, BookmarkIngredientKey selected, boolean synchronize) {
+		var inputs = inputsByRecipe.get(recipe);
+		if (inputs == null || !source.permutations().contains(selected)) {
+			return false;
+		}
+		Map<Integer, FavoriteSlotInput> updated = new LinkedHashMap<>(inputs);
+		for (var entry : inputs.entrySet()) {
+			var input = entry.getValue();
+			if (input.permutations().equals(source.permutations()) && (synchronize || input.selected().equals(source.selected()))) {
+				updated.put(entry.getKey(), new FavoriteSlotInput(selected, input.permutations()));
+			}
+		}
+		if (updated.equals(inputs)) {
+			return false;
+		}
+		inputsByRecipe.put(recipe, Map.copyOf(updated));
 		notifyListenersOfChange();
 		return true;
 	}

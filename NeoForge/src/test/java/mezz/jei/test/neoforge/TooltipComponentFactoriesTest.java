@@ -1,7 +1,6 @@
 package mezz.jei.test.neoforge;
 
 import mezz.jei.common.gui.IngredientsTooltipComponent;
-import mezz.jei.common.gui.CandidateTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.RecipeChainPreviewTooltipComponent;
@@ -27,7 +26,6 @@ public class TooltipComponentFactoriesTest {
 
 		Set<Class<? extends TooltipComponent>> expected = Set.of(
 			IngredientsTooltipComponent.class,
-			CandidateTooltipComponent.class,
 			FixedRecipePreviewTooltipComponent.class,
 			PreviewTooltipComponent.class,
 			RecipeChainPreviewTooltipComponent.class,

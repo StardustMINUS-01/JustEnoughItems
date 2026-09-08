@@ -33,6 +33,7 @@ public final class JeiChatItemLinks {
 	public static final String IMPORT_BOOKMARK_GROUP_COMMAND = "jei_internal_import_group";
 	public static final String LINK_ARGUMENT = "link";
 	public static final int MAX_BOOKMARK_GROUP_ENTRIES = 512;
+	public static final int BOOKMARK_GROUP_SNAPSHOT_VERSION = 2;
 	public static final int MAX_BOOKMARK_GROUP_LINK_LENGTH = 64 * 1024;
 	public static final int MAX_BOOKMARK_GROUP_TITLE_LENGTH = 128;
 
@@ -288,7 +289,7 @@ public final class JeiChatItemLinks {
 			JsonObject json = JsonParser.parseString(jsonText).getAsJsonObject();
 			JsonObject group = json.getAsJsonObject("group");
 			int entries = json.getAsJsonArray("bookmarks").size();
-			if (json.get("version").getAsInt() != 1 ||
+			if (json.get("version").getAsInt() != BOOKMARK_GROUP_SNAPSHOT_VERSION ||
 				group.get("title").getAsString().length() > MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
 				entries <= 0 ||
 				entries > MAX_BOOKMARK_GROUP_ENTRIES) {

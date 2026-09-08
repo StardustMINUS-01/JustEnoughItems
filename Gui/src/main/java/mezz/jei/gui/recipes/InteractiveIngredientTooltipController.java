@@ -4,8 +4,11 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.Internal;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.input.IGuiInputLayer;
+import mezz.jei.gui.input.IRecipeFocusSource;
+import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IMouseOverable;
 import mezz.jei.gui.input.IPinnedTooltipHolder;
@@ -13,6 +16,7 @@ import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.util.FocusUtil;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
@@ -20,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-final class InteractiveIngredientTooltipController implements IGuiInputLayer, IPinnedTooltipHolder {
+final class InteractiveIngredientTooltipController implements IGuiInputLayer, IPinnedTooltipHolder, IRecipeFocusSource {
 	private final RecipesGui recipesGui;
 	private final FocusUtil focusUtil;
 	private final IRecipeManager recipeManager;
@@ -28,6 +32,7 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 	private final RecipeSlotClickTargetFactory clickTargetFactory;
 
 	private @Nullable InteractiveIngredientTooltip activeTooltip;
+	private @Nullable Screen sourceScreen;
 
 	public InteractiveIngredientTooltipController(
 		RecipesGui recipesGui,
@@ -43,6 +48,23 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 		this.clickTargetFactory = clickTargetFactory;
 	}
 
+	@Override
+	public void update(double mouseX, double mouseY) {
+		if (activeTooltip != null && (sourceScreen != Minecraft.getInstance().screen || !Internal.getKeyMappings().getPauseRecipeCycling().isDown() || !activeTooltip.isSourceValid())) {
+			hide();
+		}
+	}
+
+	boolean show(IIngredientCandidateSource source, InteractiveIngredientGridTooltipComponent grid, int x, int y) {
+		if (activeTooltip != null) {
+			return false;
+		}
+		sourceScreen = Minecraft.getInstance().screen;
+		activeTooltip = new InteractiveIngredientTooltip(this, recipesGui, focusUtil, ingredientManager, clickTargetFactory, source, grid, x, y);
+		PinnedTooltipManager.opened(this);
+		return true;
+	}
+
 	public boolean isVisible() {
 		return this.activeTooltip != null;
 	}
@@ -56,6 +78,7 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 		if (activeTooltip != null) {
 			activeTooltip.unfocus();
 			this.activeTooltip = null;
+			this.sourceScreen = null;
 			PinnedTooltipManager.closed(this);
 		}
 	}
@@ -88,6 +111,7 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 			return false;
 		}
 		hide();
+		this.sourceScreen = Minecraft.getInstance().screen;
 		this.activeTooltip = tooltip.get();
 		PinnedTooltipManager.opened(this);
 		return true;
@@ -105,6 +129,11 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 			return Stream.empty();
 		}
 		return activeTooltip.getIngredientUnderMouse(mouseX, mouseY);
+	}
+
+	@Override
+	public Stream<IDraggableIngredientInternal<?>> getDraggableIngredientUnderMouse(double mouseX, double mouseY) {
+		return Stream.empty();
 	}
 
 	@Override

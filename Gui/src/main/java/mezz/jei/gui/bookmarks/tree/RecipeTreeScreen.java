@@ -1,5 +1,10 @@
 package mezz.jei.gui.bookmarks.tree;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.gui.input.handlers.UserInputRouter;
+import mezz.jei.gui.recipes.RecipesGui;
+
+
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
@@ -14,7 +19,7 @@ import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipHelper;
-import mezz.jei.gui.bookmarks.BookmarkPermutationTooltipState;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipState;
 import mezz.jei.gui.bookmarks.RecipeLayoutProjection;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
@@ -61,7 +66,8 @@ public final class RecipeTreeScreen extends Screen {
 	private final List<SummaryEntry> summary = new ArrayList<>();
 	private final List<SummaryEntry> recipeDetails = new ArrayList<>();
 	private @Nullable RecipeTreeSidebarLayout<SummaryEntry> sidebarLayout;
-	private final BookmarkPermutationTooltipState candidateTooltips = new BookmarkPermutationTooltipState();
+	private final BookmarkCandidateTooltipState candidateTooltips = new BookmarkCandidateTooltipState();
+	private final UserInputRouter candidateInputs;
 	private @Nullable RecipeTreeLayout.Node selected;
 	private @Nullable RecipeTreePreview preview;
 	private @Nullable RecipeTreeBookmarkPanel bookmarkPanel;
@@ -91,6 +97,9 @@ public final class RecipeTreeScreen extends Screen {
 		this.bookmarks = bookmarks;
 		this.groupId = groupId;
 		this.ingredients = ingredients;
+		// This standalone screen has no overlay GUI properties, so global JEI input skips it.
+		var recipesGui = (RecipesGui) Internal.getJeiRuntime().getRecipesGui();
+		this.candidateInputs = new UserInputRouter("Recipe tree candidates", recipesGui.getForegroundInputLayer());
 		bookmarks.getTreeViewState(groupId).ifPresent(state -> {
 			pendingViewState = state;
 			showBookmarks = state.bookmarksVisible();
@@ -487,7 +496,9 @@ public final class RecipeTreeScreen extends Screen {
 		}
 		SummaryEntry sidebarHovered = sidebarEntryAt(mouseX, mouseY);
 		if (previewSlot.isPresent()) {
-			previewSourceAt(mouseX, mouseY).map(source -> stacks.get(source.index())).ifPresent(stack -> stack.tooltip(graphics, mouseX, mouseY));
+			if (!preview.showCandidates(graphics, previewArea(), mouseX, mouseY, candidateTooltips, bookmarks, this::refresh, () -> preview)) {
+				previewSourceAt(mouseX, mouseY).map(source -> stacks.get(source.index())).ifPresent(stack -> stack.tooltip(graphics, mouseX, mouseY));
+			}
 		} else if (sidebarHovered != null) {
 			if (sidebarHovered.stack() != null) {
 				sidebarHovered.stack().tooltip(graphics, mouseX, mouseY);
@@ -652,6 +663,9 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double x, double y, int button) {
+		if (handleCandidateClick(x, y, button, InputType.SIMULATE)) {
+			return true;
+		}
 		if (searchBox != null && !searchBox.isMouseOver(x, y)) {
 			searchBox.setFocused(false);
 		}
@@ -702,6 +716,9 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+		if (candidateInputs.handleMouseDragged(x, y, InputConstants.Type.MOUSE.getOrCreate(button), dx, dy)) {
+			return true;
+		}
 		if (button == 0 && showBookmarks && bookmarkPanel != null && bookmarkPanel.dragScrollbar(y)) {
 			return true;
 		}
@@ -713,6 +730,9 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseReleased(double x, double y, int button) {
+		if (handleCandidateClick(x, y, button, InputType.EXECUTE)) {
+			return true;
+		}
 		if (bookmarkPanel != null) {
 			bookmarkPanel.release();
 		}
@@ -722,6 +742,9 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+		if (candidateInputs.handleMouseScrolled(x, y, horizontal, vertical)) {
+			return true;
+		}
 		if (y < TOP) {
 			return false;
 		}
@@ -748,6 +771,12 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean isPauseScreen() { return false; }
+
+	private boolean handleCandidateClick(double x, double y, int button, InputType type) {
+		return UserInput.fromVanilla(x, y, button, type)
+			.map(input -> candidateInputs.handleUserInput(this, input, Internal.getKeyMappings()))
+			.orElse(false);
+	}
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -806,6 +835,7 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public void removed() {
+		candidateInputs.handleGuiChange();
 		cacheViewState();
 		super.removed();
 	}
@@ -896,7 +926,8 @@ public final class RecipeTreeScreen extends Screen {
 				tooltip.add(Component.translatable("jei.tree.non_consumable").withStyle(ChatFormatting.YELLOW));
 			}
 			if (source != null && source.selectedKey() != null) {
-				BookmarkCandidateTooltipHelper.addTo(tooltip, candidateTooltips, source.index(), source.selectedKey(), List.copyOf(source.metadata().permutations()));
+				BookmarkCandidateTooltipHelper.addTo(tooltip, candidateTooltips, List.copyOf(source.metadata().permutations()),
+					() -> bookmarks.getCandidateSource(bookmarks.getBookmarks().get(source.index())));
 			}
 			tooltip.draw(graphics, x, y);
 		}

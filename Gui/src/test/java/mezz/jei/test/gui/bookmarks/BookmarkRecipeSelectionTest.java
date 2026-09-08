@@ -97,6 +97,38 @@ class BookmarkRecipeSelectionTest {
 		assertEquals(0, inputAmount(book, group, Items.SPRUCE_PLANKS));
 	}
 
+	@Test void clickedBookmarkCandidatesRemainEditableAndDoNotChangeOtherRecipes() {
+		var book = bookmarks();
+		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
+		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("first", List.of(family))),
+			new RecipeLayoutProjection(layout("other", List.of(family)))), false).orElseThrow();
+		var original = book.getBookmarks().stream().filter(value -> book.getBookmarkMetadata(value).type().isGraphInput()).findFirst().orElseThrow();
+		var replacement = book.selectBookmarkPermutation(original, key(Items.SPRUCE_PLANKS), true).orElseThrow();
+		assertEquals(1, inputAmount(book, group, Items.OAK_PLANKS));
+		assertEquals(1, inputAmount(book, group, Items.SPRUCE_PLANKS));
+		var version = book.getChangeVersion();
+		assertTrue(book.selectBookmarkPermutation(replacement, key(Items.SPRUCE_PLANKS), true).isPresent());
+		assertEquals(version, book.getChangeVersion());
+		assertTrue(book.selectBookmarkPermutation(replacement, key(Items.OAK_PLANKS), true).isPresent());
+		assertEquals(2, inputAmount(book, group, Items.OAK_PLANKS));
+	}
+
+	@Test void clickedDetailCandidatesSplitAndMergeSavedAmounts() {
+		var book = bookmarks();
+		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
+		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("eight", Collections.nCopies(8, family)))), false).orElseThrow();
+		Slot[] slots = new Slot[8];
+		Arrays.setAll(slots, ignored -> new Slot(family));
+		var drawing = preview(slots);
+		var selection = new BookmarkRecipeSelection(drawing, book.getRecipeChainTooltipInputs(group), MANAGER);
+		assertTrue(selection.select(slots[0].view, item(Items.SPRUCE_PLANKS), false, book));
+		assertEquals(1, inputAmount(book, group, Items.SPRUCE_PLANKS));
+		assertEquals(7, inputAmount(book, group, Items.OAK_PLANKS));
+		selection = new BookmarkRecipeSelection(drawing, book.getRecipeChainTooltipInputs(group), MANAGER);
+		assertTrue(selection.select(slots[0].view, item(Items.SPRUCE_PLANKS), true, book));
+		assertEquals(8, inputAmount(book, group, Items.SPRUCE_PLANKS));
+	}
+
 	@Test void addToTreeIsGroupScopedAndDuplicatesDoNotRestoreDeletedMaterials() {
 		var book = bookmarks();
 		var recipe = layout("recipe", List.of(List.of(item(Items.OAK_PLANKS)), List.of(item(Items.STICK))));

@@ -153,16 +153,18 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 	}
 
 	@Test
-	public void officialModeRemovesCatalystInputsFromPattern() {
+	public void removesCatalystInputsWithoutChangingSavedAmounts() {
 		JeiPatternEncodeRequestWire request = processingRequest(
-			List.of(stack(Items.IRON_INGOT, 1), stack(Items.GOLD_INGOT, 1)),
-			List.of(new JeiPatternCatalystWire(1, stack(Items.GOLD_INGOT, 1)))
+			List.of(stack(Items.IRON_INGOT, 4), stack(Items.GOLD_INGOT, 64)),
+			List.of(new JeiPatternCatalystWire(1, stack(Items.GOLD_INGOT, 64)))
 		);
 
 		List<GenericStack> realInputs = JeiRecipeChainPatternEncodingService.removeCatalystInputs(request.sparseInputs(), request.catalysts());
 
-		Assertions.assertEquals(stack(Items.IRON_INGOT, 1), realInputs.get(0));
+		Assertions.assertEquals(stack(Items.IRON_INGOT, 4), realInputs.get(0));
 		Assertions.assertNull(realInputs.get(1));
+		Assertions.assertEquals(stack(Items.GOLD_INGOT, 64), request.sparseInputs().get(1));
+		Assertions.assertEquals(stack(Items.GOLD_INGOT, 64), request.catalysts().getFirst().stack());
 	}
 
 	@Test
