@@ -14,6 +14,10 @@ public interface IClientConfig {
 
 	void addCenterSearchBarEnabledListener(IConfigListener<Boolean> listener);
 
+	boolean isQuantityFieldEnabled();
+
+	void addQuantityFieldEnabledListener(IConfigListener<Boolean> listener);
+
 	void addMaxRecipeGuiHeightListener(IConfigListener<Integer> listener);
 
 	boolean isLowMemorySlowSearchEnabled();

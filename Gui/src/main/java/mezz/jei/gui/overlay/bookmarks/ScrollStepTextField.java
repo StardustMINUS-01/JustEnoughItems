@@ -21,6 +21,7 @@ public class ScrollStepTextField extends EditBox {
 	public ScrollStepTextField(ScrollStep scrollStep) {
 		super(Minecraft.getInstance().font, 0, 0, 0, 0, Component.translatable("jei.bookmark.scrollStep"));
 		this.scrollStep = scrollStep;
+		setVisible(false);
 		setMaxLength(MAX_LENGTH);
 		setBordered(false);
 		setFilter(text -> text.chars().allMatch(Character::isDigit));
@@ -31,6 +32,10 @@ public class ScrollStepTextField extends EditBox {
 	}
 
 	public void updateBounds(ImmutableRect2i area) {
+		setVisible(area.getWidth() > 0 && area.getHeight() > 0);
+		if (!isVisible()) {
+			setFocused(false);
+		}
 		this.backgroundBounds = area;
 		setX(area.getX() + 4);
 		setY(area.getY() + (area.getHeight() - 8) / 2);
@@ -64,6 +69,9 @@ public class ScrollStepTextField extends EditBox {
 
 	@Override
 	public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		if (!isVisible()) {
+			return;
+		}
 		if (isVisible()) {
 			RenderSystem.setShaderColor(1, 1, 1, 1);
 			background.draw(guiGraphics, backgroundBounds);

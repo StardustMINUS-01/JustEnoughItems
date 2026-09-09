@@ -25,6 +25,15 @@ public class TestClientConfig implements IClientConfig {
 	}
 
 	@Override
+	public boolean isQuantityFieldEnabled() {
+		return true;
+	}
+
+	@Override
+	public void addQuantityFieldEnabledListener(IConfigListener<Boolean> listener) {
+	}
+
+	@Override
 	public void addCenterSearchBarEnabledListener(IConfigListener<Boolean> listener) {
 
 	}

@@ -98,6 +98,7 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		ingredientGridSource.addSourceListChangedListener(this::markScreenPropertiesDirty);
 
 		clientConfig.addCenterSearchBarEnabledListener(v -> markScreenPropertiesDirty());
+		clientConfig.addQuantityFieldEnabledListener(v -> markScreenPropertiesDirty());
 		clientConfig.addLookupHistoryEnabledListener(v -> markScreenPropertiesDirty());
 		clientConfig.addMaxLookupHistoryRowsListener(v -> markScreenPropertiesDirty());
 		clientConfig.addLookupHistoryDisplaySideListener(v -> markScreenPropertiesDirty());
@@ -130,6 +131,11 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 
 	public IScreenPropertiesUpdater getScreenPropertiesUpdater() {
 		return this.controller.getScreenPropertiesUpdater();
+	}
+
+	public mezz.jei.common.util.ImmutableRect2i getQuantityArea() {
+		updateScreenPropertiesIfDirty();
+		return this.controller.getQuantityArea();
 	}
 
 	public void drawScreen(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {

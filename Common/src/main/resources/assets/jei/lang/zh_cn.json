@@ -217,6 +217,8 @@
   "jei.config.interface.bookmarkOverlayEnabled.description": "在打开的界面一侧显示书签列表。",
   "jei.config.client.appearance": "外观",
   "jei.config.client.appearance.description": "用于更改JEI外观的配置选项。",
+  "jei.config.client.appearance.quantityFieldEnabled": "显示数量框",
+  "jei.config.client.appearance.quantityFieldEnabled.description": "显示数量框。关闭时，Ctrl+Shift+滚轮固定以64为步进调整数量，Ctrl+滚轮仍以1为步进。",
   "jei.config.client.appearance.centerSearch": "搜索框居中",
   "jei.config.client.appearance.centerSearch.description": "将JEI搜索框移动至屏幕底部居中的位置。",
   "jei.config.client.appearance.recipeGuiHeight": "配方界面高度",

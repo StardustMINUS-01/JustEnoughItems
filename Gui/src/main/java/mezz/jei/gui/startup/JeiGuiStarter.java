@@ -133,7 +133,7 @@ public class JeiGuiStarter {
 		ModNameSortingConfig modNameSortingConfig = configData.modNameSortingConfig();
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = configData.ingredientTypeSortingConfig();
 		IClientToggleState toggleState = Internal.getClientToggleState();
-		ScrollStep scrollStep = new ScrollStep();
+		ScrollStep scrollStep;
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
 		ILookupHistoryConfig lookupHistoryConfig = configData.lookupHistoryConfig();
 
@@ -165,6 +165,7 @@ public class JeiGuiStarter {
 
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
+		scrollStep = new ScrollStep(clientConfig::isQuantityFieldEnabled);
 		IIngredientGridConfig ingredientListConfig = jeiClientConfigs.getIngredientListConfig();
 		IIngredientGridConfig bookmarkListConfig = jeiClientConfigs.getBookmarkListConfig();
 		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
@@ -251,6 +252,7 @@ public class JeiGuiStarter {
 			colorHelper
 		);
 		registration.setBookmarkOverlay(bookmarkOverlay);
+		bookmarkOverlay.setQuantityAreaSupplier(ingredientListOverlay::getQuantityArea);
 
 		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
 			recipeManager,
