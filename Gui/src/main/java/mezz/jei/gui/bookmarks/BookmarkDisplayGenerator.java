@@ -44,6 +44,14 @@ public final class BookmarkDisplayGenerator {
 		int columns,
 		List<Integer> usableColumnsPerRow
 	) {
+		return generate(orderedItems, metadataGetter, groups, recipeChainDetails, columns, usableColumnsPerRow, group -> true);
+	}
+
+	public static <T> List<BookmarkDisplaySlot<T>> generate(
+		List<T> orderedItems, Function<T, BookmarkItemMetadata> metadataGetter,
+		Map<Integer, BookmarkGroup> groups, Map<Integer, RecipeChainDetails> recipeChainDetails,
+		int columns, List<Integer> usableColumnsPerRow, java.util.function.IntPredicate includedGroup
+	) {
 		List<BookmarkDisplaySlot<T>> displaySlots = new ArrayList<>();
 		Set<ResourceLocation> emittedBlocks = new HashSet<>();
 		BookmarkRowLayout.RowLayout rowLayout = BookmarkRowLayout.RowLayout.create(columns, usableColumnsPerRow);
@@ -51,6 +59,9 @@ public final class BookmarkDisplayGenerator {
 			T item = orderedItems.get(sourceIndex);
 			BookmarkItemMetadata metadata = metadataGetter.apply(item);
 			int groupId = metadata.groupId();
+			if (!includedGroup.test(groupId)) {
+				continue;
+			}
 			BookmarkGroup group = groups.get(groupId);
 			if (group != null && group.craftingMode()) {
 				RecipeChainDetails details = recipeChainDetails.get(group.id());

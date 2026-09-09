@@ -109,6 +109,18 @@ public class BookmarkInputHandler implements IUserInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getShowRecipeTree())) {
+			return bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+				.filter(bookmarkList::isGroupCraftingMode)
+				.map(groupId -> {
+					if (!input.isSimulate()) {
+						net.minecraft.client.Minecraft.getInstance().setScreen(
+							new mezz.jei.gui.bookmarks.tree.RecipeTreeScreen(screen, bookmarkList, groupId, ingredientManager)
+						);
+					}
+					return this;
+				});
+		}
 		if (BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
 			return handleBookmarkAutoCrafting(input, keyBindings.getCraftItems());
 		}

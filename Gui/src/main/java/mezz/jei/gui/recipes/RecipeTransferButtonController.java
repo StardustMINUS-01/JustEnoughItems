@@ -24,6 +24,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
+import java.util.Optional;
+
 public class RecipeTransferButtonController implements IIconButtonController {
 	private final IRecipeLayoutDrawable<?> recipeLayout;
 	private final RecipesGui recipesGui;
@@ -70,6 +73,13 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public boolean onPress(IJeiUserInput input) {
+		var tree = treeTarget();
+		if (tree.isPresent()) {
+			if (!input.isSimulate() && tree.get().addRecipe(recipeLayout, Map.of(), Map.of())) {
+				recipesGui.onClose();
+			}
+			return true;
+		}
 		if (!input.isSimulate()) {
 			IRecipeTransferManager recipeTransferManager = Internal.getJeiRuntime().getRecipeTransferManager();
 			boolean maxTransfer = Screen.hasShiftDown();
@@ -85,7 +95,17 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public void getTooltips(ITooltipBuilder tooltip) {
+		if (treeTarget().isPresent()) {
+			tooltip.add(Component.translatable("jei.tree.add_recipe"));
+			return;
+		}
 		getTooltips(this.recipeTransferError, tooltip);
+	}
+
+	private Optional<mezz.jei.gui.bookmarks.tree.RecipeTreeScreen> treeTarget() {
+		return Optional.ofNullable(recipesGui).flatMap(RecipesGui::getParentScreen)
+			.filter(mezz.jei.gui.bookmarks.tree.RecipeTreeScreen.class::isInstance)
+			.map(mezz.jei.gui.bookmarks.tree.RecipeTreeScreen.class::cast);
 	}
 
 	static void getTooltips(@Nullable IRecipeTransferError recipeTransferError, ITooltipBuilder tooltip) {

@@ -6,5 +6,16 @@ public enum RecipeChainTooltipSectionType {
 	MISSING,
 	NEEDED,
 	AVAILABLE,
-	REMAINDER
+	REMAINDER;
+
+	public String translationKey() {
+		return "jei.tooltip.bookmarks.group.recipe_chain." + switch (this) {
+			case OUTPUT -> "output";
+			case INPUT -> "input";
+			case MISSING -> "missing_items";
+			case NEEDED -> "needed";
+			case AVAILABLE -> "available";
+			case REMAINDER -> "remainder";
+		};
+	}
 }

@@ -24,6 +24,19 @@ public record RecipeChainTooltipModel(
 
 	public static RecipeChainTooltipModel create(
 		List<RecipeChainInput> recipeInputs,
+		Optional<RecipeChainDetails> baseDetails,
+		Set<ResourceLocation> collapsedRecipes,
+		List<RecipeChainInput> inventoryInputs,
+		boolean shiftDown,
+		boolean controlDown,
+		mezz.jei.api.runtime.IIngredientManager ingredientManager
+	) {
+		RecipeChainDetails details = baseDetails.orElseGet(() -> RecipeChainMath.refresh(recipeInputs, collapsedRecipes));
+		return create(recipeInputs, details, collapsedRecipes, inventoryInputs, shiftDown, controlDown);
+	}
+
+	public static RecipeChainTooltipModel create(
+		List<RecipeChainInput> recipeInputs,
 		Set<ResourceLocation> collapsedRecipes,
 		List<RecipeChainInput> inventoryInputs,
 		boolean shiftDown,
@@ -262,6 +275,10 @@ public record RecipeChainTooltipModel(
 	) {
 		private Item withAmount(long amount) {
 			return new Item(key, metadata, amount, sourceIndex);
+		}
+
+		public @org.jetbrains.annotations.Nullable mezz.jei.api.ingredients.ITypedIngredient<?> ingredient() {
+			return key.typedIngredient();
 		}
 	}
 }

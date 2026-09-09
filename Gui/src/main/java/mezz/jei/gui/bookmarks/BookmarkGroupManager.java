@@ -11,6 +11,7 @@ package mezz.jei.gui.bookmarks;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
+import mezz.jei.gui.bookmarks.tree.RecipeTreeViewState;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -28,6 +29,7 @@ public class BookmarkGroupManager<T> {
 	private final Map<Integer, BookmarkGroup> groups = new LinkedHashMap<>();
 	private final Map<T, BookmarkItemMetadata> itemMetadata = new IdentityHashMap<>();
 	private final Map<Integer, RecipeChainDetails> recipeChainDetails = new LinkedHashMap<>();
+	private final LinkedHashMap<Integer, RecipeTreeViewState> treeViewStates = new LinkedHashMap<>(16, 0.75f, true);
 	private boolean recipeChainDetailsDirty = true;
 	private @Nullable List<T> pendingOrderedItems;
 	private int nextGroupId = DEFAULT_GROUP_ID + 1;
@@ -38,6 +40,7 @@ public class BookmarkGroupManager<T> {
 
 	public void clear() {
 		groups.clear();
+		treeViewStates.clear();
 		itemMetadata.clear();
 		recipeChainDetails.clear();
 		recipeChainDetailsDirty = true;
@@ -52,6 +55,20 @@ public class BookmarkGroupManager<T> {
 
 	public Optional<BookmarkGroup> getGroup(int groupId) {
 		return Optional.ofNullable(groups.get(groupId));
+	}
+
+	public Optional<RecipeTreeViewState> getTreeViewState(int groupId) {
+		return Optional.ofNullable(treeViewStates.get(groupId));
+	}
+
+	public void cacheTreeViewState(int groupId, RecipeTreeViewState state) {
+		if (!groups.containsKey(groupId)) {
+			return;
+		}
+		treeViewStates.put(groupId, state);
+		if (treeViewStates.size() > 16) {
+			treeViewStates.remove(treeViewStates.keySet().iterator().next());
+		}
 	}
 
 	public int createGroup(String title) {
@@ -152,6 +169,7 @@ public class BookmarkGroupManager<T> {
 		}
 		groups.remove(groupId);
 		recipeChainDetails.remove(groupId);
+		treeViewStates.remove(groupId);
 		int removed = groupId;
 		itemMetadata.replaceAll((item, metadata) -> removed == metadata.groupId() ? metadata.withGroupId(DEFAULT_GROUP_ID) : metadata);
 		return true;

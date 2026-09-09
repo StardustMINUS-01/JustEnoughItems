@@ -15,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,14 +30,23 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 		this.ingredientManager = ingredientManager;
 	}
 
-	@Override
-	public List<RecipeChainInput> getInventoryInputs(int groupId, int firstSyntheticIndex) {
+	public List<RecipeChainInput> getTreeInventoryInputs(int groupId, @Nullable AbstractContainerMenu sourceMenu) {
 		if (minecraft.player == null) {
 			return List.of();
 		}
+		List<ItemStack> stacks;
+		if (sourceMenu == null || sourceMenu != minecraft.player.containerMenu) {
+			stacks = minecraft.player.getInventory().items.stream().filter(stack -> !stack.isEmpty()).map(ItemStack::copy).toList();
+		} else {
+			stacks = getAvailableStacks();
+		}
+		return toInventoryInputs(groupId, -1, stacks);
+	}
+
+	private List<RecipeChainInput> toInventoryInputs(int groupId, int firstSyntheticIndex, List<ItemStack> stacks) {
 		List<RecipeChainInput> inputs = new ArrayList<>();
 		int index = firstSyntheticIndex;
-		for (ItemStack stack : getAvailableStacks()) {
+		for (ItemStack stack : stacks) {
 			if (stack.isEmpty()) {
 				continue;
 			}
@@ -52,6 +62,14 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 			index--;
 		}
 		return List.copyOf(inputs);
+	}
+
+	@Override
+	public List<RecipeChainInput> getInventoryInputs(int groupId, int firstSyntheticIndex) {
+		if (minecraft.player == null) {
+			return List.of();
+		}
+		return toInventoryInputs(groupId, firstSyntheticIndex, getAvailableStacks());
 	}
 
 

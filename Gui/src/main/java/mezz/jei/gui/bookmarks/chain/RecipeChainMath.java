@@ -45,6 +45,19 @@ public final class RecipeChainMath {
 	private final Map<BookmarkIngredientKey, List<RecipeChainRemainderStack>> reusableContainerItems = new LinkedHashMap<>();
 	private final Set<BookmarkIngredientKey> containerItemsBlacklist = new LinkedHashSet<>();
 	private int nextSyntheticIndex = -1;
+	private @org.jetbrains.annotations.Nullable IDemandVisitor demandVisitor;
+
+	/** Returns the visitor for this demand's children, or null to skip recording that subtree. */
+	@FunctionalInterface
+	public interface IDemandVisitor {
+		@org.jetbrains.annotations.Nullable IDemandVisitor visit(RecipeChainInput input, long requested, long remaining);
+	}
+
+	public static void visitDemands(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes, IDemandVisitor visitor) {
+		var math = new RecipeChainMath(inputs, collapsedRecipes);
+		math.demandVisitor = visitor;
+		math.refresh();
+	}
 
 	private RecipeChainMath(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes) {
 		this.collapsedRecipes = Set.copyOf(collapsedRecipes);
@@ -275,12 +288,18 @@ public final class RecipeChainMath {
 		}
 
 		if (preferred == null) {
+			if (demandVisitor != null) {
+				demandVisitor.visit(ingredient, amount, amount);
+			}
 			addRequiredAmount(ingredient, amount, Long.MAX_VALUE);
 			return;
 		}
 
 		ResourceLocation preferredRecipe = preferred.metadata().recipeUid();
 		if (preferredRecipe == null || visited.contains(preferredRecipe)) {
+			if (demandVisitor != null) {
+				demandVisitor.visit(ingredient, amount, amount);
+			}
 			addRequiredAmount(preferred, amount, Long.MAX_VALUE);
 			return;
 		}
@@ -291,10 +310,17 @@ public final class RecipeChainMath {
 			preferred.metadata().multiplierFromAmount(requiredAmount.getOrDefault(preferred, 0L)) -
 				workingMultipliers.getOrDefault(preferred, 0L)
 		);
+		IDemandVisitor childVisitor = demandVisitor == null ? null : demandVisitor.visit(ingredient, amount, amount);
 		if (multiplier > 0) {
 			addShift(preferredRecipe, multiplier);
 			visited.add(preferredRecipe);
-			prepareIngredients(preferredRecipe, multiplier, visited);
+			IDemandVisitor previousVisitor = demandVisitor;
+			demandVisitor = childVisitor;
+			try {
+				prepareIngredients(preferredRecipe, multiplier, visited);
+			} finally {
+				demandVisitor = previousVisitor;
+			}
 			visited.remove(preferredRecipe);
 		}
 	}
@@ -533,8 +559,16 @@ public final class RecipeChainMath {
 
 		Map<ResourceLocation, RecipeChainDetails.CollapsedBlock> collapsedBlocks = createCollapsedBlocks(topLevelRecipes, itemToRecipe, recipeRelations);
 
+		Map<Integer, Integer> suppliers = new LinkedHashMap<>();
+		preferredItems.forEach((input, result) -> {
+			if (input.metadata().type().isGraphInput()) {
+				suppliers.put(input.index(), result.index());
+			}
+		});
+
 		return new RecipeChainDetails(
 			calculatedItems,
+			suppliers,
 			itemToRecipe,
 			outputRecipes.keySet(),
 			middleRecipes,

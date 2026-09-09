@@ -390,6 +390,10 @@ public class BookmarkList implements IIngredientGridSource {
 		return removeRecipeBookmark(bookmark, true);
 	}
 
+	public boolean removeExpandedRecipeBookmark(IBookmark bookmark) {
+		return removeRecipeBookmark(bookmark, false);
+	}
+
 	public boolean removeRecipeBookmark(IBookmark bookmark, boolean removeFullRecipe) {
 		int index = identityIndexOf(bookmark);
 		if (index < 0) {
@@ -1304,7 +1308,7 @@ public class BookmarkList implements IIngredientGridSource {
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	private IElement<?> createDisplayElement(BookmarkDisplayEntry<IBookmark> entry) {
+	public IElement<?> createDisplayElement(BookmarkDisplayEntry<IBookmark> entry) {
 		IElement<?> element = entry.item().getElement();
 		if (!needsProjectedElement(entry)) {
 			return element;
@@ -1378,9 +1382,34 @@ public class BookmarkList implements IIngredientGridSource {
 		return bookmarkGroups.getGroups();
 	}
 
+	public Optional<mezz.jei.gui.bookmarks.tree.RecipeTreeViewState> getTreeViewState(int groupId) {
+		return bookmarkGroups.getTreeViewState(groupId);
+	}
+
+	public void cacheTreeViewState(int groupId, mezz.jei.gui.bookmarks.tree.RecipeTreeViewState state) {
+		bookmarkGroups.cacheTreeViewState(groupId, state);
+	}
+
 	public Optional<RecipeChainDetails> getRecipeChainDetails(int groupId) {
 		return bookmarkGroups.getRecipeChainDetails(groupId);
 	}
+
+	public java.util.List<mezz.jei.gui.bookmarks.BookmarkDisplaySlot<IBookmark>> getGroupEditorSlots(int groupId, int columns) {
+		var group = bookmarkGroups.getGroup(groupId);
+		if (group.isEmpty()) {
+			return java.util.List.of();
+		}
+		var saved = group.get();
+		var expanded = new BookmarkGroup(groupId, saved.title(), BookmarkViewMode.TODO_LIST, false, saved.craftingMode(), java.util.Set.of());
+		var details = getRecipeChainDetails(groupId);
+		if (saved.craftingMode() && !saved.collapsedRecipeIds().isEmpty()) {
+			details = java.util.Optional.of(mezz.jei.gui.bookmarks.chain.RecipeChainMath.refresh(getRecipeChainTooltipInputs(groupId), java.util.Set.of()));
+		}
+		return BookmarkDisplayGenerator.generate(bookmarksList, this::getBookmarkMetadata, java.util.Map.of(groupId, expanded),
+			details.map(value -> java.util.Map.of(groupId, value)).orElse(java.util.Map.of()), columns, java.util.List.of(), id -> id == groupId);
+	}
+
+
 
 	public List<RecipeChainInput> getRecipeChainInputs(int groupId) {
 		return hydrateRecipeInputs(bookmarkGroups.getRecipeChainInputs(bookmarksList, groupId));

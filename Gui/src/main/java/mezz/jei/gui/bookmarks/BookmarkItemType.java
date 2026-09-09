@@ -55,6 +55,10 @@ public enum BookmarkItemType {
 		return this == CATALYST;
 	}
 
+	public boolean isNonConsumable() {
+		return isCatalyst();
+	}
+
 	public boolean scalesWithMultiplier() {
 		return this != CATALYST;
 	}
