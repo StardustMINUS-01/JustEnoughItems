@@ -586,6 +586,31 @@ public class BookmarkList implements IIngredientGridSource {
 		return addRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys, filteredInputCandidates), preserveAmount);
 	}
 
+	public boolean addRecipeToGroup(int groupId, RecipeLayoutProjection projection) {
+		if (bookmarkGroups.getGroup(groupId).isEmpty()) {
+			return false;
+		}
+		List<RecipeBookmarkEntry> entries = createRecipeBookmarkEntries(
+			projection,
+			false,
+			groupId == BookmarkGroupManager.DEFAULT_GROUP_ID ? null : Integer.valueOf(groupId)
+		);
+		if (entries.isEmpty() || entries.get(0).metadata().recipeUid() == null) {
+			return false;
+		}
+		BookmarkItemMetadata recipe = entries.get(0).metadata();
+		if (bookmarksList.stream().map(bookmarkGroups::getItemMetadata).anyMatch(metadata ->
+			metadata.groupId() == groupId &&
+			java.util.Objects.equals(metadata.recipeTypeUid(), recipe.recipeTypeUid()) &&
+			java.util.Objects.equals(metadata.recipeUid(), recipe.recipeUid()))) {
+			return false;
+		}
+		addRecipeBookmarkEntries(entries.stream()
+			.map(entry -> new RecipeBookmarkEntry(entry.bookmark(), entry.metadata().withGroupId(groupId)))
+			.toList());
+		return true;
+	}
+
 	private boolean addRecipeBookmarks(RecipeLayoutProjection projection, boolean preserveAmount) {
 		List<RecipeBookmarkEntry> recipeBookmarks = createRecipeBookmarkEntries(projection, preserveAmount, null);
 		if (recipeBookmarks.isEmpty()) {
