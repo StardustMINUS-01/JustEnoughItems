@@ -1,6 +1,8 @@
 package mezz.jei.gui.bookmarks;
 
+import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent;
 
@@ -15,9 +17,13 @@ public final class BookmarkCandidateTooltipState {
 	public Optional<InteractiveIngredientGridTooltipComponent> getOrCreate(List<BookmarkIngredientKey> keys) {
 		if (!candidates.equals(keys)) {
 			candidates = List.copyOf(keys);
+			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 			List<ITypedIngredient<?>> ingredients = new ArrayList<>();
 			for (BookmarkIngredientKey key : keys) {
 				ITypedIngredient<?> typed = key.typedIngredient();
+				if (typed == null) {
+					typed = resolve(ingredientManager, key).orElse(null);
+				}
 				if (typed != null) {
 					ingredients.add(typed);
 				}
@@ -27,5 +33,12 @@ public final class BookmarkCandidateTooltipState {
 				: Optional.empty();
 		}
 		return grid;
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static Optional<ITypedIngredient<?>> resolve(IIngredientManager ingredientManager, BookmarkIngredientKey key) {
+		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
+			.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
+			.map(typedIngredient -> (ITypedIngredient<?>) typedIngredient);
 	}
 }

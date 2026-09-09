@@ -8,6 +8,7 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.chat.JeiChatItemLinks;
+import mezz.jei.common.config.GiveMode;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -21,7 +22,6 @@ import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
-import mezz.jei.gui.input.InputModifiers;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
@@ -54,7 +54,7 @@ public class FocusInputHandler implements IUserInputHandler {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final IClientToggleState toggleState;
-	private final IConnectionToServer serverConnection;
+	private final IClientConfig clientConfig;
 	private final ScrollStep scrollStep;
 	private final CommandUtil commandUtil;
 
@@ -77,24 +77,13 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
 		this.toggleState = toggleState;
-		this.serverConnection = serverConnection;
+		this.clientConfig = clientConfig;
 		this.scrollStep = scrollStep;
 		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
 	}
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		if (toggleState.isFastPickupEnabled() &&
-			input.is(keyBindings.getLeftClick()) &&
-			!InputModifiers.hasShift(input) &&
-			!InputModifiers.hasControl(input) &&
-			!InputModifiers.hasAlt(input)) {
-			Optional<IUserInputHandler> handledFastPickup = handleFastPickup(input, keyBindings);
-			if (handledFastPickup.isPresent()) {
-				return handledFastPickup;
-			}
-		}
-
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
@@ -350,7 +339,14 @@ public class FocusInputHandler implements IUserInputHandler {
 				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
 				if (!itemStack.isEmpty()) {
 					if (!input.isSimulate()) {
-						commandUtil.giveStack(itemStack, giveAmount);
+						int amount = resolveGiveAmount(
+							clientConfig.getGiveMode(),
+							giveAmount,
+							itemStack,
+							clicked.getElement().getCheatGiveAmount(),
+							scrollStep.getValue()
+						);
+						commandUtil.giveStack(itemStack, amount);
 					}
 					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
 					consumer.accept(handler);
@@ -359,31 +355,14 @@ public class FocusInputHandler implements IUserInputHandler {
 			.findFirst();
 	}
 
-	private Optional<IUserInputHandler> handleFastPickup(UserInput input, IInternalKeyMappings keyBindings) {
-		if (!serverConnection.isJeiOnServer()) {
-			return Optional.empty();
+	static int resolveGiveAmount(GiveMode mode, GiveAmount giveAmount, ItemStack stack, Optional<Long> bookmarkAmount, long configuredAmount) {
+		if (mode == GiveMode.MOUSE_PICKUP) {
+			return giveAmount.getAmountForStack(stack);
 		}
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
-			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
-				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
-				if (!itemStack.isEmpty()) {
-					int amount = resolveFastPickupAmount(itemStack, clicked.getElement().getCheatGiveAmount(), scrollStep);
-					if (!input.isSimulate()) {
-						commandUtil.fastPickupStack(itemStack.copyWithCount(amount));
-					}
-					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-					consumer.accept(handler);
-				}
-			})
-			.findFirst();
-	}
-
-	static int resolveFastPickupAmount(ItemStack itemStack, Optional<Long> cheatGiveAmount, ScrollStep scrollStep) {
-		if (cheatGiveAmount.isPresent()) {
-			long amount = Math.max(1, cheatGiveAmount.get());
-			return (int) Math.min(Integer.MAX_VALUE, amount);
+		long amount = bookmarkAmount.orElse(configuredAmount == 0 ? stack.getMaxStackSize() : configuredAmount);
+		if (amount < 1) {
+			amount = 1;
 		}
-		long amount = scrollStep.getValue() == 0 ? itemStack.getMaxStackSize() : scrollStep.getValue();
-		return (int) Math.min(Integer.MAX_VALUE, amount);
+		return (int) Math.min(amount, Integer.MAX_VALUE);
 	}
 }

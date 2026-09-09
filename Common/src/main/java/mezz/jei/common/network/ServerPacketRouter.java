@@ -3,7 +3,6 @@ package mezz.jei.common.network;
 import mezz.jei.common.network.packets.IServerPacketHandler;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
-import mezz.jei.common.network.packets.PacketFastPickupItemStack;
 import mezz.jei.common.network.packets.PacketFillCraftingGrid;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
 import mezz.jei.common.network.packets.PacketPullBookmarkItems;
@@ -41,7 +40,6 @@ public class ServerPacketRouter {
 		handlers.put(PacketIdServer.PULL_BOOKMARK_ITEMS, PacketPullBookmarkItems::readPacketData);
 		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT, PacketCraftingGridCraft::readPacketData);
 		handlers.put(PacketIdServer.FILL_CRAFTING_GRID, PacketFillCraftingGrid::readPacketData);
-		handlers.put(PacketIdServer.FAST_PICKUP_ITEM, PacketFastPickupItemStack::readPacketData);
 		registerEncodeRecipeChainPatternsHandler(handlers);
 	}
 

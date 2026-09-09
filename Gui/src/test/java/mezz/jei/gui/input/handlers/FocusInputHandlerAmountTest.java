@@ -1,6 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
-import mezz.jei.gui.overlay.bookmarks.ScrollStep;
+import mezz.jei.common.config.GiveMode;
+import mezz.jei.gui.util.GiveAmount;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.Item;
@@ -21,48 +22,48 @@ public class FocusInputHandlerAmountTest {
 	}
 
 	@Test
-	public void ordinaryItemUsesScrollStepValue() {
-		ScrollStep scrollStep = new ScrollStep();
-		scrollStep.setValue(33);
-
-		assertEquals(33, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.empty(), scrollStep));
-	}
-
-	@Test
-	public void ordinaryItemUsesOneStackWhenScrollStepIsZero() {
-		ScrollStep scrollStep = new ScrollStep();
-
-		assertEquals(64, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.empty(), scrollStep));
-	}
-
-	@Test
-	public void nonStackableItemUsesOneStackWhenScrollStepIsZero() {
-		ScrollStep scrollStep = new ScrollStep();
-
-		assertEquals(1, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND_SWORD), Optional.empty(), scrollStep));
-	}
-
-	@Test
-	public void chainAmountTakesPriorityOverScrollStep() {
-		ScrollStep scrollStep = new ScrollStep();
-		scrollStep.setValue(33);
-
-		assertEquals(8, FocusInputHandler.resolveFastPickupAmount(stack(Items.DIAMOND), Optional.of(8L), scrollStep));
-	}
-
-	@Test
-	public void chainAmountClampsToIntMax() {
-		ScrollStep scrollStep = new ScrollStep();
-
-		assertEquals(Integer.MAX_VALUE, FocusInputHandler.resolveFastPickupAmount(
-			stack(Items.DIAMOND),
-			Optional.of(3_000_000_000L),
-			scrollStep
+	public void mousePickupKeepsGiveAmount() {
+		assertEquals(1, FocusInputHandler.resolveGiveAmount(
+			GiveMode.MOUSE_PICKUP, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33
+		));
+		assertEquals(64, FocusInputHandler.resolveGiveAmount(
+			GiveMode.MOUSE_PICKUP, GiveAmount.MAX, stack(Items.DIAMOND), Optional.of(8L), 33
 		));
 	}
 
-	private static ItemStack stack() {
-		return new ItemStack(Items.DIAMOND);
+	@Test
+	public void inventoryUsesScrollStepValue() {
+		assertEquals(33, FocusInputHandler.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 33
+		));
+	}
+
+	@Test
+	public void inventoryUsesOneStackWhenScrollStepIsZero() {
+		assertEquals(64, FocusInputHandler.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 0
+		));
+	}
+
+	@Test
+	public void inventoryNonStackableUsesOneStackWhenScrollStepIsZero() {
+		assertEquals(1, FocusInputHandler.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.MAX, stack(Items.DIAMOND_SWORD), Optional.empty(), 0
+		));
+	}
+
+	@Test
+	public void inventoryBookmarkAmountTakesPriority() {
+		assertEquals(8, FocusInputHandler.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33
+		));
+	}
+
+	@Test
+	public void inventoryBookmarkAmountClampsToIntMax() {
+		assertEquals(Integer.MAX_VALUE, FocusInputHandler.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(3_000_000_000L), 0
+		));
 	}
 
 	private static ItemStack stack(Item item) {

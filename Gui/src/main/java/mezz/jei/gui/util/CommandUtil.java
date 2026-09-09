@@ -1,7 +1,6 @@
 package mezz.jei.gui.util;
 
 import mezz.jei.common.network.IConnectionToServer;
-import mezz.jei.common.network.packets.PacketFastPickupItemStack;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
 import mezz.jei.common.util.ErrorUtil;
@@ -32,6 +31,10 @@ public final class CommandUtil {
 	 * {@link CreativeModeInventoryScreen} has special client-side handling for itemStacks, just give the item on the client
 	 */
 	public void giveStack(ItemStack itemStack, GiveAmount giveAmount) {
+		giveStack(itemStack, giveAmount.getAmountForStack(itemStack));
+	}
+
+	public void giveStack(ItemStack itemStack, int amount) {
 		final GiveMode giveMode = clientConfig.getGiveMode();
 		Minecraft minecraft = Minecraft.getInstance();
 		LocalPlayer player = minecraft.player;
@@ -39,7 +42,6 @@ public final class CommandUtil {
 			LOGGER.error("Can't give stack, there is no player");
 			return;
 		}
-		final int amount = giveAmount.getAmountForStack(itemStack);
 		if (minecraft.screen instanceof CreativeModeInventoryScreen && giveMode == GiveMode.MOUSE_PICKUP) {
 			ItemStack sendStack = copyWithSize(itemStack, amount);
 			ServerCommandUtil.mousePickupItemStack(player, sendStack);
@@ -47,7 +49,7 @@ public final class CommandUtil {
 			ItemStack sendStack = copyWithSize(itemStack, amount);
 			PacketGiveItemStack packet = new PacketGiveItemStack(sendStack, giveMode);
 			serverConnection.sendPacketToServer(packet);
-		} else {
+		} else if (giveMode == GiveMode.MOUSE_PICKUP) {
 			giveStackVanilla(itemStack, amount);
 		}
 	}
@@ -56,13 +58,6 @@ public final class CommandUtil {
 		if (serverConnection.isJeiOnServer()) {
 			ItemStack sendStack = copyWithSize(itemStack, itemStack.getMaxStackSize());
 			PacketSetHotbarItemStack packet = new PacketSetHotbarItemStack(sendStack, hotbarSlot);
-			serverConnection.sendPacketToServer(packet);
-		}
-	}
-
-	public void fastPickupStack(ItemStack itemStack) {
-		if (serverConnection.isJeiOnServer()) {
-			PacketFastPickupItemStack packet = new PacketFastPickupItemStack(itemStack);
 			serverConnection.sendPacketToServer(packet);
 		}
 	}

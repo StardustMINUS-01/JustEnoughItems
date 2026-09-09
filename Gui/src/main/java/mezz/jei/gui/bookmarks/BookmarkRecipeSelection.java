@@ -43,10 +43,10 @@ public final class BookmarkRecipeSelection {
 	}
 
 	public boolean select(IRecipeSlotView slot, ITypedIngredient<?> ingredient, boolean synchronize, BookmarkList bookmarks) {
-		return false;
+		return selections.select(layout, slot, ingredient, synchronize, false);
 	}
 
 	public boolean scroll(double x, double y, double delta, boolean synchronize, BookmarkList bookmarks) {
-		return false;
+		return selections.scroll(layout, x, y, delta, synchronize);
 	}
 }
