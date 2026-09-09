@@ -63,6 +63,17 @@ public class Textures {
 	private final IDrawableStatic brewingStandBubbles;
 	private final IDrawableStatic brewingStandArrow;
 
+	private final DrawableNineSliceTexture configButton;
+	private final DrawableNineSliceTexture configButtonHover;
+	private final DrawableNineSliceTexture configButtonPressed;
+	private final DrawableNineSliceTexture configButtonPrimary;
+	private final DrawableNineSliceTexture configInput;
+	private final DrawableNineSliceTexture configTabSelected;
+	private final IDrawableStatic configSwitchOn;
+	private final IDrawableStatic configSwitchOff;
+	private final IDrawableStatic configIconUp;
+	private final IDrawableStatic configIconDown;
+
 	public Textures(JeiSpriteUploader spriteUploader) {
 		this.spriteUploader = spriteUploader;
 
@@ -122,6 +133,17 @@ public class Textures {
 		this.flameEmptyIcon = createGuiSprite("icons/flame_empty", 14, 14);
 		this.bookmarksFirst = createGuiSprite("icons/bookmarks_first", 16, 16);
 		this.craftableFirst = createGuiSprite("icons/craftable_first", 16, 16);
+
+		this.configButton = createNineSliceGuiSprite("config/button", 24, 24, 6, 6, 6, 7);
+		this.configButtonHover = createNineSliceGuiSprite("config/button_hover", 24, 24, 6, 6, 6, 7);
+		this.configButtonPressed = createNineSliceGuiSprite("config/button_pressed", 24, 24, 6, 6, 6, 7);
+		this.configButtonPrimary = createNineSliceGuiSprite("config/button_primary", 24, 24, 6, 6, 6, 7);
+		this.configInput = createNineSliceGuiSprite("config/input", 24, 24, 4, 4, 4, 4);
+		this.configTabSelected = createNineSliceGuiSprite("config/tab_selected", 24, 24, 6, 6, 6, 7);
+		this.configSwitchOn = createGuiSprite("config/switch_on", 32, 18);
+		this.configSwitchOff = createGuiSprite("config/switch_off", 32, 18);
+		this.configIconUp = createGuiSprite("config/icon_up", 16, 16);
+		this.configIconDown = createGuiSprite("config/icon_down", 16, 16);
 	}
 
 	private ResourceLocation createSprite(String name) {
@@ -328,5 +350,24 @@ public class Textures {
 
 	public JeiSpriteUploader getSpriteUploader() {
 		return spriteUploader;
+	}
+
+	public DrawableNineSliceTexture getConfigScreenNineSlice(String name) {
+		return switch (name) {
+			case "button_hover" -> configButtonHover;
+			case "button_pressed" -> configButtonPressed;
+			case "button_primary" -> configButtonPrimary;
+			case "input" -> configInput;
+			case "tab_selected" -> configTabSelected;
+			default -> configButton;
+		};
+	}
+
+	public IDrawableStatic getConfigScreenSprite(String name) {
+		return "switch_on".equals(name) ? configSwitchOn : configSwitchOff;
+	}
+
+	public IDrawableStatic getConfigScreenIcon(String name) {
+		return "icon_up".equals(name) ? configIconUp : configIconDown;
 	}
 }
