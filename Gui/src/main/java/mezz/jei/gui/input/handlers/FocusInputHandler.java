@@ -223,7 +223,11 @@ public class FocusInputHandler implements IUserInputHandler {
 			.findFirst()
 			.flatMap(clicked -> {
 				if (!input.isSimulate()) {
-					executeIngredientKeyboardShortcut(clicked.getTypedIngredient(), action.get());
+					if (action.get() == BookmarkHotkeyAction.COPY_OREDICT) {
+						IngredientTagSelectionScreen.open(clicked.getTypedIngredient(), ingredientManager);
+					} else {
+						executeIngredientKeyboardShortcut(clicked.getTypedIngredient(), action.get());
+					}
 				}
 				IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
 				return Optional.of(handler);
@@ -250,7 +254,6 @@ public class FocusInputHandler implements IUserInputHandler {
 		Minecraft minecraft = Minecraft.getInstance();
 		String text = switch (action) {
 			case COPY_NAME -> IngredientClipboardText.getIngredientName(typedIngredient, ingredientManager);
-			case COPY_OREDICT -> IngredientClipboardText.getIngredientTags(typedIngredient, ingredientManager);
 			case COPY_ID -> IngredientClipboardText.getIngredientId(typedIngredient, ingredientManager);
 			default -> "";
 		};
