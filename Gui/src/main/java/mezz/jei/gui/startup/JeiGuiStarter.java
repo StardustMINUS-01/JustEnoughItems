@@ -31,8 +31,6 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
 import mezz.jei.gui.collapsible.CollapsibleManager;
-import mezz.jei.gui.collapsible.CollapsibleRules;
-import mezz.jei.gui.collapsible.CollapsibleSettings;
 import mezz.jei.gui.collapsible.CollapsibleState;
 import mezz.jei.gui.config.CollapsibleConfig;
 import mezz.jei.gui.config.ConfigRulesReloadController;
@@ -154,11 +152,10 @@ public class JeiGuiStarter {
 			configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath());
 			CollapsibleState collapsibleState = new CollapsibleState();
 			collapsibleState.load(collapsibleStateStore.load());
-			CollapsibleRules collapsibleRules = collapsibleConfig.loadRules();
-			CollapsibleSettings collapsibleSettings = collapsibleConfig.loadSettings();
+			var loadedConfig = collapsibleConfig.load();
 			collapsibleManager = new CollapsibleManager(
-				collapsibleRules,
-				collapsibleSettings,
+				loadedConfig.rules(),
+				loadedConfig.settings(),
 				collapsibleState
 			);
 			collapsibleState.addListener(() -> collapsibleStateStore.save(collapsibleState.toMap()));
@@ -300,10 +297,10 @@ public class JeiGuiStarter {
 
 		if (collapsibleManager != null) {
 			CollapsibleManager activeCollapsibleManager = collapsibleManager;
-			ConfigRulesReloadController<CollapsibleRules> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
-				collapsibleConfig::loadRules,
+			ConfigRulesReloadController<CollapsibleConfig.LoadedConfig> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
+				collapsibleConfig::load,
 				minecraft::execute,
-				rules -> activeCollapsibleManager.reload(rules, collapsibleConfig.loadSettings())
+				config -> activeCollapsibleManager.reload(config.rules(), config.settings())
 			);
 			Internal.getFileWatcher().addCallback(
 				collapsibleConfig.getPath(),

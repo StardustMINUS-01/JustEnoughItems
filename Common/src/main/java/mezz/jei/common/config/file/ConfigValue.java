@@ -90,7 +90,7 @@ public class ConfigValue<T> implements IJeiConfigValue<T>, Supplier<T> {
 		IJeiConfigValueSerializer.IDeserializeResult<T> deserializeResult = serializer.deserialize(value);
 		deserializeResult.getResult()
 			.ifPresent(t -> {
-				if (currentValue != t){
+				if (!currentValue.equals(t)) {
 					currentValue = t;
 					if (listeners != null) {
 						listeners.forEach(listener -> listener.accept(currentValue));
