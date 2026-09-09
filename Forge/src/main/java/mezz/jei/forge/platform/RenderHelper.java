@@ -11,6 +11,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -75,15 +76,18 @@ public class RenderHelper implements IPlatformRenderHelper {
 
 	@Override
 	public void renderTooltip(GuiGraphics guiGraphics, List<Either<FormattedText, TooltipComponent>> elements, int x, int y, Font font, ItemStack stack) {
-		// temporary hack while we wait for https://github.com/MinecraftForge/MinecraftForge/pull/10055
+		renderTooltip(guiGraphics, elements, x, y, font, stack, DefaultTooltipPositioner.INSTANCE);
+	}
 
+	@Override
+	public void renderTooltip(GuiGraphics guiGraphics, List<Either<FormattedText, TooltipComponent>> elements, int x, int y, Font font, ItemStack stack, ClientTooltipPositioner positioner) {
 		Screen screen = Minecraft.getInstance().screen;
 		if (screen == null) {
 			return;
 		}
 		guiGraphics.tooltipStack = stack;
 		List<ClientTooltipComponent> components = gatherTooltipComponents(stack, elements, x, screen.width, screen.height, font);
-		guiGraphics.renderTooltipInternal(font, components, x, y, DefaultTooltipPositioner.INSTANCE);
+		guiGraphics.renderTooltipInternal(font, components, x, y, positioner);
 		guiGraphics.tooltipStack = ItemStack.EMPTY;
 	}
 

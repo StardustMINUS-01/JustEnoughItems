@@ -166,6 +166,50 @@ public final class InputSlotSelectionState {
 		return filtered.stream().findFirst();
 	}
 
+	public boolean select(
+		IRecipeLayoutDrawable<?> recipeLayout,
+		IRecipeSlotView sourceSlot,
+		ITypedIngredient<?> selected,
+		boolean synchronizeFamily
+	) {
+		return select(recipeLayout, sourceSlot, selected, synchronizeFamily, false);
+	}
+
+	public boolean select(
+		IRecipeLayoutDrawable<?> recipeLayout,
+		IRecipeSlotView sourceSlot,
+		ITypedIngredient<?> selected,
+		boolean synchronizeFamily,
+		boolean toggle
+	) {
+		if (sourceSlot.getRole() != RecipeIngredientRole.INPUT) {
+			return false;
+		}
+		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView().getSlotViews(RecipeIngredientRole.INPUT);
+		int inputSlotIndex = findInputSlotIndex(inputSlots, sourceSlot);
+		BookmarkIngredientKey selectedKey = key(selected);
+		if (inputSlotIndex < 0 || findByKey(inputSlots.get(inputSlotIndex), inputSlotIndex, selectedKey).isEmpty()) {
+			return false;
+		}
+		boolean clear = toggle && selectedKey.equals(selectedKeys.get(inputSlotIndex));
+		Set<BookmarkIngredientKey> family = synchronizeFamily ? permutationKeys(inputSlots.get(inputSlotIndex), inputSlotIndex) : java.util.Set.of();
+		for (int index = 0; index < inputSlots.size(); index++) {
+			if (index != inputSlotIndex && (!synchronizeFamily || !family.equals(permutationKeys(inputSlots.get(index), index)))) {
+				continue;
+			}
+			if (clear) {
+				selectedKeys.remove(index);
+				if (inputSlots.get(index) instanceof mezz.jei.api.gui.ingredient.IRecipeSlotDrawable drawable) {
+					drawable.clearDisplayOverrides();
+				}
+			} else {
+				selectedKeys.put(index, selectedKey);
+			}
+		}
+		apply(recipeLayout);
+		return true;
+	}
+
 	public boolean scroll(
 		IRecipeLayoutDrawable<?> recipeLayout,
 		double mouseX,

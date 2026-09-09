@@ -317,14 +317,6 @@ public class JeiGuiStarter {
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
 		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));
 
-		GuiEventHandler guiEventHandler = new GuiEventHandler(
-			screenHelper,
-			bookmarkOverlay,
-			ingredientListOverlay,
-			bookmarkAutoCraftingRunner,
-			clientCraftingGridClickRunner
-		);
-
 		RecipesGui recipesGui = new RecipesGui(
 			recipeManager,
 			recipeTransferManager,
@@ -343,6 +335,15 @@ public class JeiGuiStarter {
 		);
 		registration.setRecipesGui(recipesGui);
 
+		GuiEventHandler guiEventHandler = new GuiEventHandler(
+			screenHelper,
+			bookmarkOverlay,
+			ingredientListOverlay,
+			bookmarkAutoCraftingRunner,
+			clientCraftingGridClickRunner,
+			recipesGui.getForegroundInputLayer()
+		);
+
 		CombinedRecipeFocusSource recipeFocusSource = new CombinedRecipeFocusSource(
 			recipesGui,
 			ingredientListOverlay,
@@ -359,6 +360,7 @@ public class JeiGuiStarter {
 
 		UserInputRouter userInputRouter = new UserInputRouter(
 			"JEIGlobal",
+			recipesGui.getForegroundInputLayer(),
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
 			ingredientListOverlay.createInputHandler(),
 			bookmarkOverlay.createInputHandler(),

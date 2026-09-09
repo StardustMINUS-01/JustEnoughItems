@@ -13,6 +13,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayRenderer;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayState;
 import mezz.jei.gui.bookmarks.hotkeys.ClientCraftingGridClickRunner;
+import mezz.jei.gui.input.IGuiInputLayer;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import net.minecraft.client.Minecraft;
@@ -23,6 +24,7 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,19 +34,22 @@ public class GuiEventHandler {
 	private final BookmarkOverlay bookmarkOverlay;
 	private final BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner;
 	private final ClientCraftingGridClickRunner clientCraftingGridClickRunner;
+	private final List<IGuiInputLayer> inputLayers;
 
 	public GuiEventHandler(
 		IScreenHelper screenHelper,
 		BookmarkOverlay bookmarkOverlay,
 		IngredientListOverlay ingredientListOverlay,
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner,
-		ClientCraftingGridClickRunner clientCraftingGridClickRunner
+		ClientCraftingGridClickRunner clientCraftingGridClickRunner,
+		IGuiInputLayer... inputLayers
 	) {
 		this.screenHelper = screenHelper;
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.ingredientListOverlay = ingredientListOverlay;
 		this.bookmarkAutoCraftingRunner = bookmarkAutoCraftingRunner;
 		this.clientCraftingGridClickRunner = clientCraftingGridClickRunner;
+		this.inputLayers = List.of(inputLayers);
 	}
 
 	public void onGuiInit(Screen screen) {
@@ -135,8 +140,16 @@ public class GuiEventHandler {
 				});
 		}
 
-		ingredientListOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
-		bookmarkOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+		boolean mouseOverInputLayer = this.inputLayers.stream()
+			.anyMatch(inputLayer -> inputLayer.isMouseOver(mouseX, mouseY));
+		if (!mouseOverInputLayer) {
+			ingredientListOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+			bookmarkOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+		}
+		for (int i = this.inputLayers.size() - 1; i >= 0; i--) {
+			this.inputLayers.get(i).update(mouseX, mouseY);
+			this.inputLayers.get(i).draw(guiGraphics, mouseX, mouseY);
+		}
 
 		if (DebugConfig.isDebugGuisEnabled()) {
 			drawDebugInfoForScreen(screen, guiGraphics);

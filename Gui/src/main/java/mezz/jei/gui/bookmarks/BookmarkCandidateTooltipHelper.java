@@ -25,6 +25,10 @@ public final class BookmarkCandidateTooltipHelper {
 			grid.setSelectedIngredient(candidateSource.getSelectedIngredient());
 			grid.setMousePosition(-10000, -10000);
 			tooltip.add(grid);
+			if (Internal.getKeyMappings().getPauseRecipeCycling().isDown() &&
+				Internal.getJeiRuntime().getRecipesGui() instanceof mezz.jei.gui.recipes.RecipesGui gui) {
+				gui.showCandidateTooltip(candidateSource, grid, (int) mezz.jei.gui.input.MouseUtil.getX(), (int) mezz.jei.gui.input.MouseUtil.getY());
+			}
 		});
 	}
 

@@ -34,11 +34,17 @@ import java.util.stream.Stream;
 public class RecipeGuiLayouts {
 	private static final Logger LOGGER = LogManager.getLogger();
 
+	private final RecipeSlotClickTargetFactory clickTargetFactory;
 	private final List<IRecipeLayoutWithButtons<?>> recipeLayoutsWithButtons = new ArrayList<>();
 	@Nullable
 	private IUserInputHandler cachedInputHandler;
 
 	public RecipeGuiLayouts() {
+		this(new RecipeSlotClickTargetFactory());
+	}
+
+	public RecipeGuiLayouts(RecipeSlotClickTargetFactory clickTargetFactory) {
+		this.clickTargetFactory = clickTargetFactory;
 		this.cachedInputHandler = NullInputHandler.INSTANCE;
 	}
 
@@ -108,10 +114,7 @@ public class RecipeGuiLayouts {
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
 		return this.recipeLayoutsWithButtons.stream()
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
-			.map(recipeLayout -> recipeLayout.getSlotUnderMouse(mouseX, mouseY))
-			.flatMap(Optional::stream)
-			.map(RecipeGuiLayouts::getClickedIngredient)
-			.flatMap(Optional::stream);
+			.flatMap(recipeLayout -> clickTargetFactory.create(recipeLayout, mouseX, mouseY).stream());
 	}
 
 	public Optional<IRecipeLayoutWithButtons<?>> getRecipeLayoutUnderMouse(double mouseX, double mouseY) {

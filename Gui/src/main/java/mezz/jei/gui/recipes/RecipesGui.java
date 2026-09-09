@@ -68,28 +68,6 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSource {
-	public boolean showCandidateTooltip(mezz.jei.gui.recipes.IIngredientCandidateSource source, mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent grid, int x, int y) {
-		return false;
-	}
-
-	public mezz.jei.gui.input.IGuiInputLayer getForegroundInputLayer() {
-		return new mezz.jei.gui.input.IGuiInputLayer() {
-			@Override
-			public void draw(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-			}
-
-			@Override
-			public java.util.Optional<mezz.jei.gui.input.IUserInputHandler> handleUserInput(Screen screen, mezz.jei.gui.input.UserInput input, mezz.jei.common.input.IInternalKeyMappings keyBindings) {
-				return java.util.Optional.empty();
-			}
-
-			@Override
-			public boolean isMouseOver(double mouseX, double mouseY) {
-				return false;
-			}
-		};
-	}
-
 	private static final int borderPadding = 6;
 	private static final int minRecipePadding = 4;
 	private static final int navBarPadding = 2;
@@ -126,6 +104,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private final RecipeGuiTabs recipeGuiTabs;
 	private final RecipeOptionButtons optionButtons;
 	private final UserInputRouter inputHandler;
+	private final InteractiveIngredientTooltipController interactiveIngredientTooltipController;
 
 	private final GuiIconButton nextRecipeCategory;
 	private final GuiIconButton previousRecipeCategory;
@@ -192,7 +171,15 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.optionButtons = new RecipeOptionButtons(this.logic::goToFirstPage);
 		this.focusFactory = focusFactory;
 		this.minecraft = Minecraft.getInstance();
-		this.layouts = new RecipeGuiLayouts();
+		RecipeSlotClickTargetFactory clickTargetFactory = new RecipeSlotClickTargetFactory();
+		this.layouts = new RecipeGuiLayouts(clickTargetFactory);
+		this.interactiveIngredientTooltipController = new InteractiveIngredientTooltipController(
+			this,
+			new mezz.jei.gui.util.FocusUtil(focusFactory, Internal.getJeiClientConfigs().getClientConfig(), ingredientManager),
+			recipeManager,
+			ingredientManager,
+			clickTargetFactory
+		);
 		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
 		clientConfig.addCenterSearchBarEnabledListener(v -> reopenIfOpen());
 		clientConfig.addQuantityFieldEnabledListener(v -> reopenIfOpen());
@@ -211,6 +198,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 		inputHandler = new UserInputRouter(
 			"RecipesGui",
+			interactiveIngredientTooltipController,
 			layouts.createInputHandler(),
 			new UserInputHandler(this),
 			optionButtons.createInputHandler(),
@@ -328,19 +316,23 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 		recipeGuiTabs.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 
-		this.layouts.drawTooltips(guiGraphics, mouseX, mouseY);
+		if (!interactiveIngredientTooltipController.isVisible()) {
+			this.layouts.drawTooltips(guiGraphics, mouseX, mouseY);
+		}
 
 		optionButtons.drawTooltips(guiGraphics, mouseX, mouseY);
 		RenderSystem.disableBlend();
 
-		hoveredRecipeLayout.ifPresent(l -> l.drawOverlays(guiGraphics, mouseX, mouseY));
+		if (!interactiveIngredientTooltipController.isVisible()) {
+			hoveredRecipeLayout.ifPresent(l -> l.drawOverlays(guiGraphics, mouseX, mouseY));
+		}
 
 		hoveredRecipeCatalyst.ifPresent(h -> {
 			h.drawTooltip(guiGraphics, mouseX, mouseY);
 		});
 		RenderSystem.enableDepthTest();
 
-		if (recipeCategoryTitle.isMouseOver(mouseX, mouseY)) {
+		if (!interactiveIngredientTooltipController.isVisible() && recipeCategoryTitle.isMouseOver(mouseX, mouseY)) {
 			JeiTooltip tooltip = new JeiTooltip();
 			recipeCategoryTitle.getTooltip(tooltip);
 			if (!logic.hasAllCategories()) {
@@ -423,6 +415,9 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 	@Override
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
+		if (interactiveIngredientTooltipController.isVisible()) {
+			return interactiveIngredientTooltipController.getIngredientUnderMouse(mouseX, mouseY);
+		}
 		if (isOpen()) {
 			return Stream.concat(
 				recipeCatalysts.getIngredientUnderMouse(mouseX, mouseY),
@@ -439,6 +434,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 	@Override
 	public void mouseMoved(double mouseX, double mouseY) {
+		updateInteractiveIngredientTooltip(mouseX, mouseY);
 		layouts.mouseMoved(mouseX, mouseY);
 	}
 
@@ -592,6 +588,37 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		logic.back();
 	}
 
+	public boolean showCandidateTooltip(IIngredientCandidateSource source, InteractiveIngredientGridTooltipComponent grid, int x, int y) {
+		return interactiveIngredientTooltipController.show(source, grid, x, y);
+	}
+
+	public mezz.jei.gui.input.IGuiInputLayer getForegroundInputLayer() {
+		return this.interactiveIngredientTooltipController;
+	}
+
+	private void updateInteractiveIngredientTooltip(double mouseX, double mouseY) {
+		interactiveIngredientTooltipController.update(mouseX, mouseY);
+		if (!interactiveIngredientTooltipController.isVisible()) {
+			openInteractiveIngredientTooltip(mouseX, mouseY);
+		}
+	}
+
+	private boolean openInteractiveIngredientTooltip(double mouseX, double mouseY) {
+		if (!Internal.getKeyMappings().getPauseRecipeCycling().isDown()) {
+			return false;
+		}
+		return getRecipeLayoutUnderMouse(mouseX, mouseY)
+			.map(IRecipeLayoutWithButtons::getRecipeLayout)
+			.flatMap(layout -> layout.getSlotUnderMouse(mouseX, mouseY)
+				.map(slotUnderMouse -> interactiveIngredientTooltipController.show(
+					slotUnderMouse,
+					RecipeSlotClickTargetFactory.createMouseOverable(layout, slotUnderMouse),
+					mouseX,
+					mouseY
+				)))
+			.orElse(false);
+	}
+
 	private void updateLayout() {
 		if (!init) {
 			return;
@@ -615,6 +642,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.area = calculateAreaToFitLayouts(this.idealArea, this.width, this.layouts.getWidth());
 		recipeLayoutsArea = getRecipeLayoutsArea();
 
+		this.interactiveIngredientTooltipController.hide();
 		this.layouts.updateLayout(recipeLayoutsArea, recipesPerPage);
 
 		nextPage.active = previousPage.active = logic.hasMultiplePages();

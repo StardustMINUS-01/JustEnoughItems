@@ -3,6 +3,8 @@ package mezz.jei.gui.recipes;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.Internal;
@@ -282,6 +284,11 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 	@Override
 	public IRecipeLayoutDrawable<R> getRecipeLayout() {
 		return recipeLayout;
+	}
+
+	boolean selectInputCandidate(IRecipeSlotView slot, ITypedIngredient<?> ingredient, boolean synchronizeFamily) {
+		return inputSlotSelectionState != null &&
+			inputSlotSelectionState.select(recipeLayout, slot, ingredient, synchronizeFamily);
 	}
 
 	@Override

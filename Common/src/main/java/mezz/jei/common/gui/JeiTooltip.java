@@ -20,6 +20,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.MutableComponent;
@@ -148,8 +149,12 @@ public class JeiTooltip implements ITooltipBuilder {
 	}
 
 	public void draw(GuiGraphics guiGraphics, int x, int y) {
+		draw(guiGraphics, x, y, (ClientTooltipPositioner) null);
+	}
+
+	public void draw(GuiGraphics guiGraphics, int x, int y, @org.jetbrains.annotations.Nullable ClientTooltipPositioner positioner) {
 		if (typedIngredient != null) {
-			draw(guiGraphics, x, y, typedIngredient);
+			draw(guiGraphics, x, y, typedIngredient, positioner);
 			return;
 		}
 		if (isEmpty()) {
@@ -159,17 +164,25 @@ public class JeiTooltip implements ITooltipBuilder {
 		Font font = minecraft.font;
 		IPlatformRenderHelper renderHelper = Services.PLATFORM.getRenderHelper();
 		try {
-			renderHelper.renderTooltip(guiGraphics, lines, x, y, font, ItemStack.EMPTY);
+			if (positioner == null) {
+				renderHelper.renderTooltip(guiGraphics, lines, x, y, font, ItemStack.EMPTY);
+			} else {
+				renderHelper.renderTooltip(guiGraphics, lines, x, y, font, ItemStack.EMPTY, positioner);
+			}
 		} catch (RuntimeException e) {
 			throw new RuntimeException("Crashed when rendering tooltip:\n" + this, e);
 		}
 	}
 
 	private <T> void draw(GuiGraphics guiGraphics, int x, int y, ITypedIngredient<T> typedIngredient) {
+		draw(guiGraphics, x, y, typedIngredient, null);
+	}
+
+	private <T> void draw(GuiGraphics guiGraphics, int x, int y, ITypedIngredient<T> typedIngredient, @org.jetbrains.annotations.Nullable ClientTooltipPositioner positioner) {
 		IIngredientType<T> ingredientType = typedIngredient.getType();
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		IIngredientRenderer<T> ingredientRenderer = ingredientManager.getIngredientRenderer(ingredientType);
-		draw(guiGraphics, x, y, typedIngredient, ingredientRenderer, ingredientManager);
+		draw(guiGraphics, x, y, typedIngredient, ingredientRenderer, ingredientManager, positioner);
 	}
 
 	public <T> void draw(
@@ -179,6 +192,18 @@ public class JeiTooltip implements ITooltipBuilder {
 		ITypedIngredient<T> typedIngredient,
 		IIngredientRenderer<T> ingredientRenderer,
 		IIngredientManager ingredientManager
+	) {
+		draw(guiGraphics, x, y, typedIngredient, ingredientRenderer, ingredientManager, null);
+	}
+
+	public <T> void draw(
+		GuiGraphics guiGraphics,
+		int x,
+		int y,
+		ITypedIngredient<T> typedIngredient,
+		IIngredientRenderer<T> ingredientRenderer,
+		IIngredientManager ingredientManager,
+		@org.jetbrains.annotations.Nullable ClientTooltipPositioner positioner
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
 		T ingredient = typedIngredient.getIngredient();
