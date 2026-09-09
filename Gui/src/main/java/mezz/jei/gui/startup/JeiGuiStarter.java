@@ -63,6 +63,7 @@ import mezz.jei.gui.ingredients.IngredientFilterApi;
 import mezz.jei.gui.ingredients.IngredientListElementFactory;
 import mezz.jei.gui.ingredients.IngredientSorter;
 import mezz.jei.gui.input.ClientInputHandler;
+import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.GuiContainerWrapper;
 import mezz.jei.gui.input.ICharTypedHandler;
@@ -397,6 +398,7 @@ public class JeiGuiStarter {
 		return new JeiEventHandlers(
 			guiEventHandler,
 			clientInputHandler,
+			new WorldInputHandler(bookmarkOverlay, recipesGui, focusUtil, ingredientManager),
 			resourceReloadHandler
 		);
 	}
