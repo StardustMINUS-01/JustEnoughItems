@@ -478,6 +478,7 @@
   "jei.config.debug.debug.debugIngredientsEnabled.description": "Log added and updated ingredients in JEI's ingredient filter.",
   "gui.jei.search": "Ingredient Filter",
   "jei.message.missing.recipes.from.server": "JEI is missing recipes. Please install JEI on the server to sync recipes to the client.",
+  "jei.message.server.feature_unavailable": "The server does not support this operation. Install or update JEIU on the server.",
   "jei.message.server.recipe.sync.error": "This server sent recipes to JEI, but none were usable. JEI cannot show this server's recipes. Check the server's JEI setup, datapacks, and recipe mods.",
   "jei.message.server.recipe.sync.vanilla": "This is a vanilla server. JEI is showing default recipes from your client, which may be different if the server uses datapacks. Install Forge, NeoForge, or Fabric on the server, along with JEI, to show the server's recipes correctly.",
   "jei.message.server.recipe.sync.unavailable": "This %s server does not provide recipes to JEI. JEI is showing default recipes from your client, which may be different on the server.",

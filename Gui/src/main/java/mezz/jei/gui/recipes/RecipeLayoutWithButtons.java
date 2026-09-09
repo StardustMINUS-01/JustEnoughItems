@@ -14,7 +14,6 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
-import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
@@ -69,7 +68,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 			buttons,
 			forkExtras.favoriteButton(),
 			forkExtras.inputSlotSelectionState(),
-			forkExtras.clientFallbackStarter(),
 			forkExtras.showBookmarkPanel()
 		);
 	}
@@ -81,7 +79,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 	private final List<IconButton> buttons;
 	private final @Nullable RecipeFavoriteButton favoriteButton;
 	private final @Nullable InputSlotSelectionState inputSlotSelectionState;
-	private final @Nullable ClientFallbackStarter clientFallbackStarter;
 	private final Runnable showBookmarkPanel;
 	private ImmutableRect2i transferButtonArea = ImmutableRect2i.EMPTY;
 	private ImmutableRect2i bookmarkButtonArea = ImmutableRect2i.EMPTY;
@@ -94,7 +91,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		List<IconButton> buttons,
 		@Nullable RecipeFavoriteButton favoriteButton,
 		@Nullable InputSlotSelectionState inputSlotSelectionState,
-		@Nullable ClientFallbackStarter clientFallbackStarter,
 		Runnable showBookmarkPanel
 	) {
 		this.recipeLayout = recipeLayout;
@@ -104,7 +100,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		this.buttons = buttons;
 		this.favoriteButton = favoriteButton;
 		this.inputSlotSelectionState = inputSlotSelectionState;
-		this.clientFallbackStarter = clientFallbackStarter;
 		this.showBookmarkPanel = showBookmarkPanel;
 	}
 
@@ -223,7 +218,7 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 			));
 			inputHandlers.add(new RecipeGhostOverlayInputHandler(recipeLayout, recipeLayout::isMouseOver));
 			inputHandlers.add(new RecipeGhostOverlayInputHandler(recipeLayout, transferButtonIsMouseOver));
-			inputHandlers.add(new RecipeAutoCraftingInputHandler(recipeLayout, clientFallbackStarter));
+			inputHandlers.add(new RecipeAutoCraftingInputHandler(recipeLayout));
 		}
 		inputHandlers.add(new RecipeLayoutUserInputHandler<>(recipeLayout, inputSlotSelectionState));
 

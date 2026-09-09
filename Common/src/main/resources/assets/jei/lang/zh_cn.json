@@ -177,6 +177,7 @@
   "jei.chat.error.no.cheat.permission.creative": "处于创造模式的玩家",
   "jei.chat.error.no.cheat.permission.op": "拥有管理员身份的玩家（/op）",
   "jei.chat.error.no.cheat.permission.give": "可以使用“/give”命令的玩家",
+  "jei.message.server.feature_unavailable": "服务器不支持此操作，请在服务端安装或更新 JEIU。",
   "jei.message.server.recipe.sync.error": "该服务器向 JEI 发送了配方，但无一可用。JEI 无法显示此服务器的配方。请检查服务器的 JEI 设置、数据包以及配方类模组。",
   "jei.message.server.recipe.sync.vanilla": "这是一个原版服务器。JEI 正在显示来自客户端的默认配方，如果服务器使用了数据包，配方可能会有所不同。请在服务器上安装 Forge、NeoForge 或 Fabric，并安装 JEI，以正确显示服务器的配方。",
   "jei.message.server.recipe.sync.unavailable": "此 %s 服务器未向 JEI 提供配方。JEI 正在显示来自客户端的默认配方，可能与服务器上的配方不同。",

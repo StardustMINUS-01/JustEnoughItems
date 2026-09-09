@@ -33,7 +33,6 @@ import mezz.jei.common.util.StringUtil;
 import mezz.jei.gui.GuiProperties;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
-import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator.ClientFallbackStarter;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.favorites.FavoriteRecipeInputs;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
@@ -84,7 +83,6 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private final FavoriteRecipeStore favoriteRecipes;
 	private final FavoriteRecipeConfig favoriteRecipeConfig;
 	private final FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter;
-	private final ClientFallbackStarter clientFallbackStarter;
 	private final Runnable showBookmarkPanel;
 	private final Runnable showFavoritePanel;
 	private final Map<FocusedRecipe, Map<Integer, FavoriteRecipeStore.FavoriteSlotInput>> pendingFavoriteInputs = new HashMap<>();
@@ -141,7 +139,6 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		FavoriteRecipeStore favoriteRecipes,
 		FavoriteRecipeConfig favoriteRecipeConfig,
 		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter,
-		ClientFallbackStarter clientFallbackStarter,
 		Runnable showBookmarkPanel,
 		Runnable showFavoritePanel
 	) {
@@ -153,7 +150,6 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.favoriteRecipes = favoriteRecipes;
 		this.favoriteRecipeConfig = favoriteRecipeConfig;
 		this.favoriteTreeBookmarkWriter = favoriteTreeBookmarkWriter;
-		this.clientFallbackStarter = clientFallbackStarter;
 		this.showBookmarkPanel = showBookmarkPanel;
 		this.showFavoritePanel = showFavoritePanel;
 		this.logic = new RecipeGuiLogic(
@@ -697,7 +693,6 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		return new RecipeLayoutForkExtras(
 			favoriteButton,
 			inputSlotSelectionState,
-			clientFallbackStarter,
 			this::showBookmarkPanel
 		);
 	}
@@ -721,7 +716,6 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	record RecipeLayoutForkExtras(
 		RecipeFavoriteButton favoriteButton,
 		InputSlotSelectionState inputSlotSelectionState,
-		ClientFallbackStarter clientFallbackStarter,
 		Runnable showBookmarkPanel
 	) {}
 
