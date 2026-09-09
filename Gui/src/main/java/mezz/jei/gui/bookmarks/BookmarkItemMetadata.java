@@ -99,6 +99,10 @@ public record BookmarkItemMetadata(
 		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
 	}
 
+	public BookmarkItemMetadata withFactor(long factor) {
+		return new BookmarkItemMetadata(groupId, type, multiplier, factor, chance, recipeTypeUid, recipeUid, permutations, containerItem, containerItemCraftingUses, brokenContainerItem);
+	}
+
 	public boolean containsItems(BookmarkItemMetadata item) {
 		return permutations.stream().anyMatch(item.permutations()::contains);
 	}

@@ -50,10 +50,12 @@ public final class BookmarkCandidateSource implements IIngredientCandidateSource
 			return false;
 		}
 		var key = BookmarkItemMetadataFactory.createPermutationKey(ingredient, Internal.getJeiRuntime().getIngredientManager());
-		if (!bookmarks.cycleBookmarkPermutation(bookmark, 0)) {
+		Optional<IBookmark> replacement = bookmarks.selectBookmarkPermutation(bookmark, key, synchronize);
+		if (replacement.isEmpty()) {
 			return false;
 		}
+		bookmark = replacement.get();
 		version = bookmarks.getChangeVersion();
-		return key != null;
+		return true;
 	}
 }

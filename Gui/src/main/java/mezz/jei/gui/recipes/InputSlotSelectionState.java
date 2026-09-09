@@ -88,6 +88,11 @@ public final class InputSlotSelectionState {
 		return !selectedKeys.isEmpty();
 	}
 
+	public void setInputCandidates(Map<Integer, List<ITypedIngredient<?>>> candidates) {
+		filteredCandidates.clear();
+		filteredCandidates.putAll(candidates);
+	}
+
 	public void setSelectedKeys(Map<Integer, BookmarkIngredientKey> keys) {
 		selectedKeys.clear();
 		selectedKeys.putAll(keys);

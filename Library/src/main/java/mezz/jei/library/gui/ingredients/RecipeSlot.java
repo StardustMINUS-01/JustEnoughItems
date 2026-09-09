@@ -18,6 +18,7 @@ import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.CandidateTooltipWindow;
+import mezz.jei.common.gui.IRecipeSlotCandidateView;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.OffsetDrawable;
@@ -43,7 +44,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
+public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipeSlotCandidateView {
 	private static final int MAX_DISPLAYED_INGREDIENTS = 100;
 
 	private final RecipeIngredientRole role;
@@ -418,6 +419,21 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable {
 		this.displayOverrides = null;
 	}
 
+	@Override
+	public List<ITypedIngredient<?>> getCandidates() {
+		if (this.filteredCandidates != null) {
+			return this.filteredCandidates;
+		}
+		List<ITypedIngredient<?>> result = new ArrayList<>();
+		for (ITypedIngredient<?> ingredient : this.allIngredients) {
+			if (ingredient != null) {
+				result.add(ingredient);
+			}
+		}
+		return result;
+	}
+
+	@Override
 	public void setDisplayedCandidates(List<ITypedIngredient<?>> candidates) {
 		this.filteredCandidates = candidates;
 		this.tagContentTooltipWindowStart = 0;

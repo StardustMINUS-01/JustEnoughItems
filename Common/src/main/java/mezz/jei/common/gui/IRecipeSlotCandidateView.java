@@ -7,5 +7,7 @@ import java.util.List;
 
 @ApiStatus.Internal
 public interface IRecipeSlotCandidateView {
+	List<ITypedIngredient<?>> getCandidates();
+
 	void setDisplayedCandidates(List<ITypedIngredient<?>> candidates);
 }

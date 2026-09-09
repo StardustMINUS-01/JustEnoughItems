@@ -13,7 +13,8 @@ import org.jetbrains.annotations.Nullable;
 public record BookmarkIngredientKey(
 	String ingredientTypeUid,
 	String ingredientUid,
-	@Nullable String serializedIngredient
+	@Nullable String serializedIngredient,
+	@Nullable ITypedIngredient<?> typedIngredient
 ) implements Comparable<BookmarkIngredientKey> {
 	private static final Logger LOGGER = LogManager.getLogger();
 	public static final String LEGACY_TYPE_UID = "legacy";
@@ -24,6 +25,10 @@ public record BookmarkIngredientKey(
 		ingredientTypeUid = clean(ingredientTypeUid, UNKNOWN_TYPE_UID);
 		ingredientUid = clean(ingredientUid, "fallback:unknown");
 		serializedIngredient = serializedIngredient == null || serializedIngredient.isBlank() ? null : serializedIngredient;
+	}
+
+	public BookmarkIngredientKey(String ingredientTypeUid, String ingredientUid, @Nullable String serializedIngredient) {
+		this(ingredientTypeUid, ingredientUid, serializedIngredient, null);
 	}
 
 	public static BookmarkIngredientKey of(String ingredientTypeUid, String ingredientUid) {
@@ -52,8 +57,6 @@ public record BookmarkIngredientKey(
 	 * NBT may differ slightly (e.g. tool damage, tconstruct materials, GT tool
 	 * attributes) while still keeping each variant's snapshot for permutation.
 	 */
-	public @Nullable ITypedIngredient<?> typedIngredient() { return null; }
-
 	public boolean matches(BookmarkIngredientKey other) {
 		return ingredientTypeUid.equals(other.ingredientTypeUid) &&
 			ingredientUid.equals(other.ingredientUid);
@@ -168,6 +171,18 @@ public record BookmarkIngredientKey(
 	}
 
 	@Override
+	public boolean equals(Object obj) {
+		return obj instanceof BookmarkIngredientKey other &&
+			ingredientTypeUid.equals(other.ingredientTypeUid) &&
+			ingredientUid.equals(other.ingredientUid) &&
+			java.util.Objects.equals(serializedIngredient, other.serializedIngredient);
+	}
+
+	@Override
+	public int hashCode() {
+		return java.util.Objects.hash(ingredientTypeUid, ingredientUid, serializedIngredient);
+	}
+
 	public int compareTo(BookmarkIngredientKey other) {
 		int type = ingredientTypeUid.compareTo(other.ingredientTypeUid);
 		if (type != 0) {

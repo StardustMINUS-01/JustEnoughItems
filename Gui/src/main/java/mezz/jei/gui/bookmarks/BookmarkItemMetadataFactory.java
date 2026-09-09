@@ -87,7 +87,8 @@ public final class BookmarkItemMetadataFactory {
 			return new BookmarkIngredientKey(
 				typeUid,
 				getUniqueId(ingredient, ingredientManager),
-				serializeIngredientSnapshot(ingredient)
+				serializeIngredientSnapshot(ingredient),
+				ingredient
 			);
 		} catch (RuntimeException e) {
 			return BookmarkIngredientKey.fallback("fallback:" + getFallbackIngredientId(ingredient));

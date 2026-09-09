@@ -71,6 +71,7 @@ public class BookmarkList implements IIngredientGridSource {
 	private final FocusedRecipeLayoutResolver focusedRecipeLayoutResolver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup;
 	private final BookmarkPermutationTooltipState permutationTooltipState = new BookmarkPermutationTooltipState();
+	private java.lang.ref.WeakReference<BookmarkCandidateSource> candidateSource = new java.lang.ref.WeakReference<>(null);
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private long changeVersion;
 	private long cachedDisplaySlotsVersion = -1;
@@ -2095,6 +2096,149 @@ public class BookmarkList implements IIngredientGridSource {
 			saveBookmarks();
 		}
 		return changed;
+	}
+
+	public Optional<IBookmark> selectBookmarkPermutation(IBookmark bookmark, BookmarkIngredientKey selected, boolean synchronize) {
+		var replacement = applyBookmarkPermutation(bookmark, selected, synchronize);
+		replacement.ifPresent(value -> Optional.ofNullable(candidateSource.get()).ifPresent(source -> source.replaceBookmark(bookmark, value)));
+		return replacement;
+	}
+
+	public BookmarkCandidateSource getCandidateSource(IBookmark bookmark) {
+		var source = candidateSource.get();
+		if (source == null || !source.isFor(bookmark) || !source.isValid()) {
+			source = new BookmarkCandidateSource(this, bookmark);
+			candidateSource = new java.lang.ref.WeakReference<>(source);
+		}
+		return source;
+	}
+
+	private Optional<IBookmark> applyBookmarkPermutation(IBookmark bookmark, BookmarkIngredientKey selected, boolean synchronize) {
+		int index = identityIndexOf(bookmark);
+		if (index < 0 || ingredientManager == null) {
+			return Optional.empty();
+		}
+		bookmark = bookmarksList.get(index);
+		var metadata = bookmarkGroups.getItemMetadata(bookmark);
+		var candidate = metadata.permutations().stream().filter(selected::equals).findFirst().orElse(null);
+		ITypedIngredient<?> typed = candidate == null ? null : candidate.typedIngredient();
+		if (typed == null && candidate != null) {
+			typed = resolvePermutation(candidate).orElse(null);
+		}
+		if (candidate == null || typed == null) {
+			return Optional.empty();
+		}
+		if (!synchronize && getSelectedKey(bookmark, metadata).filter(selected::equals).isPresent()) {
+			return Optional.of(bookmark);
+		}
+		if (metadata.type().recipeRole() == RecipeIngredientRole.INPUT) {
+			List<BookmarkRecipeSelection.Choice> choices = new ArrayList<>();
+			for (int entryIndex = 0; entryIndex < bookmarksList.size(); entryIndex++) {
+				IBookmark entry = bookmarksList.get(entryIndex);
+				var info = bookmarkGroups.getItemMetadata(entry);
+				if (entry != bookmark && (!synchronize || metadata.recipeUid() == null ||
+					info.groupId() != metadata.groupId() ||
+					!java.util.Objects.equals(metadata.recipeUid(), info.recipeUid()) ||
+					!java.util.Objects.equals(metadata.recipeTypeUid(), info.recipeTypeUid()) ||
+					info.type() != metadata.type() || !info.permutations().equals(metadata.permutations()))) {
+					continue;
+				}
+				choices.add(new BookmarkRecipeSelection.Choice(entryIndex, getSelectedKey(entry, info).orElse(selected), selected, info.factor()));
+			}
+			if (choices.stream().allMatch(choice -> java.util.Objects.equals(choice.before(), choice.after()))) {
+				return Optional.of(bookmark);
+			}
+			if (!applyRecipeInputChoices(choices)) {
+				return Optional.empty();
+			}
+			return bookmarksList.stream().filter(entry -> {
+				var info = bookmarkGroups.getItemMetadata(entry);
+				return info.groupId() == metadata.groupId() && java.util.Objects.equals(info.recipeUid(), metadata.recipeUid()) &&
+					java.util.Objects.equals(info.recipeTypeUid(), metadata.recipeTypeUid()) && info.type() == metadata.type() &&
+					getSelectedKey(entry, info).filter(selected::equals).isPresent();
+			}).findFirst();
+		}
+		IBookmark replacement = createPermutationBookmark(bookmark, typed);
+		return replaceBookmark(bookmark, replacement, metadata) ? Optional.of(replacement) : Optional.empty();
+	}
+
+	public boolean applyRecipeInputChoices(List<BookmarkRecipeSelection.Choice> choices) {
+		if (ingredientManager == null || choices.stream().noneMatch(choice -> !java.util.Objects.equals(choice.before(), choice.after()))) {
+			return false;
+		}
+		Map<IBookmark, List<BookmarkRecipeSelection.Choice>> bySource = new LinkedHashMap<>();
+		for (var choice : choices) {
+			if (choice.sourceIndex() < 0 || choice.sourceIndex() >= bookmarksList.size() || choice.before() == null || choice.after() == null || choice.amount() < 0) {
+				return false;
+			}
+			IBookmark source = bookmarksList.get(choice.sourceIndex());
+			var metadata = bookmarkGroups.getItemMetadata(source);
+			if (metadata.type().recipeRole() != RecipeIngredientRole.INPUT ||
+				!getSelectedKey(source, metadata).filter(choice.before()::equals).isPresent() ||
+				(!choice.after().equals(choice.before()) && !metadata.permutations().contains(choice.after()))) {
+				return false;
+			}
+			bySource.computeIfAbsent(source, ignored -> new ArrayList<>()).add(choice);
+		}
+		Map<IBookmark, BookmarkItemMetadata> replacements = new LinkedHashMap<>();
+		for (var entry : bySource.entrySet()) {
+			var metadata = bookmarkGroups.getItemMetadata(entry.getKey());
+			long remaining = metadata.factor();
+			for (var choice : entry.getValue()) {
+				if (choice.amount() > remaining) {
+					return false;
+				}
+				remaining -= choice.amount();
+				var candidate = metadata.permutations().stream().filter(choice.after()::equals).findFirst().orElse(choice.after());
+				ITypedIngredient<?> typed = candidate.typedIngredient();
+				if (typed == null && choice.after().equals(choice.before())) {
+					typed = entry.getKey().getElement().getTypedIngredient();
+				}
+				if (typed == null) {
+					typed = resolvePermutation(candidate).orElse(null);
+				}
+				if (typed == null) {
+					return false;
+				}
+				IBookmark replacement = createPermutationBookmark(entry.getKey(), ingredientManager.normalizeTypedIngredient(typed));
+				if (!mergeInputChoice(replacements, replacement, metadata.withFactor(choice.amount()))) {
+					return false;
+				}
+			}
+			if (remaining > 0 && !mergeInputChoice(replacements, entry.getKey(), metadata.withFactor(remaining))) {
+				return false;
+			}
+		}
+		if (replacements.keySet().stream().anyMatch(bookmark -> bookmarksSet.contains(bookmark) && !bySource.containsKey(bookmark))) {
+			return false;
+		}
+		int insertAt = bySource.keySet().stream().mapToInt(bookmarksList::indexOf).filter(i -> i >= 0).min().orElse(-1);
+		if (insertAt < 0) {
+			return false;
+		}
+		for (IBookmark source : bySource.keySet()) {
+			removeBookmarkWithoutNotifying(source);
+		}
+		for (var entry : replacements.entrySet()) {
+			bookmarksSet.add(entry.getKey());
+			bookmarksList.add(insertAt++, entry.getKey());
+			bookmarkGroups.setItemMetadata(entry.getKey(), entry.getValue());
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	private static boolean mergeInputChoice(Map<IBookmark, BookmarkItemMetadata> entries, IBookmark bookmark, BookmarkItemMetadata metadata) {
+		var previous = entries.get(bookmark);
+		if (previous != null) {
+			if (!previous.withFactor(0).equals(metadata.withFactor(0))) {
+				return false;
+			}
+			metadata = metadata.withFactor(mezz.jei.common.util.SaturatedMath.add(previous.factor(), metadata.factor()));
+		}
+		entries.put(bookmark, metadata);
+		return true;
 	}
 
 	public boolean cycleBookmarkPermutation(IBookmark bookmark, long shift) {
