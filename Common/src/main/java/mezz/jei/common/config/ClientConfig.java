@@ -17,6 +17,7 @@ public final class ClientConfig implements IClientConfig {
 
 	// appearance
 	private final ConfigValue<Boolean> centerSearchBarEnabled;
+	private final ConfigValue<Boolean> quantityFieldEnabled;
 	private final ConfigValue<Integer> maxRecipeGuiHeight;
 	private final ConfigValue<Boolean> toastReflowEnabled;
 
@@ -73,6 +74,7 @@ public final class ClientConfig implements IClientConfig {
 
 		IConfigCategoryBuilder appearance = schema.addCategory("appearance");
 		centerSearchBarEnabled = appearance.addBoolean("centerSearch", defaultCenterSearchBar);
+		quantityFieldEnabled = appearance.addBoolean("quantityFieldEnabled", true);
 		maxRecipeGuiHeight = appearance.addInteger(
 			"recipeGuiHeight",
 			defaultRecipeGuiHeight,
@@ -176,6 +178,11 @@ public final class ClientConfig implements IClientConfig {
 	public static IClientConfig getInstance() {
 		Preconditions.checkNotNull(instance);
 		return instance;
+	}
+
+	@Override
+	public ConfigValue<Boolean> quantityFieldEnabled() {
+		return quantityFieldEnabled;
 	}
 
 	@Override

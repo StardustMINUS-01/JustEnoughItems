@@ -12,6 +12,10 @@ import mezz.jei.common.config.RecipeSorterStage;
 import java.util.List;
 
 public class TestClientConfig implements IClientConfig {
+	private final IJeiConfigValue<Boolean> quantityFieldEnabled = value("quantityFieldEnabled", true);
+
+	@Override
+	public IJeiConfigValue<Boolean> quantityFieldEnabled() { return quantityFieldEnabled; }
 	private final IJeiConfigValue<Boolean> centerSearchBarEnabled = value("centerSearchBarEnabled", false);
 	private final IJeiConfigValue<Integer> maxRecipeGuiHeight = value("maxRecipeGuiHeight", 500);
 	private final IJeiConfigValue<Boolean> toastReflowEnabled = value("toastReflowEnabled", true);

@@ -6,6 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ScrollStepTest {
 	@Test
+	public void hidingQuantityFieldUsesFixedStepWithoutLosingValue() {
+		var enabled = new java.util.concurrent.atomic.AtomicBoolean(true);
+		ScrollStep scrollStep = new ScrollStep(enabled::get);
+		scrollStep.setValue(128);
+		assertEquals(128, scrollStep.getEffectiveStep());
+		enabled.set(false);
+		assertEquals(64, scrollStep.getEffectiveStep());
+		assertEquals(128, scrollStep.getValue());
+		enabled.set(true);
+		assertEquals(128, scrollStep.getEffectiveStep());
+	}
+	@Test
 	public void defaultValueUsesOneStackStep() {
 		ScrollStep scrollStep = new ScrollStep();
 

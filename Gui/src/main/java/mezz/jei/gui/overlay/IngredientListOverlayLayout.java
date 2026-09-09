@@ -20,14 +20,20 @@ class IngredientListOverlayLayout {
 		boolean lookupHistoryDisplayedOnThisSide,
 		int lookupHistoryDisplayHeight
 	) {
+		return calculate(guiProperties, centerSearchBarEnabled, lookupHistoryEnabled, lookupHistoryDisplayedOnThisSide, lookupHistoryDisplayHeight, false);
+	}
+
+	static Layout calculate(IGuiProperties guiProperties, boolean centerSearchBarEnabled, boolean lookupHistoryEnabled,
+		boolean lookupHistoryDisplayedOnThisSide, int lookupHistoryDisplayHeight, boolean quantityFieldEnabled) {
 		ImmutableRect2i displayArea = createDisplayArea(guiProperties);
 		boolean searchBarCentered = isSearchBarCentered(centerSearchBarEnabled, guiProperties);
-		ImmutableRect2i availableContentsArea = getAvailableContentsArea(displayArea, searchBarCentered);
+		boolean bottomRightAvailable = searchBarCentered && !quantityFieldEnabled;
+		ImmutableRect2i availableContentsArea = getAvailableContentsArea(displayArea, bottomRightAvailable);
 		Optional<ImmutableRect2i> lookupHistoryArea = Optional.empty();
 
 		if (lookupHistoryEnabled && lookupHistoryDisplayedOnThisSide) {
 			if (lookupHistoryDisplayHeight > 0) {
-				ImmutableRect2i area = getLookupHistoryArea(displayArea, searchBarCentered, lookupHistoryDisplayHeight);
+				ImmutableRect2i area = getLookupHistoryArea(displayArea, bottomRightAvailable, lookupHistoryDisplayHeight);
 				availableContentsArea = cropBottomTo(
 					availableContentsArea,
 					area.y() - LOOKUP_HISTORY_PADDING_EXTRA
@@ -83,6 +89,14 @@ class IngredientListOverlayLayout {
 		Optional<ImmutableRect2i> lookupHistoryArea,
 		boolean searchBarCentered
 	) {
+		ImmutableRect2i getQuantityArea(boolean contentsHasRoom, ImmutableRect2i contentsArea) {
+			if (!searchBarCentered && !isSearchBarCentered(true, guiProperties)) {
+				return ImmutableRect2i.EMPTY;
+			}
+			Layout opposite = new Layout(guiProperties, displayArea, availableContentsArea, lookupHistoryArea, !searchBarCentered);
+			return opposite.getSearchAndConfigArea(contentsHasRoom, contentsArea);
+		}
+
 		SearchAndConfigAreas getSearchAndConfigAreas(boolean contentsHasRoom, ImmutableRect2i contentsArea) {
 			ImmutableRect2i searchAndConfigArea = getSearchAndConfigArea(contentsHasRoom, contentsArea);
 			ImmutableRect2i searchArea = searchAndConfigArea.cropRight(BUTTON_SIZE);

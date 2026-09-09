@@ -11,6 +11,8 @@ public interface IClientConfig {
 
 	IJeiConfigValue<Boolean> centerSearchBarEnabled();
 
+	IJeiConfigValue<Boolean> quantityFieldEnabled();
+
 	IJeiConfigValue<Integer> maxRecipeGuiHeight();
 
 	IJeiConfigValue<Boolean> toastReflowEnabled();

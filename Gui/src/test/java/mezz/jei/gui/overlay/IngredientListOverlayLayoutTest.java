@@ -14,6 +14,22 @@ public class IngredientListOverlayLayoutTest {
 	private static final int BORDER_MARGIN = 6;
 
 	@Test
+	public void quantityFieldUsesOppositeSearchPositionAndReservesRightRow() {
+		TestGuiProperties properties = new TestGuiProperties(50, 20, 100, 50, 240, 120);
+		ImmutableRect2i contents = new ImmutableRect2i(156, 6, 78, 80);
+		var rightSearch = IngredientListOverlayLayout.calculate(properties, false, false, false, 0, true);
+		var centeredSearch = IngredientListOverlayLayout.calculate(properties, true, false, false, 0, true);
+		assertEquals(new ImmutableRect2i(50, 94, 100, 20), rightSearch.getQuantityArea(true, contents));
+		assertEquals(new ImmutableRect2i(156, 94, 78, 20), centeredSearch.getQuantityArea(true, contents));
+		assertEquals(new ImmutableRect2i(156, 94, 78, 20), centeredSearch.getQuantityArea(false, contents));
+		assertEquals(rightSearch.availableContentsArea(), centeredSearch.availableContentsArea());
+		var disabled = IngredientListOverlayLayout.calculate(properties, true, false, false, 0, false);
+		assertTrue(disabled.availableContentsArea().height() > centeredSearch.availableContentsArea().height());
+		var shortScreen = IngredientListOverlayLayout.calculate(new TestGuiProperties(50, 20, 100, 90, 240, 120), false, false, false, 0, true);
+		assertEquals(ImmutableRect2i.EMPTY, shortScreen.getQuantityArea(true, contents));
+	}
+
+	@Test
 	public void rightSideLayoutReservesBottomSearchRow() {
 		// Setup: a regular GUI leaves JEI room on the right, and the ingredient grid has a background area.
 		TestGuiProperties guiProperties = new TestGuiProperties(50, 20, 100, 50, 200, 100);

@@ -394,6 +394,8 @@ public class IngredientListOverlayControllerTest {
 	}
 
 	private static class TestConfig implements IngredientListOverlayController.Config {
+		@Override
+		public boolean isQuantityFieldEnabled() { return false; }
 		boolean centerSearchBarEnabled = false;
 		boolean lookupHistoryEnabled = false;
 

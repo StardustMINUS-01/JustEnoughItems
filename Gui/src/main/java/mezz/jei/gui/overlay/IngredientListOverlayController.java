@@ -30,6 +30,9 @@ class IngredientListOverlayController {
 	private final ISearchField searchField;
 	private final IConfigButton configButton;
 	private boolean hasValidScreen = false;
+	private ImmutableRect2i quantityArea = ImmutableRect2i.EMPTY;
+
+	ImmutableRect2i getQuantityArea() { return hasValidScreen ? quantityArea : ImmutableRect2i.EMPTY; }
 
 	static IngredientListOverlayController create(
 		IGuiPropertiesCache guiPropertiesCache,
@@ -59,6 +62,10 @@ class IngredientListOverlayController {
 
 	private static Config getConfig(IClientConfig clientConfig) {
 		return new Config() {
+			@Override
+			public boolean isQuantityFieldEnabled() {
+				return clientConfig.quantityFieldEnabled().getValue();
+			}
 			@Override
 			public boolean isCenterSearchBarEnabled() {
 				return clientConfig.centerSearchBarEnabled().getValue();
@@ -166,7 +173,8 @@ class IngredientListOverlayController {
 			config.isCenterSearchBarEnabled(),
 			config.isLookupHistoryEnabled(),
 			lookupHistory.isDisplayedOnThisSide(),
-			lookupHistory.getDisplayHeight()
+			lookupHistory.getDisplayHeight(),
+			config.isQuantityFieldEnabled()
 		);
 
 		layout.lookupHistoryArea()
@@ -186,9 +194,11 @@ class IngredientListOverlayController {
 		this.searchField.setValue(filterTextSource.getFilterText());
 		this.searchField.updateBounds(searchAndConfigAreas.searchArea());
 		this.configButton.updateBounds(searchAndConfigAreas.configButtonArea());
+		this.quantityArea = config.isQuantityFieldEnabled() ? layout.getQuantityArea(contentsView.hasRoom(), contentsView.getBackgroundArea()) : ImmutableRect2i.EMPTY;
 	}
 
 	interface Config {
+		boolean isQuantityFieldEnabled();
 		boolean isCenterSearchBarEnabled();
 
 		boolean isLookupHistoryEnabled();

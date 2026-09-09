@@ -1,4 +1,6 @@
 {
+  "jei.config.client.appearance.quantityFieldEnabled": "显示数量框",
+  "jei.config.client.appearance.quantityFieldEnabled.description": "显示数量框。关闭时，Ctrl+Shift+滚轮固定以64为步进调整数量，Ctrl+滚轮仍以1为步进。",
   "jei.settings.configuration": "配置",
   "jei.settings.keybindings": "快捷键",
   "jei.settings.recordKey": "请按下按键…",

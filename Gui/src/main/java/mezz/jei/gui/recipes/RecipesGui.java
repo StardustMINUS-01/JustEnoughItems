@@ -310,6 +310,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		);
 		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
 		clientConfig.centerSearchBarEnabled().addListener(v -> reopenIfOpen());
+		clientConfig.quantityFieldEnabled().addListener(v -> reopenIfOpen());
 		clientConfig.maxRecipeGuiHeight().addListener(v -> reopenIfOpen());
 
 		Textures textures = Internal.getTextures();
@@ -465,7 +466,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
 		RecipeGuiSizing.Size recipeGuiSize = RecipeGuiSizing.calculateInitialSize(
 			this.height,
-			clientConfig.centerSearchBarEnabled().getValue(),
+			clientConfig.centerSearchBarEnabled().getValue() || clientConfig.quantityFieldEnabled().getValue(),
 			clientConfig.maxRecipeGuiHeight().getValue()
 		);
 		int ySize = recipeGuiSize.ySize();

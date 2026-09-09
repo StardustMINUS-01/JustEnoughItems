@@ -270,6 +270,8 @@
   "jei.config.client.appearance": "Appearance",
   "jei.config.client.appearance.description": "Config options to change the appearance of JEI.",
   "jei.config.client.appearance.centerSearch": "Center Search Bar",
+  "jei.config.client.appearance.quantityFieldEnabled": "Show Quantity Field",
+  "jei.config.client.appearance.quantityFieldEnabled.description": "Show the quantity field. When disabled, Ctrl+Shift+scroll adjusts quantities by 64; Ctrl+scroll still adjusts by 1.",
   "jei.config.client.appearance.centerSearch.description": "Move the JEI search bar to the bottom center of the screen.",
   "jei.config.client.appearance.recipeGuiHeight": "Recipe GUI Height",
   "jei.config.client.appearance.recipeGuiHeight.description": "The maximum height for the Recipes Gui (in pixels).",

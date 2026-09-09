@@ -146,7 +146,6 @@ public class JeiGuiStarter {
 		ModNameSortingConfig modNameSortingConfig = configData.modNameSortingConfig();
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = configData.ingredientTypeSortingConfig();
 		IClientToggleState toggleState = Internal.getClientToggleState();
-		ScrollStep scrollStep = new ScrollStep();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
 		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(
 			configData.configDir(),
@@ -182,6 +181,7 @@ public class JeiGuiStarter {
 
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
+		ScrollStep scrollStep = new ScrollStep(() -> clientConfig.quantityFieldEnabled().getValue());
 		IIngredientGridConfig ingredientListConfig = jeiClientConfigs.getIngredientListConfig();
 		IIngredientGridConfig bookmarkListConfig = jeiClientConfigs.getBookmarkListConfig();
 		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
@@ -297,6 +297,7 @@ public class JeiGuiStarter {
 			colorHelper
 		);
 		registration.setBookmarkOverlay(bookmarkOverlay);
+		bookmarkOverlay.setQuantityAreaSupplier(ingredientListOverlay::getQuantityArea);
 
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
 		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));

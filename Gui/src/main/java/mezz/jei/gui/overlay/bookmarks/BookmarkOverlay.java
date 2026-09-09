@@ -140,6 +140,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	private final ScrollStep scrollStep;
 	private final ScrollStepTextField scrollStepField;
 	private ImmutableRect2i scrollStepArea = ImmutableRect2i.EMPTY;
+	private java.util.function.Supplier<ImmutableRect2i> quantityArea = () -> ImmutableRect2i.EMPTY;
+
+	public void setQuantityAreaSupplier(java.util.function.Supplier<ImmutableRect2i> quantityArea) {
+		this.quantityArea = quantityArea;
+	}
 	private final BookmarkOverlayLayout layout;
 	private final BookmarkOverlayRenderer renderer;
 	private final BookmarkOverlayInputHandlers inputHandlers;
@@ -384,9 +389,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.favoriteButton.updateBounds(favoriteButtonArea);
 			ImmutableRect2i historyButtonArea = calculateHistoryButtonArea(favoriteButtonArea);
 			this.historyButton.updateBounds(historyButtonArea);
-			ImmutableRect2i gridArea = this.contents.getIngredientGridArea();
-			this.scrollStepArea = calculateScrollStepArea(historyButtonArea, gridArea.getX() + gridArea.getWidth());
-			this.scrollStepField.updateBounds(scrollStepArea);
 		} else {
 			ImmutableRect2i bookmarkButtonArea = displayArea
 				.insetBy(BORDER_MARGIN)
@@ -397,8 +399,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.favoriteButton.updateBounds(favoriteButtonArea);
 			ImmutableRect2i historyButtonArea = calculateHistoryButtonArea(favoriteButtonArea);
 			this.historyButton.updateBounds(historyButtonArea);
-			this.scrollStepArea = calculateScrollStepArea(historyButtonArea, displayArea.getWidth() - BORDER_MARGIN);
-			this.scrollStepField.updateBounds(scrollStepArea);
 		}
 	}
 
@@ -437,12 +437,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	public static ImmutableRect2i calculateHistoryButtonArea(ImmutableRect2i favoriteButtonArea) {
 		return favoriteButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
-	}
-
-	public static ImmutableRect2i calculateScrollStepArea(ImmutableRect2i historyButtonArea, int rightBoundary) {
-		int x = historyButtonArea.getX() + historyButtonArea.getWidth() + INNER_PADDING;
-		int width = rightBoundary - x + 1;
-		return new ImmutableRect2i(x, historyButtonArea.getY(), Math.max(0, width), historyButtonArea.getHeight());
 	}
 
 	static boolean shouldAvoidTopLeftExclusions(
@@ -606,6 +600,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.bookmarkButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			this.favoriteButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 			this.historyButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
+			getScrollStepArea();
 			this.scrollStepField.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
 		}
 	}
@@ -808,6 +803,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		);
 
 		return new ProxyInputHandler(() -> {
+			getScrollStepArea();
 			if (isFavoritePanelDisplayed()) {
 				return favoriteDisplayedInputHandler;
 			}
@@ -918,6 +914,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	ImmutableRect2i getScrollStepArea() {
+		ImmutableRect2i area = quantityArea.get();
+		if (!area.equals(scrollStepArea)) {
+			scrollStepArea = area;
+			scrollStepField.updateBounds(area);
+		}
 		return scrollStepArea;
 	}
 
