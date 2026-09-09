@@ -19,8 +19,8 @@ final class ConfigListDraft<T> {
 		return serializer.deserialize(draft.getText()).getResult().orElseThrow();
 	}
 
-	List<T> getChoices() {
-		List<T> choices = new ArrayList<>(getSelected());
+	List<T> getChoices(List<T> selected) {
+		List<T> choices = new ArrayList<>(selected);
 		for (T value : serializer.getListValueSerializer().getAllValidValues().orElseThrow()) {
 			if (!choices.contains(value)) {
 				choices.add(value);

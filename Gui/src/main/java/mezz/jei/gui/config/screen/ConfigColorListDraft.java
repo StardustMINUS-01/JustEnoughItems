@@ -4,8 +4,13 @@ import mezz.jei.api.runtime.config.IJeiConfigListValueSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 final class ConfigColorListDraft {
+	private static final Pattern RGB = Pattern.compile("[0-9a-fA-F]{6}");
+	private static final Pattern RGB_INPUT = Pattern.compile("[0-9a-fA-F]*");
+
+	static boolean isRgbInput(String value) { return RGB_INPUT.matcher(value).matches(); }
 	static final class Entry {
 		String name;
 		String rgb;
@@ -21,7 +26,7 @@ final class ConfigColorListDraft {
 			previewColor = isRgbValid() ? 0xFF000000 | Integer.parseInt(rgb, 16) : 0xFF202020;
 		}
 
-		boolean isRgbValid() { return rgb.matches("[0-9a-fA-F]{6}"); }
+		boolean isRgbValid() { return RGB.matcher(rgb).matches(); }
 
 		boolean isValid() {
 			return !name.isBlank() && isRgbValid();

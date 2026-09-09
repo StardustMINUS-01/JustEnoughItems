@@ -150,7 +150,7 @@ public final class JeiConfigScreen extends Screen {
 
 	private ConfigScreenButton addButton(int x, int y, int width, Component name, String style, @Nullable String icon, Runnable action) {
 		ConfigScreenButton button = addRenderableWidget(new ConfigScreenButton(x, y, width, name, style, icon, b -> action.run()));
-		button.setTooltip(Tooltip.create(name));
+		button.setTooltip(Tooltip.create(tooltip));
 		return button;
 	}
 
@@ -158,17 +158,11 @@ public final class JeiConfigScreen extends Screen {
 		int controlWidth = Math.min(148, Math.max(70, (width - sidebar) / 2));
 		int x = width - controlWidth - 12;
 		controlWidth -= 44;
-		ConfigScreenButton reset = addButton(width - 52, y, 40, Component.translatable("jei.settings.resetButton"), "button", null, () -> {
-			draft.reset();
-			resetColorDraft(draft);
-			rebuild();
-		});
-		reset.active = !draft.isDefault();
-		reset.setTooltip(Tooltip.create(Component.translatable("jei.settings.reset")));
+		ConfigScreenButton reset = addResetButton(draft, y, () -> {});
 		Component tooltip = createTooltip(draft);
 		rendered.add(new RenderedEntry(draft, font.split(tooltip, Math.min(300, width - 24))));
 		var choices = draft.getChoices();
-		var listEditor = draft.getListEditor();
+		var listSerializer = draft.getListSerializer();
 		if (colorDrafts.containsKey(draft)) {
 			addButton(x, y, controlWidth, Component.translatable("jei.settings.editColors"), "button", null, () -> {
 				for (int i = 0; i < sections.size(); i++) {
@@ -177,26 +171,26 @@ public final class JeiConfigScreen extends Screen {
 						return;
 					}
 				}
-			}).setTooltip(Tooltip.create(tooltip));
+			}, tooltip);
 		} else if (draft.config.getDefaultValue() instanceof Boolean) {
 			addButton(width - 88, y, 32, draft.config.getLocalizedName(),
 				draft.getText().equals("true") ? "switch_on" : "switch_off", null, () -> {
 					draft.setText(Boolean.toString(!Boolean.parseBoolean(draft.getText())));
 					rebuild();
-				}).setTooltip(Tooltip.create(tooltip));
+				}, tooltip);
 		} else if (!choices.isEmpty()) {
 			addButton(x, y, controlWidth, Component.literal(draft.getText()), "button", null, () -> {
 				draft.cycle();
 				rebuild();
-			}).setTooltip(Tooltip.create(tooltip));
-		} else if (listEditor.isPresent()) {
+			}, tooltip);
+		} else if (listSerializer.isPresent()) {
 			addButton(x, y, controlWidth, draft.getText().isBlank() ? Component.translatable("jei.settings.none") :
 				Component.literal(draft.getText()), "button", null, () -> {
-				choosing = listEditor.get();
+				choosing = new ConfigListDraft<>(draft, listSerializer.get());
 				parentRow = row;
 				row = 0;
 				rebuild();
-			}).setTooltip(Tooltip.create(tooltip));
+			}, tooltip);
 		} else {
 			EditBox edit = addRenderableWidget(new ConfigScreenEditBox(font, x, y + 2, controlWidth, draft.config.getLocalizedName()));
 			edit.setMaxLength(32767);
@@ -212,7 +206,6 @@ public final class JeiConfigScreen extends Screen {
 	}
 
 	private <T> void showChoices(ConfigListDraft<T> draft) {
-		List<T> choices = draft.getChoices();
 		List<T> selected = draft.getSelected();
 		listChoiceCount = choices.size();
 		row = Math.clamp(row, 0, Math.max(0, choices.size() - capacity));
@@ -255,15 +248,19 @@ public final class JeiConfigScreen extends Screen {
 		}
 	}
 
-	private void showColors(ConfigColorListDraft colors) {
-		ConfigScreenButton reset = addButton(width - 52, 43, 40, Component.translatable("jei.settings.resetButton"), "button", null, () -> {
-			colors.draft.reset();
-			resetColorDraft(colors.draft);
-			row = 0;
+	private ConfigScreenButton addResetButton(ConfigDraft<?> draft, int y, Runnable afterReset) {
+		ConfigScreenButton button = addButton(width - 52, y, 40, Component.translatable("jei.settings.resetButton"), "button", null, () -> {
+			draft.reset();
+			resetColorDraft(draft);
+			afterReset.run();
 			rebuild();
-		});
-		reset.active = !colors.draft.isDefault();
-		reset.setTooltip(Tooltip.create(Component.translatable("jei.settings.reset")));
+		}, Component.translatable("jei.settings.reset"));
+		button.active = !draft.isDefault();
+		return button;
+	}
+
+	private void showColors(ConfigColorListDraft colors) {
+		ConfigScreenButton reset = addResetButton(colors.draft, 43, () -> row = 0);
 		addButton(width - 98, 43, 40, Component.translatable("jei.settings.addColor"), "button", null, () -> {
 			colors.add();
 			row = Math.max(0, colors.entries.size() - capacity);
@@ -285,7 +282,7 @@ public final class JeiConfigScreen extends Screen {
 			EditBox rgb = addRenderableWidget(new ConfigScreenEditBox(font, rgbX, y + 2, 68,
 				Component.translatable("jei.settings.colorRgb")));
 			rgb.setMaxLength(6);
-			rgb.setFilter(value -> value.matches("[0-9a-fA-F]*"));
+			rgb.setFilter(ConfigColorListDraft::isRgbInput);
 			rgb.setValue(entry.rgb);
 			rgb.setTooltip(Tooltip.create(Component.translatable("jei.settings.colorRgb")
 				.append("\n").append(Component.literal("000000 ~ FFFFFF").withStyle(ChatFormatting.BOLD, ChatFormatting.ITALIC))));
@@ -293,6 +290,10 @@ public final class JeiConfigScreen extends Screen {
 			rgb.setTextColor(entry.isRgbValid() ? 0xFFE0E0E0 : 0xFFFF7777);
 			name.setResponder(value -> {
 				entry.name = value;
+		return addButton(x, y, width, name, style, icon, action, name);
+	}
+
+	private ConfigScreenButton addButton(int x, int y, int width, Component name, String style, @Nullable String icon, Runnable action, Component tooltip) {
 				colors.update();
 				reset.active = !colors.draft.isDefault();
 				name.setTextColor(value.isBlank() ? 0xFFFF7777 : 0xFFE0E0E0);
@@ -358,6 +359,7 @@ public final class JeiConfigScreen extends Screen {
 				if (next == row) {
 					return true;
 				}
+		List<T> choices = draft.getChoices(selected);
 				row = next;
 			}
 			rebuild();

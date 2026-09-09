@@ -8,13 +8,17 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 final class ConfigScreenButton extends Button {
+	private static final ResourceLocation HOVER = texture("button_hover");
+	private static final ResourceLocation PRESSED = texture("button_pressed");
 	private final String style;
+	private final ResourceLocation background;
 	private final @Nullable ResourceLocation icon;
 	private boolean pressed;
 
 	ConfigScreenButton(int x, int y, int width, Component label, String style, @Nullable String icon, OnPress action) {
 		super(x, y, width, 26, label, action, DEFAULT_NARRATION);
 		this.style = style;
+		this.background = texture(style);
 		this.icon = icon == null ? null : texture(icon);
 	}
 
@@ -39,7 +43,7 @@ final class ConfigScreenButton extends Button {
 	@Override
 	protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
 		if (style.startsWith("switch")) {
-			graphics.blitSprite(texture(style), getX(), getY() + 3, width, 18);
+			graphics.blitSprite(background, getX(), getY() + 3, width, 18);
 			if (isHoveredOrFocused()) {
 				graphics.renderOutline(getX() - 1, getY() + 2, width + 2, 20, 0xFFF0F0F0);
 			}
@@ -47,16 +51,16 @@ final class ConfigScreenButton extends Button {
 		}
 		boolean navigation = style.startsWith("tab");
 		boolean depressed = pressed || !active;
-		String sprite = depressed ? "button_pressed" :
-			style.equals("button") && isHoveredOrFocused() ? "button_hover" : style;
+		ResourceLocation sprite = depressed ? PRESSED :
+			style.equals("button") && isHoveredOrFocused() ? HOVER : background;
 		if (navigation) {
 			if (style.equals("tab_selected")) {
-				graphics.blitSprite(texture(style), getX(), getY(), width, height);
+				graphics.blitSprite(background, getX(), getY(), width, height);
 			} else if (isHoveredOrFocused()) {
 				graphics.fill(getX(), getY(), getRight(), getBottom(), 0xFF353535);
 			}
 		} else {
-			graphics.blitSprite(texture(sprite), getX(), getY(), width, height);
+			graphics.blitSprite(sprite, getX(), getY(), width, height);
 		}
 		if (icon != null) {
 			float tint = active ? 0.125F : 0.4F;

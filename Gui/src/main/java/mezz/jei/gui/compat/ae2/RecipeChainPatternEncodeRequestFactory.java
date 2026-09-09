@@ -199,30 +199,8 @@ public class RecipeChainPatternEncodeRequestFactory {
 		if (inputSlots.size() != expectedSlots) {
 			return Optional.empty();
 		}
-		if (!bookmarkInputs.isEmpty()) {
-			return readBookmarkedCanonicalInputGuides(inputSlots, bookmarkInputs);
-		}
-		List<@Nullable JeiPatternStack> guides = new ArrayList<>(expectedSlots);
-		for (IRecipeSlotView slot : inputSlots) {
-			Optional<ITypedIngredient<?>> ingredient = slot.getDisplayedIngredient().or(() -> slot.getAllIngredients().findFirst());
-			if (ingredient.isEmpty()) {
-				guides.add(null);
-				continue;
-			}
-			Optional<JeiPatternStack> guide = toCanonicalGuide(ingredient.get());
-			if (guide.isEmpty()) {
-				return Optional.empty();
-			}
-			guides.add(guide.get());
-		}
-		return Optional.of(Collections.unmodifiableList(new ArrayList<>(guides)));
-	}
-
-	private Optional<List<@Nullable JeiPatternStack>> readBookmarkedCanonicalInputGuides(
-		List<IRecipeSlotView> inputSlots,
-		List<RecipeChainInput> bookmarkInputs
-	) {
-		java.util.Map<Set<BookmarkIngredientKey>, List<BookmarkedCanonicalGuide>> guidesByFamily = new java.util.LinkedHashMap<>();
+		java.util.Map<Set<BookmarkIngredientKey>, List<BookmarkedCanonicalGuide>> guidesByFamily =
+			bookmarkInputs.isEmpty() ? java.util.Map.of() : new java.util.LinkedHashMap<>();
 		for (RecipeChainInput input : bookmarkInputs) {
 			BookmarkItemMetadata metadata = input.metadata();
 			BookmarkIngredientKey selectedKey = input.selectedKey();
@@ -240,9 +218,9 @@ public class RecipeChainPatternEncodeRequestFactory {
 
 		List<@Nullable JeiPatternStack> guides = new ArrayList<>(inputSlots.size());
 		for (IRecipeSlotView slot : inputSlots) {
-			Set<BookmarkIngredientKey> slotPermutations = getPermutationKeys(slot);
-			Optional<ITypedIngredient<?>> selected = takeBookmarkedCanonicalGuide(slot, guidesByFamily.get(slotPermutations))
-				.or(() -> slot.getDisplayedIngredient().or(() -> slot.getAllIngredients().findFirst()));
+			Optional<ITypedIngredient<?>> selected = bookmarkInputs.isEmpty() ? Optional.empty() :
+				takeBookmarkedCanonicalGuide(slot, guidesByFamily.get(getPermutationKeys(slot)));
+			selected = selected.or(() -> slot.getDisplayedIngredient().or(() -> slot.getAllIngredients().findFirst()));
 			if (selected.isEmpty()) {
 				guides.add(null);
 				continue;
@@ -253,7 +231,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 			}
 			guides.add(guide.get());
 		}
-		return Optional.of(Collections.unmodifiableList(new ArrayList<>(guides)));
+		return Optional.of(guides);
 	}
 
 	private Set<BookmarkIngredientKey> getPermutationKeys(IRecipeSlotView slot) {
@@ -361,7 +339,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 				}
 			}
 		}
-		return createProcessingRequest(primaryOutputKeys, recipeTypeUid, recipeUid, sparseInputs, sparseOutputs, List.copyOf(catalysts));
+		return createProcessingRequest(primaryOutputKeys, recipeTypeUid, recipeUid, sparseInputs, sparseOutputs, catalysts);
 	}
 
 	private Optional<JeiPatternEncodeRequest> createProcessingRequest(
@@ -433,7 +411,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 				catalysts.add(new JeiPatternCatalyst(matchingSlot, input));
 			}
 		}
-		return List.copyOf(catalysts);
+		return catalysts;
 	}
 
 	private boolean sameStack(JeiPatternStack first, JeiPatternStack second) {

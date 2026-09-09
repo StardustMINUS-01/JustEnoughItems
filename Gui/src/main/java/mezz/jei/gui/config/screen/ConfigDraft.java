@@ -40,10 +40,10 @@ final class ConfigDraft<T> {
 		return config.getDefaultValue() instanceof Number ? List.of() :
 			config.getSerializer().getAllValidValues().map(List::copyOf).orElse(List.of());
 	}
-	Optional<ConfigListDraft<?>> getListEditor() {
+	Optional<IJeiConfigListValueSerializer<?>> getListSerializer() {
 		if (config.getSerializer() instanceof IJeiConfigListValueSerializer<?> serializer &&
 			serializer.getListValueSerializer().getAllValidValues().isPresent()) {
-			return Optional.of(new ConfigListDraft<>(this, serializer));
+			return Optional.of(serializer);
 		}
 		return Optional.empty();
 	}

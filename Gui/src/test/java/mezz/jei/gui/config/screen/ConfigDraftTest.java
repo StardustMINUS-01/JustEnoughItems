@@ -10,6 +10,32 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ConfigDraftTest {
 	@Test
+	void listChoicesKeepSelectionOrderWhileEditsRemainLocal() {
+		var serializer = new ListSerializer<>(new IntegerSerializer(0, 3));
+		var config = new ConfigValue<>("test", "order", List.of(2, 1), serializer);
+		var draft = new ConfigDraft<>(config);
+		var editor = new ConfigListDraft<>(draft, serializer);
+		assertEquals(List.of(2, 1, 0, 3), editor.getChoices(editor.getSelected()));
+		editor.move(0, 1);
+		editor.toggle(3);
+		assertEquals(List.of(1, 2, 3), editor.getSelected());
+		assertEquals(List.of(2, 1), config.getValue());
+	}
+
+	@Test
+	void rgbAllowsPartialEditsButRequiresSixAsciiHexDigits() {
+		for (String value : List.of("", "a", "12aBc")) {
+			assertTrue(ConfigColorListDraft.isRgbInput(value));
+			assertFalse(new ConfigColorListDraft.Entry("color", value).isValid());
+		}
+		assertTrue(new ConfigColorListDraft.Entry("color", "aB12fF").isValid());
+		for (String value : List.of("abcdef0", "GG0000", "\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16")) {
+			assertFalse(new ConfigColorListDraft.Entry("color", value).isValid());
+		}
+		assertFalse(ConfigColorListDraft.isRgbInput("#ffffff"));
+	}
+
+	@Test
 	void editsAndDefaultsStayLocalUntilApplied() {
 		var config = new ConfigValue<>("test", "number", 3, new IntegerSerializer(0, 10));
 		config.set(7);
