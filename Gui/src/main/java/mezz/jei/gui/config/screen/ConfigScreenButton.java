@@ -71,8 +71,9 @@ final class ConfigScreenButton extends Button {
 			var font = Minecraft.getInstance().font;
 			String label = font.plainSubstrByWidth(getMessage().getString(), width - 12);
 			int textX = navigation ? getX() + 8 : getX() + (width - font.width(label)) / 2;
+			var textColor = getMessage().getStyle().getColor();
 			graphics.drawString(font, label, textX, getY() + 6 + (depressed && !navigation ? 2 : 0),
-				!active ? 0xFF666666 : navigation ? 0xFFF0F0F0 : 0xFF202020, false);
+				!active ? 0xFF666666 : textColor != null ? 0xFF000000 | textColor.getValue() : navigation ? 0xFFF0F0F0 : 0xFF202020, false);
 		}
 		if (isFocused()) {
 			graphics.renderOutline(getX(), getY(), width, height, 0xFFF0F0F0);

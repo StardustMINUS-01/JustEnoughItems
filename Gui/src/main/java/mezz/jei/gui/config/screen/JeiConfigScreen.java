@@ -1,5 +1,9 @@
 package mezz.jei.gui.config.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.KeyMapping;
+import org.lwjgl.glfw.GLFW;
+
 import mezz.jei.api.runtime.config.IJeiConfigManager;
 import mezz.jei.api.runtime.config.IJeiConfigValue;
 import mezz.jei.api.runtime.config.IJeiConfigListValueSerializer;
@@ -27,6 +31,19 @@ public final class JeiConfigScreen extends Screen {
 	private static final int SCROLLBAR_WIDTH = 6;
 	private record Section(Component name, String file, List<ConfigDraft<?>> entries) {}
 	private final Screen parent;
+	private final List<IConfigKeyBinding> keyBindings;
+	private List<IConfigKeyBinding> visibleKeys = List.of();
+	private List<Component> keyTooltips = List.of();
+	private long changedKeys;
+	private final List<String> keyCategories;
+	private boolean keyView;
+	private boolean configExpanded = true, keysExpanded;
+	private @Nullable String keyCategory;
+	private @Nullable IConfigKeyBinding recording;
+	private @Nullable InputConstants.Key recordedKey;
+	private int recordedModifiers;
+	private record Navigation(Component name, boolean selected, Runnable action) {}
+	private List<Navigation> navigation = List.of();
 	private final List<Section> sections = new ArrayList<>();
 	private int section;
 	private int row;
@@ -49,9 +66,11 @@ public final class JeiConfigScreen extends Screen {
 	private final Map<ConfigDraft<?>, ConfigColorListDraft> colorDrafts = new HashMap<>();
 	private @Nullable ConfigColorListDraft colorPage;
 
-	public JeiConfigScreen(Screen parent, IJeiConfigManager manager) {
+	public JeiConfigScreen(Screen parent, IJeiConfigManager manager, List<IConfigKeyBinding> keyBindings) {
 		super(Component.translatable("jei.settings.title"));
 		this.parent = parent;
+		this.keyBindings = List.copyOf(keyBindings);
+		this.keyCategories = keyBindings.stream().map(IConfigKeyBinding::getCategory).distinct().toList();
 		manager.getConfigFiles().stream().sorted(Comparator.comparing(f -> f.getPath().toString())).forEach(file -> {
 			String fileName = file.getPath().getFileName().toString();
 			for (var category : file.getCategories()) {
@@ -99,24 +118,27 @@ public final class JeiConfigScreen extends Screen {
 	}
 
 	private void rebuild() {
+		changedKeys = keyBindings.stream().filter(IConfigKeyBinding::isChanged).count();
 		error = "";
 		clearWidgets();
 		rendered.clear();
 		colorPage = null;
 		addRenderableWidget(searchBox);
-		int navEnd = Math.min(sections.size(), navigationRow + navigationCapacity);
-		for (int i = navigationRow; i < navEnd; i++) {
-			int selected = i;
-			Section entry = sections.get(i);
+		buildNavigation();
+		navigationRow = Math.clamp(navigationRow, 0, Math.max(0, navigation.size() - navigationCapacity));
+		for (int i = navigationRow; i < Math.min(navigation.size(), navigationRow + navigationCapacity); i++) {
+			Navigation entry = navigation.get(i);
 			addButton(8, 77 + (i - navigationRow) * 30, sidebar - 18, entry.name(),
-				i == section && search.isBlank() ? "tab_selected" : "tab", null, () -> {
-					showSection(selected);
-				}).setTooltip(Tooltip.create(Component.literal(entry.file()).append("\n").append(entry.name())));
+				entry.selected() ? "tab_selected" : "tab", null, entry.action());
 		}
 		int right = width - 8;
 		addButton(right - 56, height - 34, 56, Component.translatable("gui.ok"), "button_primary", null, this::save);
 		addButton(right - 118, height - 34, 56, Component.translatable("gui.back"), "button", null, this::goBack);
 		addButton(right - 180, height - 34, 56, Component.translatable("gui.cancel"), "button", null, () -> minecraft.setScreen(parent));
+		if (keyView) {
+			showKeys();
+			return;
+		}
 		if (choosing != null) {
 			showChoices(choosing);
 			return;
@@ -136,19 +158,145 @@ public final class JeiConfigScreen extends Screen {
 		}
 	}
 
+	private void buildNavigation() {
+		List<Navigation> entries = new ArrayList<>();
+		entries.add(new Navigation(Component.literal(configExpanded ? "- " : "+ ").append(Component.translatable("jei.settings.configuration")),
+			!keyView && section < 0, () -> {
+				configExpanded = !configExpanded;
+				showSection(-1);
+			}));
+		if (configExpanded) {
+			for (int i = 0; i < sections.size(); i++) {
+				int index = i;
+				entries.add(new Navigation(Component.literal("  ").append(sections.get(i).name()), !keyView && section == i && search.isBlank(), () -> showSection(index)));
+			}
+		}
+		entries.add(new Navigation(Component.literal(keysExpanded ? "- " : "+ ").append(Component.translatable("jei.settings.keybindings")),
+			keyView && keyCategory == null, () -> {
+				keysExpanded = !keysExpanded;
+				showKeyCategory(null);
+			}));
+		if (keysExpanded) {
+			for (String category : keyCategories) {
+				entries.add(new Navigation(Component.literal("  ").append(Component.translatable(category)), keyView && category.equals(keyCategory) && search.isBlank(), () -> showKeyCategory(category)));
+			}
+		}
+		navigation = entries;
+	}
+
+	private void showKeyCategory(@Nullable String category) {
+		keyView = true;
+		keyCategory = category;
+		searchBox.setValue("");
+	}
+
+	private void showKeys() {
+		row = Math.clamp(row, 0, Math.max(0, visibleKeys.size() - capacity));
+		List<Component> tooltips = new ArrayList<>();
+		for (int i = row; i < Math.min(visibleKeys.size(), row + capacity); i++) {
+			IConfigKeyBinding binding = visibleKeys.get(i);
+			int y = 77 + (i - row) * ROW_HEIGHT;
+			String description = binding.getName() + ".description";
+			Component tooltip = Component.translatable(Language.getInstance().has(description) ? description : binding.getName());
+			var conflicts = binding.getConflicts();
+			tooltips.add(tooltip);
+			Component label = binding == recording ? Component.translatable("jei.settings.recordKey") : conflicts.isEmpty() ? binding.getBindingName() :
+				Component.literal("[").append(binding.getBindingName()).append("]").withStyle(ChatFormatting.RED);
+			addButton(width - 182, y, 126, label, binding == recording ? "button_primary" : "button", null, () -> {
+				recording = binding;
+				recordedKey = null;
+				setFocused(null);
+				rebuild();
+			}, tooltip);
+			addButton(width - 52, y, 40, Component.translatable("jei.settings.resetButton"), "button", null, () -> {
+				binding.reset();
+				rebuild();
+			}, Component.translatable("jei.settings.reset")).active = !binding.isDefault();
+		}
+		keyTooltips = tooltips;
+	}
+
+	public boolean isRecordingKey() { return recording != null; }
+
+	private static int currentModifiers() {
+		return (hasShiftDown() ? GLFW.GLFW_MOD_SHIFT : 0) | (hasControlDown() ?
+			(net.minecraft.client.Minecraft.ON_OSX ? GLFW.GLFW_MOD_SUPER : GLFW.GLFW_MOD_CONTROL) : 0) | (hasAltDown() ? GLFW.GLFW_MOD_ALT : 0);
+	}
+
+	private void finishRecording() {
+		if (recording.setKey(recordedKey, recordedModifiers)) {
+			recording = null;
+			recordedKey = null;
+			rebuild();
+		} else {
+			recordedKey = null;
+			error = Component.translatable("jei.settings.singleModifier").getString();
+		}
+	}
+
+	@Override
+	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+		if (recording == null) {
+			if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+				save();
+				return true;
+			}
+			return super.keyPressed(keyCode, scanCode, modifiers);
+		}
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+			recording = null;
+			recordedKey = null;
+			rebuild();
+		} else {
+			recordedKey = InputConstants.getKey(keyCode, scanCode);
+			recordedModifiers = modifiers;
+		}
+		return true;
+	}
+
+	@Override
+	public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+		if (recording == null) {
+			return super.keyReleased(keyCode, scanCode, modifiers);
+		}
+		if (InputConstants.getKey(keyCode, scanCode).equals(recordedKey)) {
+			if (keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+				recordedKey = InputConstants.UNKNOWN;
+				recordedModifiers = 0;
+			}
+			finishRecording();
+		}
+		return true;
+	}
+
+	@Override
+	public boolean charTyped(char character, int modifiers) {
+		return recording != null || super.charTyped(character, modifiers);
+	}
+
 	private void updateVisible() {
 		String query = search.toLowerCase(Locale.ROOT).strip();
-		visible = sections.isEmpty() ? List.of() : query.isEmpty() ? sections.get(section).entries() : sections.stream()
+		if (keyView) {
+			visibleKeys = keyBindings.stream().filter(binding -> query.isEmpty() ? keyCategory == null || keyCategory.equals(binding.getCategory()) :
+				(Component.translatable(binding.getName()).getString() + " " + binding.getName() + " " + binding.getBindingName().getString() + " " + Component.translatable(binding.getCategory()).getString()).toLowerCase(Locale.ROOT).contains(query)).toList();
+			return;
+		}
+		visible = sections.isEmpty() ? List.of() : query.isEmpty() && section >= 0 ? sections.get(section).entries() : sections.stream()
 			.flatMap(s -> s.entries().stream()).filter(draft -> (draft.config.getLocalizedName().getString() + " " +
 				draft.config.getLocalizedDescription().getString() + " " + draft.config.getName()).toLowerCase(Locale.ROOT).contains(query)).toList();
 	}
 
 	private void showSection(int section) {
 		this.section = section;
+		keyView = false;
 		searchBox.setValue("");
 	}
 
 	private ConfigScreenButton addButton(int x, int y, int width, Component name, String style, @Nullable String icon, Runnable action) {
+		return addButton(x, y, width, name, style, icon, action, name);
+	}
+
+	private ConfigScreenButton addButton(int x, int y, int width, Component name, String style, @Nullable String icon, Runnable action, Component tooltip) {
 		ConfigScreenButton button = addRenderableWidget(new ConfigScreenButton(x, y, width, name, style, icon, b -> action.run()));
 		button.setTooltip(Tooltip.create(tooltip));
 		return button;
@@ -207,6 +355,7 @@ public final class JeiConfigScreen extends Screen {
 
 	private <T> void showChoices(ConfigListDraft<T> draft) {
 		List<T> selected = draft.getSelected();
+		List<T> choices = draft.getChoices(selected);
 		listChoiceCount = choices.size();
 		row = Math.clamp(row, 0, Math.max(0, choices.size() - capacity));
 		for (int i = row; i < Math.min(choices.size(), row + capacity); i++) {
@@ -237,6 +386,8 @@ public final class JeiConfigScreen extends Screen {
 			rebuild();
 		} else if (!search.isBlank()) {
 			searchBox.setValue("");
+		} else if (keyView && keyCategory != null) {
+			showKeyCategory(null);
 		} else {
 			minecraft.setScreen(parent);
 		}
@@ -290,10 +441,6 @@ public final class JeiConfigScreen extends Screen {
 			rgb.setTextColor(entry.isRgbValid() ? 0xFFE0E0E0 : 0xFFFF7777);
 			name.setResponder(value -> {
 				entry.name = value;
-		return addButton(x, y, width, name, style, icon, action, name);
-	}
-
-	private ConfigScreenButton addButton(int x, int y, int width, Component name, String style, @Nullable String icon, Runnable action, Component tooltip) {
 				colors.update();
 				reset.active = !colors.draft.isDefault();
 				name.setTextColor(value.isBlank() ? 0xFFFF7777 : 0xFFE0E0E0);
@@ -332,11 +479,19 @@ public final class JeiConfigScreen extends Screen {
 			return;
 		}
 		sections.forEach(s -> s.entries().forEach(ConfigDraft::apply));
+		if (keyBindings.stream().anyMatch(IConfigKeyBinding::isChanged)) {
+			keyBindings.forEach(IConfigKeyBinding::apply);
+			KeyMapping.resetMapping();
+			minecraft.options.save();
+		}
 		minecraft.setScreen(parent);
 	}
 
 	@Override
 	public void onClose() {
+		if (recording != null) {
+			recording = null; recordedKey = null; rebuild(); return;
+		}
 		if (choosing != null) {
 			goBack();
 		}
@@ -345,10 +500,13 @@ public final class JeiConfigScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+		if (recording != null) {
+			return true;
+		}
 		if (y >= 72 && y < height - 40 && vertical != 0) {
 			int step = vertical > 0 ? -1 : 1;
 			if (x < sidebar) {
-				int next = Math.clamp(navigationRow + step, 0, Math.max(0, sections.size() - navigationCapacity));
+				int next = Math.clamp(navigationRow + step, 0, Math.max(0, navigation.size() - navigationCapacity));
 				if (next == navigationRow) {
 					return true;
 				}
@@ -359,7 +517,6 @@ public final class JeiConfigScreen extends Screen {
 				if (next == row) {
 					return true;
 				}
-		List<T> choices = draft.getChoices(selected);
 				row = next;
 			}
 			rebuild();
@@ -369,7 +526,7 @@ public final class JeiConfigScreen extends Screen {
 	}
 
 	private int hiddenRows() {
-		int count = colorPage != null ? colorPage.entries.size() : choosing == null ? visible.size() : listChoiceCount;
+		int count = keyView ? visibleKeys.size() : colorPage != null ? colorPage.entries.size() : choosing == null ? visible.size() : listChoiceCount;
 		return Math.max(0, count - capacity);
 	}
 
@@ -385,7 +542,7 @@ public final class JeiConfigScreen extends Screen {
 			}
 			return true;
 		}
-		hidden = Math.max(0, sections.size() - navigationCapacity);
+		hidden = Math.max(0, navigation.size() - navigationCapacity);
 		result = start ? navigationScrollbar.startDrag(x, y, navigationCapacity, hidden, hidden == 0 ? 0 : navigationRow / (float) hidden) :
 			navigationScrollbar.dragTo(y, navigationCapacity, hidden, hidden == 0 ? 0 : navigationRow / (float) hidden);
 		if (result.handled()) {
@@ -400,16 +557,30 @@ public final class JeiConfigScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double x, double y, int button) {
+		if (recording != null) {
+			recordedKey = InputConstants.Type.MOUSE.getOrCreate(button);
+			recordedModifiers = currentModifiers();
+			return true;
+		}
 		return button == 0 && scroll(x, y, true) || super.mouseClicked(x, y, button);
 	}
 
 	@Override
 	public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+		if (recording != null) {
+			return true;
+		}
 		return button == 0 && scroll(x, y, false) || super.mouseDragged(x, y, button, dx, dy);
 	}
 
 	@Override
 	public boolean mouseReleased(double x, double y, int button) {
+		if (recording != null) {
+			if (recordedKey != null && recordedKey.equals(InputConstants.Type.MOUSE.getOrCreate(button))) {
+				finishRecording();
+			}
+			return true;
+		}
 		boolean dragging = scrollbar.isDragging() || navigationScrollbar.isDragging();
 		scrollbar.stopDrag();
 		navigationScrollbar.stopDrag();
@@ -424,8 +595,8 @@ public final class JeiConfigScreen extends Screen {
 		graphics.fill(0, height - 40, width, height, 0xFF303030);
 		graphics.fill(sidebar, 38, sidebar + 1, height - 40, 0xFF3D3D3D);
 		graphics.drawString(font, title, 12, 14, 0xFFF0F0F0, false);
-		Component heading = choosing != null ? choosing.draft.config.getLocalizedName() : !search.isBlank() ?
-			Component.translatable("jei.settings.results", visible.size()) : sections.isEmpty() ? title : sections.get(section).name();
+		Component heading = keyView ? (keyCategory == null || !search.isBlank() ? Component.translatable("jei.settings.keybindings") : Component.translatable(keyCategory)) : choosing != null ? choosing.draft.config.getLocalizedName() : !search.isBlank() ?
+			Component.translatable("jei.settings.results", visible.size()) : sections.isEmpty() || section < 0 ? title : sections.get(section).name();
 		graphics.drawString(font, font.plainSubstrByWidth(heading.getString(), width - sidebar - (colorPage == null ? 24 : 114)), sidebar + 12, 49, 0xFFF0F0F0, false);
 		if (colorPage != null) {
 			for (int i = row; i < Math.min(colorPage.entries.size(), row + capacity); i++) {
@@ -444,21 +615,38 @@ public final class JeiConfigScreen extends Screen {
 			graphics.drawString(font, font.plainSubstrByWidth(name, labelWidth), sidebar + 12, y + 7, 0xFFF0F0F0, false);
 			graphics.fill(sidebar + 12, y + ROW_HEIGHT - 2, width - 12, y + ROW_HEIGHT - 1, 0xFF323232);
 		}
+		if (keyView) {
+			for (int i = row; i < Math.min(visibleKeys.size(), row + capacity); i++) {
+				var binding = visibleKeys.get(i);
+				int y = 77 + (i - row) * ROW_HEIGHT;
+				String name = (binding.isChanged() ? "* " : "") + Component.translatable(binding.getName()).getString();
+				graphics.drawString(font, font.plainSubstrByWidth(name, Math.max(10, width - sidebar - 204)), sidebar + 12, y + 7, 0xFFF0F0F0, false);
+				graphics.fill(sidebar + 12, y + ROW_HEIGHT - 2, width - 12, y + ROW_HEIGHT - 1, 0xFF323232);
+			}
+		}
 		int hidden = hiddenRows();
 		if (hidden > 0) {
 			scrollbar.draw(graphics, capacity, hidden, row / (float) hidden);
 		}
-		int hiddenCategories = sections.size() - navigationCapacity;
+		int hiddenCategories = navigation.size() - navigationCapacity;
 		if (hiddenCategories > 0) {
 			navigationScrollbar.draw(graphics, navigationCapacity, hiddenCategories, navigationRow / (float) hiddenCategories);
 		}
-		Component status = error.isEmpty() ? Component.translatable("jei.settings.changed", changed) : Component.literal(error);
+		Component status = error.isEmpty() ? Component.translatable("jei.settings.changed", changed + changedKeys) : Component.literal(error);
 		graphics.drawString(font, font.plainSubstrByWidth(status.getString(), Math.max(0, width - 206)), 9, height - 23, error.isEmpty() ? 0xFFD9BC76 : 0xFFFF7777, false);
 	}
 
 	@Override
 	public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
 		super.render(graphics, mouseX, mouseY, partialTick);
+		if (keyView) {
+			for (int i = row; i < Math.min(visibleKeys.size(), row + capacity); i++) {
+				int y = 77 + (i - row) * ROW_HEIGHT;
+				if (mouseX >= sidebar + 12 && mouseX < width - 182 && mouseY >= y && mouseY < y + ROW_HEIGHT - 2) {
+					graphics.renderTooltip(font, font.split(keyTooltips.get(i - row), Math.min(300, width - 24)), mouseX, mouseY);
+				}
+			}
+		}
 		for (int i = 0; i < rendered.size(); i++) {
 			int y = 77 + i * ROW_HEIGHT;
 			int controlX = width - Math.min(148, Math.max(70, (width - sidebar) / 2)) - 12;

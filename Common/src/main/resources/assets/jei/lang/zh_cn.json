@@ -1,5 +1,9 @@
 {
-  "jei.settings.title": "JEIU 设置",
+  "jei.settings.configuration": "配置",
+  "jei.settings.keybindings": "快捷键",
+  "jei.settings.recordKey": "请按下按键…",
+  "jei.settings.singleModifier": "最多使用一个修饰键。",
+  "jei.settings.title": "JEI 设置",
   "jei.settings.search": "搜索设置",
   "jei.settings.reset": "将此项恢复为默认值",
   "jei.settings.resetButton": "重置",

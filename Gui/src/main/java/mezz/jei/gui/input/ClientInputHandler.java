@@ -50,6 +50,9 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardKeyPressedPre(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
+			return false;
+		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
 			return true;
 		}
@@ -84,6 +87,9 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardCharTypedPre(Screen screen, char codePoint, int modifiers) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
+			return false;
+		}
 		if (!isContainerTextFieldFocused(screen)) {
 			return handleCharTyped(codePoint, modifiers);
 		}

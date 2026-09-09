@@ -1,5 +1,9 @@
 {
-  "jei.settings.title": "JEIU Settings",
+  "jei.settings.configuration": "Configuration",
+  "jei.settings.keybindings": "Key Bindings",
+  "jei.settings.recordKey": "Press a key...",
+  "jei.settings.singleModifier": "Use at most one modifier.",
+  "jei.settings.title": "JEI Settings",
   "jei.settings.search": "Search settings",
   "jei.settings.reset": "Reset this setting to its default",
   "jei.settings.resetButton": "Reset",
