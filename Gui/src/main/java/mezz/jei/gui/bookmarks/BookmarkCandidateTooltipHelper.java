@@ -15,6 +15,19 @@ public final class BookmarkCandidateTooltipHelper {
 	private BookmarkCandidateTooltipHelper() {
 	}
 
+	public static void addTo(JeiTooltip tooltip, BookmarkCandidateTooltipState state,
+		List<BookmarkIngredientKey> candidates, java.util.function.Supplier<mezz.jei.gui.recipes.IIngredientCandidateSource> source) {
+		if (!Internal.getJeiClientConfigs().getClientConfig().isTagContentTooltipEnabled()) {
+			return;
+		}
+		state.getOrCreate(candidates).ifPresent(grid -> {
+			var candidateSource = source.get();
+			grid.setSelectedIngredient(candidateSource.getSelectedIngredient());
+			grid.setMousePosition(-10000, -10000);
+			tooltip.add(grid);
+		});
+	}
+
 	public static void addTo(
 		JeiTooltip tooltip,
 		BookmarkPermutationTooltipState tooltipState,

@@ -68,6 +68,28 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSource {
+	public boolean showCandidateTooltip(mezz.jei.gui.recipes.IIngredientCandidateSource source, mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent grid, int x, int y) {
+		return false;
+	}
+
+	public mezz.jei.gui.input.IGuiInputLayer getForegroundInputLayer() {
+		return new mezz.jei.gui.input.IGuiInputLayer() {
+			@Override
+			public void draw(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
+			}
+
+			@Override
+			public java.util.Optional<mezz.jei.gui.input.IUserInputHandler> handleUserInput(Screen screen, mezz.jei.gui.input.UserInput input, mezz.jei.common.input.IInternalKeyMappings keyBindings) {
+				return java.util.Optional.empty();
+			}
+
+			@Override
+			public boolean isMouseOver(double mouseX, double mouseY) {
+				return false;
+			}
+		};
+	}
+
 	private static final int borderPadding = 6;
 	private static final int minRecipePadding = 4;
 	private static final int navBarPadding = 2;
