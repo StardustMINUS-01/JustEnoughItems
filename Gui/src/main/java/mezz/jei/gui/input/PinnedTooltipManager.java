@@ -40,6 +40,10 @@ public final class PinnedTooltipManager {
 		return active != null && activeTooltipRenderDepth == 0;
 	}
 
+	public static boolean hasKeyboardFocus() {
+		return active instanceof ICharTypedHandler handler && handler.hasKeyboardFocus();
+	}
+
 	public static boolean matchesInput(
 		InputConstants.Key inputKey,
 		IJeiKeyMappingWithExtraModifiers keyMapping,

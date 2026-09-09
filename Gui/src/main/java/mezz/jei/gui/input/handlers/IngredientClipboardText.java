@@ -9,7 +9,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.stream.Collectors;
+import java.util.List;
 import java.util.stream.Stream;
 
 public final class IngredientClipboardText {
@@ -36,7 +36,7 @@ public final class IngredientClipboardText {
 			});
 	}
 
-	public static <T> String getIngredientTags(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
+	public static <T> List<String> getIngredientTags(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
 		return formatTagLocations(ingredientHelper.getTagStream(typedIngredient.getIngredient()));
 	}
@@ -50,12 +50,12 @@ public final class IngredientClipboardText {
 		return resourceLocation.toString();
 	}
 
-	public static String formatTagLocations(Stream<ResourceLocation> tags) {
+	public static List<String> formatTagLocations(Stream<ResourceLocation> tags) {
 		return tags
 			.distinct()
 			.map(tag -> "#" + tag)
 			.sorted()
-			.collect(Collectors.joining(","));
+			.toList();
 	}
 
 	private static String stripFormatting(String text) {

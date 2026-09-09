@@ -59,7 +59,7 @@ public class ClientInputHandler {
 
 		boolean textFieldFocused = isContainerTextFieldFocused(screen);
 		// AE text fields consume every focused key, so terminal search must run before the screen.
-		if (input.is(keybindings.getFocusSearch()) || !textFieldFocused || input.is(keybindings.getSearchIngredientInTerminal())) {
+		if (PinnedTooltipManager.hasKeyboardFocus() || input.is(keybindings.getFocusSearch()) || !textFieldFocused || input.is(keybindings.getSearchIngredientInTerminal())) {
 			if (screenHelper.getGuiProperties(screen).isPresent()) {
 				return this.inputRouter.handleUserInput(screen, input, keybindings);
 			}
@@ -90,7 +90,7 @@ public class ClientInputHandler {
 		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
 			return false;
 		}
-		if (!isContainerTextFieldFocused(screen)) {
+		if (PinnedTooltipManager.hasKeyboardFocus() || !isContainerTextFieldFocused(screen)) {
 			return handleCharTyped(codePoint, modifiers);
 		}
 		return false;

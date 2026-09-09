@@ -16,6 +16,7 @@ import mezz.jei.gui.config.InternalKeyMappings;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent;
+import mezz.jei.gui.input.handlers.IngredientTagSelectionTooltip;
 import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
 import mezz.jei.library.plugins.vanilla.cooking.JeiSmeltingRecipe;
@@ -142,6 +143,7 @@ public class JustEnoughItemsClient {
 		event.register(RecipeSlotOptionsTooltipComponent.class, Function.identity());
 		event.register(TagContentTooltipComponent.class, Function.identity());
 		event.register(InteractiveIngredientGridTooltipComponent.class, Function.identity());
+		event.register(IngredientTagSelectionTooltip.class, Function.identity());
 	}
 
 	private ResourceManagerReloadListener createReloadListener() {

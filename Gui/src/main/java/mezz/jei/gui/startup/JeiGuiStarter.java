@@ -389,15 +389,6 @@ public class JeiGuiStarter {
 		var recipesGuiForegroundInputLayer = recipesGui.getForegroundInputLayer();
 		var bookmarkPreviewTooltipController = bookmarkOverlay.getPreviewTooltipController();
 
-		GuiEventHandler guiEventHandler = new GuiEventHandler(
-			screenHelper,
-			bookmarkOverlay,
-			ingredientListOverlay,
-			bookmarkAutoCraftingRunner,
-			recipesGuiForegroundInputLayer,
-			bookmarkPreviewTooltipController
-		);
-
 		CombinedRecipeFocusSource recipeFocusSource = new CombinedRecipeFocusSource(
 			recipesGui.getCandidateFocusSource(),
 			bookmarkPreviewTooltipController,
@@ -406,14 +397,27 @@ public class JeiGuiStarter {
 			bookmarkOverlay,
 			new GuiContainerWrapper(screenHelper)
 		);
+		var focusInputHandler = new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, serverConnection);
+		var tagSelectionTooltip = focusInputHandler.getTagSelectionTooltip();
+		GuiEventHandler guiEventHandler = new GuiEventHandler(
+			screenHelper,
+			bookmarkOverlay,
+			ingredientListOverlay,
+			bookmarkAutoCraftingRunner,
+			tagSelectionTooltip,
+			recipesGuiForegroundInputLayer,
+			bookmarkPreviewTooltipController
+		);
 
 		List<ICharTypedHandler> charTypedHandlers = List.of(
+			tagSelectionTooltip,
 			ingredientListOverlay,
 			bookmarkOverlay
 		);
 
 		UserInputRouter userInputRouter = new UserInputRouter(
 			"JEIGlobal",
+			tagSelectionTooltip,
 			recipesGuiForegroundInputLayer,
 			bookmarkPreviewTooltipController,
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
@@ -437,12 +441,13 @@ public class JeiGuiStarter {
 				bookmarkEntryCodec,
 				bookmarkRegistryOps
 			),
-			new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, serverConnection),
+			focusInputHandler,
 			new GlobalInputHandler(toggleState),
 			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
 		);
 
 		DragRouter dragRouter = new DragRouter(
+			tagSelectionTooltip,
 			ingredientListOverlay.createDragHandler(),
 			bookmarkOverlay.createDragHandler()
 		);
