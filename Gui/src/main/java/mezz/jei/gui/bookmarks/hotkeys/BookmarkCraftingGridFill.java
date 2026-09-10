@@ -49,10 +49,19 @@ public record BookmarkCraftingGridFill(
 		findInventoryQuantities(groups, availableStacks);
 
 		List<ItemStack> targetStacks = new ArrayList<>(targetSlotCount);
-		boolean hasInput = false;
+		List<Integer> allocationOrder = new ArrayList<>(targetSlotCount);
 		for (int i = 0; i < targetSlotCount; i++) {
+			targetStacks.add(ItemStack.EMPTY);
+			allocationOrder.add(i);
+		}
+		// Try slots with fewer available candidates first, keeping the original grid positions.
+		allocationOrder.sort(Comparator.comparingLong(i -> candidateSlots.get(i).stream()
+			.filter(candidate -> candidate.group.inventoryAmount >= candidate.stack.getCount())
+			.count()));
+		boolean hasInput = false;
+		for (int i : allocationOrder) {
 			ItemStack stack = selectTargetStack(candidateSlots.get(i));
-			targetStacks.add(stack.copy());
+			targetStacks.set(i, stack.copy());
 			hasInput |= !stack.isEmpty();
 		}
 		if (!hasInput) {
