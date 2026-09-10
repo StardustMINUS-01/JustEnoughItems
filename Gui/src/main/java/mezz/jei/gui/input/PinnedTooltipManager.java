@@ -44,6 +44,12 @@ public final class PinnedTooltipManager {
 		return active instanceof ICharTypedHandler handler && handler.hasKeyboardFocus();
 	}
 
+	/**
+	 * 1.21.1 parity ({@code isActiveAndMatchesAllowingExtraModifiers}): while a tooltip is
+	 * pinned by the pin key, an action key must still match even though the pin key is an
+	 * extra modifier. Forge 1.20.1 rejects that in {@code isActiveAndMatches}, so compare
+	 * only the bound key. Mouse bindings keep strict modifier matching.
+	 */
 	public static boolean matchesInput(
 		InputConstants.Key inputKey,
 		IJeiKeyMapping keyMapping,
@@ -55,7 +61,7 @@ public final class PinnedTooltipManager {
 		return active != null &&
 			pinKeyMapping.isDown() &&
 			inputKey.getType() != InputConstants.Type.MOUSE &&
-			keyMapping.isActiveAndMatches(inputKey);
+			keyMapping.matchesIgnoringModifiers(inputKey);
 	}
 
 	private PinnedTooltipManager() {

@@ -23,6 +23,7 @@ import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -122,7 +123,9 @@ public class FocusInputHandler implements IUserInputHandler {
 			}
 		}
 
-		if (input.is(keyBindings.getShowRecipe())) {
+		// 1.21.1 parity: while a tooltip is pinned by the pin key, the show-recipe and
+		// show-uses keys must still work even though the pin key is an extra modifier.
+		if (PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getShowRecipe(), keyBindings.getPauseRecipeCycling())) {
 			return handleShowRecipe(input, keyBindings);
 		}
 
@@ -130,7 +133,7 @@ public class FocusInputHandler implements IUserInputHandler {
 			return handleShareToChat(input, keyBindings);
 		}
 
-		if (input.is(keyBindings.getShowUses())) {
+		if (PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getShowUses(), keyBindings.getPauseRecipeCycling())) {
 			return handleShow(input, List.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.CATALYST), keyBindings);
 		}
 
