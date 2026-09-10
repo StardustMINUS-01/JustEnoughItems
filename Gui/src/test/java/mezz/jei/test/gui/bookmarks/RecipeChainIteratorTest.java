@@ -5,6 +5,8 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.Map;
@@ -75,6 +77,34 @@ public class RecipeChainIteratorTest {
 		));
 
 		Assertions.assertEquals(Map.of(TABLE_RECIPE, 1L, TORCH_RECIPE, 1L), iterator.next());
+		Assertions.assertEquals(Map.of(), iterator.next());
+		Assertions.assertFalse(iterator.hasNext());
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void iteratorDefersSharedDependencyOnlyWhileAnotherConsumerNeedsCrafting(boolean torchInInventory) {
+		RecipeChainMath math = RecipeChainMath.of(List.of(
+			input(0, result(TABLE_RECIPE, key("table"), 1, 1)),
+			input(1, ingredient(TABLE_RECIPE, key("stick"), 2)),
+			input(2, ingredient(TABLE_RECIPE, key("torch"), 1)),
+			input(3, result(TORCH_RECIPE, key("torch"), 1, 1)),
+			input(4, ingredient(TORCH_RECIPE, key("stick"), 3)),
+			input(5, result(STICK_RECIPE, key("stick"), 1, 1)),
+			input(6, ingredient(STICK_RECIPE, key("plank"), 1))
+		), Set.of());
+		math.createMasterRoot();
+
+		RecipeChainIterator iterator = new RecipeChainIterator(math, List.of());
+		iterator.updateInventory(torchInInventory
+			? List.of(input(100, item(key("torch"), 1)))
+			: List.of());
+
+		Assertions.assertEquals(Map.of(TABLE_RECIPE, 1L), iterator.next());
+		if (!torchInInventory) {
+			Assertions.assertEquals(Map.of(TORCH_RECIPE, 1L), iterator.next());
+		}
+		Assertions.assertEquals(Map.of(STICK_RECIPE, torchInInventory ? 2L : 5L), iterator.next());
 		Assertions.assertEquals(Map.of(), iterator.next());
 		Assertions.assertFalse(iterator.hasNext());
 	}

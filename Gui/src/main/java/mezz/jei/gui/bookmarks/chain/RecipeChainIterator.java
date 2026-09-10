@@ -58,6 +58,13 @@ public final class RecipeChainIterator implements Iterator<Map<ResourceLocation,
 		});
 		preferredItems.keySet().removeIf(item -> !hasCalculatedAmount(item, details));
 
+		Set<RecipeChainInput> referencedByPendingRecipes = new HashSet<>();
+		for (Map.Entry<RecipeChainInput, RecipeChainInput> entry : preferredItems.entrySet()) {
+			if (!this.processedRecipes.contains(entry.getKey().metadata().recipeUid())) {
+				referencedByPendingRecipes.add(entry.getValue());
+			}
+		}
+
 		for (Map.Entry<RecipeChainInput, RecipeChainInput> entry : preferredItems.entrySet()) {
 			RecipeChainInput keyItem = entry.getKey();
 			ResourceLocation keyRecipe = keyItem.metadata().recipeUid();
@@ -68,10 +75,7 @@ public final class RecipeChainIterator implements Iterator<Map<ResourceLocation,
 					continue;
 				}
 
-				if (preferredItems.entrySet().stream().anyMatch(pref ->
-					!this.processedRecipes.contains(pref.getKey().metadata().recipeUid()) &&
-						item.equals(pref.getValue())
-				)) {
+				if (referencedByPendingRecipes.contains(item)) {
 					skipRecipes.add(itemRecipe);
 				} else {
 					long multiplier = details.calculatedItems()
