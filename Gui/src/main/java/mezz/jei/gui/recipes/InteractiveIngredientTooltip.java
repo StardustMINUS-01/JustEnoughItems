@@ -272,7 +272,9 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		}
 
 		if (source.canSelect() &&
-			keyBindings.getSelectRecipeInput().isActiveAndMatches(input.getKey())) {
+			// 1.21.1 parity (isActiveAndMatchesAllowingExtraModifiers): the pin key is held while
+			// this tooltip is open, and Ctrl selects only the source slot (see the next line).
+			keyBindings.getSelectRecipeInput().matchesIgnoringModifiers(input.getKey())) {
 			Optional<ITypedIngredient<?>> selected = this.ingredientGrid.getTypedIngredientUnderMouse(input.getMouseX(), input.getMouseY());
 			if (selected.isPresent()) {
 				if (!input.isSimulate()) {

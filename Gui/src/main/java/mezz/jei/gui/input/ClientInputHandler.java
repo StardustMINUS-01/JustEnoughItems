@@ -57,7 +57,10 @@ public class ClientInputHandler {
 			return true;
 		}
 
-		if (!isContainerTextFieldFocused(screen)) {
+		// 1.21.1 parity: the focus-search key must still reach JEI while a container text field has
+		// focus. (PinnedTooltipManager.hasKeyboardFocus() is always false in 1.20.1 because the
+		// pinned tooltip is not an ICharTypedHandler; the clause is kept to mirror 1.21.1.)
+		if (PinnedTooltipManager.hasKeyboardFocus() || input.is(keybindings.getFocusSearch()) || !isContainerTextFieldFocused(screen)) {
 			if (screenHelper.getGuiProperties(screen).isPresent()) {
 				return this.inputRouter.handleUserInput(screen, input, keybindings);
 			}

@@ -101,6 +101,8 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 
 		IJeiKeyMappingCategoryBuilder mouseHover = inputHelper.createKeyMappingCategoryBuilder("jei.key.category.mouse.hover");
 
+		IJeiKeyMappingCategoryBuilder worldTarget = inputHelper.createKeyMappingCategoryBuilder("jei.key.category.world.target");
+
 		IJeiKeyMappingCategoryBuilder search = inputHelper.createKeyMappingCategoryBuilder("jei.key.category.search");
 
 		IJeiKeyMappingCategoryBuilder cheat = inputHelper.createKeyMappingCategoryBuilder("jei.key.category.cheat.mode");
@@ -162,18 +164,21 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.buildUnbound()
 			.register(registerMethod);
 
-		bookmarkWorldTarget = mouseHover.createMapping("key.jei.bookmarkWorldTarget")
-			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+		// 1.21.1 parity: these keys are pressed with no screen open, so they need their own
+		// category and the IN_GAME conflict context. JEI_GUI_HOVER is only active while a
+		// screen is open, which made a JEI_GUI_HOVER mapping impossible to trigger here.
+		bookmarkWorldTarget = worldTarget.createMapping("key.jei.bookmarkWorldTarget")
+			.setContext(JeiKeyConflictContext.IN_GAME)
 			.buildUnbound()
 			.register(registerMethod);
 
-		showWorldTargetRecipe = mouseHover.createMapping("key.jei.showWorldTargetRecipe")
-			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+		showWorldTargetRecipe = worldTarget.createMapping("key.jei.showWorldTargetRecipe")
+			.setContext(JeiKeyConflictContext.IN_GAME)
 			.buildUnbound()
 			.register(registerMethod);
 
-		showWorldTargetUses = mouseHover.createMapping("key.jei.showWorldTargetUses")
-			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+		showWorldTargetUses = worldTarget.createMapping("key.jei.showWorldTargetUses")
+			.setContext(JeiKeyConflictContext.IN_GAME)
 			.buildUnbound()
 			.register(registerMethod);
 		overlayRecipe = mouseHover.createMapping("key.jei.overlayRecipe")
@@ -261,7 +266,8 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 
 		shareToChat = mouseHover.createMapping("key.jei.shareToChat")
 				.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
-				.buildUnbound()
+				.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+				.buildKeyboardKey(GLFW.GLFW_KEY_L)
 				.register(registerMethod);
 
 		// Search Bar

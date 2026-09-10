@@ -41,6 +41,7 @@ import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.InputModifiers;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -117,6 +118,15 @@ public class BookmarkInputHandler implements IUserInputHandler {
 					}
 					return this;
 				});
+		}
+		// 1.21.1 parity: with no modifier held, the bookmark key bookmarks the recipe under the
+		// mouse. It falls through to the ingredient path below when not hovering a recipe.
+		if (!InputModifiers.hasShift(input) && !InputModifiers.hasControl(input) &&
+			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())) {
+			Optional<IUserInputHandler> recipeHandler = handleRecipeBookmark(input);
+			if (recipeHandler.isPresent()) {
+				return recipeHandler;
+			}
 		}
 		if (BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
 			return handleBookmarkAutoCrafting(input, keyBindings.getCraftItems());

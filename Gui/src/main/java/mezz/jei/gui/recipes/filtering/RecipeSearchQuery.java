@@ -12,7 +12,7 @@ public final class RecipeSearchQuery {
 		this.alternatives = alternatives;
 		List<List<SearchTerm>> inputAlternatives = alternatives.stream()
 			.map(alternative -> alternative.stream()
-				.filter(term -> term.scope() == Scope.INPUT)
+				.filter(term -> term.scope() == Scope.INPUT || term.scope() == Scope.ALL)
 				.toList())
 			.toList();
 		this.inputAlternatives = inputAlternatives.stream().anyMatch(List::isEmpty) ?

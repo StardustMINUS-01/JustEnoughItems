@@ -175,15 +175,6 @@ public final class InputSlotSelectionState {
 		IRecipeLayoutDrawable<?> recipeLayout,
 		IRecipeSlotView sourceSlot,
 		ITypedIngredient<?> selected,
-		boolean synchronizeFamily
-	) {
-		return select(recipeLayout, sourceSlot, selected, synchronizeFamily, false);
-	}
-
-	public boolean select(
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotView sourceSlot,
-		ITypedIngredient<?> selected,
 		boolean synchronizeFamily,
 		boolean toggle
 	) {

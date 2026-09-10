@@ -306,6 +306,10 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		nextPage.render(guiGraphics, mouseX, mouseY, partialTicks);
 		previousPage.render(guiGraphics, mouseX, mouseY, partialTicks);
 
+		// 1.21.1 parity: re-evaluate the pinned tooltip every frame, so it closes when the pin key
+		// is released without the mouse having to move first.
+		updateInteractiveIngredientTooltip(mouseX, mouseY);
+
 		Optional<IRecipeLayoutDrawable<?>> hoveredRecipeLayout = this.layouts.draw(guiGraphics, mouseX, mouseY);
 		optionButtons.draw(guiGraphics, mouseX, mouseY, partialTicks);
 		Optional<IRecipeSlotDrawable> hoveredRecipeCatalyst = recipeCatalysts.draw(guiGraphics, mouseX, mouseY);
@@ -470,7 +474,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		if (handled) {
 			return true;
 		}
-		return super.mouseClicked(mouseX, mouseY, mouseButton);
+		return super.mouseReleased(mouseX, mouseY, mouseButton);
 	}
 
 	@Override

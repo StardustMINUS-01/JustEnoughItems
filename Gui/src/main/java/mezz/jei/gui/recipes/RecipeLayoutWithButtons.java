@@ -283,7 +283,8 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 
 	boolean selectInputCandidate(IRecipeSlotView slot, ITypedIngredient<?> ingredient, boolean synchronizeFamily) {
 		return inputSlotSelectionState != null &&
-			inputSlotSelectionState.select(recipeLayout, slot, ingredient, synchronizeFamily);
+			// 1.21.1 parity: clicking the selected candidate again clears the selection.
+			inputSlotSelectionState.select(recipeLayout, slot, ingredient, synchronizeFamily, true);
 	}
 
 	@Override
@@ -373,8 +374,12 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		// 1.20.1 only: IUserInputHandler has a 3-parameter handleMouseScrolled (1.21.1 has 4 with scrollDeltaX).
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+			// 1.21.1 parity: a plain scroll keeps scrolling the recipe page. Ctrl+scroll cycles the
+			// input candidates of this slot, Shift+scroll also synchronizes the recipe family.
+			boolean synchronizeFamily = Screen.hasShiftDown();
 			if (inputSlotSelectionState != null &&
-				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDelta, !Screen.hasControlDown())
+				(synchronizeFamily || Screen.hasControlDown()) &&
+				inputSlotSelectionState.scroll(recipeLayout, mouseX, mouseY, scrollDelta, synchronizeFamily)
 			) {
 				return Optional.of(this);
 			}
