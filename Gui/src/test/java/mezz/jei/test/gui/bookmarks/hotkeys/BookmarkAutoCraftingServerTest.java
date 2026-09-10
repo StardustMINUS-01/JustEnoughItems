@@ -2,11 +2,13 @@ package mezz.jei.test.gui.bookmarks.hotkeys;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.constants.RecipeTypes;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingBridge;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkCraftingGridFill;
 import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
@@ -52,7 +54,7 @@ public class BookmarkAutoCraftingServerTest {
 
 	@ParameterizedTest
 	@EnumSource(value = InputType.class, names = {"SIMULATE", "EXECUTE"})
-	void singleRecipeSendsOnlyOnExecution(InputType inputType) {
+	void sendsOnExecution(InputType inputType) {
 		var layout = layout();
 		CraftingMenu menu = new CraftingMenu(7, new Inventory(null));
 		var key = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_C);
@@ -75,7 +77,7 @@ public class BookmarkAutoCraftingServerTest {
 
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
-	void chainWaitsForMatchingAckAndInventorySync(boolean craftAll) {
+	void waitsForAckAndInventory(boolean craftAll) {
 		List<RecipeChainInput> chain = List.of(input(0, result(RECIPE, key("result"), 1, 1)),
 			input(1, ingredient(RECIPE, key("material"), 1)));
 		AtomicReference<List<RecipeChainInput>> inventory = new AtomicReference<>(List.of(
@@ -105,7 +107,33 @@ public class BookmarkAutoCraftingServerTest {
 	}
 
 	private static RecipeLayoutTestFixtures.TestRecipeLayout layout() {
-		return RecipeLayoutTestFixtures.singleIngredientLayout(RecipeTypes.CRAFTING, new Object(), RECIPE,
-			List.of(item(Items.OAK_PLANKS)), List.of(item(Items.STICK)));
+		return gridLayout(0);
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {4, 9})
+	void mapsCraftingSlots(int targetSlotCount) {
+		for (int[] occupied : List.of(new int[]{0, 1, 3, 4}, new int[]{0, 4})) {
+			var layout = gridLayout(occupied);
+			var stacks = BookmarkCraftingGridFill.create(layout, targetSlotCount, 1).orElseThrow().targetStacks();
+			int columns = targetSlotCount == 4 ? 2 : 3;
+			for (int i = 0; i < targetSlotCount; i++) {
+				ItemStack expected = layout.inputs().get(i / columns * 3 + i % columns)
+					.getDisplayedItemStack().orElse(ItemStack.EMPTY);
+				assertTrue(ItemStack.matches(expected, stacks.get(i)), "Target slot " + i);
+			}
+		}
+	}
+
+	private static RecipeLayoutTestFixtures.TestRecipeLayout gridLayout(int... occupied) {
+		List<List<ITypedIngredient<?>>> inputs = new ArrayList<>();
+		for (int i = 0; i < 9; i++) {
+			inputs.add(List.of());
+		}
+		for (int index : occupied) {
+			inputs.set(index, List.of(item(index % 2 == 0 ? Items.OAK_PLANKS : Items.STONE)));
+		}
+		return RecipeLayoutTestFixtures.layout(RecipeTypes.CRAFTING, new Object(), RECIPE,
+			inputs, List.of(List.of(item(Items.STICK))));
 	}
 }

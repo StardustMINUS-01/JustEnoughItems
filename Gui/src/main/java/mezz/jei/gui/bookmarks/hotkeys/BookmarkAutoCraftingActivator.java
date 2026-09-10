@@ -1,6 +1,7 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.Internal;
@@ -94,7 +95,8 @@ public final class BookmarkAutoCraftingActivator {
 		boolean hasServerSupport,
 		List<ItemStack> availableStacks
 	) {
-		if (!hasServerSupport || !hasShift || containerMenu == null) {
+		if (!hasServerSupport || !hasShift || containerMenu == null ||
+			!RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())) {
 			return false;
 		}
 
