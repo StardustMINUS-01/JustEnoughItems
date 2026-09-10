@@ -387,7 +387,11 @@ public class JeiGuiStarter {
 		);
 		ResourceReloadHandler resourceReloadHandler = new ResourceReloadHandler(
 			ingredientListOverlay,
-			ingredientFilter
+			ingredientFilter,
+			() -> {
+				favoriteRecipes.clearGeneratedFavorites();
+				recipePreferenceCandidateResolver.invalidateAll();
+			}
 		);
 
 		return new JeiEventHandlers(

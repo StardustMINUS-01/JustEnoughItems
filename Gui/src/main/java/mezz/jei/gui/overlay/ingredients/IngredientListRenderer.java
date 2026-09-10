@@ -18,6 +18,7 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
+import mezz.jei.gui.collapsible.CollapsedGroupElement;
 import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
@@ -91,6 +92,16 @@ public class IngredientListRenderer {
 	private void addRenderElement(IngredientListSlot ingredientListSlot) {
 		ingredientListSlot.getOptionalElement()
 			.ifPresent(element -> {
+				// 1.21.1 parity: a collapsed group slot is drawn as a double stack (background
+				// member at a lower z, representative at a higher z) instead of a batch element.
+				if (element instanceof CollapsedGroupElement<?> groupElement && groupElement.isCollapsed()) {
+					IDrawable doubleStack = groupElement.createDoubleStackDrawable();
+					if (doubleStack != null) {
+						ImmutableRect2i renderArea = ingredientListSlot.getRenderArea();
+						renderOverlays.add(OffsetDrawable.create(doubleStack, renderArea.x(), renderArea.y()));
+						return;
+					}
+				}
 				ITypedIngredient<?> typedIngredient = element.getTypedIngredient();
 				IIngredientType<?> ingredientType = typedIngredient.getType();
 				ImmutableRect2i renderArea = ingredientListSlot.getRenderArea();
