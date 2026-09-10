@@ -99,7 +99,7 @@ public final class RecipeTreeScreen extends Screen {
 		this.ingredients = ingredients;
 		// This standalone screen has no overlay GUI properties, so global JEI input skips it.
 		var recipesGui = (RecipesGui) Internal.getJeiRuntime().getRecipesGui();
-		this.candidateInputs = new UserInputRouter("Recipe tree candidates");
+		this.candidateInputs = new UserInputRouter("Recipe tree candidates", recipesGui.getForegroundInputLayer());
 		bookmarks.getTreeViewState(groupId).ifPresent(state -> {
 			pendingViewState = state;
 			showBookmarks = state.bookmarksVisible();
@@ -923,6 +923,10 @@ public final class RecipeTreeScreen extends Screen {
 			tooltip.add(Component.translatable("jei.tree.amount", amountText).withStyle(ChatFormatting.GRAY));
 			if (nonConsumable) {
 				tooltip.add(Component.translatable("jei.tree.non_consumable").withStyle(ChatFormatting.YELLOW));
+			}
+			if (source != null && source.selectedKey() != null) {
+				BookmarkCandidateTooltipHelper.addTo(tooltip, candidateTooltips, List.copyOf(source.metadata().permutations()),
+					() -> bookmarks.getCandidateSource(bookmarks.getBookmarks().get(source.index())));
 			}
 
 			tooltip.draw(graphics, x, y);

@@ -391,20 +391,20 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				.keepBottom(BUTTON_SIZE)
 				.keepLeft(BUTTON_SIZE);
 			this.bookmarkButton.updateBounds(bookmarkButtonArea);
-			ImmutableRect2i historyButtonArea  = bookmarkButtonArea.moveRight(2 + BUTTON_SIZE);
-			this.historyButton.updateBounds(historyButtonArea);
-			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(historyButtonArea);
+			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(bookmarkButtonArea);
 			this.favoriteButton.updateBounds(favoriteButtonArea);
+			ImmutableRect2i historyButtonArea = calculateHistoryButtonArea(favoriteButtonArea);
+			this.historyButton.updateBounds(historyButtonArea);
 		} else {
 			ImmutableRect2i bookmarkButtonArea = displayArea
 				.insetBy(BORDER_MARGIN)
 				.keepBottom(BUTTON_SIZE)
 				.keepLeft(BUTTON_SIZE);
 			this.bookmarkButton.updateBounds(bookmarkButtonArea);
-			ImmutableRect2i historyButtonArea  = bookmarkButtonArea.moveRight(2 + BUTTON_SIZE);
-			this.historyButton.updateBounds(historyButtonArea);
-			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(historyButtonArea);
+			ImmutableRect2i favoriteButtonArea = calculateFavoritePanelButtonArea(bookmarkButtonArea);
 			this.favoriteButton.updateBounds(favoriteButtonArea);
+			ImmutableRect2i historyButtonArea = calculateHistoryButtonArea(favoriteButtonArea);
+			this.historyButton.updateBounds(historyButtonArea);
 		}
 	}
 
@@ -431,8 +431,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 	}
 
-	public static ImmutableRect2i calculateFavoritePanelButtonArea(ImmutableRect2i historyButtonArea) {
-		return historyButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
+	public static ImmutableRect2i calculateFavoritePanelButtonArea(ImmutableRect2i bookmarkButtonArea) {
+		return bookmarkButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
+	}
+
+	public static ImmutableRect2i calculateHistoryButtonArea(ImmutableRect2i favoriteButtonArea) {
+		return favoriteButtonArea.moveRight(BUTTON_SIZE + INNER_PADDING);
 	}
 
 	public ScrollStep getScrollStep() {
@@ -955,7 +959,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	public Optional<Integer> getPullGroupIdUnderMouse(double mouseX, double mouseY) {
-		if (getDefaultGroupControlArea().contains(mouseX, mouseY)) {
+		if (hasDefaultGroupBookmarks() && getDefaultGroupControlArea().contains(mouseX, mouseY)) {
 			return Optional.of(BookmarkGroupManager.DEFAULT_GROUP_ID);
 		}
 		return getGroupIdUnderMouseGroupPanel(mouseX, mouseY)
@@ -992,6 +996,10 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	Optional<GroupPanelSlot> getGroupPanelSlotUnderMouse(double mouseX, double mouseY) {
+		// 1.21.1 parity: panels scrolled outside the clip must not receive input.
+		if (!isMouseOverVisibleGroupPanelArea(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		return BookmarkPanelLayout.findRowUnderMouse(getGroupPanelRowSlots(), mouseX, mouseY, GROUP_PANEL_WIDTH)
 			.map(this::toGroupPanelSlot);
 	}
@@ -1321,7 +1329,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				return;
 			}
 			int sourceGroupId = bookmarkList.getBookmarkGroupId(bookmark);
-			if (sourceGroupId == targetGroupId) {
+			// 1.21.1 parity: this target accepts items that already live in the group (reordering)
+			// and refuses cross-group drops, which the drag selection handles separately.
+			if (sourceGroupId != targetGroupId) {
 				return;
 			}
 			selection.moveToBookmark(bookmarkList, this.bookmark, targetGroupId, offset);

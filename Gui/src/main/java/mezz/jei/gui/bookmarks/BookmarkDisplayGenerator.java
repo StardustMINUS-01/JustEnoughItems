@@ -82,7 +82,7 @@ public final class BookmarkDisplayGenerator {
 					continue;
 				}
 				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, rowLayout);
-			} else if (group == null || group.viewMode() != BookmarkViewMode.COLLAPSED ||
+			} else if (group == null || !group.collapsed() ||
 				BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			} else if (isResultOnlyGroupOutput(metadata)) {
@@ -136,7 +136,7 @@ public final class BookmarkDisplayGenerator {
 	private static <T> String getBorderKey(BookmarkDisplayEntry<T> entry, Map<Integer, BookmarkGroup> groups) {
 		int groupId = entry.metadata().groupId();
 		BookmarkGroup group = groups.get(groupId);
-		if (group != null && group.viewMode() == BookmarkViewMode.COLLAPSED) {
+		if (group != null && group.collapsed()) {
 			return "group:" + groupId;
 		}
 		ResourceLocation blockId = entry.collapsedBlockId();
@@ -148,7 +148,7 @@ public final class BookmarkDisplayGenerator {
 
 	private static <T> int getBorderColor(BookmarkDisplayEntry<T> entry, Map<Integer, BookmarkGroup> groups) {
 		BookmarkGroup group = groups.get(entry.metadata().groupId());
-		if (group != null && group.viewMode() == BookmarkViewMode.COLLAPSED) {
+		if (group != null && group.collapsed()) {
 			return group.craftingMode() ?
 				BookmarkSlotBorder.GROUP_CHAIN_COLOR :
 				BookmarkSlotBorder.GROUP_NONE_COLOR;
@@ -161,7 +161,7 @@ public final class BookmarkDisplayGenerator {
 		int groupId,
 		BookmarkItemMetadata metadata
 	) {
-		return group.viewMode() != BookmarkViewMode.TODO_LIST &&
+		return (group.collapsed() || group.viewMode() != BookmarkViewMode.TODO_LIST) &&
 			BookmarkGroupManager.DEFAULT_GROUP_ID != groupId &&
 			(metadata.type().isGraphInput() || metadata.type().isCatalyst());
 	}
@@ -186,7 +186,7 @@ public final class BookmarkDisplayGenerator {
 		for (RecipeChainDetails.CollapsedBlockItem blockItem : block.items()) {
 			BookmarkItemMetadata metadata = blockItem.metadata();
 			boolean anchor = blockItem.anchor();
-			if (group.viewMode() != BookmarkViewMode.TODO_LIST && !metadata.type().isGraphOutput()) {
+			if ((group.collapsed() || group.viewMode() != BookmarkViewMode.TODO_LIST) && !metadata.type().isGraphOutput()) {
 				continue;
 			}
 			int sourceIndex = blockItem.sourceIndex();
@@ -199,6 +199,7 @@ public final class BookmarkDisplayGenerator {
 				sourceIndex,
 				metadata,
 				group.viewMode(),
+				group.collapsed(),
 				Optional.of(blockRoot),
 				Optional.of(chainItem),
 				anchor && details.outputRecipes().contains(blockRoot),
@@ -238,7 +239,7 @@ public final class BookmarkDisplayGenerator {
 			}
 			return;
 		}
-		if (group.viewMode() != BookmarkViewMode.TODO_LIST && metadata.type().isGraphInput()) {
+		if ((group.collapsed() || group.viewMode() != BookmarkViewMode.TODO_LIST) && metadata.type().isGraphInput()) {
 			return;
 		}
 		addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group, details, chainItem), false, rowLayout);
@@ -252,7 +253,7 @@ public final class BookmarkDisplayGenerator {
 	) {
 		if (!displaySlots.isEmpty()) {
 			int slotIndex = nextSlotIndex(displaySlots, entry, rowLayout);
-			if (entry.viewMode() == BookmarkViewMode.COLLAPSED && rowLayout.columns() > 0) {
+			if (entry.collapsed() && rowLayout.columns() > 0) {
 				BookmarkDisplaySlot<T> previousSlot = displaySlots.get(displaySlots.size() - 1);
 				boolean sameGroup = previousSlot.entry().metadata().groupId() == entry.metadata().groupId();
 				if (sameGroup && BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
@@ -287,7 +288,7 @@ public final class BookmarkDisplayGenerator {
 		if (previousGroupId != groupId && !BookmarkRowLayout.isRowStart(slotIndex, rowLayout)) {
 			slotIndex = BookmarkRowLayout.nextRowStart(slotIndex, rowLayout);
 		}
-		if (entry.viewMode() != BookmarkViewMode.TODO_LIST) {
+		if (entry.collapsed() || entry.viewMode() != BookmarkViewMode.TODO_LIST) {
 			return slotIndex;
 		}
 		// Bounded loop guard: when the bookmark area is too narrow to fit more than
@@ -368,6 +369,7 @@ public final class BookmarkDisplayGenerator {
 			sourceIndex,
 			metadata,
 			group == null ? BookmarkViewMode.DEFAULT : group.viewMode(),
+			group != null && group.collapsed(),
 			Optional.ofNullable(metadata.recipeUid()),
 			Optional.empty(),
 			false,
@@ -389,6 +391,7 @@ public final class BookmarkDisplayGenerator {
 			sourceIndex,
 			metadata,
 			group.viewMode(),
+			group.collapsed(),
 			Optional.ofNullable(recipeUid),
 			Optional.of(chainItem),
 			recipeUid != null && details.outputRecipes().contains(recipeUid),

@@ -490,7 +490,7 @@ public final class BookmarkSortDragState {
 		boolean todoGroup = bookmarkList.getBookmarkGroups().stream()
 			.filter(group -> group.id() == sourceMetadata.groupId())
 			.findFirst()
-			.map(group -> group.viewMode() == BookmarkViewMode.TODO_LIST)
+			.map(group -> !group.collapsed() && group.viewMode() == BookmarkViewMode.TODO_LIST)
 			.orElse(false);
 		if (!todoGroup) {
 			return true;

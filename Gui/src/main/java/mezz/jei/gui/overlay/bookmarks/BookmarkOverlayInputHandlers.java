@@ -109,7 +109,7 @@ public final class BookmarkOverlayInputHandlers {
 				boolean collapsed = overlay.getBookmarkList().getBookmarkGroups().stream()
 					.filter(group -> group.id() == groupId)
 					.findFirst()
-					.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
+					.map(group -> group.collapsed())
 					.orElse(false);
 				if (collapsed) {
 					overlay.getBookmarkList().toggleGroupCollapsed(groupId);

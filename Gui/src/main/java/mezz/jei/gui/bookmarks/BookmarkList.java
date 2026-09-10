@@ -2001,7 +2001,7 @@ public class BookmarkList implements IIngredientGridSource {
 		boolean groupCollapsed = getBookmarkGroups().stream()
 			.filter(group -> group.id() == groupId)
 			.findFirst()
-			.map(group -> group.viewMode() == BookmarkViewMode.COLLAPSED)
+			.map(group -> group.collapsed())
 			.orElse(false);
 		if (groupCollapsed && BookmarkGroupManager.DEFAULT_GROUP_ID != groupId) {
 			return shiftGroupAmount(groupId, shift);

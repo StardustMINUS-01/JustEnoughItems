@@ -343,7 +343,7 @@ public class BookmarkDisplayGeneratorTest {
 			"screw", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "screw", 1, 1),
 			"circuit", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "circuit", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, true, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, true, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
@@ -386,7 +386,7 @@ public class BookmarkDisplayGeneratorTest {
 			"loose_2", metadata(GROUP_ID, BookmarkItemType.ITEM, null, "loose_2", 1, 1),
 			"loose_3", metadata(GROUP_ID, BookmarkItemType.ITEM, null, "loose_3", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, false, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, true, false, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
 			orderedItems,
@@ -640,7 +640,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, false, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, true, false, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
 			orderedItems,
@@ -714,7 +714,7 @@ public class BookmarkDisplayGeneratorTest {
 			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
 			"gear", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "gear", 1, 1)
 		);
-		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.COLLAPSED, false, false, Set.of());
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, true, false, Set.of());
 
 		var slots = BookmarkDisplayGenerator.generate(
 			orderedItems,

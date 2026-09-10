@@ -271,6 +271,8 @@ public final class RecipeChainMath {
 
 	private void calculateSuitableRecipe(RecipeChainInput ingredient, long amount, List<ResourceLocation> visited) {
 		RecipeChainInput preferred = preferredItems.get(ingredient);
+		// 1.21.1 parity: report the amount that was requested before the container shift.
+		long requested = amount;
 
 		if (amount > 0) {
 			amount = shiftContainerItems(ingredient.metadata(), amount);
@@ -289,7 +291,7 @@ public final class RecipeChainMath {
 
 		if (preferred == null) {
 			if (demandVisitor != null) {
-				demandVisitor.visit(ingredient, amount, amount);
+				demandVisitor.visit(ingredient, requested, amount);
 			}
 			addRequiredAmount(ingredient, amount, Long.MAX_VALUE);
 			return;
@@ -298,7 +300,7 @@ public final class RecipeChainMath {
 		ResourceLocation preferredRecipe = preferred.metadata().recipeUid();
 		if (preferredRecipe == null || visited.contains(preferredRecipe)) {
 			if (demandVisitor != null) {
-				demandVisitor.visit(ingredient, amount, amount);
+				demandVisitor.visit(ingredient, requested, amount);
 			}
 			addRequiredAmount(preferred, amount, Long.MAX_VALUE);
 			return;
@@ -310,7 +312,7 @@ public final class RecipeChainMath {
 			preferred.metadata().multiplierFromAmount(requiredAmount.getOrDefault(preferred, 0L)) -
 				workingMultipliers.getOrDefault(preferred, 0L)
 		);
-		IDemandVisitor childVisitor = demandVisitor == null ? null : demandVisitor.visit(ingredient, amount, amount);
+		IDemandVisitor childVisitor = demandVisitor == null ? null : demandVisitor.visit(ingredient, requested, amount);
 		if (multiplier > 0) {
 			addShift(preferredRecipe, multiplier);
 			visited.add(preferredRecipe);
