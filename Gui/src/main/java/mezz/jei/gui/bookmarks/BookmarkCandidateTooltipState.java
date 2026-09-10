@@ -18,13 +18,16 @@ public final class BookmarkCandidateTooltipState {
 		if (!candidates.equals(keys)) {
 			candidates = List.copyOf(keys);
 			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
+			var ingredientVisibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
 			List<ITypedIngredient<?>> ingredients = new ArrayList<>();
 			for (BookmarkIngredientKey key : keys) {
 				ITypedIngredient<?> typed = key.typedIngredient();
 				if (typed == null) {
 					typed = resolve(ingredientManager, key).orElse(null);
 				}
-				if (typed != null) {
+				// Skip ingredients that JEI hides from recipe slots: the grid renders every
+				// candidate, and a hidden ingredient's renderer can throw, crashing the game.
+				if (typed != null && ingredientVisibility.isIngredientVisible(typed)) {
 					ingredients.add(typed);
 				}
 			}

@@ -67,7 +67,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot() instanceof mezz.jei.common.gui.IRecipeSlotCandidateView candidates
 			? candidates.getCandidates()
 			: sourceSlot.slot().getAllIngredients().filter(java.util.Objects::nonNull).toList();
-		if (displayedIngredients.isEmpty() || displayedIngredients.size() <= 1) {
+		if (displayedIngredients.isEmpty() || (displayedIngredients.size() == 1 && sourceSlot.slot().getAllIngredients().limit(2).count() <= 1)) {
 			return Optional.empty();
 		}
 		return Optional.of(new InteractiveIngredientTooltip(
@@ -108,6 +108,10 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 			@Override
 			public Optional<ITypedIngredient<?>> getSelectedIngredient() {
 				return sourceSlot.slot().getDisplayedIngredient();
+			}
+			@Override
+			public void addTooltip(mezz.jei.common.gui.JeiTooltip tooltip) {
+				sourceSlot.slot().getTooltip(tooltip);
 			}
 			@Override
 			public boolean isValid() {

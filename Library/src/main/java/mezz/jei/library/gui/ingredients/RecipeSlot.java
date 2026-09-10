@@ -421,16 +421,22 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 
 	@Override
 	public List<ITypedIngredient<?>> getCandidates() {
-		if (this.filteredCandidates != null) {
-			return this.filteredCandidates;
-		}
-		List<ITypedIngredient<?>> result = new ArrayList<>();
-		for (ITypedIngredient<?> ingredient : this.allIngredients) {
-			if (ingredient != null) {
-				result.add(ingredient);
-			}
-		}
-		return result;
+		return getVisibleCandidates();
+	}
+
+	/**
+	 * 1.21.1 parity ({@code RecipeSlot#getVisibleCandidates}): the interactive candidate grid
+	 * must only offer ingredients that are visible in recipe slots. Handing a hidden
+	 * ingredient to the grid makes it render that ingredient, and a hidden ingredient's
+	 * renderer can throw, which SafeIngredientUtil turns into a hard crash.
+	 */
+	private List<ITypedIngredient<?>> getVisibleCandidates() {
+		IIngredientVisibility ingredientVisibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
+		List<@Nullable ITypedIngredient<?>> candidates = this.filteredCandidates != null ? this.filteredCandidates : this.allIngredients;
+		return candidates.stream()
+			.filter(Objects::nonNull)
+			.filter(ingredient -> ingredientVisibility.isIngredientVisible(ingredient))
+			.toList();
 	}
 
 	@Override

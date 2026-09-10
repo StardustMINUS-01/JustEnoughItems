@@ -90,7 +90,7 @@ public final class InputSlotSelectionState {
 
 	public void setInputCandidates(Map<Integer, List<ITypedIngredient<?>>> candidates) {
 		filteredCandidates.clear();
-		filteredCandidates.putAll(candidates);
+		candidates.forEach((index, values) -> filteredCandidates.put(index, List.copyOf(values)));
 	}
 
 	public void setSelectedKeys(Map<Integer, BookmarkIngredientKey> keys) {
