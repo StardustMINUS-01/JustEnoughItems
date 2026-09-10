@@ -518,7 +518,7 @@ public final class BookmarkSortDragState {
 		hide(groupBookmarks, panelSlots, previewOrigin);
 
 		Optional<BookmarkPanelLayout.RowSlot<IBookmark>> targetRow = BookmarkPanelLayout.findClosestRowAtY(rowSlots, mouseY);
-		if (targetRow.isEmpty() || sourceGroupId != targetRow.get().groupId()) {
+		if (targetRow.isEmpty() || sourceGroupId == targetRow.get().groupId()) {
 			return false;
 		}
 		return BookmarkGroupMovePlan.create(rowSlots, sourceRow.get(), targetRow.get()).apply(bookmarkList);
