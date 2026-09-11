@@ -11,24 +11,34 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.jetbrains.annotations.Nullable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class RecipeChainMathTest {
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.input;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.item;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.key;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.result;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.ingredient;
+
+public class ChainMathTest {
 	private static final ResourceLocation CRAFTING = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
-	private static final ResourceLocation PLATE_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "plate");
-	private static final ResourceLocation MACHINE_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "machine");
+	private static final ResourceLocation PLATE = ResourceLocation.fromNamespaceAndPath("test", "plate");
+	private static final ResourceLocation MACHINE = ResourceLocation.fromNamespaceAndPath("test", "machine");
 
 	@Test
-	public void masterRootUnifiesOutputRecipesForAutocrafting() {
+	public void unifiesTargets() {
 		RecipeChainMath math = RecipeChainMath.of(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("ingot"), 2)),
-			input(2, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(3, ingredient(MACHINE_RECIPE, key("gear"), 3))
+			input(0, result(PLATE, key("plate"), 1, 1)),
+			input(1, ingredient(PLATE, key("ingot"), 2)),
+			input(2, result(MACHINE, key("machine"), 1, 1)),
+			input(3, ingredient(MACHINE, key("gear"), 3))
 		), Set.of());
 
 		ResourceLocation rootRecipe = math.createMasterRoot();
@@ -37,19 +47,19 @@ public class RecipeChainMathTest {
 		Assertions.assertTrue(math.hasMasterRoot());
 		Assertions.assertEquals(RecipeChainMath.ROOT_RECIPE_UID, rootRecipe);
 		Assertions.assertEquals(Set.of(RecipeChainMath.ROOT_RECIPE_UID), details.outputRecipes());
-		Assertions.assertTrue(details.middleRecipes().contains(PLATE_RECIPE));
-		Assertions.assertTrue(details.middleRecipes().contains(MACHINE_RECIPE));
+		Assertions.assertTrue(details.middleRecipes().contains(PLATE));
+		Assertions.assertTrue(details.middleRecipes().contains(MACHINE));
 		Assertions.assertEquals(2, details.missedItems().get(key("ingot")));
 		Assertions.assertEquals(3, details.missedItems().get(key("gear")));
 	}
 
 	@Test
-	public void masterRootDoesNotRecycleTargetResultContainerItem() {
+	public void keepsTargetContainers() {
 		BookmarkIngredientKey emptyBucket = key("bucket");
 		ResourceLocation filledBucketRecipe = ResourceLocation.fromNamespaceAndPath("test", "filled_bucket");
 
 		RecipeChainMath math = RecipeChainMath.of(List.of(
-			input(0, result(filledBucketRecipe, key("filled_bucket"), emptyBucket, 1, 1)),
+			input(0, containerResult(filledBucketRecipe, key("filled_bucket"), emptyBucket, 1, 1)),
 			input(1, ingredient(filledBucketRecipe, key("water"), 1))
 		), Set.of());
 
@@ -61,7 +71,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void loopingRecipesStopAtTheBackEdgeAndRecordMissingIngredient() {
+	public void recordsCycleDemand() {
 		ResourceLocation firstRecipe = ResourceLocation.fromNamespaceAndPath("test", "first");
 		ResourceLocation secondRecipe = ResourceLocation.fromNamespaceAndPath("test", "second");
 
@@ -78,16 +88,16 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void groupRecipeResultCanSatisfyAnotherRecipeIngredient() {
+	public void linksRecipeDemand() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("ingot"), 2)),
-			input(2, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(3, ingredient(MACHINE_RECIPE, key("plate"), 1))
+			input(0, result(PLATE, key("plate"), 1, 1)),
+			input(1, ingredient(PLATE, key("ingot"), 2)),
+			input(2, result(MACHINE, key("machine"), 1, 1)),
+			input(3, ingredient(MACHINE, key("plate"), 1))
 		), Set.of());
 
-		Assertions.assertEquals(Set.of(MACHINE_RECIPE), details.outputRecipes());
-		Assertions.assertEquals(Set.of(PLATE_RECIPE), details.middleRecipes());
+		Assertions.assertEquals(Set.of(MACHINE), details.outputRecipes());
+		Assertions.assertEquals(Set.of(PLATE), details.middleRecipes());
 		Assertions.assertTrue(details.recipeRelations().isEmpty());
 		Assertions.assertEquals(RecipeChainItemType.RESULT, details.calculatedItems().get(2).type());
 		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, details.calculatedItems().get(1).type());
@@ -97,12 +107,12 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void extraIntermediateOutputBecomesRemainder() {
+	public void keepsIntermediateRemainder() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 2, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("ingot"), 1)),
-			input(2, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(3, ingredient(MACHINE_RECIPE, key("plate"), 1))
+			input(0, result(PLATE, key("plate"), 2, 1)),
+			input(1, ingredient(PLATE, key("ingot"), 1)),
+			input(2, result(MACHINE, key("machine"), 1, 1)),
+			input(3, ingredient(MACHINE, key("plate"), 1))
 		), Set.of());
 
 		Assertions.assertEquals(RecipeChainItemType.REMAINDER, details.calculatedItems().get(0).type());
@@ -111,10 +121,10 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void catalystInputDoesNotBecomeAConsumedMaterialRequirement() {
+	public void excludesCatalystDemand() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE))
+			input(0, result(PLATE, key("plate"), 1, 1)),
+			input(1, ingredient(PLATE, key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE))
 		), Set.of());
 
 		Assertions.assertFalse(details.missedItems().containsKey(key("mold")));
@@ -122,7 +132,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void extraOutputFromTargetRecipeIsRemainderNotAnotherTarget() {
+	public void classifiesByproducts() {
 		ResourceLocation crushingRecipe = ResourceLocation.fromNamespaceAndPath("test", "crushing");
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
@@ -139,7 +149,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void extraOutputCanSatisfyLaterRecipeIngredientWithoutBecomingTarget() {
+	public void suppliesByproducts() {
 		ResourceLocation crushingRecipe = ResourceLocation.fromNamespaceAndPath("test", "crushing");
 		ResourceLocation alloyRecipe = ResourceLocation.fromNamespaceAndPath("test", "alloy");
 
@@ -161,15 +171,15 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void intermediateRecipeCanKeepIndependentRequestedOutput() {
+	public void keepsIntermediateTargets() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 1, 2)),
-			input(1, ingredient(PLATE_RECIPE, key("ingot"), 1)),
-			input(2, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(3, ingredient(MACHINE_RECIPE, key("plate"), 1))
+			input(0, result(PLATE, key("plate"), 1, 2)),
+			input(1, ingredient(PLATE, key("ingot"), 1)),
+			input(2, result(MACHINE, key("machine"), 1, 1)),
+			input(3, ingredient(MACHINE, key("plate"), 1))
 		), Set.of());
 
-		Assertions.assertEquals(Set.of(MACHINE_RECIPE, PLATE_RECIPE), details.outputRecipes());
+		Assertions.assertEquals(Set.of(MACHINE, PLATE), details.outputRecipes());
 		Assertions.assertEquals(RecipeChainItemType.RESULT, details.calculatedItems().get(0).type());
 		Assertions.assertEquals(1, details.calculatedItems().get(0).providedAmount());
 		Assertions.assertEquals(1, details.calculatedItems().get(0).realMultiplier());
@@ -180,20 +190,21 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void itemWithoutProviderStaysMissingIngredient() {
+	public void countsMissingDemand() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(MACHINE_RECIPE, key("machine"), 1, 2)),
-			input(1, ingredient(MACHINE_RECIPE, key("gear"), 3))
+			input(0, result(MACHINE, key("machine"), 1, 2)),
+			input(1, ingredient(MACHINE, key("gear"), 3))
 		), Set.of());
 
-		Assertions.assertEquals(Set.of(MACHINE_RECIPE), details.outputRecipes());
+		Assertions.assertEquals(Set.of(MACHINE), details.outputRecipes());
 		Assertions.assertEquals(6, details.calculatedItems().get(1).requiredAmount());
+		Assertions.assertEquals(6, details.missedItems().get(key("gear")));
 		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, details.calculatedItems().get(1).type());
 		Assertions.assertEquals(2, details.calculatedItems().get(0).calculatedMultiplier());
 	}
 
 	@Test
-	public void independentRecipesRemainIndependentOutputs() {
+	public void keepsIndependentTargets() {
 		List<RecipeChainInput> inputs = new ArrayList<>();
 		Set<ResourceLocation> recipeUids = new LinkedHashSet<>();
 		for (int index = 0; index < 96; index++) {
@@ -210,46 +221,36 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void missedItemsAggregateMissingIngredientAmountsByIngredientKey() {
-		BookmarkIngredientKey gear = key("gear");
-		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(MACHINE_RECIPE, key("machine"), 1, 2)),
-			input(1, ingredient(MACHINE_RECIPE, gear, 3))
-		), Set.of());
-
-		Assertions.assertEquals(6, details.missedItems().get(gear));
-	}
-
-	@Test
-	public void containerItemReturnedByIngredientIsTrackedAsRemainder() {
+	public void returnsContainers() {
 		BookmarkIngredientKey bucket = key("bucket");
 		ResourceLocation soupRecipe = ResourceLocation.fromNamespaceAndPath("test", "soup");
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(soupRecipe, key("soup"), 1, 1)),
-			input(1, ingredient(soupRecipe, key("water_bucket"), bucket, 1))
+			input(1, containerIngredient(soupRecipe, key("water_bucket"), bucket, 1))
 		), Set.of());
 
 		Assertions.assertEquals(1, details.calculatedItems().get(1).requiredAmount());
 		Assertions.assertEquals(1, details.containerItems().get(bucket));
 	}
 
-	@Test
-	public void reusableContainerItemCanSatisfyMultipleCraftingSteps() {
+	@ParameterizedTest
+	@CsvSource({"3, 1", "6, 2"})
+	public void reusesTools(long crafts, long required) {
 		BookmarkIngredientKey wrench = key("wrench");
 		ResourceLocation machineRecipe = ResourceLocation.fromNamespaceAndPath("test", "wrench_machine");
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(machineRecipe, key("machine"), 1, 3)),
+			input(0, result(machineRecipe, key("machine"), 1, crafts)),
 			input(1, durableIngredient(machineRecipe, wrench, wrench, 1, 5))
 		), Set.of());
 
-		Assertions.assertEquals(1, details.calculatedItems().get(1).requiredAmount());
+		Assertions.assertEquals(required, details.calculatedItems().get(1).requiredAmount());
 		Assertions.assertEquals(1, details.containerItems().get(wrench));
 	}
 
 	@Test
-	public void zeroUseContainerItemDoesNotCreateReturnedTool() {
+	public void omitsExhaustedTools() {
 		BookmarkIngredientKey wrench = key("wrench");
 		ResourceLocation machineRecipe = ResourceLocation.fromNamespaceAndPath("test", "empty_wrench_machine");
 
@@ -263,7 +264,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void reusableContainerItemRemainderSatisfiesLaterIngredientInSameRecipe() {
+	public void sharesToolsAcrossSlots() {
 		BookmarkIngredientKey wrench = key("wrench");
 		ResourceLocation machineRecipe = ResourceLocation.fromNamespaceAndPath("test", "two_wrench_machine");
 
@@ -279,21 +280,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void reusableContainerItemRequiresAnotherFreshItemAfterUsesRunOut() {
-		BookmarkIngredientKey wrench = key("wrench");
-		ResourceLocation machineRecipe = ResourceLocation.fromNamespaceAndPath("test", "many_wrench_machine");
-
-		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(machineRecipe, key("machine"), 1, 6)),
-			input(1, durableIngredient(machineRecipe, wrench, wrench, 1, 5))
-		), Set.of());
-
-		Assertions.assertEquals(2, details.calculatedItems().get(1).requiredAmount());
-		Assertions.assertEquals(1, details.containerItems().get(wrench));
-	}
-
-	@Test
-	public void reusableContainerItemAddsBrokenRemainderWhenUsesRunOut() {
+	public void returnsBrokenTools() {
 		BookmarkIngredientKey wrench = key("wrench");
 		BookmarkIngredientKey brokenWrench = key("broken_wrench");
 		ResourceLocation machineRecipe = ResourceLocation.fromNamespaceAndPath("test", "broken_wrench_machine");
@@ -309,32 +296,32 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void initialItemsCanSatisfyRecipeIngredients() {
+	public void usesInitialStock() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, item(key("plate"), 1, 1)),
-			input(1, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(2, ingredient(MACHINE_RECIPE, key("plate"), 1))
+			input(0, item(key("plate"), 1)),
+			input(1, result(MACHINE, key("machine"), 1, 1)),
+			input(2, ingredient(MACHINE, key("plate"), 1))
 		), Set.of());
 
-		Assertions.assertEquals(Set.of(MACHINE_RECIPE), details.outputRecipes());
+		Assertions.assertEquals(Set.of(MACHINE), details.outputRecipes());
 		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, details.calculatedItems().get(0).type());
 		Assertions.assertEquals(1, details.calculatedItems().get(0).requiredAmount());
 		Assertions.assertEquals(0, details.calculatedItems().get(2).requiredAmount());
 		Assertions.assertEquals(Set.of(0), details.initialItems());
 	}
 
-	@Test
-	public void initialItemWithSubtypeCanSatisfyBaseItemIngredientForCrafting() {
-		BookmarkIngredientKey baseMachine = new BookmarkIngredientKey("minecraft:item_stack", "mekanism:ultimate_injecting_factory");
-		BookmarkIngredientKey chargedMachine = new BookmarkIngredientKey(
-			"minecraft:item_stack",
-			"mekanism:ultimate_injecting_factory:{mekData:{EnergyContainers:[{Container:0,stored:\"1000\"}]}}"
-		);
-
-		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, item(chargedMachine, 1, 1)),
-			input(1, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(2, ingredient(MACHINE_RECIPE, baseMachine, 1))
+	@ParameterizedTest
+	@CsvSource(value = {
+		"mekanism:ultimate_injecting_factory|mekanism:ultimate_injecting_factory:{mekData:{EnergyContainers:[{Container:0,stored:\"1000\"}]}}",
+		"mekanism:elite_injecting_factory:empty:empty:empty|mekanism:elite_injecting_factory:mekanism:oxygen:stored_energy"
+	}, delimiter = '|')
+	public void matchesRelaxedSubtypes(String required, String stored) {
+		var needed = new BookmarkIngredientKey("minecraft:item_stack", required);
+		var available = new BookmarkIngredientKey("minecraft:item_stack", stored);
+		var details = RecipeChainMath.refresh(List.of(
+			input(0, item(available, 1)),
+			input(1, result(MACHINE, key("machine"), 1, 1)),
+			input(2, ingredient(MACHINE, needed, 1))
 		), Set.of());
 
 		Assertions.assertEquals(1, details.calculatedItems().get(0).requiredAmount());
@@ -343,29 +330,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void initialItemWithDifferentSubtypeCanSatisfySameItemIngredientForCrafting() {
-		BookmarkIngredientKey emptyMachine = new BookmarkIngredientKey(
-			"minecraft:item_stack",
-			"mekanism:elite_injecting_factory:empty:empty:empty"
-		);
-		BookmarkIngredientKey chargedMachine = new BookmarkIngredientKey(
-			"minecraft:item_stack",
-			"mekanism:elite_injecting_factory:mekanism:oxygen:stored_energy"
-		);
-
-		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, item(chargedMachine, 1, 1)),
-			input(1, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(2, ingredient(MACHINE_RECIPE, emptyMachine, 1))
-		), Set.of());
-
-		Assertions.assertEquals(1, details.calculatedItems().get(0).requiredAmount());
-		Assertions.assertEquals(0, details.calculatedItems().get(2).requiredAmount());
-		Assertions.assertTrue(details.missedItems().isEmpty());
-	}
-
-	@Test
-	public void initialItemWithDifferentSubtypeDoesNotSatisfySameItemIngredientOutsideRelaxedNamespaces() {
+	public void rejectsDifferentSubtypes() {
 		BookmarkIngredientKey emptyMachine = new BookmarkIngredientKey(
 			"minecraft:item_stack",
 			"minecraft:furnace:empty"
@@ -376,9 +341,9 @@ public class RecipeChainMathTest {
 		);
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, item(chargedMachine, 1, 1)),
-			input(1, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(2, ingredient(MACHINE_RECIPE, emptyMachine, 1))
+			input(0, item(chargedMachine, 1)),
+			input(1, result(MACHINE, key("machine"), 1, 1)),
+			input(2, ingredient(MACHINE, emptyMachine, 1))
 		), Set.of());
 
 		Assertions.assertEquals(0, details.calculatedItems().get(0).requiredAmount());
@@ -387,62 +352,21 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void collapsedRecipeKeepsRelatedRecipeIds() {
+	public void mapsCollapsedRecipes() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("ingot"), 2)),
-			input(2, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(3, ingredient(MACHINE_RECIPE, key("plate"), 1))
-		), Set.of(MACHINE_RECIPE));
+			input(0, result(PLATE, key("plate"), 1, 1)),
+			input(1, ingredient(PLATE, key("ingot"), 2)),
+			input(2, result(MACHINE, key("machine"), 1, 1)),
+			input(3, ingredient(MACHINE, key("plate"), 1))
+		), Set.of(MACHINE));
 
-		Assertions.assertEquals(Set.of(MACHINE_RECIPE, PLATE_RECIPE), details.recipeRelations().get(MACHINE_RECIPE));
+		Assertions.assertEquals(Set.of(MACHINE, PLATE), details.recipeRelations().get(MACHINE));
+		Assertions.assertEquals(MACHINE, details.itemToRecipe().get(1));
+		Assertions.assertEquals(MACHINE, details.itemToRecipe().get(2));
 	}
 
 	@Test
-	public void collapsedRecipeMapsProjectedItemsToTheDisplayedRecipe() {
-		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("ingot"), 2)),
-			input(2, result(MACHINE_RECIPE, key("machine"), 1, 1)),
-			input(3, ingredient(MACHINE_RECIPE, key("plate"), 1))
-		), Set.of(MACHINE_RECIPE));
-
-		Assertions.assertEquals(MACHINE_RECIPE, details.itemToRecipe().get(1));
-		Assertions.assertEquals(MACHINE_RECIPE, details.itemToRecipe().get(2));
-	}
-
-	@Test
-	public void metadataOwnsAmountAndMultiplierMath() {
-		BookmarkItemMetadata chanceIngredient = new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.INGREDIENT,
-			2,
-			3,
-			5_000,
-			CRAFTING,
-			MACHINE_RECIPE,
-			Set.of(key("gear"))
-		);
-		BookmarkItemMetadata chanceResult = new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.RESULT,
-			2,
-			3,
-			5_000,
-			CRAFTING,
-			MACHINE_RECIPE,
-			Set.of(key("machine"))
-		);
-
-		Assertions.assertEquals(3, chanceIngredient.amount());
-		Assertions.assertEquals(3, chanceResult.amount());
-		Assertions.assertEquals(2, chanceIngredient.multiplierFromAmount(3));
-		Assertions.assertTrue(chanceIngredient.containsItems(chanceIngredient));
-		Assertions.assertTrue(chanceIngredient.equalsRecipe(MACHINE_RECIPE, BookmarkGroupManager.DEFAULT_GROUP_ID));
-	}
-
-	@Test
-	public void collapsedRecipeBlockFlattensClosureWithRemainder() {
+	public void flattensWithRemainder() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
 		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
@@ -460,9 +384,7 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("out_a", "in_b", "in_a", "in_b2", "in_d", "in_e"), itemKeys);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertFalse(block.items().get(1).anchor());
@@ -472,7 +394,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void collapsedRecipeBlockAggregatesSharedIngredients() {
+	public void mergesCollapsedInputs() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
 		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
@@ -490,15 +412,13 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("out_a", "shared", "b2", "c2"), itemKeys);
 		Assertions.assertEquals(2, block.items().get(1).chainItem().shiftAmount());
 	}
 
 	@Test
-	public void collapsedRecipeBlockKeepsAnchorWhenFullyConsumed() {
+	public void keepsCollapsedOutput() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
@@ -510,14 +430,12 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("out_a", "in_a"), itemKeys);
 	}
 
 	@Test
-	public void collapsedRecipeBlockShowsTopLevelSupplyAsZeroShiftShadow() {
+	public void showsSupplyShadows() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
 		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
@@ -532,20 +450,16 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("out_a", "in_a"), itemKeys);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertEquals(RecipeChainItemType.INGREDIENT, block.items().get(1).chainItem().type());
 		Assertions.assertEquals(0, block.items().get(1).chainItem().shiftAmount());
 		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());
-		Assertions.assertTrue(details.collapsedBlocks().get(recipeA).items().stream()
-			.noneMatch(item -> item.metadata().permutations().iterator().next().ingredientUid().equals("in_x")));
 	}
 
 	@Test
-	public void collapsedRecipeBlockOmitsRootInputFullySuppliedByClosure() {
+	public void omitsInternalInputs() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
@@ -557,18 +471,14 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("out_a", "in_a"), itemKeys);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertEquals(3, block.items().get(1).chainItem().shiftAmount());
-		Assertions.assertTrue(block.items().stream()
-			.noneMatch(item -> item.metadata().permutations().iterator().next().ingredientUid().equals("in_b")));
 	}
 
 	@Test
-	public void collapsedRecipeBlockZeroesRootSupplyWhenRootMultiplierIsZero() {
+	public void handlesZeroTargets() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(recipeA, key("out_a"), 1, 0)),
@@ -577,9 +487,7 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("out_a", "in_b"), itemKeys);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertEquals(0, block.items().get(0).chainItem().calculatedAmount());
@@ -589,7 +497,7 @@ public class RecipeChainMathTest {
 	}
 
 	@Test
-	public void collapsedRecipeBlockUsesWorkingMultiplierForMiddleRoot() {
+	public void projectsWorkingDemand() {
 		ResourceLocation recipeA = ResourceLocation.fromNamespaceAndPath("test", "a");
 		ResourceLocation recipeB = ResourceLocation.fromNamespaceAndPath("test", "b");
 		ResourceLocation recipeC = ResourceLocation.fromNamespaceAndPath("test", "c");
@@ -604,9 +512,7 @@ public class RecipeChainMathTest {
 
 		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(recipeA);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(List.of("in_a", "in_x"), itemKeys);
 		Assertions.assertTrue(block.items().get(0).anchor());
 		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
@@ -616,48 +522,45 @@ public class RecipeChainMathTest {
 		Assertions.assertEquals(3, block.items().get(1).chainItem().calculatedAmount());
 		Assertions.assertEquals(0, block.items().get(1).chainItem().realMultiplier());
 		Assertions.assertEquals(0, block.items().get(1).chainItem().realAmount());
-		Assertions.assertTrue(block.items().stream()
-			.noneMatch(item -> item.metadata().permutations().iterator().next().ingredientUid().equals("in_b")));
 	}
 
-	@Test
-	public void collapsedRecipeBlockFlattensInscriberChainLikeGtnh() {
-		ResourceLocation r64 = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
-		ResourceLocation rCp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor");
-		ResourceLocation rCpp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_print");
-		ResourceLocation rSp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_print");
-		ResourceLocation rCpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
-		ResourceLocation rSpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
+	@ParameterizedTest
+	@ValueSource(longs = {0, 1})
+	public void projectsInscriberChain(long multiplier) {
+		ResourceLocation cell = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
+		ResourceLocation processor = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor");
+		ResourceLocation printedProcessor = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_print");
+		ResourceLocation printedSilicon = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_print");
+		ResourceLocation processorPress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
+		ResourceLocation siliconPress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
 
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(r64, key("cell_component_64k"), 1, 1)),
-			input(1, ingredient(r64, key("glowstone_dust"), 4)),
-			input(2, ingredient(r64, key("calculation_processor"), 1)),
-			input(3, ingredient(r64, key("cell_component_16k"), 3)),
-			input(4, ingredient(r64, key("quartz_glass"), 1)),
-			input(5, result(rCp, key("calculation_processor"), 1, 0)),
-			input(6, ingredient(rCp, key("printed_calculation_processor"), 1).withMultiplier(0)),
-			input(7, ingredient(rCp, key("redstone"), 1).withMultiplier(0)),
-			input(8, ingredient(rCp, key("printed_silicon"), 1).withMultiplier(0)),
-			input(9, result(rCpp, key("printed_calculation_processor"), 1, 1)),
-			input(10, ingredient(rCpp, key("calculation_processor_press"), 1)),
-			input(11, ingredient(rCpp, key("certus_quartz_crystal"), 1)),
-			input(12, result(rSp, key("printed_silicon"), 1, 1)),
-			input(13, ingredient(rSp, key("silicon_press"), 1)),
-			input(14, ingredient(rSp, key("silicon"), 1)),
-			input(15, result(rCpress, key("calculation_processor_press"), 1, 1)),
-			input(16, ingredient(rCpress, key("calculation_processor_press"), 1)),
-			input(17, ingredient(rCpress, key("iron_block"), 1)),
-			input(18, result(rSpress, key("silicon_press"), 1, 1)),
-			input(19, ingredient(rSpress, key("silicon_press"), 1)),
-			input(20, ingredient(rSpress, key("iron_block"), 1))
-		), Set.of(rCp));
+			input(0, result(cell, key("cell_component_64k"), 1, 1)),
+			input(1, ingredient(cell, key("glowstone_dust"), 4)),
+			input(2, ingredient(cell, key("calculation_processor"), 1)),
+			input(3, ingredient(cell, key("cell_component_16k"), 3)),
+			input(4, ingredient(cell, key("quartz_glass"), 1)),
+			input(5, result(processor, key("calculation_processor"), 1, multiplier)),
+			input(6, ingredient(processor, key("printed_calculation_processor"), 1).withMultiplier(multiplier)),
+			input(7, ingredient(processor, key("redstone"), 1).withMultiplier(multiplier)),
+			input(8, ingredient(processor, key("printed_silicon"), 1).withMultiplier(multiplier)),
+			input(9, result(printedProcessor, key("printed_calculation_processor"), 1, 1)),
+			input(10, ingredient(printedProcessor, key("calculation_processor_press"), 1)),
+			input(11, ingredient(printedProcessor, key("certus_quartz_crystal"), 1)),
+			input(12, result(printedSilicon, key("printed_silicon"), 1, 1)),
+			input(13, ingredient(printedSilicon, key("silicon_press"), 1)),
+			input(14, ingredient(printedSilicon, key("silicon"), 1)),
+			input(15, result(processorPress, key("calculation_processor_press"), 1, 1)),
+			input(16, ingredient(processorPress, key("calculation_processor_press"), 1)),
+			input(17, ingredient(processorPress, key("iron_block"), 1)),
+			input(18, result(siliconPress, key("silicon_press"), 1, 1)),
+			input(19, ingredient(siliconPress, key("silicon_press"), 1)),
+			input(20, ingredient(siliconPress, key("iron_block"), 1))
+		), Set.of(processor));
 
-		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(rCp);
+		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(processor);
 		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
+		List<String> itemKeys = itemIds(block);
 		Assertions.assertEquals(
 			List.of(
 				"calculation_processor",
@@ -671,185 +574,42 @@ public class RecipeChainMathTest {
 			itemKeys
 		);
 		Assertions.assertTrue(block.items().get(0).anchor());
-		Assertions.assertEquals(0, block.items().get(0).chainItem().shiftAmount());
+		if (multiplier == 0) {
+			Assertions.assertEquals(0, block.items().get(0).chainItem().shiftAmount());
+		}
 		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
 		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
 		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
 		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());
+		Assertions.assertEquals(multiplier, block.items().get(1).chainItem().realMultiplier());
+		Assertions.assertEquals(multiplier, block.items().get(1).chainItem().realAmount());
 		Assertions.assertEquals(2, block.items().get(5).chainItem().calculatedAmount());
-		Assertions.assertEquals(0, block.items().get(1).chainItem().realMultiplier());
-		Assertions.assertEquals(0, block.items().get(5).chainItem().realMultiplier());
-		Assertions.assertTrue(block.items().stream()
-			.noneMatch(item -> {
-				String uid = item.metadata().permutations().iterator().next().ingredientUid();
-				return uid.equals("printed_calculation_processor") || uid.equals("printed_silicon");
-			}));
+		Assertions.assertEquals(2 * multiplier, block.items().get(5).chainItem().realMultiplier());
+		Assertions.assertEquals(2 * multiplier, block.items().get(5).chainItem().realAmount());
 	}
 
-	@Test
-	public void collapsedRecipeBlockUsesBookmarkMultiplierForRealProjection() {
-		ResourceLocation r64 = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
-		ResourceLocation rCp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor");
-		ResourceLocation rCpp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_print");
-		ResourceLocation rSp = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_print");
-		ResourceLocation rCpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/calculation_processor_press");
-		ResourceLocation rSpress = ResourceLocation.fromNamespaceAndPath("ae2", "inscriber/silicon_press");
-
-		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
-			input(0, result(r64, key("cell_component_64k"), 1, 1)),
-			input(1, ingredient(r64, key("glowstone_dust"), 4)),
-			input(2, ingredient(r64, key("calculation_processor"), 1)),
-			input(3, ingredient(r64, key("cell_component_16k"), 3)),
-			input(4, ingredient(r64, key("quartz_glass"), 1)),
-			input(5, result(rCp, key("calculation_processor"), 1, 1)),
-			input(6, ingredient(rCp, key("printed_calculation_processor"), 1).withMultiplier(1)),
-			input(7, ingredient(rCp, key("redstone"), 1).withMultiplier(1)),
-			input(8, ingredient(rCp, key("printed_silicon"), 1).withMultiplier(1)),
-			input(9, result(rCpp, key("printed_calculation_processor"), 1, 1)),
-			input(10, ingredient(rCpp, key("calculation_processor_press"), 1)),
-			input(11, ingredient(rCpp, key("certus_quartz_crystal"), 1)),
-			input(12, result(rSp, key("printed_silicon"), 1, 1)),
-			input(13, ingredient(rSp, key("silicon_press"), 1)),
-			input(14, ingredient(rSp, key("silicon"), 1)),
-			input(15, result(rCpress, key("calculation_processor_press"), 1, 1)),
-			input(16, ingredient(rCpress, key("calculation_processor_press"), 1)),
-			input(17, ingredient(rCpress, key("iron_block"), 1)),
-			input(18, result(rSpress, key("silicon_press"), 1, 1)),
-			input(19, ingredient(rSpress, key("silicon_press"), 1)),
-			input(20, ingredient(rSpress, key("iron_block"), 1))
-		), Set.of(rCp));
-
-		RecipeChainDetails.CollapsedBlock block = details.collapsedBlocks().get(rCp);
-		Assertions.assertNotNull(block);
-		List<String> itemKeys = block.items().stream()
-			.map(item -> item.metadata().permutations().iterator().next().ingredientUid())
-			.toList();
-		Assertions.assertEquals(
-			List.of(
-				"calculation_processor",
-				"redstone",
-				"certus_quartz_crystal",
-				"silicon",
-				"calculation_processor_press",
-				"iron_block",
-				"silicon_press"
-			),
-			itemKeys
-		);
-		Assertions.assertTrue(block.items().get(0).anchor());
-		Assertions.assertEquals(1, block.items().get(0).chainItem().calculatedAmount());
-		Assertions.assertEquals(0, block.items().get(0).chainItem().realMultiplier());
-		Assertions.assertEquals(0, block.items().get(0).chainItem().realAmount());
-		Assertions.assertEquals(1, block.items().get(1).chainItem().calculatedAmount());
-		Assertions.assertEquals(1, block.items().get(1).chainItem().realMultiplier());
-		Assertions.assertEquals(1, block.items().get(1).chainItem().realAmount());
-		Assertions.assertEquals(2, block.items().get(5).chainItem().calculatedAmount());
-		Assertions.assertEquals(2, block.items().get(5).chainItem().realMultiplier());
-		Assertions.assertEquals(2, block.items().get(5).chainItem().realAmount());
+	private static List<String> itemIds(RecipeChainDetails.CollapsedBlock block) {
+		return block.items().stream().map(item -> item.metadata().permutations().iterator().next().ingredientUid()).toList();
 	}
 
-	private static RecipeChainInput input(int index, BookmarkItemMetadata metadata) {
-		return new RecipeChainInput(index, metadata);
+	private static BookmarkItemMetadata containerResult(ResourceLocation recipe, BookmarkIngredientKey key, BookmarkIngredientKey container, long factor, long multiplier) {
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.RESULT,
+			multiplier, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, recipe, Set.of(key), container);
 	}
 
-	private static BookmarkItemMetadata item(BookmarkIngredientKey key, long factor, long multiplier) {
-		return metadata(null, BookmarkItemType.ITEM, key, factor, multiplier);
+	private static BookmarkItemMetadata containerIngredient(ResourceLocation recipe, BookmarkIngredientKey key, BookmarkIngredientKey container, long factor) {
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.INGREDIENT,
+			1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, recipe, Set.of(key), container);
 	}
 
-	private static BookmarkItemMetadata result(ResourceLocation recipeUid, BookmarkIngredientKey key, long factor, long multiplier) {
-		return metadata(recipeUid, BookmarkItemType.RESULT, key, factor, multiplier);
+	private static BookmarkItemMetadata durableIngredient(ResourceLocation recipe, BookmarkIngredientKey key,
+		BookmarkIngredientKey container, long factor, long uses) {
+		return durableIngredient(recipe, key, container, null, factor, uses);
 	}
 
-	private static BookmarkItemMetadata result(ResourceLocation recipeUid, BookmarkIngredientKey key, BookmarkIngredientKey containerItem, long factor, long multiplier) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.RESULT,
-			multiplier,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			CRAFTING,
-			recipeUid,
-			Set.of(key),
-			containerItem
-		);
-	}
-
-	private static BookmarkItemMetadata ingredient(ResourceLocation recipeUid, BookmarkIngredientKey key, long factor) {
-		return metadata(recipeUid, BookmarkItemType.INGREDIENT, key, factor, 1);
-	}
-
-	private static BookmarkItemMetadata ingredient(ResourceLocation recipeUid, BookmarkIngredientKey key, BookmarkIngredientKey containerItem, long factor) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.INGREDIENT,
-			1,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			CRAFTING,
-			recipeUid,
-			Set.of(key),
-			containerItem
-		);
-	}
-
-	private static BookmarkItemMetadata durableIngredient(
-		ResourceLocation recipeUid,
-		BookmarkIngredientKey key,
-		BookmarkIngredientKey containerItem,
-		long factor,
-		long containerItemCraftingUses
-	) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.INGREDIENT,
-			1,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			CRAFTING,
-			recipeUid,
-			Set.of(key),
-			containerItem,
-			containerItemCraftingUses
-		);
-	}
-
-	private static BookmarkItemMetadata durableIngredient(
-		ResourceLocation recipeUid,
-		BookmarkIngredientKey key,
-		BookmarkIngredientKey containerItem,
-		BookmarkIngredientKey brokenContainerItem,
-		long factor,
-		long containerItemCraftingUses
-	) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.INGREDIENT,
-			1,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			CRAFTING,
-			recipeUid,
-			Set.of(key),
-			containerItem,
-			containerItemCraftingUses,
-			brokenContainerItem
-		);
-	}
-
-	private static BookmarkItemMetadata metadata(ResourceLocation recipeUid, BookmarkItemType type, BookmarkIngredientKey key, long factor, long multiplier) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			type,
-			multiplier,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			CRAFTING,
-			recipeUid,
-			Set.of(key)
-		);
-	}
-
-	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid);
+	private static BookmarkItemMetadata durableIngredient(ResourceLocation recipe, BookmarkIngredientKey key,
+		BookmarkIngredientKey container, @Nullable BookmarkIngredientKey broken, long factor, long uses) {
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.INGREDIENT,
+			1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, recipe, Set.of(key), container, uses, broken);
 	}
 }

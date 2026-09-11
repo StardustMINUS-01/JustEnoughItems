@@ -17,13 +17,17 @@ import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.elements.IngredientElement;
+import mezz.jei.common.ingredients.TypedIngredient;
+import mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -35,49 +39,32 @@ import java.util.stream.Stream;
 
 import static mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.layout;
 
-public class BookmarkListPatternEncodeLookupTest {
+public class BookmarkLookupTest {
 	private static final IIngredientType<String> INGREDIENT_TYPE = () -> String.class;
 	private static final RecipeType<String> RECIPE_TYPE = RecipeType.create("test", "machine", String.class);
 	private static final TestRecipeCategory CATEGORY = new TestRecipeCategory();
 
-	@Test
-	public void uniqueOutputRecipeCreatesLayout() {
-		BookmarkList bookmarks = bookmarkList(List.of("only_recipe"));
+	@ParameterizedTest
+	@ValueSource(ints = {0, 1, 2})
+	public void requiresUniqueRecipe(int count) {
+		var recipes = List.of("first_recipe", "second_recipe").subList(0, count);
+		var bookmarks = createBookmarks(recipes);
+		var layout = bookmarks.createUniqueRecipeLayoutDrawable(typed("plate"));
 
-		Optional<IRecipeLayoutDrawable<?>> layout = bookmarks.createUniqueRecipeLayoutDrawable(typed("plate"));
-
-		Assertions.assertTrue(layout.isPresent());
-		Assertions.assertEquals("only_recipe", layout.get().getRecipe());
+		Assertions.assertEquals(count == 1 ? Optional.of("first_recipe") : Optional.empty(),
+			layout.map(IRecipeLayoutDrawable::getRecipe));
 	}
 
 	@Test
-	public void multipleOutputRecipesAreAmbiguous() {
-		BookmarkList bookmarks = bookmarkList(List.of("first_recipe", "second_recipe"));
-
-		Optional<IRecipeLayoutDrawable<?>> layout = bookmarks.createUniqueRecipeLayoutDrawable(typed("plate"));
-
-		Assertions.assertTrue(layout.isEmpty());
-	}
-
-	@Test
-	public void missingOutputRecipeIsEmpty() {
-		BookmarkList bookmarks = bookmarkList(List.of());
-
-		Optional<IRecipeLayoutDrawable<?>> layout = bookmarks.createUniqueRecipeLayoutDrawable(typed("plate"));
-
-		Assertions.assertTrue(layout.isEmpty());
-	}
-
-	@Test
-	public void recipeBookmarkForElementUsesPreferredRecipeLookup() {
+	public void usesPreferredRecipe() {
 		FocusedRecipe preferred = focusedRecipe("second_recipe");
-		BookmarkList bookmarks = bookmarkList(
+		BookmarkList bookmarks = createBookmarks(
 			List.of("first_recipe", "second_recipe"),
 			key -> key.equals(BookmarkIngredientKey.of(INGREDIENT_TYPE.getUid(), "fallback:plate")) ? Optional.of(preferred) : Optional.empty(),
-			ingredientManager()
+			ItemStackIngredientTestFixtures.ingredientManager()
 		);
 
-		boolean added = bookmarks.addRecipeBookmarkForElement(element("plate"));
+		boolean added = bookmarks.addRecipeBookmarkForElement(new IngredientElement<>(typed("plate")));
 
 		Assertions.assertTrue(added);
 		Assertions.assertEquals(1, bookmarks.getBookmarks().size());
@@ -85,46 +72,40 @@ public class BookmarkListPatternEncodeLookupTest {
 		Assertions.assertEquals(ResourceLocation.fromNamespaceAndPath("test", "second_recipe"), metadata.recipeUid());
 	}
 
-	@Test
-	public void focusedRecipeLayoutLookupMatchesOnlyTheRequestedRecipeUid() {
-		FocusedRecipeLayoutResolver resolver = new FocusedRecipeLayoutResolver(recipeManager(List.of("first_recipe", "second_recipe")));
+	@ParameterizedTest
+	@ValueSource(strings = {"second_recipe", "missing_recipe"})
+	public void resolvesRecipeId(String recipe) {
+		var resolver = new FocusedRecipeLayoutResolver(createManager(List.of("first_recipe", "second_recipe")));
+		var layout = resolver.resolve(focusedRecipe(recipe), createFocusFactory().getEmptyFocusGroup());
 
-		Optional<IRecipeLayoutDrawable<?>> layout = resolver.resolve(focusedRecipe("second_recipe"), focusFactory().getEmptyFocusGroup());
-
-		Assertions.assertEquals("second_recipe", layout.orElseThrow().getRecipe());
+		Assertions.assertEquals(recipe.equals("second_recipe") ? Optional.of(recipe) : Optional.empty(),
+			layout.map(IRecipeLayoutDrawable::getRecipe));
 	}
 
-	@Test
-	public void focusedRecipeLayoutLookupReturnsEmptyForUnknownRecipeUid() {
-		FocusedRecipeLayoutResolver resolver = new FocusedRecipeLayoutResolver(recipeManager(List.of("first_recipe")));
-
-		Assertions.assertTrue(resolver.resolve(focusedRecipe("missing_recipe"), focusFactory().getEmptyFocusGroup()).isEmpty());
+	private static BookmarkList createBookmarks(List<String> recipes) {
+		return createBookmarks(recipes, key -> Optional.empty(), null);
 	}
 
-	private static BookmarkList bookmarkList(List<String> recipes) {
-		return bookmarkList(recipes, key -> Optional.empty(), null);
-	}
-
-	private static BookmarkList bookmarkList(
+	private static BookmarkList createBookmarks(
 		List<String> recipes,
-		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferredRecipeLookup,
-		@Nullable IIngredientManager ingredientManager
+		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> preferences,
+		@Nullable IIngredientManager ingredients
 	) {
 		return new BookmarkList(
-			recipeManager(recipes),
-			focusFactory(),
-			ingredientManager,
+			createManager(recipes),
+			createFocusFactory(),
+			ingredients,
 			null,
 			null,
 			null,
 			null,
-			preferredRecipeLookup
+			preferences
 		);
 	}
 
-	private static IRecipeManager recipeManager(List<String> recipes) {
+	private static IRecipeManager createManager(List<String> recipes) {
 		return (IRecipeManager) Proxy.newProxyInstance(
-			BookmarkListPatternEncodeLookupTest.class.getClassLoader(),
+			BookmarkLookupTest.class.getClassLoader(),
 			new Class<?>[]{IRecipeManager.class},
 			(proxy, method, args) -> switch (method.getName()) {
 				case "createRecipeCategoryLookup" -> recipeCategoryLookup();
@@ -186,11 +167,11 @@ public class BookmarkListPatternEncodeLookupTest {
 		};
 	}
 
-	private static IFocusFactory focusFactory() {
+	private static IFocusFactory createFocusFactory() {
 		return new IFocusFactory() {
 			@Override
 			public <V> IFocus<V> createFocus(RecipeIngredientRole role, IIngredientType<V> ingredientType, V ingredient) {
-				return createFocus(role, new TestTypedIngredient<>(ingredientType, ingredient));
+				return createFocus(role, TypedIngredient.createUnvalidated(ingredientType, ingredient));
 			}
 
 			@Override
@@ -245,80 +226,11 @@ public class BookmarkListPatternEncodeLookupTest {
 	}
 
 	private static ITypedIngredient<String> typed(String ingredient) {
-		return new TestTypedIngredient<>(INGREDIENT_TYPE, ingredient);
+		return TypedIngredient.createUnvalidated(INGREDIENT_TYPE, ingredient);
 	}
 
 	private static FocusedRecipe focusedRecipe(String recipeUid) {
 		return new FocusedRecipe(RECIPE_TYPE.getUid(), ResourceLocation.fromNamespaceAndPath("test", recipeUid));
-	}
-
-	private static IIngredientManager ingredientManager() {
-		return (IIngredientManager) Proxy.newProxyInstance(
-			BookmarkListPatternEncodeLookupTest.class.getClassLoader(),
-			new Class<?>[]{IIngredientManager.class},
-			(proxy, method, args) -> switch (method.getName()) {
-				case "normalizeTypedIngredient" -> args[0];
-				default -> throw new UnsupportedOperationException(method.getName());
-			}
-		);
-	}
-
-	private static IElement<String> element(String ingredient) {
-		return new IElement<>() {
-			@Override
-			public ITypedIngredient<String> getTypedIngredient() {
-				return typed(ingredient);
-			}
-
-			@Override
-			public Optional<mezz.jei.gui.bookmarks.IBookmark> getBookmark() {
-				return Optional.empty();
-			}
-
-			@Override
-			public @Nullable mezz.jei.api.gui.drawable.IDrawable createRenderOverlay() {
-				return null;
-			}
-
-			@Override
-			public void show(mezz.jei.api.runtime.IRecipesGui recipesGui, mezz.jei.gui.util.FocusUtil focusUtil, List<RecipeIngredientRole> roles) {
-			}
-
-			@Override
-			public void getTooltip(
-				mezz.jei.common.gui.JeiTooltip tooltip,
-				mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper tooltipHelper,
-				mezz.jei.api.ingredients.IIngredientRenderer<String> ingredientRenderer,
-				mezz.jei.api.ingredients.IIngredientHelper<String> ingredientHelper
-			) {
-			}
-
-			@Override
-			public boolean isVisible() {
-				return true;
-			}
-
-			@Override
-			public void tick() {
-			}
-		};
-	}
-
-	private record TestTypedIngredient<T>(IIngredientType<T> type, T ingredient) implements ITypedIngredient<T> {
-		@Override
-		public ITypedIngredient<T> normalize(mezz.jei.api.ingredients.IIngredientHelper<T> helper) {
-			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
-		}
-
-		@Override
-		public IIngredientType<T> getType() {
-			return type;
-		}
-
-		@Override
-		public T getIngredient() {
-			return ingredient;
-		}
 	}
 
 	private record TestFocus<T>(RecipeIngredientRole role, ITypedIngredient<T> typedIngredient) implements IFocus<T> {

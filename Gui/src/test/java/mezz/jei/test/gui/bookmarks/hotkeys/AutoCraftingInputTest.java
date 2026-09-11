@@ -3,6 +3,7 @@ package mezz.jei.test.gui.bookmarks.hotkeys;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
@@ -13,6 +14,7 @@ import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
 import net.minecraft.SharedConstants;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.entity.player.Inventory;
@@ -20,6 +22,8 @@ import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -43,8 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class BookmarkAutoCraftingServerTest {
+public class AutoCraftingInputTest {
 	private static final ResourceLocation RECIPE = ResourceLocation.fromNamespaceAndPath("test", "craft");
+	private static final InputConstants.Key KEY = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_C);
 
 	@BeforeAll
 	static void bootstrap() {
@@ -52,13 +57,33 @@ public class BookmarkAutoCraftingServerTest {
 		Bootstrap.bootStrap();
 	}
 
+	@BeforeEach
+	@AfterEach
+	void resetClaims() {
+		BookmarkAutoCraftingActivator.clearAutoCraftingInputs();
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	void releasesKey(boolean clearAll) {
+		IJeiKeyMapping binding = new TestKeyMapping(KEY);
+		UserInput press = new UserInput(KEY, 0, 0, GLFW.GLFW_MOD_SHIFT, InputType.EXECUTE);
+		assertTrue(BookmarkAutoCraftingActivator.claimAutoCraftingInput(press, binding));
+		assertFalse(BookmarkAutoCraftingActivator.claimAutoCraftingInput(press, binding));
+		if (clearAll) {
+			BookmarkAutoCraftingActivator.clearAutoCraftingInputs();
+		} else {
+			BookmarkAutoCraftingActivator.releaseAutoCraftingInput(KEY);
+		}
+		assertTrue(BookmarkAutoCraftingActivator.claimAutoCraftingInput(press, binding));
+	}
+
 	@ParameterizedTest
 	@EnumSource(value = InputType.class, names = {"SIMULATE", "EXECUTE"})
 	void sendsOnExecution(InputType inputType) {
 		var layout = layout();
 		CraftingMenu menu = new CraftingMenu(7, new Inventory(null));
-		var key = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_C);
-		UserInput userInput = new UserInput(key, 0, 0, GLFW.GLFW_MOD_SHIFT, inputType);
+		UserInput userInput = new UserInput(KEY, 0, 0, GLFW.GLFW_MOD_SHIFT, inputType);
 		List<PlayToServerPacket> packets = new ArrayList<>();
 		AtomicInteger closed = new AtomicInteger();
 		AtomicInteger sounds = new AtomicInteger();
@@ -122,6 +147,23 @@ public class BookmarkAutoCraftingServerTest {
 					.getDisplayedItemStack().orElse(ItemStack.EMPTY);
 				assertTrue(ItemStack.matches(expected, stacks.get(i)), "Target slot " + i);
 			}
+		}
+	}
+
+	private record TestKeyMapping(InputConstants.Key key) implements IJeiKeyMapping {
+		@Override
+		public boolean isActiveAndMatches(InputConstants.Key input) {
+			return key.equals(input);
+		}
+
+		@Override
+		public boolean isUnbound() {
+			return false;
+		}
+
+		@Override
+		public Component getTranslatedKeyMessage() {
+			return Component.literal("test");
 		}
 	}
 

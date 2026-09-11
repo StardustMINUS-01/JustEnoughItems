@@ -21,25 +21,24 @@ import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.item;
 import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.key;
 import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.result;
 
-public class AutoCraftingManagerTest {
+public class AutoCraftingTest {
 	private static final ResourceLocation C_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "c");
 	private static final ResourceLocation E_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "e");
 
-	@ParameterizedTest(name = "expand root demand: {0}")
+	@ParameterizedTest
 	@ValueSource(booleans = {true, false})
-	public void craftAllVariantsDoNotCraftAnotherTargetWhenMaterialsRemain(boolean expandRootDemand) {
-		TestInventory inventory = chainInventory();
-		RecipeChainMath math = chainMath();
+	public void respectsTargetDemand(boolean expandRootDemand) {
+		TestInventory inventory = new TestInventory();
+		inventory.add(key("a"), 20);
+		inventory.add(key("b"), 30);
+		inventory.add(key("c"), 1);
+		inventory.add(key("d"), 8);
+		RecipeChainMath math = createChain();
 		if (expandRootDemand) {
 			math.expandRootDemandForCraftAll(inventory.snapshot());
 		}
 
-		AutoCraftingManager.Result result = AutoCraftingManager.run(
-			math,
-			List.of(),
-			inventory::snapshot,
-			inventory::craft
-		);
+		AutoCraftingManager.Result result = AutoCraftingManager.run(math, List.of(), inventory::snapshot, inventory::craft);
 
 		Assertions.assertTrue(result.completed());
 		Assertions.assertEquals(1, inventory.amount(key("e")));
@@ -49,7 +48,7 @@ public class AutoCraftingManagerTest {
 		), inventory.crafted);
 	}
 
-	private static RecipeChainMath chainMath() {
+	private static RecipeChainMath createChain() {
 		return RecipeChainMath.of(List.of(
 			input(0, result(C_RECIPE, key("c"), 1, 1)),
 			input(1, ingredient(C_RECIPE, key("a"), 2)),
@@ -59,16 +58,6 @@ public class AutoCraftingManagerTest {
 			input(5, ingredient(E_RECIPE, key("d"), 4))
 		), Set.of());
 	}
-
-	private static TestInventory chainInventory() {
-		TestInventory inventory = new TestInventory();
-		inventory.add(key("a"), 20);
-		inventory.add(key("b"), 30);
-		inventory.add(key("c"), 1);
-		inventory.add(key("d"), 8);
-		return inventory;
-	}
-
 
 	private record Craft(ResourceLocation recipeUid, int multiplier) {
 	}

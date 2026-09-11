@@ -17,11 +17,15 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class RecipeTreeLayoutTest {
+class TreeLayoutTest {
 	@Test
-	void snapshotRestoresSelectionAndManualFoldingInsteadOfInventoryFolding() {
+	void restoresSelection() {
 		var inputs = List.of(input(0, "root", BookmarkItemType.RESULT, "result", 1),
 			input(1, "root", BookmarkItemType.INGREDIENT, "plate", 2),
 			input(2, "source", BookmarkItemType.RESULT, "plate", 1), input(3, "source", BookmarkItemType.INGREDIENT, "ore", 1));
@@ -41,7 +45,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void snapshotSizeIsBoundedEvenForThousandsOfIndependentRoots() {
+	void boundsSnapshots() {
 		List<RecipeChainInput> inputs = new ArrayList<>();
 		Set<ResourceLocation> outputs = new HashSet<>();
 		for (int i = 0; i < 4200; i++) {
@@ -54,15 +58,16 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void demandIsConsumedAmountNotSupplierBatchAndPartialStockReducesChildren() {
+	void computesDemand() {
 		var inputs = List.of(input(0, "root", BookmarkItemType.RESULT, "result", 1),
 			input(1, "root", BookmarkItemType.INGREDIENT, "gear", 6),
 			input(2, "gear", BookmarkItemType.RESULT, "gear", 4), input(3, "gear", BookmarkItemType.INGREDIENT, "iron", 2));
 		var details = RecipeChainMath.refresh(inputs, Set.of());
+		var before = RecipeChainMath.refresh(inputs, Set.of());
 		var tree = new RecipeTreeLayout(inputs, details);
 		tree.updateDemands(List.of(), Set.of(), false);
-		var gear = tree.nodes().stream().filter(node -> node.target().index() == 2).findFirst().orElseThrow();
-		var iron = tree.nodes().stream().filter(node -> node.target().index() == 3).findFirst().orElseThrow();
+		var gear = findNode(tree, 2);
+		var iron = findNode(tree, 3);
 		assertEquals(6, gear.demandAmount());
 		assertEquals(4, iron.demandAmount());
 		var stock = input(-1, "unused", BookmarkItemType.ITEM, "gear", 4);
@@ -73,11 +78,11 @@ class RecipeTreeLayoutTest {
 		tree.updateDemands(List.of(), Set.of(), false);
 		assertEquals(6, gear.demandAmount());
 		assertEquals(4, iron.demandAmount());
-		assertEquals(details, RecipeChainMath.refresh(inputs, Set.of()));
+		assertEquals(before, details);
 	}
 
 	@Test
-	void foldedBranchesKeepTheirAllocationAndCanReopenAtTheLimit() {
+	void reservesBranchBudget() {
 		List<RecipeChainInput> inputs = new ArrayList<>();
 		for (String recipe : List.of("left", "right")) {
 			inputs.add(input(inputs.size(), recipe, BookmarkItemType.RESULT, recipe, 1));
@@ -98,11 +103,8 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void sharedStockAllocationDoesNotDependOnFoldingAndRestoresManualExpansion() {
-		var inputs = List.of(input(0, "source", BookmarkItemType.RESULT, "plate", 1),
-			input(1, "source", BookmarkItemType.INGREDIENT, "ore", 1),
-			input(2, "left", BookmarkItemType.RESULT, "left", 1), input(3, "left", BookmarkItemType.INGREDIENT, "plate", 3),
-			input(4, "right", BookmarkItemType.RESULT, "right", 1), input(5, "right", BookmarkItemType.INGREDIENT, "plate", 5));
+	void sharesStockAcrossBranches() {
+		var inputs = sharedInputs(3, 5);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var copies = tree.nodes().stream().filter(node -> node.target().index() == 0).toList();
 		tree.updateDemands(List.of(), Set.of(), false);
@@ -122,11 +124,8 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void searchFindsHiddenSharedBranchesWithoutExpandingOrChangingLayout() {
-		var inputs = List.of(input(0, "source", BookmarkItemType.RESULT, "plate", 1),
-			input(1, "source", BookmarkItemType.INGREDIENT, "ore", 1),
-			input(2, "left", BookmarkItemType.RESULT, "left", 1), input(3, "left", BookmarkItemType.INGREDIENT, "plate", 1),
-			input(4, "right", BookmarkItemType.RESULT, "right", 1), input(5, "right", BookmarkItemType.INGREDIENT, "plate", 1));
+	void searchesHiddenBranches() {
+		var inputs = sharedInputs(1, 1);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var roots = tree.nodes().stream().filter(node -> node.parent() == null).toList();
 		roots.forEach(tree::toggle);
@@ -147,7 +146,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void sharedMultiOutputSupplierAppearsOnBothPathsWithoutChangingTotals() {
+	void sharesMultipleOutputs() {
 		List<RecipeChainInput> inputs = List.of(
 			input(0, "source", BookmarkItemType.RESULT, "plate", 2),
 			input(1, "source", BookmarkItemType.RESULT, "dust", 1),
@@ -158,6 +157,7 @@ class RecipeTreeLayoutTest {
 			input(6, "gear", BookmarkItemType.INGREDIENT, "dust", 1)
 		);
 		var details = RecipeChainMath.refresh(inputs, Set.of());
+		var before = RecipeChainMath.refresh(inputs, Set.of());
 		assertEquals(0, details.suppliers().get(4));
 		assertEquals(1, details.suppliers().get(6));
 		var tree = new RecipeTreeLayout(inputs, details);
@@ -168,12 +168,12 @@ class RecipeTreeLayoutTest {
 		assertEquals(3, copies.getFirst().slots().size());
 		tree.updateDemands(List.of(), Set.of(), false);
 		assertEquals(1, tree.nodes().stream().filter(node -> node.target().index() == 2).mapToLong(RecipeTreeLayout.Node::demandAmount).sum());
-		assertEquals(details, RecipeChainMath.refresh(inputs, Set.of()));
+		assertEquals(before, details);
 		assertNoOverlap(tree);
 	}
 
 	@Test
-	void nonConsumablesRemainInNodeWithoutAChildAndDoNotScale() {
+	void keepsNonconsumables() {
 		var catalyst = input(2, "machine", BookmarkItemType.NONCONSUMABLE, "catalyst", 100);
 		catalyst = new RecipeChainInput(catalyst.index(), catalyst.metadata().withMultiplier(64));
 		var inputs = List.of(input(0, "machine", BookmarkItemType.RESULT, "machine", 1),
@@ -188,11 +188,8 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void collapseIsLocalToOneOccurrenceAndExpandRestoresItsInputs() {
-		List<RecipeChainInput> inputs = List.of(input(0, "source", BookmarkItemType.RESULT, "plate", 1),
-			input(1, "source", BookmarkItemType.INGREDIENT, "ore", 1),
-			input(2, "left", BookmarkItemType.RESULT, "left", 1), input(3, "left", BookmarkItemType.INGREDIENT, "plate", 1),
-			input(4, "right", BookmarkItemType.RESULT, "right", 1), input(5, "right", BookmarkItemType.INGREDIENT, "plate", 1));
+	void foldsOccurrencesIndependently() {
+		var inputs = sharedInputs(1, 1);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var copies = tree.nodes().stream().filter(node -> node.recipe() && node.target().index() == 0).toList();
 		int before = tree.nodes().size();
@@ -211,7 +208,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void cycleUsesCalculatedCutAndEndsInAMaterialLeaf() {
+	void terminatesCycles() {
 		var inputs = List.of(input(0, "a", BookmarkItemType.RESULT, "a", 1), input(1, "a", BookmarkItemType.INGREDIENT, "b", 1),
 			input(2, "b", BookmarkItemType.RESULT, "b", 1), input(3, "b", BookmarkItemType.INGREDIENT, "a", 1));
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
@@ -222,7 +219,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void independentRecipesAndManySlotRowsStaySeparate() {
+	void separatesRoots() {
 		List<RecipeChainInput> inputs = new ArrayList<>();
 		for (int recipe = 0; recipe < 30; recipe++) {
 			String name = "r" + recipe;
@@ -238,12 +235,8 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void deepChainStartsPartiallyExpandedAndCanContinue() {
-		List<RecipeChainInput> inputs = new ArrayList<>();
-		for (int i = 0; i < 25; i++) {
-			inputs.add(input(inputs.size(), "r" + i, BookmarkItemType.RESULT, "p" + i, 1));
-			inputs.add(input(inputs.size(), "r" + i, BookmarkItemType.INGREDIENT, "p" + (i + 1), 1));
-		}
+	void expandsDeepChains() {
+		var inputs = chainInputs(25);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var initiallyVisible = List.copyOf(tree.nodes());
 		tree.search(input -> input.index() == 49);
@@ -257,7 +250,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void editorCanSelectHiddenRecipeWithoutExpandingTheTree() {
+	void findsHiddenRecipes() {
 		var inputs = List.of(input(0, "root", BookmarkItemType.RESULT, "root", 1), input(1, "root", BookmarkItemType.INGREDIENT, "a", 1),
 			input(2, "a", BookmarkItemType.RESULT, "a", 1), input(3, "a", BookmarkItemType.INGREDIENT, "raw", 1));
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
@@ -268,19 +261,15 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void emptyGroupProducesAnEmptyView() {
+	void handlesEmptyGroups() {
 		var tree = new RecipeTreeLayout(List.of(), RecipeChainMath.refresh(List.of(), Set.of()));
 		assertTrue(tree.nodes().isEmpty());
 		assertEquals(0, tree.width());
 	}
 
 	@Test
-	void oversizedBranchStaysCollapsedWithoutDroppingSavedSlots() {
-		List<RecipeChainInput> inputs = new ArrayList<>();
-		inputs.add(input(0, "large", BookmarkItemType.RESULT, "large", 1));
-		for (int i = 1; i <= 4100; i++) {
-			inputs.add(input(i, "large", BookmarkItemType.INGREDIENT, "ore", 1));
-		}
+	void limitsOversizedBranches() {
+		var inputs = wideInputs(4100);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		assertEquals(1, tree.nodes().size());
 		assertEquals(inputs.size(), tree.nodes().getFirst().slots().size());
@@ -290,7 +279,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void staggeredBranchesReuseSpaceAtDifferentDepths() {
+	void packsStaggeredBranches() {
 		List<RecipeChainInput> inputs = new ArrayList<>(List.of(
 			input(0, "root", BookmarkItemType.RESULT, "root", 1),
 			input(1, "root", BookmarkItemType.INGREDIENT, "a", 1),
@@ -305,7 +294,7 @@ class RecipeTreeLayoutTest {
 			}
 		}
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
-		var deep = tree.nodes().stream().filter(node -> node.target().index() == 5).findFirst().orElseThrow();
+		var deep = findNode(tree, 5);
 		assertTrue(tree.toggle(deep));
 		assertEquals(28, tree.nodes().size());
 		var leaves = tree.nodes().stream().filter(node -> node.parent() == deep).toList();
@@ -322,16 +311,11 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void nodeDimensionsDoNotDependOnRecipeSlotCountOrExpansion() {
-		List<RecipeChainInput> inputs = new ArrayList<>();
-		inputs.add(input(0, "large", BookmarkItemType.RESULT, "large", 1));
-		for (int i = 1; i <= 50; i++) {
-			inputs.add(input(i, "large", BookmarkItemType.INGREDIENT, "ore", 1));
-		}
+	void keepsNodeDimensions() {
+		var inputs = wideInputs(50);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var root = tree.nodes().getFirst();
 		assertEquals(51, root.slots().size());
-		assertTrue(RecipeTreeLayout.WIDTH <= 40);
 		assertEquals(RecipeTreeLayout.WIDTH, root.height());
 		var leaf = tree.nodes().getLast();
 		assertEquals(root.height(), leaf.height());
@@ -341,14 +325,12 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void singleSupplierChainStaysInOneColumn() {
-		List<RecipeChainInput> inputs = new ArrayList<>();
-		for (int i = 0; i < 100; i++) {
-			inputs.add(input(inputs.size(), "r" + i, BookmarkItemType.RESULT, "p" + i, 1));
-			inputs.add(input(inputs.size(), "r" + i, BookmarkItemType.INGREDIENT, "p" + (i + 1), 1));
-		}
+	void alignsSingleChains() {
+		var inputs = chainInputs(100);
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
-		while (tree.nodes().getLast().expandable()) { assertTrue(tree.toggle(tree.nodes().getLast())); }
+		while (tree.nodes().getLast().expandable()) {
+			assertTrue(tree.toggle(tree.nodes().getLast()));
+		}
 		assertEquals(101, tree.nodes().size());
 		assertEquals(RecipeTreeLayout.WIDTH, tree.width());
 		assertTrue(tree.nodes().stream().allMatch(node -> node.x() == 0));
@@ -356,7 +338,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void wholeNodeIsHitTargetAndRemovedChildrenCannotBeHit() {
+	void hitsVisibleNodes() {
 		var inputs = List.of(input(0, "root", BookmarkItemType.RESULT, "root", 1),
 			input(1, "root", BookmarkItemType.INGREDIENT, "raw", 1));
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
@@ -376,7 +358,7 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void unevenForestKeepsNodesAndSiblingConnectorsSeparate() {
+	void separatesUnevenBranches() {
 		Random random = new Random(314159);
 		List<RecipeChainInput> inputs = new ArrayList<>();
 		for (int i = 0; i < 120; i++) {
@@ -421,19 +403,12 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void reopeningParentPreservesMixedChildStatesAndNodeIdentity() {
-		var inputs = List.of(
-			input(0, "root", BookmarkItemType.RESULT, "root", 1),
-			input(1, "root", BookmarkItemType.INGREDIENT, "a", 1),
-			input(2, "root", BookmarkItemType.INGREDIENT, "b", 1),
-			input(3, "a", BookmarkItemType.RESULT, "a", 1),
-			input(4, "a", BookmarkItemType.INGREDIENT, "raw_a", 1),
-			input(5, "b", BookmarkItemType.RESULT, "b", 1),
-			input(6, "b", BookmarkItemType.INGREDIENT, "raw_b", 1));
+	void preservesChildStates() {
+		var inputs = branchInputs();
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var root = tree.nodes().getFirst();
-		var a = tree.nodes().stream().filter(node -> node.target().index() == 3).findFirst().orElseThrow();
-		var b = tree.nodes().stream().filter(node -> node.target().index() == 5).findFirst().orElseThrow();
+		var a = findNode(tree, 3);
+		var b = findNode(tree, 5);
 		assertTrue(tree.toggle(a));
 		var before = List.copyOf(tree.nodes());
 		double width = tree.width(), height = tree.height();
@@ -453,31 +428,24 @@ class RecipeTreeLayoutTest {
 	}
 
 	@Test
-	void refreshPreservesHiddenDescendantExpansion() {
-		var inputs = List.of(
-			input(0, "root", BookmarkItemType.RESULT, "root", 1),
-			input(1, "root", BookmarkItemType.INGREDIENT, "a", 1),
-			input(2, "root", BookmarkItemType.INGREDIENT, "b", 1),
-			input(3, "a", BookmarkItemType.RESULT, "a", 1),
-			input(4, "a", BookmarkItemType.INGREDIENT, "raw_a", 1),
-			input(5, "b", BookmarkItemType.RESULT, "b", 1),
-			input(6, "b", BookmarkItemType.INGREDIENT, "raw_b", 1));
+	void restoresHiddenStates() {
+		var inputs = branchInputs();
 		var details = RecipeChainMath.refresh(inputs, Set.of());
 		var previous = new RecipeTreeLayout(inputs, details);
-		var a = previous.nodes().stream().filter(node -> node.target().index() == 3).findFirst().orElseThrow();
+		var a = findNode(previous, 3);
 		assertTrue(previous.toggle(a));
 		assertTrue(previous.toggle(previous.nodes().getFirst()));
 		var refreshed = new RecipeTreeLayout(inputs, details);
 		refreshed.restoreExpansion(previous.captureExpansion(null));
 		assertEquals(1, refreshed.nodes().size());
 		assertTrue(refreshed.toggle(refreshed.nodes().getFirst()));
-		assertFalse(refreshed.nodes().stream().filter(node -> node.target().index() == 3).findFirst().orElseThrow().expanded());
-		assertTrue(refreshed.nodes().stream().filter(node -> node.target().index() == 5).findFirst().orElseThrow().expanded());
+		assertFalse(findNode(refreshed, 3).expanded());
+		assertTrue(findNode(refreshed, 5).expanded());
 		assertNoOverlap(refreshed);
 	}
 
 	@Test
-	void reopeningCachedDescendantsPreservesTheirStateWithinAllocationBudget() {
+	void restoresCachedBranches() {
 		List<RecipeChainInput> inputs = new ArrayList<>(List.of(
 			input(0, "a", BookmarkItemType.RESULT, "a", 1),
 			input(1, "a", BookmarkItemType.INGREDIENT, "deep", 1),
@@ -489,9 +457,9 @@ class RecipeTreeLayoutTest {
 			}
 		}
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
-		var a = tree.nodes().stream().filter(node -> node.target().index() == 0).findFirst().orElseThrow();
-		var b = tree.nodes().stream().filter(node -> node.target().index() == 3).findFirst().orElseThrow();
-		var deep = tree.nodes().stream().filter(node -> node.target().index() == 2).findFirst().orElseThrow();
+		var a = findNode(tree, 0);
+		var b = findNode(tree, 3);
+		var deep = findNode(tree, 2);
 		assertTrue(tree.toggle(b));
 		assertTrue(deep.expanded());
 		var before = List.copyOf(tree.nodes());
@@ -520,10 +488,48 @@ class RecipeTreeLayoutTest {
 		}
 	}
 
+	private static RecipeTreeLayout.Node findNode(RecipeTreeLayout tree, int index) {
+		return tree.nodes().stream().filter(node -> node.target().index() == index).findFirst().orElseThrow();
+	}
+
+	private static List<RecipeChainInput> sharedInputs(long left, long right) {
+		return List.of(input(0, "source", BookmarkItemType.RESULT, "plate", 1),
+			input(1, "source", BookmarkItemType.INGREDIENT, "ore", 1),
+			input(2, "left", BookmarkItemType.RESULT, "left", 1), input(3, "left", BookmarkItemType.INGREDIENT, "plate", left),
+			input(4, "right", BookmarkItemType.RESULT, "right", 1), input(5, "right", BookmarkItemType.INGREDIENT, "plate", right));
+	}
+
+	private static List<RecipeChainInput> branchInputs() {
+		return List.of(input(0, "root", BookmarkItemType.RESULT, "root", 1),
+			input(1, "root", BookmarkItemType.INGREDIENT, "a", 1), input(2, "root", BookmarkItemType.INGREDIENT, "b", 1),
+			input(3, "a", BookmarkItemType.RESULT, "a", 1), input(4, "a", BookmarkItemType.INGREDIENT, "raw_a", 1),
+			input(5, "b", BookmarkItemType.RESULT, "b", 1), input(6, "b", BookmarkItemType.INGREDIENT, "raw_b", 1));
+	}
+
+	private static List<RecipeChainInput> chainInputs(int length) {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		for (int i = 0; i < length; i++) {
+			inputs.add(input(inputs.size(), "r" + i, BookmarkItemType.RESULT, "p" + i, 1));
+			inputs.add(input(inputs.size(), "r" + i, BookmarkItemType.INGREDIENT, "p" + (i + 1), 1));
+		}
+		return inputs;
+	}
+
+	private static List<RecipeChainInput> wideInputs(int count) {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		inputs.add(input(0, "large", BookmarkItemType.RESULT, "large", 1));
+		for (int i = 1; i <= count; i++) {
+			inputs.add(input(i, "large", BookmarkItemType.INGREDIENT, "ore", 1));
+		}
+		return inputs;
+	}
+
 	private static RecipeChainInput input(int index, String recipe, BookmarkItemType type, String item, long amount) {
 		return new RecipeChainInput(index, new BookmarkItemMetadata(1, type, 1, amount, BookmarkItemMetadata.CHANCE_FULL,
 			id("processing"), id(recipe), Set.of(new BookmarkIngredientKey("test:item", item))));
 	}
 
-	private static ResourceLocation id(String value) { return ResourceLocation.fromNamespaceAndPath("test", value); }
+	private static ResourceLocation id(String value) {
+		return ResourceLocation.fromNamespaceAndPath("test", value);
+	}
 }

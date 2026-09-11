@@ -6,6 +6,8 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.ingredients.TypedIngredient;
+import mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
@@ -18,15 +20,14 @@ import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Set;
 
-public class BookmarkItemMetadataFactoryTest {
-	private static final IIngredientType<TestToolIngredient> TOOL_TYPE = new IIngredientType<>() {
+public class BookmarkMetadataTest {
+	private static final IIngredientType<ToolIngredient> TOOL_TYPE = new IIngredientType<>() {
 		@Override
-		public Class<? extends TestToolIngredient> getIngredientClass() {
-			return TestToolIngredient.class;
+		public Class<? extends ToolIngredient> getIngredientClass() {
+			return ToolIngredient.class;
 		}
 
 		@Override
@@ -35,23 +36,42 @@ public class BookmarkItemMetadataFactoryTest {
 		}
 	};
 	private static final ResourceLocation CRAFTING = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
+	private static final IIngredientManager MANAGER = createManager();
 	private static final ResourceLocation MACHINE_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "machine");
 
 	@Test
-	public void craftingAvailableMetadataKeepsReusableToolUses() {
-		IIngredientManager ingredientManager = ingredientManager();
-		TestToolIngredient wrench = new TestToolIngredient("neutronium_wrench", 1, 0, 10_000, 2);
-		BookmarkItemMetadata inventoryMetadata = BookmarkItemMetadataFactory.createForCraftingAvailable(
+	public void calculatesChanceAmounts() {
+		var ingredient = new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.INGREDIENT, 2, 3, 5_000, CRAFTING, MACHINE_RECIPE, Set.of(new BookmarkIngredientKey("test:item", "gear")));
+		var result = new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.RESULT, 2, 3, 5_000, CRAFTING, MACHINE_RECIPE, Set.of(new BookmarkIngredientKey("test:item", "machine")));
+
+		Assertions.assertEquals(3, ingredient.amount());
+		Assertions.assertEquals(3, result.amount());
+		Assertions.assertEquals(2, ingredient.multiplierFromAmount(3));
+		Assertions.assertTrue(ingredient.containsItems(ingredient));
+		Assertions.assertTrue(ingredient.equalsRecipe(MACHINE_RECIPE, BookmarkGroupManager.DEFAULT_GROUP_ID));
+	}
+
+	@Test
+	public void countsToolUses() {
+		ToolIngredient wrench = new ToolIngredient("neutronium_wrench", 1, 0, 10_000, 2);
+		BookmarkItemMetadata available = BookmarkItemMetadataFactory.createForCraftingAvailable(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			typed(wrench),
 			1,
-			ingredientManager
+			MANAGER
 		);
 
+		BookmarkIngredientKey tool = key("neutronium_wrench");
+		BookmarkItemMetadata required = new BookmarkItemMetadata(
+			BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.INGREDIENT, 1, 5,
+			BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(tool), tool, 5_000
+		);
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(key("machine"), 1)),
-			input(1, ingredient(key("neutronium_wrench"), 5)),
-			input(2, inventoryMetadata)
+			input(1, required),
+			input(2, available)
 		), Set.of());
 
 		Assertions.assertEquals(1, details.calculatedItems().get(2).requiredAmount());
@@ -59,15 +79,14 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	@Test
-	public void syntheticVirtualCircuitRecipeInputHasZeroCost() {
-		IIngredientManager ingredientManager = ingredientManager();
+	public void preservesZeroCost() {
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			CRAFTING,
 			MACHINE_RECIPE,
 			BookmarkItemType.INGREDIENT,
-			typed(new TestToolIngredient("programmed_circuit_7", 1, 0, 0, 0)),
-			ingredientManager,
+			typed(new ToolIngredient("programmed_circuit_7", 1, 0, 0, 0)),
+			MANAGER,
 			0
 		);
 
@@ -79,20 +98,19 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	@Test
-	public void permutationKeyKeepsItsTypedIngredientWithoutChangingStableIdentity() {
-		IIngredientManager ingredientManager = ingredientManager();
-		ITypedIngredient<TestToolIngredient> original = typed(new TestToolIngredient("mold", 1, 0, 0, 0));
+	public void preservesKeyIdentity() {
+		ITypedIngredient<ToolIngredient> original = typed(new ToolIngredient("mold", 1, 0, 0, 0));
 
-		BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(original, ingredientManager);
-		BookmarkIngredientKey sameIdentity = BookmarkIngredientKey.of(key.ingredientTypeUid(), key.ingredientUid());
+		BookmarkIngredientKey key = BookmarkItemMetadataFactory.createPermutationKey(original, MANAGER);
+		BookmarkIngredientKey identity = BookmarkIngredientKey.of(key.ingredientTypeUid(), key.ingredientUid());
 
 		Assertions.assertSame(original, key.typedIngredient());
-		Assertions.assertEquals(sameIdentity, key);
-		Assertions.assertEquals(sameIdentity.hashCode(), key.hashCode());
+		Assertions.assertEquals(identity, key);
+		Assertions.assertEquals(identity.hashCode(), key.hashCode());
 	}
 
 	@Test
-	public void replacingPermutationsPreservesCatalystType() {
+	public void replacesCandidates() {
 		BookmarkItemMetadata catalyst = ingredient(key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE);
 
 		BookmarkItemMetadata replaced = catalyst.withPermutations(Set.of(key("hydrated_mold")));
@@ -102,8 +120,8 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	@Test
-	public void nonConsumableTypeIgnoresEveryMultiplier() {
-		BookmarkItemMetadata nonConsumable = new BookmarkItemMetadata(
+	public void ignoresMultiplier() {
+		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			BookmarkItemType.NONCONSUMABLE,
 			64,
@@ -114,12 +132,12 @@ public class BookmarkItemMetadataFactoryTest {
 			Set.of(key("ferric_chloride"))
 		);
 
-		Assertions.assertEquals(100, nonConsumable.amount());
-		Assertions.assertEquals(100, nonConsumable.amount(9));
+		Assertions.assertEquals(100, metadata.amount());
+		Assertions.assertEquals(100, metadata.amount(9));
 	}
 
 	@Test
-	public void bookmarkItemTypesExposeTheirRecipeAndGraphCapabilities() {
+	public void exposesTypeRoles() {
 		Assertions.assertFalse(BookmarkItemType.ITEM.isRecipeAssociated());
 		Assertions.assertNull(BookmarkItemType.ITEM.recipeRole());
 		Assertions.assertFalse(BookmarkItemType.ITEM.isGraphInput());
@@ -141,14 +159,14 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	@Test
-	public void syntheticCatalystIsCreatedAsACatalyst() {
+	public void createsNonconsumable() {
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			CRAFTING,
 			MACHINE_RECIPE,
 			BookmarkItemType.NONCONSUMABLE,
-			typed(new TestToolIngredient("mold", 3, 0, 0, 0)),
-			ingredientManager(),
+			typed(new ToolIngredient("mold", 3, 0, 0, 0)),
+			MANAGER,
 			3
 		);
 
@@ -161,91 +179,68 @@ public class BookmarkItemMetadataFactoryTest {
 	}
 
 	private static BookmarkItemMetadata result(BookmarkIngredientKey key, long multiplier) {
-		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, mezz.jei.gui.bookmarks.BookmarkItemType.RESULT, multiplier, 1, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.RESULT, multiplier, 1, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
 	}
 
 	private static BookmarkItemMetadata ingredient(BookmarkIngredientKey key, long factor) {
-		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT, 1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key), key, 5_000);
+		return new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID, BookmarkItemType.INGREDIENT, 1, factor, BookmarkItemMetadata.CHANCE_FULL, CRAFTING, MACHINE_RECIPE, Set.of(key));
 	}
 
 	private static BookmarkIngredientKey key(String name) {
 		return new BookmarkIngredientKey(TOOL_TYPE.getUid(), "test:" + name);
 	}
 
-	private static ITypedIngredient<TestToolIngredient> typed(TestToolIngredient ingredient) {
-		return new ITypedIngredient<>() {
-			@Override
-			public ITypedIngredient<TestToolIngredient> normalize(mezz.jei.api.ingredients.IIngredientHelper<TestToolIngredient> helper) {
-				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
-			}
-
-			@Override
-			public IIngredientType<TestToolIngredient> getType() {
-				return TOOL_TYPE;
-			}
-
-			@Override
-			public TestToolIngredient getIngredient() {
-				return ingredient;
-			}
-		};
+	private static ITypedIngredient<ToolIngredient> typed(ToolIngredient ingredient) {
+		return TypedIngredient.createUnvalidated(TOOL_TYPE, ingredient);
 	}
 
-	private static IIngredientManager ingredientManager() {
-		IIngredientHelper<TestToolIngredient> helper = new IIngredientHelper<>() {
+	private static IIngredientManager createManager() {
+		IIngredientHelper<ToolIngredient> helper = new IIngredientHelper<>() {
 			@Override
-			public IIngredientType<TestToolIngredient> getIngredientType() {
+			public IIngredientType<ToolIngredient> getIngredientType() {
 				return TOOL_TYPE;
 			}
 
 			@Override
-			public String getDisplayName(TestToolIngredient ingredient) {
+			public String getDisplayName(ToolIngredient ingredient) {
 				return ingredient.name();
 			}
 
 			@Override
-			public String getUniqueId(TestToolIngredient ingredient, UidContext context) {
+			public String getUniqueId(ToolIngredient ingredient, UidContext context) {
 				return "test:" + ingredient.name();
 			}
 
 			@Override
-			public ResourceLocation getResourceLocation(TestToolIngredient ingredient) {
+			public ResourceLocation getResourceLocation(ToolIngredient ingredient) {
 				return ResourceLocation.fromNamespaceAndPath("test", ingredient.name());
 			}
 
 			@Override
-			public TestToolIngredient copyIngredient(TestToolIngredient ingredient) {
+			public ToolIngredient copyIngredient(ToolIngredient ingredient) {
 				return ingredient;
 			}
 
 			@Override
-			public String getErrorInfo(TestToolIngredient ingredient) {
+			public String getErrorInfo(ToolIngredient ingredient) {
 				return String.valueOf(ingredient);
 			}
 		};
 
-		return (IIngredientManager) Proxy.newProxyInstance(
-			IIngredientManager.class.getClassLoader(),
-			new Class[]{IIngredientManager.class},
-			(proxy, method, args) -> switch (method.getName()) {
-				case "getIngredientHelper" -> helper;
-				case "normalizeTypedIngredient" -> args[0];
-				default -> throw new UnsupportedOperationException(method.getName());
-			}
-		);
+		return ItemStackIngredientTestFixtures.ingredientManager(TOOL_TYPE, helper);
 	}
 
-	private record TestToolIngredient(String name, long amount, int damage, int maxDamage, int damagePerCraft) {
+	private record ToolIngredient(String name, long amount, int damage, int maxDamage, int damagePerCraft) {
 		public boolean hasCraftingRemainingItem() {
 			return true;
 		}
 
-		public TestToolIngredient getCraftingRemainingItem() {
-			return new TestToolIngredient(name, 1, damage + damagePerCraft, maxDamage, damagePerCraft);
+		public ToolIngredient getCraftingRemainingItem() {
+			return new ToolIngredient(name, 1, damage + damagePerCraft, maxDamage, damagePerCraft);
 		}
 
-		public TestToolItem getItem() {
-			return new TestToolItem(damagePerCraft);
+		public ToolItem getItem() {
+			return new ToolItem(damagePerCraft);
 		}
 
 		public int getMaxDamage() {
@@ -257,9 +252,9 @@ public class BookmarkItemMetadataFactoryTest {
 		}
 	}
 
-	private record TestToolItem(int damagePerCraft) {
-		public TestToolStats getToolStats() {
-			return new TestToolStats(damagePerCraft);
+	private record ToolItem(int damagePerCraft) {
+		public ToolStats getToolStats() {
+			return new ToolStats(damagePerCraft);
 		}
 
 		public boolean isElectric() {
@@ -267,8 +262,8 @@ public class BookmarkItemMetadataFactoryTest {
 		}
 	}
 
-	private record TestToolStats(int damagePerCraft) {
-		public int getDamagePerCraftingAction(TestToolIngredient stack) {
+	private record ToolStats(int damagePerCraft) {
+		public int getDamagePerCraftingAction(ToolIngredient stack) {
 			return damagePerCraft;
 		}
 	}

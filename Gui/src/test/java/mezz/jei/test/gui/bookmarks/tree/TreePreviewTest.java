@@ -14,9 +14,9 @@ import java.util.Optional;
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class RecipeTreePreviewTest {
+class TreePreviewTest {
 	@Test
-	void normalizesRecipeBorderAndDoesNotMagnifySmallRecipes() {
+	void normalizesPreview() {
 		var fixture = new Layout();
 		var preview = new RecipeTreePreview(fixture.drawable(), List.of(), ingredientManager(), Map.of());
 		assertEquals(4, fixture.x);
@@ -31,7 +31,7 @@ class RecipeTreePreviewTest {
 	}
 
 	@Test
-	void scaledAndScrolledPreviewUsesMatchingMouseCoordinates() {
+	void mapsMouseCoordinates() {
 		var fixture = new Layout();
 		var preview = new RecipeTreePreview(fixture.drawable(), List.of(), ingredientManager(), Map.of());
 		var area = preview.area(300, -10, 104);
@@ -53,18 +53,25 @@ class RecipeTreePreviewTest {
 
 		IRecipeLayoutDrawable<?> drawable() {
 			return (IRecipeLayoutDrawable<?>) Proxy.newProxyInstance(IRecipeLayoutDrawable.class.getClassLoader(), new Class<?>[] {IRecipeLayoutDrawable.class},
-				(proxy, method, args) -> {
-					switch (method.getName()) {
-						case "getRecipeSlotsView" -> { return (IRecipeSlotsView) List::of; }
-						case "setPosition" -> { x = (int) args[0]; y = (int) args[1]; return null; }
-						case "getRectWithBorder" -> { return new Rect2i(x - 4, y - 4, 208, 108); }
-						case "tick" -> { ticks++; return null; }
-						case "getSlotUnderMouse" -> {
-							mouseX = (double) args[0]; mouseY = (double) args[1]; hitTests++;
-							return Optional.empty();
-						}
-						default -> throw new AssertionError("Unexpected layout call: " + method.getName());
+				(proxy, method, args) -> switch (method.getName()) {
+					case "getRecipeSlotsView" -> (IRecipeSlotsView) List::of;
+					case "getRectWithBorder" -> new Rect2i(x - 4, y - 4, 208, 108);
+					case "setPosition" -> {
+						x = (int) args[0];
+						y = (int) args[1];
+						yield null;
 					}
+					case "tick" -> {
+						ticks++;
+						yield null;
+					}
+					case "getSlotUnderMouse" -> {
+						mouseX = (double) args[0];
+						mouseY = (double) args[1];
+						hitTests++;
+						yield Optional.empty();
+					}
+					default -> throw new AssertionError("Unexpected layout call: " + method.getName());
 				});
 		}
 	}

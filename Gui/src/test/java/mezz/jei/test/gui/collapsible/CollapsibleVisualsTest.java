@@ -1,16 +1,12 @@
 package mezz.jei.test.gui.collapsible;
 
-import mezz.jei.api.ingredients.IIngredientType;
-import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.collapsible.CollapsedGroupElement;
 import mezz.jei.gui.collapsible.CollapsibleGroup;
 import mezz.jei.gui.collapsible.CollapsibleSettings;
 import mezz.jei.gui.collapsible.CollapsibleSlotVisualsProvider;
-import mezz.jei.gui.match.IngredientExpression;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.elements.IElement;
-import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import org.junit.jupiter.api.Assertions;
@@ -19,14 +15,19 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class CollapsibleSlotVisualsProviderTest {
+import static mezz.jei.test.gui.collapsible.CollapsibleTestFixtures.group;
+import static mezz.jei.test.gui.collapsible.CollapsibleTestFixtures.element;
+
+public class CollapsibleVisualsTest {
 	@Test
-	public void changedColorIsVisibleWithoutRebuildingSlotTopology() {
+	public void updatesColorsWithoutRescan() {
 		IngredientListSlot slot = new IngredientListSlot(0, 0, 18, 18, 1);
 		slot.setElement(groupElement(group("minecraft:potion")));
-		var settings = new java.util.concurrent.atomic.AtomicReference<>(CollapsibleSettings.DEFAULT);
-		var scans = new java.util.concurrent.atomic.AtomicInteger();
+		var settings = new AtomicReference<>(CollapsibleSettings.DEFAULT);
+		var scans = new AtomicInteger();
 		var provider = new CollapsibleSlotVisualsProvider(() -> {
 			scans.incrementAndGet();
 			return List.of(slot);
@@ -45,7 +46,7 @@ public class CollapsibleSlotVisualsProviderTest {
 	private static final int GROUP_SIZE = COLUMNS * ROWS - 10;
 
 	@Test
-	public void lShapedBlockedGridKeepsBorderOnGroupOutline() {
+	public void outlinesBlockedGrid() {
 		CollapsibleGroup group = group("minecraft:potion");
 		List<IngredientListSlot> slots = new ArrayList<>();
 		for (int row = 0; row < ROWS; row++) {
@@ -121,44 +122,4 @@ public class CollapsibleSlotVisualsProviderTest {
 		);
 	}
 
-	private static CollapsibleGroup group(String expr) {
-		return CollapsibleGroup.create(expr, IngredientExpression.parseIngredient(expr).orElseThrow());
-	}
-
-	private static IElement<?> element(String itemId) {
-		ITypedIngredient<Object> typed = new ITypedIngredient<>() {
-			@Override
-			public ITypedIngredient<Object> normalize(mezz.jei.api.ingredients.IIngredientHelper<Object> helper) {
-				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
-			}
-
-			@Override
-			public IIngredientType<Object> getType() {
-				return TEST_TYPE;
-			}
-
-			@Override
-			public Object getIngredient() {
-				return itemId;
-			}
-
-			@Override
-			public <V> ITypedIngredient<V> cast(IIngredientType<V> ingredientType) {
-				return null;
-			}
-		};
-		return new IngredientElement<>(typed);
-	}
-
-	private static final IIngredientType<Object> TEST_TYPE = new IIngredientType<>() {
-		@Override
-		public Class<? extends Object> getIngredientClass() {
-			return Object.class;
-		}
-
-		@Override
-		public String getUid() {
-			return "test";
-		}
-	};
 }

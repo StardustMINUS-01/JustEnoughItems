@@ -2,6 +2,7 @@ package mezz.jei.test.gui.bookmarks.tree;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 import mezz.jei.gui.bookmarks.tree.RecipeTreeInput;
 import mezz.jei.gui.input.InputType;
 import mezz.jei.gui.input.UserInput;
@@ -11,11 +12,12 @@ import org.lwjgl.glfw.GLFW;
 
 import java.lang.reflect.Proxy;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class RecipeTreeInputTest {
+class TreeInputTest {
 	@Test
-	void shiftClickOnlyTogglesWhilePlainClickOnlySelects() {
+	void handlesClicks() {
 		assertEquals(RecipeTreeInput.TOGGLE, RecipeTreeInput.click(0, true).orElseThrow());
 		assertEquals(RecipeTreeInput.SELECT, RecipeTreeInput.click(0, false).orElseThrow());
 		assertTrue(RecipeTreeInput.click(1, true).isEmpty());
@@ -23,7 +25,7 @@ class RecipeTreeInputTest {
 	}
 
 	@Test
-	void onlyRecipeUsesAndIngredientBookmarkKeysAreHandled() {
+	void handlesSupportedKeys() {
 		var keys = keys(GLFW.GLFW_KEY_R);
 		assertEquals(RecipeTreeInput.SHOW_RECIPE, RecipeTreeInput.key(input(GLFW.GLFW_KEY_R, 0), keys).orElseThrow());
 		assertEquals(RecipeTreeInput.SHOW_USES, RecipeTreeInput.key(input(GLFW.GLFW_KEY_U, 0), keys).orElseThrow());
@@ -34,7 +36,7 @@ class RecipeTreeInputTest {
 	}
 
 	@Test
-	void modifiedShortcutsAreNotImportedButReboundKeysWork() {
+	void respectsKeyBindings() {
 		var keys = keys(GLFW.GLFW_KEY_P);
 		assertTrue(RecipeTreeInput.key(input(GLFW.GLFW_KEY_R, 0), keys).isEmpty());
 		assertEquals(RecipeTreeInput.SHOW_RECIPE, RecipeTreeInput.key(input(GLFW.GLFW_KEY_P, 0), keys).orElseThrow());
@@ -59,10 +61,25 @@ class RecipeTreeInputTest {
 			}));
 	}
 
-	private record Key(int code) implements mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers {
-		@Override public boolean isActiveAndMatchesAllowingExtraModifiers(InputConstants.Key key) { return isActiveAndMatches(key); }
-		@Override public boolean isActiveAndMatches(InputConstants.Key key) { return key.getValue() == code; }
-		@Override public boolean isUnbound() { return false; }
-		@Override public Component getTranslatedKeyMessage() { return Component.literal("test"); }
+	private record Key(int code) implements IJeiKeyMappingWithExtraModifiers {
+		@Override
+		public boolean isActiveAndMatchesAllowingExtraModifiers(InputConstants.Key key) {
+			return isActiveAndMatches(key);
+		}
+
+		@Override
+		public boolean isActiveAndMatches(InputConstants.Key key) {
+			return key.getValue() == code;
+		}
+
+		@Override
+		public boolean isUnbound() {
+			return false;
+		}
+
+		@Override
+		public Component getTranslatedKeyMessage() {
+			return Component.literal("test");
+		}
 	}
 }

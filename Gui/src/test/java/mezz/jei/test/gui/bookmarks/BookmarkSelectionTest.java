@@ -16,6 +16,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkRecipeSelection;
+import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeLayoutProjection;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
@@ -33,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager;
@@ -42,22 +44,28 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class BookmarkRecipeSelectionTest {
+class BookmarkSelectionTest {
 	private static final IIngredientManager MANAGER = ingredientManager();
-	@BeforeAll static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
+	@BeforeAll
+	static void bootstrap() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
 
-	@Test void savedSubsetIsPinnedAndUnsavedInputIsEmpty() {
+	@Test
+	void restoresSavedCandidates() {
 		var book = bookmarks();
 		var original = layout("a", List.of(List.of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS), item(Items.BIRCH_PLANKS)), List.of(item(Items.STICK))));
 		var projection = new RecipeLayoutProjection(original, Map.of(), Map.of(0, List.of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS))));
 		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(projection), false).orElseThrow();
-		var planks = book.getBookmarks().stream().filter(value -> value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(Items.OAK_PLANKS)).findFirst().orElseThrow();
+		var planks = findBookmark(book, group, Items.OAK_PLANKS);
 		assertTrue(book.cycleBookmarkPermutation(planks, 1));
-		book.getBookmarks().stream().filter(value -> value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(Items.STICK)).findFirst().ifPresent(book::remove);
+		book.remove(findBookmark(book, group, Items.STICK));
 		Slot first = new Slot(original.getRecipeSlotsView().getSlotViews(RecipeIngredientRole.INPUT).getFirst().getAllIngredients().toList());
 		Slot missing = new Slot(List.of(item(Items.STICK)));
 		Slot output = new Slot(RecipeIngredientRole.OUTPUT, List.of(item(Items.CHEST)));
 		Slot missingOutput = new Slot(RecipeIngredientRole.OUTPUT, List.of(item(Items.DIAMOND)));
+		// Saved candidate keys must also work without their in-memory ingredient objects.
 		var saved = book.getRecipeChainTooltipInputs(group).stream().map(input -> new RecipeChainInput(input.index(),
 			input.metadata().withPermutations(input.metadata().permutations().stream()
 				.map(key -> new BookmarkIngredientKey(key.ingredientTypeUid(), key.ingredientUid())).collect(Collectors.toSet())),
@@ -65,6 +73,8 @@ class BookmarkRecipeSelectionTest {
 		var selection = new BookmarkRecipeSelection(preview(first, missing, output, missingOutput), saved, MANAGER);
 		assertTrue(first.displayed.getItemStack().orElseThrow().is(Items.SPRUCE_PLANKS));
 		assertEquals(2, first.candidates.size());
+		assertEquals(Set.of(Items.OAK_PLANKS, Items.SPRUCE_PLANKS),
+			first.candidates.stream().map(value -> value.getItemStack().orElseThrow().getItem()).collect(Collectors.toSet()));
 		assertNull(missing.displayed);
 		assertTrue(missing.candidates.isEmpty());
 		assertTrue(selection.source(missing.view).isEmpty());
@@ -77,14 +87,13 @@ class BookmarkRecipeSelectionTest {
 		assertEquals(0, inputAmount(book, group, Items.STICK));
 	}
 
-	@Test void singleSlotChoiceSplitsEightInputsAndFamilyChoiceMergesThemAgain() {
+	@Test
+	void scrollsSlotChoices() {
 		var book = bookmarks();
-		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
-		var recipe = layout("eight", Collections.nCopies(8, family));
-		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(recipe)), false).orElseThrow();
-		Slot[] slots = new Slot[8];
-		Arrays.setAll(slots, ignored -> new Slot(family));
-		var drawing = preview(slots);
+		var fixture = createEightSlots(book, 0);
+		int group = fixture.group();
+		var slots = fixture.slots();
+		var drawing = fixture.drawing();
 		var selection = new BookmarkRecipeSelection(drawing, book.getRecipeChainTooltipInputs(group), MANAGER);
 		assertTrue(selection.scroll(0, 0, -1, false, book));
 		assertEquals(1, inputAmount(book, group, Items.SPRUCE_PLANKS));
@@ -97,29 +106,37 @@ class BookmarkRecipeSelectionTest {
 		assertEquals(0, inputAmount(book, group, Items.SPRUCE_PLANKS));
 	}
 
-	@Test void clickedBookmarkCandidatesRemainEditableAndDoNotChangeOtherRecipes() {
+	@Test
+	void selectsBookmarkCandidates() {
 		var book = bookmarks();
 		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
 		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("first", List.of(family))),
 			new RecipeLayoutProjection(layout("other", List.of(family)))), false).orElseThrow();
 		var original = book.getBookmarks().stream().filter(value -> book.getBookmarkMetadata(value).type().isGraphInput()).findFirst().orElseThrow();
+		assertEquals(ResourceLocation.fromNamespaceAndPath("test", "first"), book.getBookmarkMetadata(original).recipeUid());
 		var replacement = book.selectBookmarkPermutation(original, key(Items.SPRUCE_PLANKS), true).orElseThrow();
 		assertEquals(1, inputAmount(book, group, Items.OAK_PLANKS));
 		assertEquals(1, inputAmount(book, group, Items.SPRUCE_PLANKS));
+		assertEquals(ResourceLocation.fromNamespaceAndPath("test", "first"), book.getBookmarkMetadata(replacement).recipeUid());
+		var other = findBookmark(book, group, Items.OAK_PLANKS);
+		assertEquals(ResourceLocation.fromNamespaceAndPath("test", "other"), book.getBookmarkMetadata(other).recipeUid());
+		var otherMetadata = book.getBookmarkMetadata(other);
 		var version = book.getChangeVersion();
 		assertTrue(book.selectBookmarkPermutation(replacement, key(Items.SPRUCE_PLANKS), true).isPresent());
 		assertEquals(version, book.getChangeVersion());
 		assertTrue(book.selectBookmarkPermutation(replacement, key(Items.OAK_PLANKS), true).isPresent());
 		assertEquals(2, inputAmount(book, group, Items.OAK_PLANKS));
+		assertTrue(book.contains(other));
+		assertEquals(otherMetadata, book.getBookmarkMetadata(other));
 	}
 
-	@Test void clickedDetailCandidatesSplitAndMergeSavedAmounts() {
+	@Test
+	void clicksSlotChoices() {
 		var book = bookmarks();
-		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
-		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("eight", Collections.nCopies(8, family)))), false).orElseThrow();
-		Slot[] slots = new Slot[8];
-		Arrays.setAll(slots, ignored -> new Slot(family));
-		var drawing = preview(slots);
+		var fixture = createEightSlots(book, 0);
+		int group = fixture.group();
+		var slots = fixture.slots();
+		var drawing = fixture.drawing();
 		var selection = new BookmarkRecipeSelection(drawing, book.getRecipeChainTooltipInputs(group), MANAGER);
 		assertTrue(selection.select(slots[0].view, item(Items.SPRUCE_PLANKS), false, book));
 		assertEquals(1, inputAmount(book, group, Items.SPRUCE_PLANKS));
@@ -129,15 +146,15 @@ class BookmarkRecipeSelectionTest {
 		assertEquals(8, inputAmount(book, group, Items.SPRUCE_PLANKS));
 	}
 
-	@Test void addToTreeIsGroupScopedAndDuplicatesDoNotRestoreDeletedMaterials() {
+	@Test
+	void addsRecipesToGroups() {
 		var book = bookmarks();
 		var recipe = layout("recipe", List.of(List.of(item(Items.OAK_PLANKS)), List.of(item(Items.STICK))));
 		int first = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(recipe)), false).orElseThrow();
 		int second = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("root", List.of(List.of(item(Items.IRON_INGOT)))))), false).orElseThrow();
 		assertTrue(book.addRecipeToGroup(second, new RecipeLayoutProjection(recipe)));
 		assertEquals(1, inputAmount(book, first, Items.STICK));
-		book.getBookmarks().stream().filter(value -> book.getBookmarkGroupId(value) == second && value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(Items.STICK))
-			.findFirst().ifPresent(book::remove);
+		book.remove(findBookmark(book, second, Items.STICK));
 		int count = book.getBookmarks().size();
 		assertFalse(book.addRecipeToGroup(second, new RecipeLayoutProjection(recipe)));
 		assertEquals(count, book.getBookmarks().size());
@@ -145,13 +162,13 @@ class BookmarkRecipeSelectionTest {
 		assertFalse(book.addRecipeToGroup(-123, new RecipeLayoutProjection(recipe)));
 	}
 
-	@Test void middleSlotChoiceDoesNotMoveAfterSavedInputsAreMerged() {
+	@Test
+	void preservesSelectedSlot() {
 		var book = bookmarks();
-		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
-		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("eight", Collections.nCopies(8, family)))), false).orElseThrow();
-		Slot[] slots = new Slot[8];
-		Arrays.setAll(slots, ignored -> new Slot(family));
-		var drawing = previewAt(3, slots);
+		var fixture = createEightSlots(book, 3);
+		int group = fixture.group();
+		var slots = fixture.slots();
+		var drawing = fixture.drawing();
 		var selection = new BookmarkRecipeSelection(drawing, book.getRecipeChainTooltipInputs(group), MANAGER);
 		assertTrue(selection.scroll(0, 0, -1, false, book));
 		selection = new BookmarkRecipeSelection(drawing, book.getRecipeChainTooltipInputs(group), MANAGER, selection.selectedKeys());
@@ -162,17 +179,26 @@ class BookmarkRecipeSelectionTest {
 		assertEquals(8, inputAmount(book, group, Items.OAK_PLANKS));
 	}
 
-	@Test void invalidChoiceDoesNotPartiallyWriteBookmarks() {
+	@Test
+	void rejectsInvalidChoices() {
 		var book = bookmarks();
 		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("recipe", List.of(List.of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS)))))), false).orElseThrow();
 		var input = book.getRecipeChainTooltipInputs(group).stream().filter(value -> value.metadata().type().isGraphInput()).findFirst().orElseThrow();
 		var before = List.copyOf(book.getBookmarks());
-		assertFalse(book.applyRecipeInputChoices(List.of(new BookmarkRecipeSelection.Choice(input.index(), key(Items.OAK_PLANKS), key(Items.DIAMOND), 1))));
-		assertFalse(book.applyRecipeInputChoices(List.of(new BookmarkRecipeSelection.Choice(input.index(), key(Items.OAK_PLANKS), key(Items.SPRUCE_PLANKS), 2))));
-		assertEquals(before, book.getBookmarks());
+		var metadata = before.stream().map(book::getBookmarkMetadata).toList();
+		long version = book.getChangeVersion();
+		for (var choice : List.of(
+			new BookmarkRecipeSelection.Choice(input.index(), key(Items.OAK_PLANKS), key(Items.DIAMOND), 1),
+			new BookmarkRecipeSelection.Choice(input.index(), key(Items.OAK_PLANKS), key(Items.SPRUCE_PLANKS), 2))) {
+			assertFalse(book.applyRecipeInputChoices(List.of(choice)));
+			assertEquals(before, book.getBookmarks());
+			assertEquals(metadata, book.getBookmarks().stream().map(book::getBookmarkMetadata).toList());
+			assertEquals(version, book.getChangeVersion());
+		}
 	}
 
-	@Test void catalystKeepsSavedQuantityAndTypeAcrossRepeatedEdits() {
+	@Test
+	void preservesCatalystAmount() {
 		var book = bookmarks();
 		var family = List.<ITypedIngredient<?>>of(item(Items.IRON_INGOT), item(Items.GOLD_INGOT));
 		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("catalyst", List.of(family)))), false).orElseThrow();
@@ -191,12 +217,35 @@ class BookmarkRecipeSelectionTest {
 		}
 	}
 
+	private record Preview(int group, Slot[] slots, IRecipeLayoutDrawable<?> drawing) {
+	}
+
+	private static Preview createEightSlots(BookmarkList book, int hovered) {
+		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
+		var recipe = layout("eight", Collections.nCopies(8, family));
+		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(recipe)), false).orElseThrow();
+		Slot[] slots = new Slot[8];
+		Arrays.setAll(slots, ignored -> new Slot(family));
+		return new Preview(group, slots, previewAt(hovered, slots));
+	}
+
+	private static IBookmark findBookmark(BookmarkList book, int group, Item item) {
+		return book.getBookmarks().stream().filter(value -> book.getBookmarkGroupId(value) == group &&
+			value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(item)).findFirst().orElseThrow();
+	}
+
 	private static long inputAmount(BookmarkList book, int group, Item item) {
 		return book.getBookmarks().stream().filter(value -> book.getBookmarkGroupId(value) == group && book.getBookmarkMetadata(value).type().isGraphInput() &&
 			value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(item)).mapToLong(value -> book.getBookmarkMetadata(value).factor()).sum();
 	}
-	private static BookmarkList bookmarks() { return new BookmarkList(null, null, MANAGER, null, null, null, null); }
-	private static BookmarkIngredientKey key(Item item) { return BookmarkItemMetadataFactory.createPermutationKey(item(item), MANAGER); }
+
+	private static BookmarkList bookmarks() {
+		return new BookmarkList(null, null, MANAGER, null, null, null, null);
+	}
+
+	private static BookmarkIngredientKey key(Item item) {
+		return BookmarkItemMetadataFactory.createPermutationKey(item(item), MANAGER);
+	}
 	private static IRecipeLayoutDrawable<?> layout(String id, List<? extends List<ITypedIngredient<?>>> inputs) {
 		return RecipeLayoutTestFixtures.layout(RecipeType.create("test", "processing", Object.class), new Object(), ResourceLocation.fromNamespaceAndPath("test", id), inputs, List.of(List.of(item(Items.CHEST))));
 	}
@@ -226,11 +275,18 @@ class BookmarkRecipeSelectionTest {
 				case "getRole" -> role;
 				case "getAllIngredients" -> original.stream();
 				case "getDisplayedIngredient" -> Optional.ofNullable(displayed);
-				case "setDisplayedCandidates" -> { candidates = (List<ITypedIngredient<?>>) args[0]; yield null; }
-				case "clearDisplayOverrides" -> { displayed = null; yield null; }
+				case "setDisplayedCandidates" -> {
+					candidates = (List<ITypedIngredient<?>>) args[0];
+					yield null;
+				}
+				case "clearDisplayOverrides" -> {
+					displayed = null;
+					yield null;
+				}
 				case "createDisplayOverrides" -> Proxy.newProxyInstance(IIngredientConsumer.class.getClassLoader(), new Class<?>[]{IIngredientConsumer.class}, (p, m, a) -> {
 					if (m.getName().equals("addTypedIngredient")) {
-						displayed = (ITypedIngredient<?>) a[0]; return p;
+						displayed = (ITypedIngredient<?>) a[0];
+						return p;
 					}
 					throw new AssertionError(m.getName());
 				});

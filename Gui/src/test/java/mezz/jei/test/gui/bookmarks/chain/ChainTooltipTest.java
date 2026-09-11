@@ -19,15 +19,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager;
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.typed;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.input;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.key;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.ingredient;
+import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.result;
 
-public class RecipeChainTooltipModelTest {
+public class ChainTooltipTest {
+	private static final ResourceLocation MACHINE = ResourceLocation.fromNamespaceAndPath("test", "machine");
+
 	@BeforeAll
 	public static void bootstrap() {
 		SharedConstants.tryDetectVersion();
@@ -36,7 +44,7 @@ public class RecipeChainTooltipModelTest {
 
 	@ParameterizedTest
 	@CsvSource({"0, 0", "1, 0", "64, 0", "64, 20", "64, 64", "64, 80", "128, 20", "2500, 1000"})
-	public void savedTargetsShowFullDemandAndInventoryAllocation(long amount, long stored) {
+	public void allocatesInventory(long amount, long stored) {
 		BookmarkIngredientKey key = itemKey("minecraft:iron_ingot");
 		List<RecipeChainInput> inputs = List.of(new RecipeChainInput(0,
 			item(key, 1).withMultiplier(amount), key, typed(new ItemStack(Items.IRON_INGOT))));
@@ -53,7 +61,7 @@ public class RecipeChainTooltipModelTest {
 	}
 
 	@Test
-	public void ordinaryTargetsShareInventoryAcrossAvailabilityAliases() {
+	public void sharesAliasInventory() {
 		BookmarkIngredientKey first = itemKey("mekanism:planks:first");
 		BookmarkIngredientKey second = itemKey("mekanism:planks:second");
 		List<RecipeChainInput> inputs = List.of(
@@ -70,49 +78,26 @@ public class RecipeChainTooltipModelTest {
 			.flatMap(section -> section.items().stream()).mapToLong(RecipeChainTooltipModel.Item::amount).sum();
 	}
 
-	@Test
-	public void createsDefaultTooltipFromPrecalculatedChainDetails() {
-		ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "machine");
-		List<RecipeChainInput> inputs = List.of(
-			input(0, recipe(recipeUid, BookmarkItemType.RESULT, key("machine"), 1)),
-			input(1, recipe(recipeUid, BookmarkItemType.INGREDIENT, key("gear"), 2))
-		);
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void showsSections(boolean shift) {
+		var inputs = machineInputs();
 		RecipeChainDetails details = RecipeChainMath.refresh(inputs, Set.of());
-
-		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(inputs, Optional.of(details), Set.of(), List.of(), false, false, ingredientManager());
+		List<RecipeChainInput> inventory = shift ? List.of(input(-1, item(key("gear"), 2))) : List.of();
+		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(inputs, Optional.of(details), Set.of(), inventory, shift, shift, ingredientManager());
 
 		Assertions.assertEquals(
-			List.of(RecipeChainTooltipSectionType.OUTPUT, RecipeChainTooltipSectionType.INPUT),
+			List.of(RecipeChainTooltipSectionType.OUTPUT, shift ? RecipeChainTooltipSectionType.AVAILABLE : RecipeChainTooltipSectionType.INPUT),
 			model.sections().stream().map(RecipeChainTooltipModel.Section::type).toList()
 		);
 	}
 
 	@Test
-	public void createsShiftTooltipFromPrecalculatedBaseDetails() {
-		ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "machine");
-		List<RecipeChainInput> inputs = List.of(
-			input(0, recipe(recipeUid, BookmarkItemType.RESULT, key("machine"), 1)),
-			input(1, recipe(recipeUid, BookmarkItemType.INGREDIENT, key("gear"), 2))
-		);
-		RecipeChainDetails details = RecipeChainMath.refresh(inputs, Set.of());
-		List<RecipeChainInput> inventory = List.of(input(-1, item(key("gear"), 2)));
-
-		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(inputs, Optional.of(details), Set.of(), inventory, true, true, ingredientManager());
-
-		Assertions.assertEquals(
-			List.of(RecipeChainTooltipSectionType.OUTPUT, RecipeChainTooltipSectionType.AVAILABLE),
-			model.sections().stream().map(RecipeChainTooltipModel.Section::type).toList()
-		);
-	}
-
-	@Test
-	public void catalystRemainsVisibleButDoesNotEnterShiftTooltipRequirements() {
-		ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "machine");
-		List<RecipeChainInput> inputs = List.of(
-			input(0, recipe(recipeUid, BookmarkItemType.RESULT, key("machine"), 1)),
-			input(1, recipe(recipeUid, BookmarkItemType.INGREDIENT, key("gear"), 2)),
-			input(2, recipe(recipeUid, BookmarkItemType.NONCONSUMABLE, key("mold"), 1))
-		);
+	public void excludesCatalystDemand() {
+		var inputs = new ArrayList<>(machineInputs());
+		inputs.add(input(2, new BookmarkItemMetadata(BookmarkGroupManager.DEFAULT_GROUP_ID,
+			BookmarkItemType.NONCONSUMABLE, 1, 1, BookmarkItemMetadata.CHANCE_FULL,
+			ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), MACHINE, Set.of(key("mold")))));
 		RecipeChainDetails details = RecipeChainMath.refresh(inputs, Set.of());
 		List<RecipeChainInput> inventory = List.of(input(-1, item(key("gear"), 2)));
 
@@ -126,13 +111,13 @@ public class RecipeChainTooltipModelTest {
 	}
 
 	@Test
-	public void ordinaryTargetDoesNotReuseInventoryConsumedByRecipes() {
+	public void avoidsInventoryReuse() {
 		ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "planks");
 		BookmarkIngredientKey requiredPlanks = itemKey("mekanism:planks:required");
 		BookmarkIngredientKey storedPlanks = itemKey("mekanism:planks:stored");
 		List<RecipeChainInput> inputs = List.of(
-			input(0, recipe(recipeUid, BookmarkItemType.RESULT, key("result"), 1)),
-			input(1, recipe(recipeUid, BookmarkItemType.INGREDIENT, requiredPlanks, 10)),
+			input(0, result(recipeUid, key("result"), 1, 1)),
+			input(1, ingredient(recipeUid, requiredPlanks, 10)),
 			new RecipeChainInput(2, item(requiredPlanks, 1), requiredPlanks, typed(new ItemStack(Items.OAK_PLANKS, 64)))
 		);
 		RecipeChainDetails details = RecipeChainMath.refresh(inputs, Set.of());
@@ -142,35 +127,13 @@ public class RecipeChainTooltipModelTest {
 
 		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(inputs, Optional.of(details), Set.of(), inventory, true, true, ingredientManager());
 
-		long missing = model.sections().stream()
-			.filter(section -> section.type() == RecipeChainTooltipSectionType.MISSING)
-			.flatMap(section -> section.items().stream())
-			.mapToLong(RecipeChainTooltipModel.Item::amount)
-			.sum();
-		Assertions.assertEquals(54, missing);
+		Assertions.assertEquals(54, sectionAmount(model, RecipeChainTooltipSectionType.MISSING));
 		Assertions.assertEquals(20, sectionAmount(model, RecipeChainTooltipSectionType.AVAILABLE));
 	}
 
-	private static RecipeChainInput input(int index, BookmarkItemMetadata metadata) {
-		return new RecipeChainInput(index, metadata);
-	}
-
-	private static BookmarkItemMetadata recipe(
-		ResourceLocation recipeUid,
-		BookmarkItemType type,
-		BookmarkIngredientKey key,
-		long factor
-	) {
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			type,
-			1,
-			factor,
-			BookmarkItemMetadata.CHANCE_FULL,
-			ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"),
-			recipeUid,
-			Set.of(key)
-		);
+	private static List<RecipeChainInput> machineInputs() {
+		return List.of(input(0, result(MACHINE, key("machine"), 1, 1)),
+			input(1, ingredient(MACHINE, key("gear"), 2)));
 	}
 
 	private static BookmarkItemMetadata item(BookmarkIngredientKey key, long factor) {
@@ -184,10 +147,6 @@ public class RecipeChainTooltipModelTest {
 			null,
 			Set.of(key)
 		);
-	}
-
-	private static BookmarkIngredientKey key(String uid) {
-		return new BookmarkIngredientKey("test:item", uid);
 	}
 
 	private static BookmarkIngredientKey itemKey(String uid) {

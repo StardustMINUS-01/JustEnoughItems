@@ -33,6 +33,7 @@ import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeLayout;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeSlotView;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
@@ -48,6 +49,10 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -61,13 +66,14 @@ import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredi
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.typed;
 
-public class RecipeChainPatternEncodeRequestFactoryTest {
+public class PatternEncodingTest {
 	private static final ResourceLocation CRAFTING = ResourceLocation.fromNamespaceAndPath("minecraft", "crafting");
 	private static final ResourceLocation CRAFTING_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "crafting_result");
 	private static final ResourceLocation PROCESSING_TYPE = ResourceLocation.fromNamespaceAndPath("gtceu", "assembler");
 	private static final ResourceLocation PROCESSING_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "processing_result");
 	private static final ResourceLocation OTHER_RECIPE = ResourceLocation.fromNamespaceAndPath("test", "other_result");
 	private static final IIngredientManager INGREDIENT_MANAGER = ingredientManager();
+	private static final RecipeChainPatternEncodeRequestFactory FACTORY = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
 
 	@BeforeAll
 	public static void setup() {
@@ -75,27 +81,25 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Bootstrap.bootStrap();
 	}
 
-	@Test
-	public void craftingRequestUsesCanonicalRecipeIdWithoutBookmarkSlots() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	@ParameterizedTest
+	@CsvSource({"false, false", "false, true", "true, false", "true, true"})
+	public void createsCanonicalRequest(boolean single, boolean opaqueRecipe) {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(CRAFTING, CRAFTING_RECIPE, key("result"))),
-			input(1, ingredient(CRAFTING, CRAFTING_RECIPE, key("a"))),
-			input(2, ingredient(CRAFTING, CRAFTING_RECIPE, key("b")))
+			input(0, result(CRAFTING, CRAFTING_RECIPE, key("diamond"))),
+			input(1, ingredient(CRAFTING, CRAFTING_RECIPE, key("stick"))),
+			input(2, ingredient(CRAFTING, CRAFTING_RECIPE, key("cobblestone")))
 		);
 		TestRecipeLayout layout = layout(
 			RecipeTypes.CRAFTING,
-			craftingRecipeHolder(CRAFTING_RECIPE),
+			opaqueRecipe ? "opaque_recipe" : craftingRecipeHolder(CRAFTING_RECIPE),
 			CRAFTING_RECIPE,
 			Arrays.asList(item(Items.STICK), null, item(Items.COBBLESTONE), null, null, null, null, null, null),
 			List.of(item(Items.DIAMOND))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(
-			inputs,
-			Set.of(),
-			resolver(layout)
-		);
+		RecipeChainPatternEncodeRequestFactory.Result result = single ?
+			FACTORY.createSingleRequest(layout, Optional.empty()) :
+			FACTORY.createRequests(inputs, Set.of(), resolver(layout));
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = Assertions.assertDoesNotThrow(() -> result.requests().getFirst());
@@ -111,39 +115,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void craftingRequestDoesNotInspectTheClientRecipeObject() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(CRAFTING, CRAFTING_RECIPE, key("result")))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeTypes.CRAFTING,
-			"not_a_crafting_recipe_holder",
-			CRAFTING_RECIPE,
-			Arrays.asList(item(Items.STICK), null, null, null, null, null, null, null, null),
-			List.of(item(Items.DIAMOND))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(
-			inputs,
-			Set.of(),
-			resolver(layout)
-		);
-
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
-		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(JeiPatternEncodeMode.CRAFTING, request.mode());
-		Assertions.assertEquals(CRAFTING_RECIPE, request.canonicalRecipeId());
-		Assertions.assertTrue(request.catalysts().isEmpty());
-		Assertions.assertTrue(request.sparseInputs().isEmpty());
-		Assertions.assertTrue(request.sparseOutputs().isEmpty());
-		Assertions.assertEquals(9, request.canonicalInputGuides().size());
-		Assertions.assertEquals(Items.STICK, request.canonicalInputGuides().getFirst().ingredient().getItemStack().orElseThrow().getItem());
-	}
-
-	@Test
-	public void craftingBookmarkGuideAppliesToEverySlotWithTheSameSavedPermutationSet() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void guidesMatchingSlots() {
 		ITypedIngredient<ItemStack> oak = item(Items.OAK_PLANKS);
 		ITypedIngredient<ItemStack> birch = item(Items.BIRCH_PLANKS);
 		Set<BookmarkIngredientKey> planks = Set.of(
@@ -178,7 +150,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(new TestRecipeSlotView(RecipeIngredientRole.OUTPUT, item(Items.WHITE_BED)))
 		);
 
-		JeiPatternEncodeRequest request = factory.createSingleRequest(
+		JeiPatternEncodeRequest request = FACTORY.createSingleRequest(
 			layout,
 			Optional.empty(),
 			List.of(new RecipeChainInput(0, planksMetadata, BookmarkItemMetadataFactory.createPermutationKey(oak, INGREDIENT_MANAGER)))
@@ -190,8 +162,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void craftingBookmarkGuideKeepsMixedSavedCountsWithoutRecipeMultiplier() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void preservesMixedGuides() {
 		ITypedIngredient<ItemStack> oak = item(Items.OAK_PLANKS);
 		ITypedIngredient<ItemStack> birch = item(Items.BIRCH_PLANKS);
 		Set<BookmarkIngredientKey> planks = Set.of(
@@ -219,7 +190,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(new TestRecipeSlotView(RecipeIngredientRole.OUTPUT, item(Items.FURNACE)))
 		);
 
-		JeiPatternEncodeRequest request = factory.createSingleRequest(
+		JeiPatternEncodeRequest request = FACTORY.createSingleRequest(
 			layout,
 			Optional.empty(),
 			List.of(
@@ -236,22 +207,14 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void processingRequestPutsTargetOutputFirst() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void prioritizesBookmarkOutput() {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"))),
 			input(2, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("diamond")))
 		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", String.class),
-			"processing",
-			PROCESSING_RECIPE,
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT), item(Items.DIAMOND))
-		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
@@ -263,14 +226,13 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void processingBookmarkRequestDoesNotRestoreInputsMissingFromTheBookmark() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void usesBookmarkInputs() {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input")))
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(
 			inputs,
 			Set.of(),
 			recipeUid -> {
@@ -285,106 +247,36 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Assertions.assertEquals(Items.GOLD_INGOT, request.sparseOutputs().getFirst().ingredient().getItemStack().orElseThrow().getItem());
 	}
 
-	@Test
-	public void processingBookmarkRequestKeepsSavedCatalystsInTheirOwnSlots() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		BookmarkItemMetadata catalyst = ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3)
-			.withType(BookmarkItemType.NONCONSUMABLE);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(2, catalyst)
-		);
+	@ParameterizedTest
+	@CsvSource({"1, 1", "0, 1", "0, 0"})
+	public void preservesCircuitCatalysts(int circuitSlot, long factor) {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		inputs.add(input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))));
+		if (circuitSlot == 1) {
+			inputs.add(input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"))));
+		}
+		inputs.add(new RecipeChainInput(inputs.size(), ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater"), factor)
+			.withType(BookmarkItemType.NONCONSUMABLE), null, typed(IntCircuitBehaviour.stack(7))));
 
-		JeiPatternEncodeRequest request = factory.createRequests(inputs, Set.of(), recipeUid -> {
-			throw new AssertionError("processing bookmark requests must not resolve the live recipe layout");
-		}).requests().getFirst();
-
-		Assertions.assertEquals(2, request.sparseInputs().size());
-		Assertions.assertEquals(3, request.sparseInputs().get(1).amount());
-		Assertions.assertEquals(List.of(new JeiPatternCatalyst(1, request.sparseInputs().get(1))), request.catalysts());
-	}
-
-	@Test
-	public void processingBookmarkRequestKeepsSavedGtmVirtualCircuitInput() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater")).withType(BookmarkItemType.NONCONSUMABLE))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", GTRecipe.class),
-			new GTRecipe(7),
-			PROCESSING_RECIPE,
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
+		var result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(2, request.sparseInputs().size());
-		ItemStack circuit = request.sparseInputs().get(1).ingredient().getItemStack().orElseThrow();
+		Assertions.assertEquals(circuitSlot + 1, request.sparseInputs().size());
+		ItemStack circuit = request.sparseInputs().get(circuitSlot).ingredient().getItemStack().orElseThrow();
 		Assertions.assertEquals(Items.REPEATER, circuit.getItem());
 		Assertions.assertEquals(1, circuit.getCount());
 		Assertions.assertEquals(7, IntCircuitBehaviour.getCircuitConfiguration(circuit));
-		Assertions.assertEquals(List.of(new JeiPatternCatalyst(1, request.sparseInputs().get(1))), request.catalysts());
+		Assertions.assertEquals(List.of(new JeiPatternCatalyst(circuitSlot, request.sparseInputs().get(circuitSlot))), request.catalysts());
 	}
-
 	@Test
-	public void processingBookmarkRequestMarksSavedGtmCircuitAsCatalyst() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void preservesNonconsumables() {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater")).withType(BookmarkItemType.NONCONSUMABLE))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", GTRecipe.class),
-			new GTRecipe(7),
-			PROCESSING_RECIPE,
-			List.of(typed(IntCircuitBehaviour.stack(7))),
-			List.of(item(Items.GOLD_INGOT))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
-
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
-		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(1, request.sparseInputs().size());
-		Assertions.assertEquals(List.of(new JeiPatternCatalyst(0, request.sparseInputs().getFirst())), request.catalysts());
-	}
-
-	@Test
-	public void savedProgrammedCircuitIsMarkedAsCatalyst() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("repeater"), 0).withType(BookmarkItemType.NONCONSUMABLE))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", GTRecipe.class),
-			new GTRecipe(7),
-			PROCESSING_RECIPE,
-			List.of(typed(IntCircuitBehaviour.stack(7))),
-			List.of(item(Items.GOLD_INGOT))
-		);
-
-		JeiPatternEncodeRequest request = factory.createRequests(inputs, Set.of(), resolver(layout)).requests().getFirst();
-
-		Assertions.assertEquals(List.of(new JeiPatternCatalyst(0, request.sparseInputs().getFirst())), request.catalysts());
-	}
-
-	@Test
-	public void processingBookmarkRequestUsesSavedNonConsumableInputWithoutLayoutSynthesis() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"))),
 			input(2, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("shears"), 3).withType(BookmarkItemType.NONCONSUMABLE))
 		);
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), recipeUid -> {
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> {
 			throw new AssertionError("Saved inputs must not resolve a live recipe layout");
 		});
 
@@ -399,8 +291,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void processingRequestKeepsRawGtmCatalystSeparateFromUnitAmountInput() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void separatesGtmCatalysts() {
 		ItemStack mold = new ItemStack(Items.SHEARS, 3);
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", GTRecipe.class),
@@ -410,7 +301,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(item(Items.GOLD_INGOT))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createSingleRequest(layout, Optional.empty());
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createSingleRequest(layout, Optional.empty());
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
@@ -423,11 +314,11 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		), request.catalysts());
 	}
 
-	@Test
-	public void processingRequestUsesSavedBookmarkCatalystAndAmount() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void preservesSavedCatalysts(boolean single) {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 		TestRecipeLayout layout = layout(
@@ -438,7 +329,9 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(item(Items.GOLD_INGOT))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
+		RecipeChainPatternEncodeRequestFactory.Result result = single ?
+			FACTORY.createSingleRequest(layout, Optional.empty(), inputs) :
+			FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
@@ -447,53 +340,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void singleProcessingRequestUsesSavedBookmarkCatalystAndAmount() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.NONCONSUMABLE))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", String.class),
-			"processing",
-			PROCESSING_RECIPE,
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createSingleRequest(layout, Optional.empty(), inputs);
-
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
-		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(5, request.sparseInputs().getFirst().amount());
-		Assertions.assertEquals(List.of(new JeiPatternCatalyst(0, request.sparseInputs().getFirst())), request.catalysts());
-	}
-
-	@Test
-	public void singleCraftingRecipeRequestUsesCanonicalRecipeIdWithoutBookmarkSlots() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		TestRecipeLayout layout = layout(
-			RecipeTypes.CRAFTING,
-			craftingRecipeHolder(CRAFTING_RECIPE),
-			CRAFTING_RECIPE,
-			Arrays.asList(item(Items.STICK), null, item(Items.COBBLESTONE), null, null, null, null, null, null),
-			List.of(item(Items.DIAMOND))
-		);
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createSingleRequest(layout, Optional.empty());
-
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
-		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(JeiPatternEncodeMode.CRAFTING, request.mode());
-		Assertions.assertEquals(CRAFTING_RECIPE, request.canonicalRecipeId());
-		Assertions.assertTrue(request.sparseInputs().isEmpty());
-		Assertions.assertTrue(request.sparseOutputs().isEmpty());
-		Assertions.assertTrue(request.catalysts().isEmpty());
-	}
-
-	@Test
-	public void stonecuttingRequestUsesItsCanonicalRecipeIdInsteadOfBookmarkSlots() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void createsStonecuttingRequest() {
 		TestRecipeLayout layout = layout(
 			RecipeTypes.STONECUTTING,
 			"stonecutting",
@@ -502,7 +349,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(item(Items.STONE_BRICKS))
 		);
 
-		JeiPatternEncodeRequest request = factory.createSingleRequest(layout, Optional.empty()).requests().getFirst();
+		JeiPatternEncodeRequest request = FACTORY.createSingleRequest(layout, Optional.empty()).requests().getFirst();
 
 		Assertions.assertEquals(JeiPatternEncodeMode.STONECUTTING, request.mode());
 		Assertions.assertEquals(PROCESSING_RECIPE, request.canonicalRecipeId());
@@ -512,9 +359,9 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 		Assertions.assertEquals(Items.STONE, request.canonicalInputGuides().getFirst().ingredient().getItemStack().orElseThrow().getItem());
 	}
 
-	@Test
-	public void singleProcessingRecipeRequestPutsHoveredOutputFirst() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	@ParameterizedTest
+	@EnumSource(value = RecipeIngredientRole.class, names = {"INPUT", "OUTPUT"})
+	public void ordersHoveredOutput(RecipeIngredientRole role) {
 		TestRecipeLayout layout = layout(
 			RecipeType.create("gtceu", "assembler", String.class),
 			"processing",
@@ -522,58 +369,28 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(item(Items.IRON_INGOT)),
 			List.of(item(Items.GOLD_INGOT), item(Items.DIAMOND))
 		);
-		IRecipeSlotView hoveredOutput = new TestRecipeSlotView(RecipeIngredientRole.OUTPUT, item(Items.DIAMOND));
+		IRecipeSlotView hovered = new TestRecipeSlotView(role, item(role == RecipeIngredientRole.OUTPUT ? Items.DIAMOND : Items.IRON_INGOT));
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createSingleRequest(layout, Optional.of(hoveredOutput));
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createSingleRequest(layout, Optional.of(hovered));
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
 		Assertions.assertEquals(JeiPatternEncodeMode.PROCESSING, request.mode());
 		Assertions.assertEquals(2, request.sparseOutputs().size());
-		Assertions.assertEquals(Items.DIAMOND, request.sparseOutputs().getFirst().ingredient().getItemStack().orElseThrow().getItem());
+		Assertions.assertEquals(role == RecipeIngredientRole.OUTPUT ? Items.DIAMOND : Items.GOLD_INGOT,
+			request.sparseOutputs().getFirst().ingredient().getItemStack().orElseThrow().getItem());
 	}
 
 	@Test
-	public void singleProcessingRecipeRequestKeepsOutputOrderWhenHoveringInput() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", String.class),
-			"processing",
-			PROCESSING_RECIPE,
-			List.of(item(Items.IRON_INGOT)),
-			List.of(item(Items.GOLD_INGOT), item(Items.DIAMOND))
-		);
-		IRecipeSlotView hoveredInput = new TestRecipeSlotView(RecipeIngredientRole.INPUT, item(Items.IRON_INGOT));
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createSingleRequest(layout, Optional.of(hoveredInput));
-
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
-		JeiPatternEncodeRequest request = result.requests().getFirst();
-		Assertions.assertEquals(Items.GOLD_INGOT, request.sparseOutputs().getFirst().ingredient().getItemStack().orElseThrow().getItem());
-	}
-
-	@Test
-	public void duplicateRecipesAreDeduplicatedInChainOrder() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void deduplicatesRecipes() {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(1, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			input(2, result(PROCESSING_TYPE, OTHER_RECIPE, key("other"))),
-			input(3, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input"))),
-			input(4, ingredient(PROCESSING_TYPE, OTHER_RECIPE, key("input")))
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+			input(1, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+			input(2, result(PROCESSING_TYPE, OTHER_RECIPE, key("diamond"))),
+			input(3, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"))),
+			input(4, ingredient(PROCESSING_TYPE, OTHER_RECIPE, key("iron_ingot")))
 		);
-		TestRecipeLayout first = layout(RecipeType.create("gtceu", "assembler", String.class), "first", PROCESSING_RECIPE, List.of(item(Items.STICK)), List.of(item(Items.GOLD_INGOT)));
-		TestRecipeLayout second = layout(RecipeType.create("gtceu", "assembler", String.class), "second", OTHER_RECIPE, List.of(item(Items.STICK)), List.of(item(Items.DIAMOND)));
-
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), recipeUid -> {
-			if (PROCESSING_RECIPE.equals(recipeUid)) {
-				return Optional.of(first);
-			}
-			if (OTHER_RECIPE.equals(recipeUid)) {
-				return Optional.of(second);
-			}
-			return Optional.empty();
-		});
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
 		Assertions.assertEquals(List.of(PROCESSING_RECIPE, OTHER_RECIPE), result.requests().stream()
 			.map(JeiPatternEncodeRequest::recipeUid)
@@ -581,106 +398,66 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void unsupportedIngredientSkipsRecipe() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	public void rejectsUnsupportedIngredients() {
 		List<RecipeChainInput> inputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-			new RecipeChainInput(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input")), null, unsupported("input"))
-		);
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", String.class),
-			"processing",
-			PROCESSING_RECIPE,
-			List.of(unsupported("input")),
-			List.of(item(Items.DIAMOND))
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+			new RecipeChainInput(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")), null, unsupported("input"))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), resolver(layout));
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.EMPTY, result.status());
 		Assertions.assertTrue(result.requests().isEmpty());
 	}
 
-	@Test
-	public void requestCountIsLimitedToAe2PacketLimit() {
-		RecipeChainPatternEncodeRequestFactory factory = new RecipeChainPatternEncodeRequestFactory(INGREDIENT_MANAGER);
+	@ParameterizedTest
+	@ValueSource(ints = {256, 257})
+	public void enforcesRequestLimit(int count) {
 		List<RecipeChainInput> inputs = new ArrayList<>();
-		for (int i = 0; i < 257; i++) {
+		for (int i = 0; i < count; i++) {
 			ResourceLocation recipeUid = ResourceLocation.fromNamespaceAndPath("test", "recipe_" + i);
-			inputs.add(input(i, result(PROCESSING_TYPE, recipeUid, key("target_" + i))));
-			inputs.add(input(1_000 + i, ingredient(PROCESSING_TYPE, recipeUid, key("input"))));
+			inputs.add(input(i, result(PROCESSING_TYPE, recipeUid, key("gold_ingot"))));
+			inputs.add(input(1_000 + i, ingredient(PROCESSING_TYPE, recipeUid, key("iron_ingot"))));
 		}
-		TestRecipeLayout layout = layout(
-			RecipeType.create("gtceu", "assembler", String.class),
-			"processing",
-			PROCESSING_RECIPE,
-			List.of(item(Items.STICK)),
-			List.of(item(Items.DIAMOND))
-		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = factory.createRequests(inputs, Set.of(), recipeUid -> Optional.of(layout.withRecipeUid(recipeUid)));
+		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
-		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.TOO_MANY_REQUESTS, result.status());
-		Assertions.assertTrue(result.requests().isEmpty());
+		Assertions.assertEquals(count > 256 ? RecipeChainPatternEncodeRequestFactory.Status.TOO_MANY_REQUESTS :
+			RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
+		Assertions.assertEquals(count > 256 ? 0 : count, result.requests().size());
 	}
 
-	@Test
-	public void controllerHandlesSimulatedInputWithoutSending() {
+	@ParameterizedTest
+	@EnumSource(value = InputType.class, names = {"SIMULATE", "EXECUTE"})
+	public void sendsOnExecution(InputType inputType) {
 		TestBridge bridge = new TestBridge(true, true);
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
+
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handle(
-			input(InputType.SIMULATE),
+			input(inputType),
 			keyMapping,
 			new TestMenu(),
 			Optional.of("group"),
 			true,
 			bridge,
 			() -> List.of(
-				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input")))
+				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
 			),
 			() -> Set.of(),
-			resolver(layout(RecipeType.create("gtceu", "assembler", String.class), "processing", PROCESSING_RECIPE, List.of(item(Items.STICK)), List.of(item(Items.DIAMOND)))),
+			recipeUid -> Optional.empty(),
 			INGREDIENT_MANAGER,
 			message -> {
 			}
 		).orElseThrow();
 
 		Assertions.assertTrue(result.handled());
-		Assertions.assertFalse(result.sent());
-		Assertions.assertEquals(0, bridge.sentRequests.size());
+		Assertions.assertEquals(inputType == InputType.EXECUTE, result.sent());
+		Assertions.assertEquals(inputType == InputType.EXECUTE ? 1 : 0, bridge.sentRequests.size());
 	}
 
 	@Test
-	public void controllerSendsRealInputWhenBridgeAndGroupMatch() {
-		TestBridge bridge = new TestBridge(true, true);
-		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
-
-		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handle(
-			input(InputType.EXECUTE),
-			keyMapping,
-			new TestMenu(),
-			Optional.of("group"),
-			true,
-			bridge,
-			() -> List.of(
-				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input")))
-			),
-			() -> Set.of(),
-			resolver(layout(RecipeType.create("gtceu", "assembler", String.class), "processing", PROCESSING_RECIPE, List.of(item(Items.STICK)), List.of(item(Items.DIAMOND)))),
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).orElseThrow();
-
-		Assertions.assertTrue(result.handled());
-		Assertions.assertTrue(result.sent());
-		Assertions.assertEquals(1, bridge.sentRequests.size());
-	}
-
-	@Test
-	public void controllerSendsChainRequestForNonCraftingModeGroupWhenAllowed() {
+	public void allowsNonCraftingGroups() {
 		TestBridge bridge = new TestBridge(true, true);
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 
@@ -693,11 +470,11 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			true,
 			bridge,
 			() -> List.of(
-				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
-				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("input")))
+				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
 			),
 			() -> Set.of(),
-			resolver(layout(RecipeType.create("gtceu", "assembler", String.class), "processing", PROCESSING_RECIPE, List.of(item(Items.STICK)), List.of(item(Items.DIAMOND)))),
+			recipeUid -> Optional.empty(),
 			INGREDIENT_MANAGER,
 			message -> {
 			}
@@ -709,7 +486,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void controllerSendsSingleRecipeRequestWhenBridgeAndTerminalMatch() {
+	public void sendsSingleRecipe() {
 		TestBridge bridge = new TestBridge(true, true);
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 		TestRecipeLayout layout = layout(
@@ -740,7 +517,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void controllerSendsSingleRecipeRequestWithSavedCatalyst() {
+	public void forwardsSavedCatalysts() {
 		TestBridge bridge = new TestBridge(true, true);
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 		TestRecipeLayout layout = layout(
@@ -751,7 +528,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 			List.of(item(Items.DIAMOND))
 		);
 		List<RecipeChainInput> savedInputs = List.of(
-			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("target"))),
+			input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
 			input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot"), 5).withType(BookmarkItemType.NONCONSUMABLE))
 		);
 
@@ -775,7 +552,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 	}
 
 	@Test
-	public void controllerIgnoresUnavailableBridgeAndNonTerminalMenus() {
+	public void requiresCompatibleTerminal() {
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 		Assertions.assertTrue(RecipeChainPatternEncodeController.handle(
 			input(InputType.EXECUTE),
@@ -821,14 +598,7 @@ public class RecipeChainPatternEncodeRequestFactoryTest {
 
 	private static ITypedIngredient<ItemStack> bookmarkedIngredient(BookmarkItemMetadata metadata) {
 		String uid = metadata.permutations().stream().findFirst().orElseThrow().ingredientUid();
-		return switch (uid) {
-			case "minecraft:input", "minecraft:iron_ingot" -> item(Items.IRON_INGOT);
-			case "minecraft:target", "minecraft:gold_ingot" -> item(Items.GOLD_INGOT);
-			case "minecraft:other", "minecraft:diamond", "minecraft:result" -> item(Items.DIAMOND);
-			case "minecraft:repeater" -> typed(IntCircuitBehaviour.stack(7));
-			case "minecraft:shears" -> item(Items.SHEARS);
-			default -> item(Items.STICK);
-		};
+		return item(BuiltInRegistries.ITEM.get(ResourceLocation.parse(uid)));
 	}
 
 	private static BookmarkItemMetadata result(ResourceLocation recipeTypeUid, ResourceLocation recipeUid, BookmarkIngredientKey key) {

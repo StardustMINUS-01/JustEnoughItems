@@ -2,7 +2,6 @@ package mezz.jei.test.gui.collapsible;
 
 import mezz.jei.gui.collapsible.CollapsibleGroup;
 import mezz.jei.gui.collapsible.CollapsibleState;
-import mezz.jei.gui.match.IngredientExpression;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -10,9 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static mezz.jei.test.gui.collapsible.CollapsibleTestFixtures.group;
+
 public class CollapsibleStateTest {
 	@Test
-	public void toggleAndOverrideSemantics() {
+	public void togglesGroup() {
 		CollapsibleState state = new CollapsibleState();
 		String id = "group-1";
 		Assertions.assertFalse(state.isExpanded(id));
@@ -25,7 +26,7 @@ public class CollapsibleStateTest {
 	}
 
 	@Test
-	public void toggleAllExpandsOrCollapsesEveryGroup() {
+	public void togglesAllGroups() {
 		CollapsibleState state = new CollapsibleState();
 		List<CollapsibleGroup> groups = List.of(group("minecraft:potion"), group("minecraft:splash_potion"));
 		state.toggleAll(groups, null);
@@ -35,7 +36,7 @@ public class CollapsibleStateTest {
 	}
 
 	@Test
-	public void pruneRemovesStaleIdsAndListenerFiresOnce() {
+	public void prunesStaleGroups() {
 		CollapsibleState state = new CollapsibleState();
 		CollapsibleGroup old = group("minecraft:old");
 		state.toggleGroup(old.id());
@@ -46,7 +47,4 @@ public class CollapsibleStateTest {
 		Assertions.assertTrue(state.toMap().isEmpty());
 	}
 
-	private static CollapsibleGroup group(String expr) {
-		return CollapsibleGroup.create(expr, IngredientExpression.parseIngredient(expr).orElseThrow());
-	}
 }
