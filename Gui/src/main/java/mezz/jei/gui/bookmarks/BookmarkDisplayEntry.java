@@ -42,10 +42,6 @@ public record BookmarkDisplayEntry<T>(
 		return outputRecipe;
 	}
 
-	public boolean isMiddleRecipe() {
-		return middleRecipe;
-	}
-
 	public BookmarkDisplayEntry<T> withBorder(@Nullable BookmarkSlotBorder border) {
 		return new BookmarkDisplayEntry<>(
 			item,

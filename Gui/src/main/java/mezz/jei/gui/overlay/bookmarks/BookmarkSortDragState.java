@@ -137,20 +137,6 @@ public final class BookmarkSortDragState {
 			.toList();
 	}
 
-	public List<ImmutableRect2i> getSourceGroupPanelOverlayAreas(
-		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
-		int groupPanelWidth
-	) {
-		if (kind != Kind.GROUP || !active || hiddenBookmarks.isEmpty()) {
-			return List.of();
-		}
-		return panelSlots.stream()
-			.filter(slot -> hiddenBookmarks.contains(slot.item()))
-			.map(BookmarkPanelLayout.PanelSlot::area)
-			.map(area -> BookmarkPanelLayout.getGroupPanelArea(area, groupPanelWidth))
-			.toList();
-	}
-
 	public boolean drawSourceSlotOverlays(GuiGraphics guiGraphics, List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots) {
 		List<ImmutableRect2i> areas = getSourceSlotOverlayAreas(panelSlots);
 		for (ImmutableRect2i area : areas) {

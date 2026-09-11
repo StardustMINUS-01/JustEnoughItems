@@ -199,10 +199,6 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		);
 	}
 
-	public boolean isFavorite() {
-		return favorite;
-	}
-
 	public static boolean toggleFavorite(
 		FavoriteRecipeStore favoriteRecipes,
 		FocusedRecipe focusedRecipe,

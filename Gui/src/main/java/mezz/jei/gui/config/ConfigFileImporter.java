@@ -56,7 +56,6 @@ public final class ConfigFileImporter {
 				Files.write(source, List.of());
 			}
 			Files.deleteIfExists(source);
-			LOGGER.info("Imported {} into {}", source.getFileName(), target.getFileName());
 		} catch (IOException e) {
 			LOGGER.error("Failed to import {} into {}", source, target, e);
 		}

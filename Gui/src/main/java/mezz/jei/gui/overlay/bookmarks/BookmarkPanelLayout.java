@@ -214,34 +214,12 @@ public final class BookmarkPanelLayout {
 			first.area().getY() + first.area().getHeight() == second.area().getY();
 	}
 
-	public static <T> List<T> getItemsBetweenRows(List<PanelSlot<T>> panelSlots, RowSlot<T> first, RowSlot<T> second) {
-		int minY = Math.min(first.area().getY(), second.area().getY());
-		int maxY = Math.max(first.area().getY(), second.area().getY());
-		return panelSlots.stream()
-			.filter(slot -> slot.area().getY() >= minY && slot.area().getY() <= maxY)
-			.map(PanelSlot::item)
-			.distinct()
-			.toList();
-	}
-
 	public static <T> List<T> getItemsBetweenRecipeBounds(List<PanelSlot<T>> panelSlots, RowSlot<T> first, RowSlot<T> second) {
 		Bounds bounds = getRecipeBounds(panelSlots, first, second);
 		return panelSlots.stream()
 			.filter(slot -> slot.area().getY() >= bounds.minY() && slot.area().getY() <= bounds.maxY())
 			.map(PanelSlot::item)
 			.distinct()
-			.toList();
-	}
-
-	public static <T> List<RowSlot<T>> getRowsBetweenRows(
-		List<RowSlot<T>> rowSlots,
-		RowSlot<T> first,
-		RowSlot<T> second
-	) {
-		int minY = Math.min(first.area().getY(), second.area().getY());
-		int maxY = Math.max(first.area().getY(), second.area().getY());
-		return rowSlots.stream()
-			.filter(slot -> slot.area().getY() >= minY && slot.area().getY() <= maxY)
 			.toList();
 	}
 

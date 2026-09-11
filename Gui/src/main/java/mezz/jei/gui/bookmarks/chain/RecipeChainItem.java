@@ -19,17 +19,4 @@ public record RecipeChainItem(
 	public long providedAmount() {
 		return type == RecipeChainItemType.INGREDIENT ? 0 : shiftAmount;
 	}
-
-	public RecipeChainItem withRealProjection(long realAmount, long realMultiplier) {
-		return new RecipeChainItem(
-			sourceIndex,
-			metadata,
-			type,
-			realAmount,
-			shiftAmount,
-			calculatedAmount,
-			realMultiplier,
-			calculatedMultiplier
-		);
-	}
 }

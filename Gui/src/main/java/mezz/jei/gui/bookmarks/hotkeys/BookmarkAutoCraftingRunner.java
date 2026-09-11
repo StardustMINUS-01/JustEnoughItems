@@ -45,8 +45,4 @@ public final class BookmarkAutoCraftingRunner {
 		activeTask = null;
 		BookmarkCraftingScope.clear();
 	}
-
-	public boolean hasActiveTask() {
-		return activeTask != null;
-	}
 }

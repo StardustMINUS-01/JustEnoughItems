@@ -132,10 +132,6 @@ public class FavoriteRecipeStore {
 			.or(() -> getGeneratedFavorite(target, layoutCache));
 	}
 
-	public boolean containsFavorite(BookmarkIngredientKey target) {
-		return getFavorite(target).isPresent();
-	}
-
 	public boolean containsManual(BookmarkIngredientKey target) {
 		return recipesByTarget.containsKey(target);
 	}

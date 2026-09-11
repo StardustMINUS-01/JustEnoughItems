@@ -247,10 +247,6 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		return favoriteSlotInput;
 	}
 
-	public Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> getEntryInputs() {
-		return entryInputs;
-	}
-
 	@Override
 	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
 		if (favoriteRecipes == null || !BookmarkKeyInputs.isPlainBookmarkKey(input, keyBindings)) {

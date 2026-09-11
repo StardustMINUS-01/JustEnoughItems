@@ -29,29 +29,6 @@ public final class BookmarkItemMetadataFactory {
 	private BookmarkItemMetadataFactory() {
 	}
 
-	public static <R, T> BookmarkItemMetadata createForRecipeSlot(
-		int groupId,
-		IRecipeCategory<R> recipeCategory,
-		ResourceLocation recipeUid,
-		BookmarkItemType type,
-		IRecipeSlotView sourceSlot,
-		List<IRecipeSlotView> roleSlots,
-		ITypedIngredient<T> selectedIngredient,
-		IIngredientManager ingredientManager
-	) {
-		long factor = getMatchedFactor(selectedIngredient, roleSlots, ingredientManager);
-		return createForRecipeSlotWithFactor(
-			groupId,
-			recipeCategory,
-			recipeUid,
-			type,
-			sourceSlot,
-			selectedIngredient,
-			ingredientManager,
-			factor
-		);
-	}
-
 	static <R, T> BookmarkItemMetadata createForRecipeSlotWithFactor(
 		int groupId,
 		IRecipeCategory<R> recipeCategory,

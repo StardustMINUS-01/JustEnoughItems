@@ -61,7 +61,6 @@ public class FavoriteRecipeConfig {
 			);
 			FavoriteRecipeStore store = new FavoriteRecipeStore();
 			store.setFavorites(entries);
-			LOGGER.debug("Loaded favorite recipes from file: {}", path);
 			return store;
 		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to load favorite recipes from file {}", path, e);
@@ -85,7 +84,6 @@ public class FavoriteRecipeConfig {
 				error -> LOGGER.error("Encountered an error when saving favorite recipes to file {}\n{}", path, error),
 				(entry, exception) -> LOGGER.error("Encountered an exception when saving favorite recipes to file {}\n{}", path, entry, exception)
 			);
-			LOGGER.debug("Saved favorite recipes to file {}", path);
 		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to save favorite recipes to file {}", path, e);
 		}
