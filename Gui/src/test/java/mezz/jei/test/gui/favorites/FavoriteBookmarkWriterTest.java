@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class FavoriteTreeBookmarkWriterTest {
+public class FavoriteBookmarkWriterTest {
 	private static final FocusedRecipe ROOT = recipe("root");
 	private static final FocusedRecipe PLATE = recipe("plate");
 	private static final FocusedRecipe WHITE_RECIPE = recipe("white_recipe");
@@ -26,7 +26,7 @@ public class FavoriteTreeBookmarkWriterTest {
 	private static final BookmarkIngredientKey OUTPUT_KEY = key("output");
 
 	@Test
-	public void saveWritesOnlyCompleteRecipesWithRootSelections() {
+	public void writesSelectedTree() {
 		IRecipeLayoutDrawable<?> rootLayout = layout();
 		IRecipeLayoutDrawable<?> plateLayout = layout();
 		IRecipeLayoutDrawable<?> whiteLayout = layout();
@@ -73,8 +73,6 @@ public class FavoriteTreeBookmarkWriterTest {
 		Assertions.assertEquals(2, projections.size());
 		Assertions.assertSame(rootLayout, projections.get(0).layout());
 		Assertions.assertSame(whiteLayout, projections.get(1).layout());
-		Assertions.assertFalse(projections.stream().anyMatch(p -> p.layout() == plateLayout));
-		Assertions.assertFalse(projections.stream().anyMatch(p -> p.layout() == dustLayout));
 		RecipeLayoutProjection rootProjection = projections.get(0);
 		Assertions.assertEquals(Optional.of(OUTPUT_KEY), rootProjection.selectedOutputKey());
 		Assertions.assertEquals(
@@ -96,23 +94,12 @@ public class FavoriteTreeBookmarkWriterTest {
 
 	private static IRecipeLayoutDrawable<?> layout() {
 		return (IRecipeLayoutDrawable<?>) Proxy.newProxyInstance(
-			FavoriteTreeBookmarkWriterTest.class.getClassLoader(),
+			FavoriteBookmarkWriterTest.class.getClassLoader(),
 			new Class<?>[]{IRecipeLayoutDrawable.class},
-			(proxy, method, args) -> defaultValue(method.getReturnType())
+			(proxy, method, args) -> {
+				throw new AssertionError("Unexpected layout call: " + method.getName());
+			}
 		);
-	}
-
-	private static Object defaultValue(Class<?> type) {
-		if (!type.isPrimitive()) {
-			return null;
-		}
-		if (type == boolean.class) {
-			return false;
-		}
-		if (type == int.class || type == short.class || type == byte.class || type == long.class || type == float.class || type == double.class) {
-			return 0;
-		}
-		return '\0';
 	}
 
 	private static BookmarkIngredientKey key(String uid) {

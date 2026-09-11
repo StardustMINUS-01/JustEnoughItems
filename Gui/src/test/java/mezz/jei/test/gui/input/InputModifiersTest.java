@@ -15,19 +15,14 @@ public class InputModifiersTest {
 	private static final InputConstants.Key LEFT_MOUSE = InputConstants.Type.MOUSE.getOrCreate(0);
 
 	@Test
-	public void cheatGiveInputMatchesWhenCheatEnabled() {
-		IJeiKeyMapping cheatItemStack = new TestKeyMapping(LEFT_MOUSE);
+	public void requiresCheatMode() {
+		IJeiKeyMapping binding = new TestKeyMapping(LEFT_MOUSE);
 		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputType.SIMULATE);
 
-		assertTrue(InputModifiers.isCheatGiveInput(input, cheatItemStack, true));
-	}
-
-	@Test
-	public void cheatGiveInputDoesNotMatchWhenCheatDisabled() {
-		IJeiKeyMapping cheatItemStack = new TestKeyMapping(LEFT_MOUSE);
-		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputType.SIMULATE);
-
-		assertFalse(InputModifiers.isCheatGiveInput(input, cheatItemStack, false));
+		assertTrue(InputModifiers.isCheatGiveInput(input, binding, true));
+		assertFalse(InputModifiers.isCheatGiveInput(input, binding, false));
+		UserInput other = new UserInput(InputConstants.Type.MOUSE.getOrCreate(1), 0, 0, 0, InputType.SIMULATE);
+		assertFalse(InputModifiers.isCheatGiveInput(other, binding, true));
 	}
 
 	private record TestKeyMapping(InputConstants.Key key) implements IJeiKeyMapping {

@@ -14,11 +14,9 @@ public class ConfigFileImporterTest {
 	Path tempDir;
 
 	@Test
-	public void appendsWithBlankSeparatorAndDeletesSource() throws Exception {
-		Path target = tempDir.resolve("recipe-preferences.txt");
-		Files.write(target, List.of("output = minecraft:iron_ingot", "input = minecraft:iron_ore"));
-		Path source = tempDir.resolve("recipe-preferences-test.txt");
-		Files.write(source, List.of("output = minecraft:gold_ingot", "input = minecraft:gold_ore"));
+	public void appendsAndDeletesSource() throws Exception {
+		Path target = writeFile("recipe-preferences.txt", "output = minecraft:iron_ingot", "input = minecraft:iron_ore");
+		Path source = writeFile("recipe-preferences-test.txt", "output = minecraft:gold_ingot", "input = minecraft:gold_ore");
 
 		new ConfigFileImporter(tempDir).importFiles("recipe-preferences-", target);
 
@@ -37,10 +35,8 @@ public class ConfigFileImporterTest {
 
 	@Test
 	public void ignoresNonMatchingFiles() throws Exception {
-		Path target = tempDir.resolve("collapsible-items.txt");
-		Files.write(target, List.of("item = minecraft:dirt"));
-		Path unrelated = tempDir.resolve("other.txt");
-		Files.write(unrelated, List.of("item = minecraft:stone"));
+		Path target = writeFile("collapsible-items.txt", "item = minecraft:dirt");
+		Path unrelated = writeFile("other.txt", "item = minecraft:stone");
 
 		new ConfigFileImporter(tempDir).importFiles("collapsible-items-", target);
 
@@ -49,34 +45,32 @@ public class ConfigFileImporterTest {
 	}
 
 	@Test
-	public void importsMultipleFilesInSortedOrder() throws Exception {
-		Path target = tempDir.resolve("recipe-preferences.txt");
-		Files.write(target, List.of("output = minecraft:iron_ingot"));
-		Path b = tempDir.resolve("recipe-preferences-b.txt");
-		Files.write(b, List.of("output = minecraft:b"));
-		Path a = tempDir.resolve("recipe-preferences-a.txt");
-		Files.write(a, List.of("output = minecraft:a"));
+	public void importsInOrder() throws Exception {
+		Path target = writeFile("recipe-preferences.txt", "output = minecraft:iron_ingot");
+		Path b = writeFile("recipe-preferences-b.txt", "output = minecraft:b");
+		Path a = writeFile("recipe-preferences-a.txt", "output = minecraft:a");
 
 		new ConfigFileImporter(tempDir).importFiles("recipe-preferences-", target);
 
-		List<String> lines = Files.readAllLines(target);
-		Assertions.assertTrue(lines.contains("output = minecraft:a"));
-		Assertions.assertTrue(lines.contains("output = minecraft:b"));
+		Assertions.assertEquals(List.of(
+			"output = minecraft:iron_ingot", "", "output = minecraft:a", "", "output = minecraft:b"
+		), Files.readAllLines(target));
 		Assertions.assertFalse(Files.exists(a));
 		Assertions.assertFalse(Files.exists(b));
-		Assertions.assertTrue(lines.indexOf("output = minecraft:a") < lines.indexOf("output = minecraft:b"));
 	}
 
 	@Test
-	public void skipsEmptySourceFiles() throws Exception {
-		Path target = tempDir.resolve("collapsible-items.txt");
-		Files.write(target, List.of("item = minecraft:dirt"));
-		Path empty = tempDir.resolve("collapsible-items-empty.txt");
-		Files.write(empty, List.of());
+	public void removesEmptySource() throws Exception {
+		Path target = writeFile("collapsible-items.txt", "item = minecraft:dirt");
+		Path empty = writeFile("collapsible-items-empty.txt");
 
 		new ConfigFileImporter(tempDir).importFiles("collapsible-items-", target);
 
 		Assertions.assertEquals(List.of("item = minecraft:dirt"), Files.readAllLines(target));
 		Assertions.assertFalse(Files.exists(empty));
+	}
+
+	private Path writeFile(String name, String... lines) throws Exception {
+		return Files.write(tempDir.resolve(name), List.of(lines));
 	}
 }

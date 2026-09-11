@@ -12,7 +12,7 @@ public class IngredientListRendererTest {
 	private static final int SLOT_SIZE = 18;
 
 	@Test
-	public void columnCountIncludesBlockedSlotsInFirstRow() {
+	public void countsBlockedColumns() {
 		IngredientListRenderer renderer = new IngredientListRenderer(null, false);
 		for (int row = 0; row < 2; row++) {
 			for (int col = 0; col < 9; col++) {
@@ -31,7 +31,7 @@ public class IngredientListRendererTest {
 	}
 
 	@Test
-	public void setWithSameListAndStartIndexBumpsLayoutVersion() {
+	public void invalidatesRepeatedLayout() {
 		IngredientListRenderer renderer = new IngredientListRenderer(null, false);
 		List<IElement<?>> elements = List.of();
 

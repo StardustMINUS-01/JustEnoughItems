@@ -5,6 +5,7 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.ingredients.TypedIngredient;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.favorites.FavoriteRecipeGridSource;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
@@ -16,23 +17,25 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class FavoriteRecipeGridSourceTest {
-	private static final TestIngredientType TYPE = new TestIngredientType();
-	private static final TestFluidIngredientType FLUID_TYPE = new TestFluidIngredientType();
+public class FavoriteGridSourceTest {
+	private static final TestIngredientType TYPE = new TestIngredientType("test:ingredient");
+	private static final TestIngredientType FLUID_TYPE = new TestIngredientType("fluid_stack");
 	private static final FocusedRecipe RECIPE = recipe("gear");
 
 	@Test
-	public void gridResultsDoNotResolveRecipeLayoutsWhenCreatingElements() {
+	public void createsGridLazily() {
 		FavoriteRecipeStore store = store("gear", RECIPE);
-		FavoriteRecipePanelState panelState = new FavoriteRecipePanelState();
-		CountingRecipeInputsResolver resolver = new CountingRecipeInputsResolver();
-		FavoriteRecipeGridSource source = source(store, panelState, resolver);
+		FavoriteRecipePanelState state = new FavoriteRecipePanelState();
+		CountingInputsResolver resolver = new CountingInputsResolver();
+		FavoriteRecipeGridSource source = source(store, state, resolver);
 
 		List<IElement<?>> elements = source.getElements();
 
@@ -40,9 +43,11 @@ public class FavoriteRecipeGridSourceTest {
 		Assertions.assertEquals(0, resolver.calls);
 	}
 
-	@Test
-	public void defaultGridFavoriteTargetsDoNotShowItemAmountOne() {
-		FavoriteRecipeGridSource source = source(store("gear", RECIPE), new FavoriteRecipePanelState(), new CountingRecipeInputsResolver());
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void hidesDefaultAmount(boolean fluid) {
+		var store = store(fluid ? FLUID_TYPE : TYPE, fluid ? "water" : "gear", RECIPE);
+		FavoriteRecipeGridSource source = source(store, new FavoriteRecipePanelState(), new CountingInputsResolver());
 
 		FavoriteRecipeElement<?> element = (FavoriteRecipeElement<?>) source.getElements().getFirst();
 
@@ -50,23 +55,14 @@ public class FavoriteRecipeGridSourceTest {
 	}
 
 	@Test
-	public void defaultGridFavoriteTargetsDoNotShowFluidAmountOneBucket() {
-		FavoriteRecipeGridSource source = source(store(FLUID_TYPE, "water", RECIPE), new FavoriteRecipePanelState(), new CountingRecipeInputsResolver());
-
-		FavoriteRecipeElement<?> element = (FavoriteRecipeElement<?>) source.getElements().getFirst();
-
-		Assertions.assertTrue(element.getAmountText().isEmpty());
-	}
-
-	@Test
-	public void recipeRowsResolveIngredientsOncePerFavoriteWhenCreatingElements() {
+	public void cachesRecipeRows() {
 		FavoriteRecipeStore store = store("gear", RECIPE);
-		FavoriteRecipePanelState panelState = recipeRows();
-		CountingRecipeInputsResolver resolver = new CountingRecipeInputsResolver(
+		FavoriteRecipePanelState state = recipeRows();
+		CountingInputsResolver resolver = new CountingInputsResolver(
 			typed("plate"),
 			typed("bolt")
 		);
-		FavoriteRecipeGridSource source = source(store, panelState, resolver);
+		FavoriteRecipeGridSource source = source(store, state, resolver);
 
 		List<IElement<?>> elements = source.getElements(4);
 
@@ -77,33 +73,33 @@ public class FavoriteRecipeGridSourceTest {
 	}
 
 	@Test
-	public void recipeRowsRefreshWhenSortDragHiddenStateChanges() {
+	public void refreshesDragVisibility() {
 		FavoriteRecipeStore store = store("gear", RECIPE);
-		FavoriteRecipePanelState panelState = recipeRows();
-		CountingRecipeInputsResolver resolver = new CountingRecipeInputsResolver(
+		FavoriteRecipePanelState state = recipeRows();
+		CountingInputsResolver resolver = new CountingInputsResolver(
 			typed("plate"),
 			typed("bolt")
 		);
-		FavoriteRecipeGridSource source = source(store, panelState, resolver);
+		FavoriteRecipeGridSource source = source(store, state, resolver);
 		source.addSourceListChangedListener(() -> {});
 
 		Assertions.assertTrue(source.getElements(4).getFirst().isVisible());
 
-		panelState.setSortDragHiddenRecipe(RECIPE);
+		state.setSortDragHiddenRecipe(RECIPE);
 		Assertions.assertFalse(source.getElements(4).getFirst().isVisible());
 
-		panelState.clearSortDragHiddenElements();
+		state.clearSortDragHiddenElements();
 		Assertions.assertTrue(source.getElements(4).getFirst().isVisible());
 	}
 
 	private static FavoriteRecipeGridSource source(
 		FavoriteRecipeStore store,
-		FavoriteRecipePanelState panelState,
-		CountingRecipeInputsResolver resolver
+		FavoriteRecipePanelState state,
+		CountingInputsResolver resolver
 	) {
 		return new FavoriteRecipeGridSource(
 			store,
-			panelState,
+			state,
 			ingredientManager(),
 			null,
 			null,
@@ -122,10 +118,10 @@ public class FavoriteRecipeGridSourceTest {
 	}
 
 	private static FavoriteRecipePanelState recipeRows() {
-		FavoriteRecipePanelState panelState = new FavoriteRecipePanelState();
-		panelState.showFavoritePanel();
-		panelState.cycleDisplayMode();
-		return panelState;
+		FavoriteRecipePanelState state = new FavoriteRecipePanelState();
+		state.showFavoritePanel();
+		state.cycleDisplayMode();
+		return state;
 	}
 
 	private static FocusedRecipe recipe(String uid) {
@@ -135,15 +131,15 @@ public class FavoriteRecipeGridSourceTest {
 		);
 	}
 
-	private static TestTypedIngredient<String> typed(String ingredient) {
-		return new TestTypedIngredient<>(TYPE, ingredient);
+	private static ITypedIngredient<String> typed(String ingredient) {
+		return TypedIngredient.createUnvalidated(TYPE, ingredient);
 	}
 
-	private static class CountingRecipeInputsResolver implements FavoriteRecipeGridSource.RecipeInputsResolver {
+	private static class CountingInputsResolver implements FavoriteRecipeGridSource.RecipeInputsResolver {
 		private final List<ITypedIngredient<?>> inputs;
 		private int calls;
 
-		private CountingRecipeInputsResolver(ITypedIngredient<?>... inputs) {
+		private CountingInputsResolver(ITypedIngredient<?>... inputs) {
 			this.inputs = List.of(inputs);
 		}
 
@@ -158,7 +154,7 @@ public class FavoriteRecipeGridSourceTest {
 		}
 	}
 
-	private record TestIngredientType() implements IIngredientType<String> {
+	private record TestIngredientType(String uid) implements IIngredientType<String> {
 		@Override
 		public Class<? extends String> getIngredientClass() {
 			return String.class;
@@ -166,48 +162,18 @@ public class FavoriteRecipeGridSourceTest {
 
 		@Override
 		public String getUid() {
-			return "test:ingredient";
-		}
-	}
-
-	private record TestFluidIngredientType() implements IIngredientType<String> {
-		@Override
-		public Class<? extends String> getIngredientClass() {
-			return String.class;
-		}
-
-		@Override
-		public String getUid() {
-			return "fluid_stack";
-		}
-	}
-
-	private record TestTypedIngredient<V>(IIngredientType<V> type, V ingredient) implements ITypedIngredient<V> {
-		@Override
-		public ITypedIngredient<V> normalize(mezz.jei.api.ingredients.IIngredientHelper<V> helper) {
-			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
-		}
-
-		@Override
-		public IIngredientType<V> getType() {
-			return type;
-		}
-
-		@Override
-		public V getIngredient() {
-			return ingredient;
+			return uid;
 		}
 	}
 
 	private static IIngredientManager ingredientManager() {
 		TestIngredientHelper helper = new TestIngredientHelper();
 		return (IIngredientManager) Proxy.newProxyInstance(
-			FavoriteRecipeGridSourceTest.class.getClassLoader(),
+			FavoriteGridSourceTest.class.getClassLoader(),
 			new Class<?>[]{IIngredientManager.class},
 			(proxy, method, args) -> switch (method.getName()) {
 				case "getIngredientHelper" -> helper;
 				case "getIngredientTypeForUid" -> ingredientType((String) args[0]);
-				case "getIngredientByUid" -> ingredient((IIngredientType<?>) args[0], (String) args[1]);
 				case "getTypedIngredientByUid" -> typedIngredient((IIngredientType<?>) args[0], (String) args[1]);
 				case "createTypedIngredient" -> typedIngredient((IIngredientType<?>) args[0], (String) args[1]);
 				case "normalizeTypedIngredient" -> args[0];
@@ -226,15 +192,14 @@ public class FavoriteRecipeGridSourceTest {
 		return Optional.empty();
 	}
 
-	private static Optional<?> ingredient(IIngredientType<?> type, String uid) {
-		return type == TYPE || type == FLUID_TYPE ? Optional.of(uid) : Optional.empty();
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static Optional<?> typedIngredient(IIngredientType<?> type, String uid) {
-		return type == TYPE || type == FLUID_TYPE ?
-			Optional.of(new TestTypedIngredient(type, uid)) :
-			Optional.empty();
+	private static Optional<ITypedIngredient<String>> typedIngredient(IIngredientType<?> type, String uid) {
+		if (type == TYPE) {
+			return Optional.of(TypedIngredient.createUnvalidated(TYPE, uid));
+		}
+		if (type == FLUID_TYPE) {
+			return Optional.of(TypedIngredient.createUnvalidated(FLUID_TYPE, uid));
+		}
+		return Optional.empty();
 	}
 
 	private static class TestIngredientHelper implements IIngredientHelper<String> {

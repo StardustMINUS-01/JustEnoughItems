@@ -10,6 +10,7 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.ingredients.TypedIngredient;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.config.FavoriteRecipeJsonSerializer;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
@@ -22,7 +23,7 @@ import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
 
-public class FavoriteRecipeJsonSerializerTest {
+public class FavoriteSerializerTest {
 	private static final IIngredientType<String> TYPE = new IIngredientType<>() {
 		@Override
 		public Class<? extends String> getIngredientClass() {
@@ -37,7 +38,7 @@ public class FavoriteRecipeJsonSerializerTest {
 	private static final IIngredientManager INGREDIENT_MANAGER = ingredientManager();
 
 	@Test
-	public void codecRoundTripsTypedTargetAndOrderedInputs() {
+	public void roundTripsSelection() {
 		BookmarkIngredientKey target = key("target");
 		BookmarkIngredientKey first = key("first");
 		BookmarkIngredientKey second = key("second");
@@ -53,20 +54,20 @@ public class FavoriteRecipeJsonSerializerTest {
 
 		Assertions.assertEquals(entry, decoded);
 		Assertions.assertEquals("test:crafting", encoded.getAsJsonObject().get("recipeType").getAsString());
-		Assertions.assertEquals(List.of(first, second), decoded.inputs().get(4).permutations());
+		Assertions.assertNotNull(decoded.inputs().get(4).selected().typedIngredient());
 		Assertions.assertNotNull(decoded.target().typedIngredient());
 		Assertions.assertTrue(decoded.inputs().get(4).permutations().stream().allMatch(key -> key.typedIngredient() != null));
 	}
 
 	private static BookmarkIngredientKey key(String value) {
-		ITypedIngredient<String> ingredient = new TypedIngredient(value);
+		ITypedIngredient<String> ingredient = typed(value);
 		return new BookmarkIngredientKey(TYPE.getUid(), value, ingredient);
 	}
 
 	private static ICodecHelper codecHelper() {
 		MapCodec<ITypedIngredient<?>> typedIngredientCodec = Codec.STRING
 			.fieldOf("ingredient")
-			.xmap(TypedIngredient::new, ingredient -> (String) ingredient.getIngredient());
+			.xmap(FavoriteSerializerTest::typed, ingredient -> (String) ingredient.getIngredient());
 		return (ICodecHelper) Proxy.newProxyInstance(
 			ICodecHelper.class.getClassLoader(),
 			new Class<?>[]{ICodecHelper.class},
@@ -121,20 +122,7 @@ public class FavoriteRecipeJsonSerializerTest {
 		);
 	}
 
-	private record TypedIngredient(String ingredient) implements ITypedIngredient<String> {
-		@Override
-		public ITypedIngredient<String> normalize(mezz.jei.api.ingredients.IIngredientHelper<String> helper) {
-			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
-		}
-
-		@Override
-		public IIngredientType<String> getType() {
-			return TYPE;
-		}
-
-		@Override
-		public String getIngredient() {
-			return ingredient;
-		}
+	private static ITypedIngredient<String> typed(String value) {
+		return TypedIngredient.createUnvalidated(TYPE, value);
 	}
 }

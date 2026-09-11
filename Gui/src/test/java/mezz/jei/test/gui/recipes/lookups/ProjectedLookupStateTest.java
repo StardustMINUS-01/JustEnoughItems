@@ -1,7 +1,5 @@
 package mezz.jei.test.gui.recipes.lookups;
 
-import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
-import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
@@ -10,19 +8,21 @@ import mezz.jei.gui.recipes.lookups.ILookupState;
 import mezz.jei.gui.recipes.lookups.LookupStatePositionUtil;
 import mezz.jei.gui.recipes.lookups.ProjectedLookupState;
 import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
-import net.minecraft.network.chat.Component;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeCategory;
 
 import java.lang.reflect.Proxy;
+import net.minecraft.resources.ResourceLocation;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.util.List;
 
 public class ProjectedLookupStateTest {
 	@Test
-	public void emptyProjectionKeepsAnInternalShellAndOneDisabledPage() {
-		TestRecipeCategory category = new TestRecipeCategory();
-		IFocusedRecipes<String> originalRecipes = new StaticFocusedRecipes<>(category, List.of("one", "two"));
+	public void handlesEmptyProjection() {
+		TestRecipeCategory category = new TestRecipeCategory(RecipeType.create("test", "category", String.class), ResourceLocation.parse("test:recipe"));
+		IFocusedRecipes<Object> originalRecipes = new StaticFocusedRecipes<>(category, List.of("one", "two"));
 		ILookupState original = new TestLookupState(originalRecipes, emptyFocusGroup());
 
 		ProjectedLookupState projected = new ProjectedLookupState(original, List.of());
@@ -36,9 +36,9 @@ public class ProjectedLookupStateTest {
 	}
 
 	@Test
-	public void projectedPaginationDoesNotMutateOriginalState() {
-		TestRecipeCategory category = new TestRecipeCategory();
-		IFocusedRecipes<String> originalRecipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three"));
+	public void isolatesPagination() {
+		TestRecipeCategory category = new TestRecipeCategory(RecipeType.create("test", "category", String.class), ResourceLocation.parse("test:recipe"));
+		IFocusedRecipes<Object> originalRecipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three"));
 		ILookupState original = new TestLookupState(originalRecipes, emptyFocusGroup());
 		ProjectedLookupState projected = new ProjectedLookupState(
 			original,
@@ -46,32 +46,21 @@ public class ProjectedLookupStateTest {
 		);
 		projected.setRecipesPerPage(1);
 
+		Assertions.assertEquals(List.of(category), projected.getRecipeCategories());
 		Assertions.assertSame(projected.getRecipeCategories(), projected.getRecipeCategories());
+		Assertions.assertSame(original.getFocuses(), projected.getFocuses());
 		Assertions.assertTrue(projected.nextPage());
 		Assertions.assertEquals(1, projected.getRecipeIndex());
 		Assertions.assertEquals(0, original.getRecipeIndex());
 	}
 
-	@Test
-	public void navigationRestoresAProjectedPageDirectlyAndClampsRemovedPages() {
-		TestRecipeCategory category = new TestRecipeCategory();
-		IFocusedRecipes<String> originalRecipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three", "four", "five"));
-		ILookupState original = new TestLookupState(originalRecipes, emptyFocusGroup());
-		ProjectedLookupState projected = new ProjectedLookupState(original, List.of(originalRecipes));
-		projected.setRecipesPerPage(2);
-
-		LookupStatePositionUtil.restoreRecipeIndex(projected, 3);
-		Assertions.assertEquals(2, projected.getRecipeIndex());
-
-		LookupStatePositionUtil.restoreRecipeIndex(projected, 20);
-		Assertions.assertEquals(4, projected.getRecipeIndex());
-	}
-
-	@Test
-	public void navigationFallsBackForThirdPartyLookupStates() {
-		TestRecipeCategory category = new TestRecipeCategory();
-		IFocusedRecipes<String> recipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three", "four", "five"));
-		TestLookupState state = new TestLookupState(recipes, emptyFocusGroup());
+	@ParameterizedTest
+	@ValueSource(booleans = {true, false})
+	public void restoresPage(boolean projected) {
+		TestRecipeCategory category = new TestRecipeCategory(RecipeType.create("test", "category", String.class), ResourceLocation.parse("test:recipe"));
+		IFocusedRecipes<Object> recipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three", "four", "five"));
+		ILookupState original = new TestLookupState(recipes, emptyFocusGroup());
+		ILookupState state = projected ? new ProjectedLookupState(original, List.of(recipes)) : original;
 		state.setRecipesPerPage(2);
 
 		LookupStatePositionUtil.restoreRecipeIndex(state, 3);
@@ -182,36 +171,4 @@ public class ProjectedLookupStateTest {
 		}
 	}
 
-	private static final class TestRecipeCategory implements IRecipeCategory<String> {
-		private static final RecipeType<String> TYPE = RecipeType.create("test", "category", String.class);
-
-		@Override
-		public RecipeType<String> getRecipeType() {
-			return TYPE;
-		}
-
-		@Override
-		public Component getTitle() {
-			return Component.literal("Test");
-		}
-
-		@Override
-		public @Nullable IDrawable getIcon() {
-			return null;
-		}
-
-		@Override
-		public void setRecipe(IRecipeLayoutBuilder builder, String recipe, IFocusGroup focuses) {
-		}
-
-		@Override
-		public int getWidth() {
-			return 100;
-		}
-
-		@Override
-		public int getHeight() {
-			return 50;
-		}
-	}
 }

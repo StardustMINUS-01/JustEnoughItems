@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
@@ -43,11 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IngredientFilterTest {
 	@BeforeAll
-	static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
+	static void bootstrap() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
 
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
-	void emptySearchReusesOrderAndTracksVisibilityAdditionAndResorting(boolean lowMemory) {
+	void maintainsSortedResults(boolean lowMemory) {
 		var builder = new ConfigSchemaBuilder(Path.of("unused.ini"), "test");
 		var category = builder.addCategory("client");
 		var lowMemoryValue = category.addBoolean("lowMemory", lowMemory);
@@ -79,10 +83,16 @@ class IngredientFilterTest {
 			if (stages.getValue().getFirst() != IngredientSortStage.MOD_NAME) {
 				java.util.Collections.reverse(values);
 			}
-			for (int i = 0; i < values.size(); i++) { values.get(i).getElement().setSortedIndex(i); }
-			return (a, b) -> { comparisons.incrementAndGet(); return Integer.compare(a.getSortedIndex(), b.getSortedIndex()); };
+			for (int i = 0; i < values.size(); i++) {
+				values.get(i).getElement().setSortedIndex(i);
+			}
+			return (a, b) -> {
+				comparisons.incrementAndGet();
+				return Integer.compare(a.getSortedIndex(), b.getSortedIndex());
+			};
 		}, infos, mods, visibility, null, new ISearchStorageBuilderFactory() {
-			@Override public <T> ISearchStorageBuilder<T> create() {
+			@Override
+			public <T> ISearchStorageBuilder<T> create() {
 				return new SearchStorageBuilderAdapter<>(new GeneralizedSuffixTreeSearchStorage<>());
 			}
 		}, proxy(IClientToggleState.class, (p, m, a) -> null));
@@ -104,6 +114,7 @@ class IngredientFilterTest {
 		assertEquals(0, comparisons.get());
 		filter.addIngredient(ListElementInfo.create(item(Items.APPLE), manager, mods));
 		assertEquals(3, items(filter).size());
+		assertEquals(Set.of(Items.DIRT, Items.STONE, Items.APPLE), Set.copyOf(items(filter)));
 		assertTrue(comparisons.get() > 0);
 		stages.set(List.of(IngredientSortStage.ALPHABETICAL));
 		assertEquals(List.of(Items.STONE, Items.DIRT, Items.APPLE), items(filter));

@@ -3,10 +3,16 @@ package mezz.jei.test.gui.favorites;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
+import mezz.jei.gui.favorites.FavoriteTreeBuilder.FavoriteTreeResult;
+import mezz.jei.gui.favorites.FavoriteTreeBuilder.FavoriteTreeRecipe;
+import mezz.jei.gui.favorites.FavoriteTreeBuilder.ResolvedRecipe;
+import mezz.jei.gui.favorites.FavoriteTreeBuilder.ResolvedInput;
 import mezz.jei.gui.input.FocusedRecipe;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,165 +31,96 @@ public class FavoriteTreeBuilderTest {
 	private static final FocusedRecipe DUST_RECIPE = recipe("dust_recipe");
 
 	@Test
-	public void buildTreeIncludesRootRecipeOnlyWhenNoInputsAreFavorited() {
-		FavoriteTreeBuilder builder = builder(
-			store(),
-			graph(
-				resolved(ROOT, input("ingot"))
-			)
+	public void keepsRootWithoutFavorites() {
+		FavoriteTreeBuilder builder = builder(new FavoriteRecipeStore(),
+			resolved(ROOT, input("ingot"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 4);
+		FavoriteTreeResult result = builder.build(ROOT, 4);
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 		Assertions.assertEquals(Optional.empty(), result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe());
 	}
 
-	@Test
-	public void depthZeroDoesNotExpandInputs() {
-		FavoriteRecipeStore store = store();
+	@ParameterizedTest
+	@ValueSource(ints = {0, 1})
+	public void limitsDepth(int depth) {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		favorite(store, key("plate"), PLATE);
 		favorite(store, key("ingot"), INGOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(INGOT, input("dust"))
-			)
-		);
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("plate")),
+			resolved(PLATE, input("ingot")),
+			resolved(INGOT));
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 0);
+		FavoriteTreeResult result = builder.build(ROOT, depth);
 
-		Assertions.assertEquals(List.of(ROOT), recipes(result));
-		Assertions.assertEquals(Optional.of(INGOT), result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe());
+		Assertions.assertEquals(List.of(ROOT, PLATE).subList(0, depth + 1), recipes(result));
+		Assertions.assertEquals(Optional.of(depth == 0 ? PLATE : INGOT),
+			result.recipes().getLast().inputs().getFirst().selectedFavoriteRecipe());
 	}
 
-	@Test
-	public void buildTreeExpandsManualFavoriteInput() {
-		FavoriteRecipeStore store = store();
-		favorite(store, key("ingot"), INGOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(INGOT)
-			)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void expandsFavorite(boolean manual) {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		if (manual) {
+			favorite(store, key("ingot"), INGOT);
+		} else {
+			store.setGeneratedFavorite(key("ingot"), INGOT);
+		}
+		FavoriteTreeBuilder builder = builder(store, resolved(ROOT, input("ingot")), resolved(INGOT));
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, INGOT), recipes(result));
-		Assertions.assertEquals(Optional.of(key("ingot")), result.recipes().get(0).inputs().get(0).selectedFavoriteKey());
+		var input = result.recipes().getFirst().inputs().getFirst();
+		Assertions.assertEquals(Optional.of(key("ingot")), input.selectedFavoriteKey());
+		Assertions.assertEquals(Optional.of(INGOT), input.selectedFavoriteRecipe());
 	}
 
 	@Test
-	public void buildTreeExpandsGeneratedFavoriteInput() {
-		FavoriteRecipeStore store = store();
-		store.setGeneratedFavorite(key("ingot"), INGOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(INGOT)
-			)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
-
-		Assertions.assertEquals(List.of(ROOT, INGOT), recipes(result));
-		Assertions.assertEquals(Optional.of(key("ingot")), result.recipes().get(0).inputs().get(0).selectedFavoriteKey());
-		Assertions.assertEquals(Optional.of(INGOT), result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe());
-	}
-
-	@Test
-	public void buildTreePrefersManualFavoriteOverGeneratedFavorite() {
-		FavoriteRecipeStore store = store();
+	public void prefersManualFavorite() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), INGOT);
 		favorite(store, key("ingot"), PLATE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(INGOT),
-				resolved(PLATE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(INGOT),
+			resolved(PLATE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
 		Assertions.assertEquals(Optional.of(PLATE), result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe());
 	}
 
 	@Test
-	public void depthOneExpandsOnlyOneLayer() {
-		FavoriteRecipeStore store = store();
-		favorite(store, key("plate"), PLATE);
-		favorite(store, key("ingot"), INGOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("plate")),
-				resolved(PLATE, input("ingot")),
-				resolved(INGOT)
-			)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
-
-		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
-		Assertions.assertEquals(Optional.of(INGOT), result.recipes().get(1).inputs().get(0).selectedFavoriteRecipe());
-	}
-
-	@Test
-	public void buildTreeFindsFavoriteFromInputPermutationsWhenDisplayedInputIsNotFavorited() {
-		FavoriteRecipeStore store = store();
-		favorite(store, key("blackstone"), INGOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("cobblestone", "cobblestone", "blackstone")),
-				resolved(INGOT)
-			)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
-
-		Assertions.assertEquals(List.of(ROOT, INGOT), recipes(result));
-		Assertions.assertEquals(Optional.of(key("blackstone")), result.recipes().get(0).inputs().get(0).selectedFavoriteKey());
-	}
-
-	@Test
-	public void cycleDoesNotExpandForever() {
-		FavoriteRecipeStore store = store();
+	public void stopsCycles() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		favorite(store, key("plate"), PLATE);
 		favorite(store, key("root"), ROOT);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("plate")),
-				resolved(PLATE, input("root"))
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("plate")),
+			resolved(PLATE, input("root"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 8);
+		FavoriteTreeResult result = builder.build(ROOT, 8);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
 		Assertions.assertEquals(Optional.of(ROOT), result.recipes().get(1).inputs().get(0).selectedFavoriteRecipe());
 	}
 
 	@Test
-	public void duplicateFavoriteRecipeIsAddedOnce() {
-		FavoriteRecipeStore store = store();
+	public void deduplicatesRecipes() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		favorite(store, key("plate"), PLATE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("plate"), input("plate")),
-				resolved(PLATE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input(0, "plate"), input(1, "plate")),
+			resolved(PLATE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+		FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
 		Assertions.assertEquals(Optional.of(PLATE), result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe());
@@ -191,44 +128,38 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void missingFocusedRecipeStopsThatBranch() {
-		FavoriteRecipeStore store = store();
+	public void stopsMissingBranch() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		favorite(store, key("gear"), GEAR);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("gear"))
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("gear"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 3);
+		FavoriteTreeResult result = builder.build(ROOT, 3);
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 		Assertions.assertEquals(Optional.of(GEAR), result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe());
 	}
 
 	@Test
-	public void missingRootRecipeReturnsEmptyTree() {
-		FavoriteTreeBuilder builder = builder(store(), graph());
+	public void handlesMissingRoot() {
+		FavoriteTreeBuilder builder = builder(new FavoriteRecipeStore());
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 3);
+		FavoriteTreeResult result = builder.build(ROOT, 3);
 
 		Assertions.assertTrue(result.recipes().isEmpty());
 	}
 
 	@Test
-	public void multiVariantSlotExpandsUniqueManualFavorite() {
-		FavoriteRecipeStore store = store();
+	public void selectsUniqueManualVariant() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		favorite(store, key("glass"), GLASS_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("stained", "glass", "stained")),
-				resolved(GLASS_RECIPE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("stained", "glass", "stained")),
+			resolved(GLASS_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, GLASS_RECIPE), recipes(result));
 		Assertions.assertEquals(
@@ -242,63 +173,41 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void multiVariantSlotWithMultipleManualFavoritesFallsBackToSlotRule() {
-		FavoriteRecipeStore store = store();
+	public void resolvesAmbiguousVariants() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		favorite(store, key("glass"), GLASS_RECIPE);
 		favorite(store, key("stained"), STAINED_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("stained", "glass", "stained")),
-				resolved(RULE_RECIPE)
-			),
-			variants -> Optional.of(RULE_RECIPE)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+		FavoriteTreeBuilder builder = builder(store,
+			graph(resolved(ROOT, input("stained", "glass", "stained")), resolved(RULE_RECIPE)),
+			variants -> Optional.of(RULE_RECIPE));
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, RULE_RECIPE), recipes(result));
-		Assertions.assertEquals(
-			Optional.of(key("stained")),
-			result.recipes().get(0).inputs().get(0).selectedFavoriteKey()
-		);
-		Assertions.assertEquals(
-			Optional.of(RULE_RECIPE),
-			result.recipes().get(0).inputs().get(0).selectedFavoriteRecipe()
-		);
+		var input = result.recipes().getFirst().inputs().getFirst();
+		Assertions.assertEquals(Optional.of(key("stained")), input.selectedFavoriteKey());
+		Assertions.assertEquals(Optional.of(RULE_RECIPE), input.selectedFavoriteRecipe());
 	}
 
 	@Test
-	public void multiVariantSlotWithoutRulesFallsBackToDisplayedVariant() {
-		FavoriteRecipeStore store = store();
+	public void usesRootDisplayedVariant() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("stained"), STAINED_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("stained", "glass", "stained")),
-				resolved(STAINED_RECIPE)
-			)
-		);
-
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("stained", "glass", "stained")), resolved(STAINED_RECIPE));
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, STAINED_RECIPE), recipes(result));
-		Assertions.assertEquals(
-			Optional.of(key("stained")),
-			result.recipes().get(0).inputs().get(0).selectedFavoriteKey()
-		);
+		Assertions.assertEquals(Optional.of(key("stained")),
+			result.recipes().getFirst().inputs().getFirst().selectedFavoriteKey());
 	}
 
 	@Test
-	public void multiVariantSlotWithoutAnyFavoriteStops() {
-		FavoriteTreeBuilder builder = builder(
-			store(),
-			graph(
-				resolved(ROOT, input("stained", "glass", "stained"))
-			)
+	public void keepsUnfavoritedRoot() {
+		FavoriteTreeBuilder builder = builder(new FavoriteRecipeStore(),
+			resolved(ROOT, input("stained", "glass", "stained"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 		Assertions.assertEquals(
@@ -308,20 +217,17 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void multiSlotRecipeResolvesEachSlotIndependently() {
-		FavoriteRecipeStore store = store();
+	public void resolvesSlotsIndependently() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), INGOT);
 		store.setGeneratedFavorite(key("stained"), STAINED_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot"), input("stained", "glass", "stained")),
-				resolved(INGOT),
-				resolved(STAINED_RECIPE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained")),
+			resolved(INGOT),
+			resolved(STAINED_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1);
+		FavoriteTreeResult result = builder.build(ROOT, 1);
 
 		Assertions.assertEquals(List.of(ROOT, INGOT, STAINED_RECIPE), recipes(result));
 		Assertions.assertEquals(
@@ -339,20 +245,17 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void middleRecipeMultiVariantSlotExpandsByUniqueManualFavorite() {
-		FavoriteRecipeStore store = store();
+	public void expandsMiddleVariant() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
 		favorite(store, key("glass"), GLASS_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(PLATE, input("stained", "glass", "stained")),
-				resolved(GLASS_RECIPE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(PLATE, input("stained", "glass", "stained")),
+			resolved(GLASS_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+		FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE, GLASS_RECIPE), recipes(result));
 		Assertions.assertEquals(
@@ -366,53 +269,44 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void middleRecipeMultiVariantSlotWithoutFavoriteStopsBranch() {
-		FavoriteRecipeStore store = store();
+	public void prunesUnresolvedMiddle() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(PLATE, input("stained", "glass", "stained"))
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(PLATE, input("stained", "glass", "stained"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+		FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
 	@Test
-	public void middleRecipeMultiVariantSlotWithDisplayedFavoriteDoesNotFallBack() {
-		FavoriteRecipeStore store = store();
+	public void rejectsMiddleDisplayFallback() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
 		store.setGeneratedFavorite(key("stained"), STAINED_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(PLATE, input("stained", "glass", "stained"))
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(PLATE, input("stained", "glass", "stained"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+		FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
 	@Test
-	public void rootMultiVariantSlotFallsBackToViewSelection() {
-		FavoriteRecipeStore store = store();
+	public void usesRootSelection() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("white"), WHITE_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained")),
-				resolved(WHITE_RECIPE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained")),
+			resolved(WHITE_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
+		FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
 
 		Assertions.assertEquals(List.of(ROOT, WHITE_RECIPE), recipes(result));
 		Assertions.assertEquals(
@@ -426,15 +320,12 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void rootMultiVariantSlotLocksViewSelectionWithoutExpanding() {
-		FavoriteTreeBuilder builder = builder(
-			store(),
-			graph(
-				resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained"))
-			)
+	public void keepsRootSelection() {
+		FavoriteTreeBuilder builder = builder(new FavoriteRecipeStore(),
+			resolved(ROOT, input(0, "ingot"), input(1, "stained", "glass", "stained"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
+		FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(1, key("white")));
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 		Assertions.assertEquals(
@@ -448,18 +339,15 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void rootViewSelectionUsesInputSlotIndex() {
-		FavoriteRecipeStore store = store();
+	public void mapsRootSlotIndices() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("white"), WHITE_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input(1, "ingot"), input(3, "stained", "glass", "stained")),
-				resolved(WHITE_RECIPE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input(1, "ingot"), input(3, "stained", "glass", "stained")),
+			resolved(WHITE_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(3, key("white")));
+		FavoriteTreeResult result = builder.build(ROOT, 1, Map.of(3, key("white")));
 
 		Assertions.assertEquals(List.of(ROOT, WHITE_RECIPE), recipes(result));
 		Assertions.assertEquals(
@@ -469,55 +357,48 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void rootViewSelectionDoesNotLeakIntoMiddleRecipes() {
-		FavoriteRecipeStore store = store();
-		store.setGeneratedFavorite(key("ingot"), PLATE);
+	public void isolatesRootSelection() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
+		store.setGeneratedFavorite(key("white"), PLATE);
 		store.setGeneratedFavorite(key("stained"), STAINED_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input(0, "ingot")),
-				resolved(PLATE, input(0, "stained", "glass", "stained"))
-			)
-		);
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input(0, "ingot", "ingot", "white")),
+			resolved(PLATE, input(0, "stained", "glass", "stained")));
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2, Map.of(0, key("stained")));
+		FavoriteTreeResult result = builder.build(ROOT, 2, Map.of(0, key("white")));
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
+		var input = result.recipes().getFirst().inputs().getFirst();
+		Assertions.assertEquals(Optional.of(key("white")), input.selectedFavoriteKey());
+		Assertions.assertEquals(Optional.of(PLATE), input.selectedFavoriteRecipe());
 	}
 
 	@Test
-	public void partiallyResolvedRecipePrunesResolvedChildren() {
-		FavoriteRecipeStore store = store();
+	public void prunesPartialBranch() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
 		store.setGeneratedFavorite(key("dust"), DUST_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(PLATE, input("dust"), input(1, "stained", "glass", "stained")),
-				resolved(DUST_RECIPE)
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(PLATE, input("dust"), input(1, "stained", "glass", "stained")),
+			resolved(DUST_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 3);
+		FavoriteTreeResult result = builder.build(ROOT, 3);
 
 		Assertions.assertEquals(List.of(ROOT), recipes(result));
 	}
 
 	@Test
-	public void middleRecipeWithAllResolvedInputsIsWrittenEvenWithoutExpansion() {
-		FavoriteRecipeStore store = store();
+	public void keepsResolvedMiddle() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(PLATE, input("dust"))
-			)
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(PLATE, input("dust"))
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+		FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE), recipes(result));
 		Assertions.assertEquals(
@@ -531,8 +412,8 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	@Test
-	public void middleRecipeUsesStoredFavoriteInputSelection() {
-		FavoriteRecipeStore store = store();
+	public void usesStoredSelection() {
+		FavoriteRecipeStore store = new FavoriteRecipeStore();
 		store.setGeneratedFavorite(key("ingot"), PLATE);
 		store.setFavorite(
 			key("plate"),
@@ -543,16 +424,14 @@ public class FavoriteTreeBuilderTest {
 			))
 		);
 		favorite(store, key("glass"), GLASS_RECIPE);
-		FavoriteTreeBuilder builder = builder(
-			store,
-			graph(
-				resolved(ROOT, input("ingot")),
-				resolved(PLATE, input("stained", "glass", "stained")),
-				resolved(GLASS_RECIPE)
-			)
+		favorite(store, key("stained"), STAINED_RECIPE);
+		FavoriteTreeBuilder builder = builder(store,
+			resolved(ROOT, input("ingot")),
+			resolved(PLATE, input("stained", "glass", "stained")),
+			resolved(GLASS_RECIPE)
 		);
 
-		FavoriteTreeBuilder.FavoriteTreeResult result = builder.build(ROOT, 2);
+		FavoriteTreeResult result = builder.build(ROOT, 2);
 
 		Assertions.assertEquals(List.of(ROOT, PLATE, GLASS_RECIPE), recipes(result));
 		Assertions.assertEquals(
@@ -565,13 +444,14 @@ public class FavoriteTreeBuilderTest {
 		);
 	}
 
-	private static FavoriteTreeBuilder builder(FavoriteRecipeStore store, Map<FocusedRecipe, FavoriteTreeBuilder.ResolvedRecipe> graph) {
+	private static FavoriteTreeBuilder builder(FavoriteRecipeStore store, ResolvedRecipe... recipes) {
+		Map<FocusedRecipe, ResolvedRecipe> graph = graph(recipes);
 		return new FavoriteTreeBuilder(store, recipe -> Optional.ofNullable(graph.get(recipe)));
 	}
 
 	private static FavoriteTreeBuilder builder(
 		FavoriteRecipeStore store,
-		Map<FocusedRecipe, FavoriteTreeBuilder.ResolvedRecipe> graph,
+		Map<FocusedRecipe, ResolvedRecipe> graph,
 		mezz.jei.gui.favorites.SlotRuleResolver slotRuleResolver
 	) {
 		return new FavoriteTreeBuilder(
@@ -581,40 +461,36 @@ public class FavoriteTreeBuilderTest {
 		);
 	}
 
-	private static Map<FocusedRecipe, FavoriteTreeBuilder.ResolvedRecipe> graph(FavoriteTreeBuilder.ResolvedRecipe... recipes) {
-		Map<FocusedRecipe, FavoriteTreeBuilder.ResolvedRecipe> graph = new LinkedHashMap<>();
-		for (FavoriteTreeBuilder.ResolvedRecipe recipe : recipes) {
+	private static Map<FocusedRecipe, ResolvedRecipe> graph(ResolvedRecipe... recipes) {
+		Map<FocusedRecipe, ResolvedRecipe> graph = new LinkedHashMap<>();
+		for (ResolvedRecipe recipe : recipes) {
 			graph.put(recipe.recipe(), recipe);
 		}
 		return graph;
 	}
 
-	private static FavoriteTreeBuilder.ResolvedRecipe resolved(FocusedRecipe recipe, FavoriteTreeBuilder.ResolvedInput... inputs) {
-		return new FavoriteTreeBuilder.ResolvedRecipe(recipe, List.of(inputs));
+	private static ResolvedRecipe resolved(FocusedRecipe recipe, ResolvedInput... inputs) {
+		return new ResolvedRecipe(recipe, List.of(inputs));
 	}
 
-	private static FavoriteTreeBuilder.ResolvedInput input(String displayed, String... permutations) {
+	private static ResolvedInput input(String displayed, String... permutations) {
 		return input(0, displayed, permutations);
 	}
 
-	private static FavoriteTreeBuilder.ResolvedInput input(int inputSlotIndex, String displayed, String... permutations) {
+	private static ResolvedInput input(int inputSlotIndex, String displayed, String... permutations) {
 		List<BookmarkIngredientKey> permutationKeys = permutations.length == 0 ?
 			List.of(key(displayed)) :
 			List.of(permutations).stream()
 				.map(FavoriteTreeBuilderTest::key)
 				.toList();
-		return new FavoriteTreeBuilder.ResolvedInput(inputSlotIndex, key(displayed), permutationKeys, List.of());
+		return new ResolvedInput(inputSlotIndex, key(displayed), permutationKeys, List.of());
 	}
 
-	private static List<FocusedRecipe> recipes(FavoriteTreeBuilder.FavoriteTreeResult result) {
+	private static List<FocusedRecipe> recipes(FavoriteTreeResult result) {
 		return result.recipes()
 			.stream()
-			.map(FavoriteTreeBuilder.FavoriteTreeRecipe::recipe)
+			.map(FavoriteTreeRecipe::recipe)
 			.toList();
-	}
-
-	private static FavoriteRecipeStore store() {
-		return new FavoriteRecipeStore();
 	}
 
 	private static void favorite(FavoriteRecipeStore store, BookmarkIngredientKey key, FocusedRecipe recipe) {

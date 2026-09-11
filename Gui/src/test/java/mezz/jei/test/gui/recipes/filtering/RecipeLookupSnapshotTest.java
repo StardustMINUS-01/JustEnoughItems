@@ -1,10 +1,6 @@
 package mezz.jei.test.gui.recipes.filtering;
 
-import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
-import mezz.jei.api.gui.drawable.IDrawable;
-import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.search.BakedSubstringIndexBuilder;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
@@ -19,11 +15,10 @@ import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.filtering.IRecipeSearchTextMatcher;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeCategory;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,16 +27,17 @@ import java.util.Set;
 public class RecipeLookupSnapshotTest {
 	private static final ResourceLocation TYPE_UID = ResourceLocation.parse("test:macerating");
 	private static final ResourceLocation OUTPUT = ResourceLocation.parse("test:silver_dust");
-	private static final TestRecipeCategory CATEGORY = new TestRecipeCategory();
+	private static final TestRecipeCategory CATEGORY = new TestRecipeCategory(RecipeType.create("test", "macerating", String.class), TYPE_UID);
 
 	@Test
-	public void intersectsSearchWithPreferredAndStrictComplement() {
+	public void filtersPreferences() {
 		RecipeLookupSnapshot snapshot = new RecipeLookupSnapshot(
 			List.of(new RecipeLookupSnapshot.CategoryRecipes<>(
 				CATEGORY,
 				List.of(
 					entry("ingot", "Silver Ingot", "c:ingots"),
-					entry("plate", "Silver Plate", "c:plates")
+					entry("plate", "Silver Plate", "c:plates"),
+					new RecipeLookupSnapshot.RecipeEntry<>("unknown", entry("unknown", "Silver Unknown", "c:unknown").searchDocument(), Optional.empty())
 				)
 			)),
 			new RecipePreferenceRules(List.of(new RecipePreferenceRule(
@@ -52,7 +48,7 @@ public class RecipeLookupSnapshotTest {
 		);
 
 		Assertions.assertEquals(
-			List.of("ingot", "plate"),
+			List.of("ingot", "plate", "unknown"),
 			recipes(snapshot.project(RecipeFilterMode.ALL, RecipeSearchQuery.parse("silver")))
 		);
 		Assertions.assertEquals(
@@ -60,7 +56,7 @@ public class RecipeLookupSnapshotTest {
 			recipes(snapshot.project(RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("")))
 		);
 		Assertions.assertEquals(
-			List.of("plate"),
+			List.of("plate", "unknown"),
 			recipes(snapshot.project(RecipeFilterMode.NOT_PREFERRED, RecipeSearchQuery.parse("")))
 		);
 		Assertions.assertTrue(
@@ -69,7 +65,7 @@ public class RecipeLookupSnapshotTest {
 	}
 
 	@Test
-	public void usesRegisteredSearchStorageForRecipesAndInputCandidates() {
+	public void matchesSearchAliases() {
 		RecipeSearchIngredient ingredient = new RecipeSearchIngredient(
 			"至高木板",
 			ResourceLocation.parse("test:supreme_planks"),
@@ -100,10 +96,11 @@ public class RecipeLookupSnapshotTest {
 			.toList();
 	}
 
-	private static RecipeLookupSnapshot.RecipeEntry<String> entry(String recipe, String inputName, String tag) {
-		FocusedRecipe focusedRecipe = new FocusedRecipe(TYPE_UID, ResourceLocation.fromNamespaceAndPath("test", recipe));
+	private static RecipeLookupSnapshot.RecipeEntry<Object> entry(String recipe, String inputName, String tag) {
+		ResourceLocation id = ResourceLocation.fromNamespaceAndPath("test", recipe);
+		FocusedRecipe focusedRecipe = new FocusedRecipe(TYPE_UID, id);
 		IngredientMatchInfo input = IngredientMatchInfo.item(
-			ResourceLocation.fromNamespaceAndPath("test", recipe),
+			id,
 			Set.of(ResourceLocation.parse(tag))
 		);
 		RecipePreferenceCandidate candidate = new RecipePreferenceCandidate(
@@ -113,7 +110,7 @@ public class RecipeLookupSnapshotTest {
 		);
 		RecipeSearchIngredient ingredient = new RecipeSearchIngredient(
 			inputName,
-			ResourceLocation.fromNamespaceAndPath("test", recipe),
+			id,
 			"test",
 			Set.of(tag)
 		);
@@ -136,36 +133,4 @@ public class RecipeLookupSnapshotTest {
 		}
 	}
 
-	private static final class TestRecipeCategory implements IRecipeCategory<String> {
-		private static final RecipeType<String> TYPE = RecipeType.create("test", "macerating", String.class);
-
-		@Override
-		public RecipeType<String> getRecipeType() {
-			return TYPE;
-		}
-
-		@Override
-		public Component getTitle() {
-			return Component.literal("Macerating");
-		}
-
-		@Override
-		public @Nullable IDrawable getIcon() {
-			return null;
-		}
-
-		@Override
-		public void setRecipe(IRecipeLayoutBuilder builder, String recipe, IFocusGroup focuses) {
-		}
-
-		@Override
-		public int getWidth() {
-			return 100;
-		}
-
-		@Override
-		public int getHeight() {
-			return 50;
-		}
-	}
 }

@@ -9,7 +9,7 @@ import java.lang.reflect.Method;
 
 public class ReflectionCacheTest {
 	@Test
-	public void findMethodReturnsAndCachesPublicMethod() {
+	public void cachesMethodLookup() {
 		Method first = ReflectionCache.findMethod(String.class, "length").orElseThrow();
 		Method second = ReflectionCache.findMethod(String.class, "length").orElseThrow();
 
@@ -18,12 +18,12 @@ public class ReflectionCacheTest {
 	}
 
 	@Test
-	public void findMethodReturnsEmptyForMissingMethod() {
+	public void handlesMissingMethod() {
 		Assertions.assertTrue(ReflectionCache.findMethod(String.class, "notAMethod").isEmpty());
 	}
 
 	@Test
-	public void findFieldWalksClassHierarchy() {
+	public void findsInheritedField() {
 		Field field = ReflectionCache.findField(Child.class, "hidden").orElseThrow();
 
 		Assertions.assertEquals("hidden", field.getName());
@@ -31,7 +31,7 @@ public class ReflectionCacheTest {
 	}
 
 	@Test
-	public void getMethodsReturnsPublicMethods() {
+	public void listsPublicMethod() {
 		Method[] methods = ReflectionCache.getMethods(String.class);
 
 		Assertions.assertTrue(java.util.Arrays.stream(methods).anyMatch(method -> method.getName().equals("length")));

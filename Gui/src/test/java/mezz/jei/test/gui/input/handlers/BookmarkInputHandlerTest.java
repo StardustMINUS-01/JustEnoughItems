@@ -9,12 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BookmarkInputHandlerTest {
 	@Test
-	public void shiftCraftsAll() {
+	public void controlSelectsMissingMode() {
 		assertTrue(BookmarkInputHandler.isCraftAllModifier(GLFW.GLFW_MOD_SHIFT));
-	}
-
-	@Test
-	public void controlShiftCraftsMissing() {
 		assertFalse(BookmarkInputHandler.isCraftAllModifier(GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT));
 	}
 }

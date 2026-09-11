@@ -6,13 +6,14 @@ import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class GhostIngredientDragManagerTest {
+public class GhostHoverTargetsTest {
 	@Test
-	public void shouldRefreshHoverTargetsWhenScreenChanges() {
+	public void detectsScreenChange() {
 		Screen oldScreen = new TestScreen();
 		Screen newScreen = new TestScreen();
 
 		Assertions.assertTrue(GhostIngredientDragManager.shouldRefreshHoveredTargets(oldScreen, newScreen, null, null));
+		Assertions.assertFalse(GhostIngredientDragManager.shouldRefreshHoveredTargets(oldScreen, oldScreen, null, null));
 	}
 
 	private static class TestScreen extends Screen {

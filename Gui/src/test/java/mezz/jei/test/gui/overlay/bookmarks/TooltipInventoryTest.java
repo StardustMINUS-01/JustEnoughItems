@@ -22,11 +22,10 @@ import java.util.ArrayList;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class PlayerInventoryRecipeChainTooltipInventoryProviderTest {
+public class TooltipInventoryTest {
 	@Test
-	public void treeUsesTheSourceTerminalRepositoryWithoutDoubleCountingStorage() throws Exception {
+	public void readsSourceStorage() throws Exception {
 		Inventory inventory = new Inventory(null);
 		inventory.setItem(0, new ItemStack(Items.DIAMOND, 3));
 		var menu = ChestMenu.threeRows(7, inventory);
@@ -51,7 +50,7 @@ public class PlayerInventoryRecipeChainTooltipInventoryProviderTest {
 	}
 
 	@Test
-	public void treeKeepsOptionalStorageAndCraftingGridProviders() {
+	public void includesTreeStorage() {
 		Inventory inventory = new Inventory(null);
 		inventory.setItem(0, new ItemStack(Items.DIAMOND, 3));
 		CraftingMenu menu = new CraftingMenu(7, inventory);
@@ -64,7 +63,8 @@ public class PlayerInventoryRecipeChainTooltipInventoryProviderTest {
 	}
 
 	private static int amount(List<ItemStack> stacks, Item item) {
-		return stacks.stream().filter(stack -> stack.is(item)).mapToInt(ItemStack::getCount).sum();
+		ItemStack expected = new ItemStack(item);
+		return stacks.stream().filter(stack -> ItemStack.isSameItemSameComponents(stack, expected)).mapToInt(ItemStack::getCount).sum();
 	}
 
 	@BeforeAll
@@ -74,7 +74,7 @@ public class PlayerInventoryRecipeChainTooltipInventoryProviderTest {
 	}
 
 	@Test
-	public void availableStacksIncludeCurrentCraftingGrid() {
+	public void includesCraftingGrid() {
 		Inventory inventory = new Inventory(null);
 		inventory.setItem(0, new ItemStack(Items.DIAMOND, 3));
 		CraftingMenu menu = new CraftingMenu(7, inventory);
@@ -83,7 +83,7 @@ public class PlayerInventoryRecipeChainTooltipInventoryProviderTest {
 		List<ItemStack> stacks = PlayerInventoryRecipeChainTooltipInventoryProvider.getAvailableStacks(inventory, menu);
 
 		assertEquals(2, stacks.size());
-		assertTrue(stacks.stream().anyMatch(stack -> ItemStack.isSameItemSameComponents(stack, new ItemStack(Items.DIAMOND)) && stack.getCount() == 3));
-		assertTrue(stacks.stream().anyMatch(stack -> ItemStack.isSameItemSameComponents(stack, new ItemStack(Items.NETHERITE_PICKAXE)) && stack.getCount() == 1));
+		assertEquals(3, amount(stacks, Items.DIAMOND));
+		assertEquals(1, amount(stacks, Items.NETHERITE_PICKAXE));
 	}
 }

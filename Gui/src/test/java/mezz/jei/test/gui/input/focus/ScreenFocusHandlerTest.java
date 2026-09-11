@@ -9,16 +9,17 @@ import org.junit.jupiter.api.Test;
 
 public class ScreenFocusHandlerTest {
 	@Test
-	public void excludesTheFieldThatIsTakingFocus() {
+	public void preservesExcludedFocus() {
 		TestScreen screen = new TestScreen();
-		TestGuiEventListener searchField = new TestGuiEventListener();
+		TestListener searchField = new TestListener();
 		searchField.setFocused(true);
 		screen.setFocused(searchField);
 
-		ScreenFocusHandler focusHandler = ScreenFocusHandler.create(screen, searchField);
+		ScreenFocusHandler handler = ScreenFocusHandler.create(screen, searchField);
 
-		Assertions.assertNull(focusHandler);
+		Assertions.assertNull(handler);
 		Assertions.assertTrue(searchField.isFocused());
+		Assertions.assertNotNull(ScreenFocusHandler.create(screen));
 	}
 
 	private static final class TestScreen extends Screen {
@@ -27,7 +28,7 @@ public class ScreenFocusHandlerTest {
 		}
 	}
 
-	private static final class TestGuiEventListener implements GuiEventListener {
+	private static final class TestListener implements GuiEventListener {
 		private boolean focused;
 
 		@Override

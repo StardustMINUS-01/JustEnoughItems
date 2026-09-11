@@ -10,17 +10,19 @@ import mezz.jei.gui.input.FocusedRecipe;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public class RecipePreferenceRulesV2Test {
+public class PreferenceMatchingTest {
 	private static final ResourceLocation CIRCUIT = ResourceLocation.parse("gtceu:lv_circuit");
 	private static final ResourceLocation ASSEMBLER = ResourceLocation.parse("gtceu:assembler");
 
 	@Test
-	public void selectsCandidateMatchingTheFirstInputTier() {
+	public void prefersInputTier() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit",
 			"gtceu:soldering_alloy & fluid:gtceu:soldering_alloy; fluid:gtceu:tin",
@@ -45,7 +47,7 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void returnsEmptyWhenInputAndRecipeRanksConflict() {
+	public void rejectsConflictingRanks() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit",
 			"gtceu:soldering_alloy; fluid:gtceu:tin",
@@ -70,7 +72,7 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void returnsAllTiedPreferredRecipesWithoutChangingUniqueSelection() {
+	public void preservesTies() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit",
 			"gtceu:soldering_alloy | fluid:gtceu:tin",
@@ -95,23 +97,7 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void fluidTargetMatchesFluidIngredient() {
-		IngredientSelector target = selector("fluid:gtceu:molten_*");
-
-		Assertions.assertTrue(target.matches(fluid("gtceu:molten_tin")));
-		Assertions.assertFalse(target.matches(item("gtceu:molten_tin")));
-	}
-
-	@Test
-	public void tagWildcardMatchesAnyTagId() {
-		IngredientSelector target = selector("#c:*ingot");
-
-		Assertions.assertTrue(target.matches(itemWithTag("minecraft:iron_ingot", "c:iron_ingot")));
-		Assertions.assertFalse(target.matches(itemWithTag("minecraft:iron_nugget", "c:iron_nugget")));
-	}
-
-	@Test
-	public void parensAndNegationWork() {
+	public void matchesNegatedGroup() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit",
 			"gtceu:iron & !(#c:*ingot | fluid:gtceu:acid)",
@@ -129,53 +115,50 @@ public class RecipePreferenceRulesV2Test {
 		);
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
-			List.of(ironOnly, ironWithAcid)
+			List.of(ironOnly, ironWithAcid,
+				candidate("test:iron_tagged", List.of(itemWithTag("gtceu:iron", "c:iron_ingot")), List.of(item(CIRCUIT))))
 		);
 
 		Assertions.assertEquals(Optional.of(ironOnly.recipe()), selected);
 	}
 
 	@Test
-	public void expressionMatchesSingleIngredient() {
+	public void matchesEitherOperand() {
 		IngredientExpression expression = IngredientExpression
 			.parseIngredient("#c:fine_wires | gtceu:*_wire")
 			.orElseThrow();
-		Assertions.assertTrue(expression.matches(itemWithTag("gtceu:cobalt_fine_wire", "c:fine_wires")));
+		Assertions.assertTrue(expression.matches(itemWithTag("test:cobalt", "c:fine_wires")));
+		Assertions.assertTrue(expression.matches(item("gtceu:cobalt_wire")));
 		Assertions.assertFalse(expression.matches(item("minecraft:dirt")));
 	}
 
-	@Test
-	public void itemNamespaceWildcardMatchesAnyNamespace() {
-		IngredientSelector selector = selector("*:item_storage_cell_*");
-		Assertions.assertTrue(selector.matches(item("ae2:item_storage_cell_1k")));
-		Assertions.assertTrue(selector.matches(item("test:item_storage_cell_4k")));
-		Assertions.assertFalse(selector.matches(item("ae2:energy_cell")));
+	@ParameterizedTest
+	@CsvSource({
+		"fluid:gtceu:molten_*, gtceu:molten_tin, true, , true",
+		"fluid:gtceu:molten_*, gtceu:molten_tin, false, , false",
+		"#c:*ingot, minecraft:iron_ingot, false, c:iron_ingot, true",
+		"#c:*ingot, minecraft:iron_nugget, false, c:iron_nugget, false",
+		"*:item_storage_cell_*, ae2:item_storage_cell_1k, false, , true",
+		"*:item_storage_cell_*, test:item_storage_cell_4k, false, , true",
+		"*:item_storage_cell_*, ae2:energy_cell, false, , false",
+		"*:ingots, minecraft:iron_ingot, false, c:ingots, false",
+		"#*:ingots, minecraft:iron_ingot, false, c:ingots, true",
+		"#*:ingots, minecraft:gold_ingot, false, gtceu:ingots, true",
+		"#*:ingots, minecraft:iron_ingot, false, , false",
+		"ae2*:item_storage_cell_*, ae2:item_storage_cell_1k, false, , true",
+		"ae2*:item_storage_cell_*, ae2x:item_storage_cell_4k, false, , true",
+		"ae2*:item_storage_cell_*, test:item_storage_cell_1k, false, , false"
+	})
+	public void matchesSelector(String pattern, String id, boolean isFluid, String tag, boolean expected) {
+		IngredientMatchInfo ingredient = isFluid ? fluid(id) : item(id);
+		if (tag != null) {
+			ingredient = itemWithTag(id, tag);
+		}
+		Assertions.assertEquals(expected, IngredientSelector.parse(pattern).orElseThrow().matches(ingredient));
 	}
 
 	@Test
-	public void bareNamespaceWildcardDoesNotMatchTags() {
-		IngredientSelector selector = selector("*:ingots");
-		Assertions.assertFalse(selector.matches(itemWithTag("minecraft:iron_ingot", "c:ingots")));
-	}
-
-	@Test
-	public void tagNamespaceWildcardRequiresExplicitHash() {
-		IngredientSelector selector = selector("#*:ingots");
-		Assertions.assertTrue(selector.matches(itemWithTag("minecraft:iron_ingot", "c:ingots")));
-		Assertions.assertTrue(selector.matches(itemWithTag("minecraft:gold_ingot", "gtceu:ingots")));
-		Assertions.assertFalse(selector.matches(item("minecraft:iron_ingot")));
-	}
-
-	@Test
-	public void partialNamespaceWildcardMatchesMatchingNamespaces() {
-		IngredientSelector selector = selector("ae2*:item_storage_cell_*");
-		Assertions.assertTrue(selector.matches(item("ae2:item_storage_cell_1k")));
-		Assertions.assertTrue(selector.matches(item("ae2x:item_storage_cell_4k")));
-		Assertions.assertFalse(selector.matches(item("test:item_storage_cell_1k")));
-	}
-
-	@Test
-	public void outputRankParticipatesInRanking() {
+	public void ranksOutputs() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit; #c:circuits",
 			"gtceu:iron",
@@ -200,21 +183,15 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void slotRuleCollapsesVariantsToSingleRecipe() {
-		RecipePreferenceRule rule = rule("#c:glass_blocks", "#c:logs", null);
-		IngredientMatchInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
-		IngredientMatchInfo stained = itemWithTag("minecraft:white_stained_glass", "c:glass_blocks");
-		RecipePreferenceCandidate shared = candidate("test:glass_recipe", List.of(), List.of(glass, stained));
-
-		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
-			List.of(shared, shared)
-		);
+	public void deduplicatesRecipes() {
+		RecipePreferenceCandidate shared = candidate("test:glass_recipe", List.of(), List.of(item("minecraft:glass")));
+		Optional<FocusedRecipe> selected = RecipePreferenceRules.EMPTY.resolvePreferredRecipe(List.of(shared, shared));
 
 		Assertions.assertEquals(Optional.of(shared.recipe()), selected);
 	}
 
 	@Test
-	public void slotRuleReturnsEmptyWhenCandidatesConflictAndNoRuleMatches() {
+	public void rejectsUnrankedTies() {
 		RecipePreferenceRule rule = rule("#c:glass_blocks", "#c:logs", null);
 		IngredientMatchInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
 
@@ -229,14 +206,14 @@ public class RecipePreferenceRulesV2Test {
 	}
 
 	@Test
-	public void ruleDoesNotApplyWhenOutputDoesNotMatch() {
+	public void requiresMatchingOutput() {
 		RecipePreferenceRule rule = rule("minecraft:iron_ingot", "minecraft:iron_ore", null);
 		IngredientMatchInfo glass = itemWithTag("minecraft:glass", "c:glass_blocks");
 
 		Optional<FocusedRecipe> selected = new RecipePreferenceRules(List.of(rule)).resolvePreferredRecipe(
 			List.of(
 				candidate("test:glass_recipe", List.of(item("minecraft:iron_ore")), List.of(glass)),
-				candidate("test:stained_recipe", List.of(item("minecraft:iron_ore")), List.of(glass))
+				candidate("test:stained_recipe", List.of(item("minecraft:sand")), List.of(glass))
 			)
 		);
 
@@ -252,10 +229,6 @@ public class RecipePreferenceRulesV2Test {
 			Optional.empty() :
 			Optional.of(IngredientExpression.parseUid(recipeExpr).orElseThrow());
 		return new RecipePreferenceRule(output, input, recipe);
-	}
-
-	private static IngredientSelector selector(String value) {
-		return IngredientSelector.parse(value).orElseThrow();
 	}
 
 	private static RecipePreferenceCandidate candidate(

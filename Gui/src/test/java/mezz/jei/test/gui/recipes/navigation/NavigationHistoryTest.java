@@ -5,9 +5,9 @@ import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class RecipeNavigationHistoryTest {
+public class NavigationHistoryTest {
 	@Test
-	public void navigatesBackwardAndForwardOneEntryAtATime() {
+	public void navigatesEntries() {
 		RecipeNavigationHistory<String> history = new RecipeNavigationHistory<>();
 		history.push("one");
 		history.push("two");
@@ -22,7 +22,7 @@ public class RecipeNavigationHistoryTest {
 	}
 
 	@Test
-	public void shiftStyleNavigationJumpsToTheRetainedEndpoints() {
+	public void jumpsToEndpoints() {
 		RecipeNavigationHistory<String> history = new RecipeNavigationHistory<>();
 		history.push("one");
 		history.push("two");
@@ -34,7 +34,7 @@ public class RecipeNavigationHistoryTest {
 	}
 
 	@Test
-	public void pushingFromTheMiddleDiscardsForwardEntries() {
+	public void replacesForwardHistory() {
 		RecipeNavigationHistory<String> history = new RecipeNavigationHistory<>();
 		history.push("one");
 		history.push("two");
@@ -49,7 +49,7 @@ public class RecipeNavigationHistoryTest {
 	}
 
 	@Test
-	public void evictsTheOldestEntryAtCapacity() {
+	public void evictsOldestEntry() {
 		RecipeNavigationHistory<Integer> history = new RecipeNavigationHistory<>();
 		for (int entry = 0; entry <= RecipeNavigationHistory.DEFAULT_CAPACITY; entry++) {
 			history.push(entry);
@@ -61,7 +61,7 @@ public class RecipeNavigationHistoryTest {
 	}
 
 	@Test
-	public void clearRemovesTheWholeSession() {
+	public void clearsHistory() {
 		RecipeNavigationHistory<String> history = new RecipeNavigationHistory<>();
 		history.push("one");
 		history.push("two");

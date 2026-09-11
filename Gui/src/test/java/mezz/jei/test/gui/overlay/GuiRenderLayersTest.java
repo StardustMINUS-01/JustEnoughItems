@@ -9,12 +9,8 @@ public class GuiRenderLayersTest {
 	private static final int ITEM_BATCH_RENDER_Z = 150;
 
 	@Test
-	public void overlayDecorationsRenderBelowTooltips() {
+	public void ordersOverlayLayers() {
 		assertTrue(GuiRenderLayers.OVERLAY_DECORATION_Z < GuiRenderLayers.TOOLTIP_Z);
-	}
-
-	@Test
-	public void overlayDecorationsRenderAboveItemBatchModels() {
 		assertTrue(GuiRenderLayers.OVERLAY_DECORATION_Z > ITEM_BATCH_RENDER_Z);
 	}
 }

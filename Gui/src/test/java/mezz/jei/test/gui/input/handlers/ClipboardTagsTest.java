@@ -8,18 +8,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class IngredientClipboardTextTest {
+public class ClipboardTagsTest {
 	@Test
-	public void formatsSlashTags() {
-		List<String> text = IngredientClipboardText.formatTagLocations(Stream.of(
-			ResourceLocation.parse("minecraft:mineable/pickaxe"),
-			ResourceLocation.parse("minecraft:planks")
-		));
-		Assertions.assertEquals(List.of("#minecraft:mineable/pickaxe", "#minecraft:planks"), text);
-	}
-
-	@Test
-	public void deduplicatesAndSortsTags() {
+	public void formatsTags() {
 		List<String> text = IngredientClipboardText.formatTagLocations(Stream.of(
 			ResourceLocation.parse("minecraft:planks"),
 			ResourceLocation.parse("minecraft:mineable/pickaxe"),

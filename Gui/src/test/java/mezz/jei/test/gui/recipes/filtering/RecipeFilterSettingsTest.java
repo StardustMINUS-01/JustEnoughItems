@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 public class RecipeFilterSettingsTest {
 	@Test
-	public void cyclesThroughTheThreeFilterModes() {
+	public void cyclesModes() {
 		RecipeFilterSettings settings = new RecipeFilterSettings();
 
 		Assertions.assertEquals(RecipeFilterMode.ALL, settings.getMode());
@@ -17,11 +17,12 @@ public class RecipeFilterSettingsTest {
 	}
 
 	@Test
-	public void commitsCancelsAndClearsSearchText() {
+	public void editsQuery() {
 		RecipeFilterSettings settings = new RecipeFilterSettings();
 		settings.setDraftQuery("i:#c:ingots");
 
 		Assertions.assertTrue(settings.commitQuery());
+		Assertions.assertFalse(settings.commitQuery());
 		Assertions.assertEquals("i:#c:ingots", settings.getAppliedQuery());
 
 		settings.setDraftQuery("unfinished");
@@ -35,7 +36,7 @@ public class RecipeFilterSettingsTest {
 	}
 
 	@Test
-	public void restoresARecipeNavigationSnapshot() {
+	public void restoresSnapshot() {
 		RecipeFilterSettings settings = new RecipeFilterSettings();
 		settings.setDraftQuery("discarded");
 		settings.commitQuery();
