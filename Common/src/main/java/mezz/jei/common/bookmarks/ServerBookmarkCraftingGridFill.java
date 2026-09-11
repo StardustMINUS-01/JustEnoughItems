@@ -29,13 +29,10 @@ public final class ServerBookmarkCraftingGridFill {
 	private ServerBookmarkCraftingGridFill() {
 	}
 
-	@FunctionalInterface
 	public interface ExternalIngredientSource {
 		ItemStack extract(int slotIndex, ItemStack template, int amount);
 
-		default long countAvailable(int slotIndex, ItemStack template) {
-			return 0;
-		}
+		long countAvailable(int slotIndex, ItemStack template);
 	}
 
 	public static int fill(ServerPlayer player, int containerId, List<ItemStack> targetStacks, int multiplier) {
@@ -63,11 +60,7 @@ public final class ServerBookmarkCraftingGridFill {
 		List<Slot> craftingSlots,
 		@Nullable ExternalIngredientSource externalSource
 	) {
-		if (menu.containerId != containerId || targetStacks.isEmpty()) {
-			return 0;
-		}
-
-		if (craftingSlots.isEmpty()) {
+		if (menu.containerId != containerId || targetStacks.isEmpty() || craftingSlots.isEmpty()) {
 			return 0;
 		}
 
@@ -107,8 +100,7 @@ public final class ServerBookmarkCraftingGridFill {
 	private static List<ItemStack> normalizeTargetStacks(List<ItemStack> targetStacks, int slotCount) {
 		List<ItemStack> result = new ArrayList<>(slotCount);
 		for (int i = 0; i < slotCount; i++) {
-			ItemStack stack = i < targetStacks.size() ? targetStacks.get(i) : ItemStack.EMPTY;
-			result.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
+			result.add(i < targetStacks.size() ? targetStacks.get(i) : ItemStack.EMPTY);
 		}
 		return result;
 	}
@@ -119,7 +111,7 @@ public final class ServerBookmarkCraftingGridFill {
 			.collect(Collectors.toCollection(ArrayList::new));
 		for (Slot slot : craftingSlots) {
 			ItemStack stack = slot.getItem();
-			if (!stack.isEmpty() && !simulateInsert(simulated, playerSlots, stack.copy())) {
+			if (!stack.isEmpty() && !simulateInsert(simulated, playerSlots, stack)) {
 				return false;
 			}
 		}
@@ -130,7 +122,7 @@ public final class ServerBookmarkCraftingGridFill {
 		List<ItemStack> simulated = playerSlots.stream()
 			.map(slot -> slot.getItem().copy())
 			.collect(Collectors.toCollection(ArrayList::new));
-		return simulateInsert(simulated, playerSlots, stack.copy());
+		return simulateInsert(simulated, playerSlots, stack);
 	}
 
 	private static boolean simulateInsert(List<ItemStack> simulated, List<Slot> playerSlots, ItemStack stack) {
@@ -171,13 +163,20 @@ public final class ServerBookmarkCraftingGridFill {
 			if (recipeStack.isEmpty()) {
 				continue;
 			}
-			int available = countAvailable(playerSlots, craftingSlots, recipeStack);
+			int available = countAvailable(playerSlots, recipeStack) + countAvailable(craftingSlots, recipeStack);
 			if (externalSource != null) {
 				long externalAvailable = externalSource.countAvailable(i, recipeStack);
 				available = (int) Math.min(Integer.MAX_VALUE, (long) available + externalAvailable);
 			}
-			int requiredPerCraft = countRequiredPerCraft(recipeStacks, recipeStack);
-			int stackLimit = Math.min(recipeStack.getMaxStackSize(), minTargetSlotLimit(craftingSlots, recipeStacks, recipeStack));
+			int requiredPerCraft = 0;
+			int stackLimit = recipeStack.getMaxStackSize();
+			for (int j = 0; j < recipeStacks.size(); j++) {
+				ItemStack stack = recipeStacks.get(j);
+				if (CraftingStackMatcher.matchesIngredientTemplate(recipeStack, stack)) {
+					requiredPerCraft += stack.getCount();
+					stackLimit = Math.min(stackLimit, craftingSlots.get(j).getMaxStackSize(stack));
+				}
+			}
 			int slotCapacity = stackLimit / recipeStack.getCount();
 			craftCount = Math.min(craftCount, available / requiredPerCraft);
 			craftCount = Math.min(craftCount, slotCapacity);
@@ -185,42 +184,15 @@ public final class ServerBookmarkCraftingGridFill {
 		return craftCount;
 	}
 
-	private static int countAvailable(List<Slot> playerSlots, List<Slot> craftingSlots, ItemStack target) {
+	private static int countAvailable(List<Slot> slots, ItemStack target) {
 		int count = 0;
-		for (Slot slot : playerSlots) {
+		for (Slot slot : slots) {
 			ItemStack stack = slot.getItem();
-			if (!stack.isEmpty() && CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
-				count += stack.getCount();
-			}
-		}
-		for (Slot slot : craftingSlots) {
-			ItemStack stack = slot.getItem();
-			if (!stack.isEmpty() && CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
+			if (CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
 				count += stack.getCount();
 			}
 		}
 		return count;
-	}
-
-	private static int countRequiredPerCraft(List<ItemStack> recipeStacks, ItemStack target) {
-		int count = 0;
-		for (ItemStack stack : recipeStacks) {
-			if (!stack.isEmpty() && CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
-				count += stack.getCount();
-			}
-		}
-		return count;
-	}
-
-	private static int minTargetSlotLimit(List<Slot> craftingSlots, List<ItemStack> recipeStacks, ItemStack target) {
-		int limit = Integer.MAX_VALUE;
-		for (int i = 0; i < recipeStacks.size(); i++) {
-			ItemStack stack = recipeStacks.get(i);
-			if (!stack.isEmpty() && CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
-				limit = Math.min(limit, craftingSlots.get(i).getMaxStackSize(stack));
-			}
-		}
-		return limit == Integer.MAX_VALUE ? target.getMaxStackSize() : limit;
 	}
 
 	private static void stowCraftingGrid(List<Slot> craftingSlots, List<Slot> playerSlots) {
@@ -286,7 +258,7 @@ public final class ServerBookmarkCraftingGridFill {
 				continue;
 			}
 			ItemStack stack = slot.getItem();
-			if (stack.isEmpty() || !CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
+			if (!CraftingStackMatcher.matchesIngredientTemplate(target, stack)) {
 				continue;
 			}
 			int extracted = Math.min(remaining, stack.getCount());

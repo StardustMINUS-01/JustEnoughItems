@@ -30,10 +30,6 @@ public final class CraftingStackMatcher {
 		SPECIAL_ITEM_COMPATIBILITIES.add(compatibility);
 	}
 
-	/**
-	 * User-approved modern compatibility hook for mods whose recipe templates omit volatile capability NBT.
-	 * This only affects Shift+C/fill crafting ingredient matching; bookmarks, chat links, pulls, and result insertion stay exact.
-	 */
 	public static AutoCloseable registerNbtRelaxedCraftingNamespace(String namespace) {
 		String normalizedNamespace = normalizeNamespace(namespace);
 		boolean added = NBT_RELAXED_CRAFTING_NAMESPACES.add(normalizedNamespace);
