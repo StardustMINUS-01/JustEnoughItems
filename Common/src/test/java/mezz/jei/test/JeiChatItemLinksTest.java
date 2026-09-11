@@ -213,6 +213,17 @@ public class JeiChatItemLinksTest {
 		assertEquals("Try [Diamond] or [Stick].", parsed.getString());
 		assertRunCommand(firstLink, "minecraft:diamond");
 		assertRunCommand(secondLink, "minecraft:stick");
+
+		String snapshot = createBookmarkGroupSnapshot();
+		String groupMarker = JeiChatItemLinks.createBookmarkGroupLinkMarker(snapshot).trim();
+		Component mixed = JeiChatItemLinks.parseChatMessage(
+			Component.literal("[JEI-other] " + diamondMarker + " " + groupMarker + " " + stickMarker),
+			JeiChatItemLinksTest::getItemName
+		).orElseThrow();
+		assertEquals("[JEI-other] [Diamond] [Factory] [Stick]", mixed.getString());
+		assertRunCommand(mixed.getSiblings().get(1), "minecraft:diamond");
+		assertEquals(Optional.of(snapshot), JeiChatItemLinkHover.getBookmarkGroupSnapshot(mixed.getSiblings().get(3).getStyle()));
+		assertRunCommand(mixed.getSiblings().get(5), "minecraft:stick");
 	}
 
 	@Test
@@ -264,6 +275,7 @@ public class JeiChatItemLinksTest {
 
 		assertFalse(JeiChatItemLinks.hasLinkMarkers(rawText));
 		assertEquals(rawText, JeiChatItemLinks.parse(rawText).getString());
+		assertTrue(JeiChatItemLinks.parseChatMessage(Component.literal(rawText)).isEmpty());
 	}
 
 	private static void assertRunCommand(Component component, String itemId) {

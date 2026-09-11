@@ -59,16 +59,19 @@ public final class JeiChatItemLinks {
 	}
 
 	public static Component parse(String rawText, Function<IngredientLink, Optional<String>> ingredientNameLookup) {
+		return parseLinkedMessage(rawText, ingredientNameLookup)
+			.orElseGet(() -> Component.literal(rawText));
+	}
+
+	private static Optional<Component> parseLinkedMessage(String rawText, Function<IngredientLink, Optional<String>> ingredientNameLookup) {
+		Optional<ParsedLinkMarker> optionalMarker = findNextLinkMarker(rawText, 0, ingredientNameLookup);
+		if (optionalMarker.isEmpty()) {
+			return Optional.empty();
+		}
 		MutableComponent result = Component.empty();
-		int searchStart = 0;
 		int lastEnd = 0;
 
-		while (true) {
-			Optional<ParsedLinkMarker> optionalMarker = findNextLinkMarker(rawText, searchStart, ingredientNameLookup);
-			if (optionalMarker.isEmpty()) {
-				break;
-			}
-
+		do {
 			ParsedLinkMarker marker = optionalMarker.get();
 			if (marker.start() > lastEnd) {
 				result.append(Component.literal(rawText.substring(lastEnd, marker.start())));
@@ -76,15 +79,15 @@ public final class JeiChatItemLinks {
 
 			result.append(marker.component());
 
-			searchStart = marker.end();
 			lastEnd = marker.end();
-		}
+			optionalMarker = findNextLinkMarker(rawText, lastEnd, ingredientNameLookup);
+		} while (optionalMarker.isPresent());
 
 		if (lastEnd < rawText.length()) {
 			result.append(Component.literal(rawText.substring(lastEnd)));
 		}
 
-		return result;
+		return Optional.of(result);
 	}
 
 	public static Optional<Component> parseChatMessage(Component message) {
@@ -92,13 +95,7 @@ public final class JeiChatItemLinks {
 	}
 
 	public static Optional<Component> parseChatMessage(Component message, Function<IngredientLink, Optional<String>> ingredientNameLookup) {
-		String rawText = message.getString();
-		if (!hasLinkMarkers(rawText)) {
-			return Optional.empty();
-		}
-
-		Component parsedMessage = parse(rawText, ingredientNameLookup);
-		return Optional.of(parsedMessage);
+		return parseLinkedMessage(message.getString(), ingredientNameLookup);
 	}
 
 	public static boolean hasLinkMarkers(String rawText) {
@@ -222,13 +219,15 @@ public final class JeiChatItemLinks {
 		Function<IngredientLink, Optional<String>> ingredientNameLookup
 	) {
 		while (searchStart < rawText.length()) {
-			int ingredientStart = rawText.indexOf(LINK_MARKER_PREFIX, searchStart);
-			int groupStart = rawText.indexOf(BOOKMARK_GROUP_MARKER_PREFIX, searchStart);
-			if (ingredientStart < 0 && groupStart < 0) {
+			int markerStart = rawText.indexOf("[JEI", searchStart);
+			if (markerStart < 0) {
 				return Optional.empty();
 			}
-			boolean groupMarker = groupStart >= 0 && (ingredientStart < 0 || groupStart < ingredientStart);
-			int markerStart = groupMarker ? groupStart : ingredientStart;
+			searchStart = markerStart + 1;
+			boolean groupMarker = rawText.startsWith(BOOKMARK_GROUP_MARKER_PREFIX, markerStart);
+			if (!groupMarker && !rawText.startsWith(LINK_MARKER_PREFIX, markerStart)) {
+				continue;
+			}
 			Optional<ParsedLinkMarker> marker = groupMarker ?
 				parseBookmarkGroupMarker(rawText, markerStart) :
 				parseLinkMarker(rawText, markerStart)
@@ -240,12 +239,10 @@ public final class JeiChatItemLinks {
 			if (marker.isPresent()) {
 				return marker;
 			}
-			searchStart = markerStart + 1;
 		}
 		return Optional.empty();
 	}
 
-	// Mixin contract signature retained from upstream JEI.
 	private static Optional<LinkMarker> parseLinkMarker(String rawText, int start) {
 		int argumentStart = start + LINK_MARKER_PREFIX.length();
 		int markerEnd = rawText.indexOf(LINK_MARKER_SUFFIX, argumentStart);
