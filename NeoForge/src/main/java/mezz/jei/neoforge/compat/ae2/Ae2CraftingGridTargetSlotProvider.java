@@ -16,31 +16,23 @@ import appeng.menu.me.items.CraftingTermMenu;
  * Loaded only when AE2 is installed.
  */
 public class Ae2CraftingGridTargetSlotProvider implements BookmarkGhostOverlayTargetSlots.Provider {
-	private final TargetSlotAccess targetSlotAccess;
-
 	public static Optional<Ae2CraftingGridTargetSlotProvider> createIfLoaded() {
 		return CompatUtil.createIfLoaded(
 			"appeng.menu.me.items.CraftingTermMenu",
-			() -> new Ae2CraftingGridTargetSlotProvider(new DirectTargetSlotAccess())
+			Ae2CraftingGridTargetSlotProvider::new
 		);
 	}
 
-	private Ae2CraftingGridTargetSlotProvider(TargetSlotAccess targetSlotAccess) {
-		this.targetSlotAccess = targetSlotAccess;
+	private Ae2CraftingGridTargetSlotProvider() {
 	}
 
 	@Override
 	public Optional<List<Slot>> getCraftingGridSlots(AbstractContainerMenu menu) {
-		return targetSlotAccess.getCraftingGridSlots(menu);
+		return DirectTargetSlotAccess.getCraftingGridSlots(menu);
 	}
 
-	private interface TargetSlotAccess {
-		Optional<List<Slot>> getCraftingGridSlots(AbstractContainerMenu menu);
-	}
-
-	private static final class DirectTargetSlotAccess implements TargetSlotAccess {
-		@Override
-		public Optional<List<Slot>> getCraftingGridSlots(AbstractContainerMenu menu) {
+	private static final class DirectTargetSlotAccess {
+		private static Optional<List<Slot>> getCraftingGridSlots(AbstractContainerMenu menu) {
 			if (!(menu instanceof CraftingTermMenu craftingMenu)) {
 				return Optional.empty();
 			}

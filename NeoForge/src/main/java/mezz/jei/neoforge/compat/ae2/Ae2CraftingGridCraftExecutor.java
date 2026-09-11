@@ -29,43 +29,32 @@ import appeng.menu.me.items.CraftingTermMenu;
 public class Ae2CraftingGridCraftExecutor implements ICraftingGridCraftExecutor {
 	private static final int MAX_MULTIPLIER = 64;
 
-	private final CraftingAccess craftingAccess;
-
 	public static Optional<Ae2CraftingGridCraftExecutor> createIfLoaded() {
 		return CompatUtil.createIfLoaded(
 			"appeng.menu.me.items.CraftingTermMenu",
-			() -> new Ae2CraftingGridCraftExecutor(new DirectCraftingAccess())
+			Ae2CraftingGridCraftExecutor::new
 		);
 	}
 
-	private Ae2CraftingGridCraftExecutor(CraftingAccess craftingAccess) {
-		this.craftingAccess = craftingAccess;
+	private Ae2CraftingGridCraftExecutor() {
 	}
 
 	@Override
 	public boolean canHandle(AbstractContainerMenu menu) {
-		return craftingAccess.canHandle(menu);
+		return DirectCraftingAccess.canHandle(menu);
 	}
 
 	@Override
 	public int craft(ServerPlayer player, int containerId, @Nullable ResourceLocation recipeId, List<ItemStack> targetStacks, int multiplier) {
-		return craftingAccess.craft(player, containerId, targetStacks, multiplier);
+		return DirectCraftingAccess.craft(player, containerId, targetStacks, multiplier);
 	}
 
-	private interface CraftingAccess {
-		boolean canHandle(AbstractContainerMenu menu);
-
-		int craft(ServerPlayer player, int containerId, List<ItemStack> targetStacks, int multiplier);
-	}
-
-	private static final class DirectCraftingAccess implements CraftingAccess {
-		@Override
-		public boolean canHandle(AbstractContainerMenu menu) {
+	private static final class DirectCraftingAccess {
+		private static boolean canHandle(AbstractContainerMenu menu) {
 			return menu instanceof CraftingTermMenu;
 		}
 
-		@Override
-		public int craft(ServerPlayer player, int containerId, List<ItemStack> targetStacks, int multiplier) {
+		private static int craft(ServerPlayer player, int containerId, List<ItemStack> targetStacks, int multiplier) {
 			AbstractContainerMenu menu = player.containerMenu;
 			if (!(menu instanceof CraftingTermMenu craftingMenu) || menu.containerId != containerId || targetStacks.isEmpty()) {
 				return 0;
