@@ -9,7 +9,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 public final class CollapsibleColorConfig {
-	public static final int DEFAULT_COLOR = 0x335555EE;
+	public static final int DEFAULT_COLOR = 0x339999FF;/*我爱你尘宝 */
 	private static final ColorSerializer SERIALIZER = new ColorSerializer();
 	private static final ConfigValue<Integer> collapsedColor = createValue("collapsedColor");
 	private static final ConfigValue<Integer> expandedColor = createValue("expandedColor");
