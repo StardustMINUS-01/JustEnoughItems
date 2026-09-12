@@ -3,7 +3,10 @@ package mezz.jei.test.gui.bookmarks.chain;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
@@ -45,11 +48,17 @@ public class ChainTooltipTest {
 	@ParameterizedTest
 	@CsvSource({"0, 0", "1, 0", "64, 0", "64, 20", "64, 64", "64, 80", "128, 20", "2500, 1000"})
 	public void allocatesInventory(long amount, long stored) {
-		BookmarkIngredientKey key = itemKey("minecraft:iron_ingot");
-		List<RecipeChainInput> inputs = List.of(new RecipeChainInput(0,
-			item(key, 1).withMultiplier(amount), key, typed(new ItemStack(Items.IRON_INGOT))));
-		Optional<RecipeChainDetails> details = Optional.of(RecipeChainMath.refresh(inputs, Set.of()));
-		List<RecipeChainInput> inventory = List.of(input(-1, item(key, stored)));
+		var manager = ingredientManager();
+		var bookmarks = new BookmarkList(null, null, manager, null, null, null, null);
+		bookmarks.addToListWithoutNotifying(IngredientBookmark.create(typed(new ItemStack(Items.IRON_INGOT)), manager), false);
+		int group = bookmarks.createGroupForBookmarks("Target", bookmarks.getBookmarks());
+		bookmarks.moveBookmarkMetadataFromConfig(bookmarks.getBookmarks().getFirst(),
+			BookmarkItemMetadata.defaultForGroup(group).withMultiplier(amount));
+		bookmarks.setGroupCraftingMode(group, true);
+		List<RecipeChainInput> inputs = bookmarks.getRecipeChainTooltipInputs(group);
+		Optional<RecipeChainDetails> details = bookmarks.getRecipeChainDetails(group);
+		List<RecipeChainInput> inventory = List.of(input(-1,
+			BookmarkItemMetadataFactory.createForCraftingAvailable(group, typed(new ItemStack(Items.IRON_INGOT)), stored, manager)));
 
 		RecipeChainTooltipModel normal = RecipeChainTooltipModel.create(inputs, details, Set.of(), inventory, false, false, ingredientManager());
 		Assertions.assertEquals(amount, sectionAmount(normal, RecipeChainTooltipSectionType.INPUT));

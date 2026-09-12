@@ -1135,6 +1135,12 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private BookmarkItemMetadata hydrateRecipeChainMetadata(IBookmark bookmark, BookmarkItemMetadata metadata) {
+		if (metadata.type() == BookmarkItemType.ITEM && metadata.permutations().isEmpty() && ingredientManager != null) {
+			ITypedIngredient<?> ingredient = bookmark.getElement().getTypedIngredient();
+			if (ingredient != null) {
+				return metadata.withPermutations(Set.of(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)));
+			}
+		}
 		if (
 			recipeManager == null ||
 				focusFactory == null ||
