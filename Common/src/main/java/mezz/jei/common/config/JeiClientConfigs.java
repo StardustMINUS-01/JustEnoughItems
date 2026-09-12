@@ -2,6 +2,7 @@ package mezz.jei.common.config;
 
 import mezz.jei.api.gui.placement.HorizontalAlignment;
 import mezz.jei.common.config.file.ConfigSchemaBuilder;
+import mezz.jei.common.config.file.ConfigCategoryBuilder;
 import mezz.jei.common.config.file.FileWatcher;
 import mezz.jei.common.config.file.IConfigSchema;
 import mezz.jei.common.config.file.IConfigSchemaBuilder;
@@ -20,6 +21,7 @@ public class JeiClientConfigs implements IJeiClientConfigs {
 		IConfigSchemaBuilder builder = new ConfigSchemaBuilder(configFile, "jei.config.client");
 
 		clientConfig = new ClientConfig(builder);
+		CollapsibleColorConfig.register((ConfigCategoryBuilder) builder.addCategory("collapsible"));
 		ingredientFilterConfig = new IngredientFilterConfig(builder);
 		ingredientListConfig = new IngredientGridConfig("ingredientList", builder, HorizontalAlignment.RIGHT);
 		bookmarkListConfig = new IngredientGridConfig("bookmarkList", builder, HorizontalAlignment.LEFT);

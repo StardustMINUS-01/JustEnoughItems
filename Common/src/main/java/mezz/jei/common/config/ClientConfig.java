@@ -58,6 +58,7 @@ public final class ClientConfig implements IClientConfig {
 	private final ConfigValue<Integer> dragDelayMs;
 	private final ConfigValue<Integer> smoothScrollRate;
 	private final ConfigValue<Boolean> recipeSlotCyclingEnabled;
+	private final ConfigValue<Boolean> copyFullComponentsEnabled;
 
 	// sorting
 	private final ConfigValue<List<IngredientSortStage>> ingredientSorterStages;
@@ -157,6 +158,7 @@ public final class ClientConfig implements IClientConfig {
 			50
 		);
 		recipeSlotCyclingEnabled = input.addBoolean("recipeSlotCyclingEnabled", true);
+		copyFullComponentsEnabled = input.addBoolean("copyFullComponents", false);
 
 		IConfigCategoryBuilder sorting = schema.addCategory("sorting");
 		ingredientSorterStages = sorting.addList(
@@ -323,6 +325,11 @@ public final class ClientConfig implements IClientConfig {
 	@Override
 	public ConfigValue<Integer> smoothScrollRate() {
 		return smoothScrollRate;
+	}
+
+	@Override
+	public ConfigValue<Boolean> copyFullComponentsEnabled() {
+		return copyFullComponentsEnabled;
 	}
 
 	@Override

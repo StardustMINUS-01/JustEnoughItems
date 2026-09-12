@@ -31,16 +31,15 @@ public final class CollapsibleManager {
 		return settings;
 	}
 
+	public void setSettings(CollapsibleSettings settings) {
+		this.settings = settings;
+	}
+
 	public CollapsibleState state() {
 		return state;
 	}
 
 	public void reload(CollapsibleRules newRules) {
-		reload(newRules, settings);
-	}
-
-	public void reload(CollapsibleRules newRules, CollapsibleSettings newSettings) {
-		this.settings = newSettings;
 		// Rule order defines first-match priority; colors must not discard the classification cache.
 		var current = rules.groups();
 		var incoming = newRules.groups();

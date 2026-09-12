@@ -45,6 +45,7 @@ public class TestClientConfig implements IClientConfig {
 	private final IJeiConfigValue<Integer> dragDelayMs = value("dragDelayMs", 0);
 	private final IJeiConfigValue<Integer> smoothScrollRate = value("smoothScrollRate", 9);
 	private final IJeiConfigValue<Boolean> recipeSlotCyclingEnabled = value("recipeSlotCyclingEnabled", false);
+	private final IJeiConfigValue<Boolean> copyFullComponentsEnabled = value("copyFullComponents", false);
 	private final IJeiConfigValue<List<IngredientSortStage>> ingredientSorterStages = value("ingredientSorterStages", List.of());
 	private final IJeiConfigValue<List<RecipeSorterStage>> recipeSorterStages = value("recipeSorterStages", List.of());
 	private final IJeiConfigValue<Boolean> tagContentTooltipEnabled = value("tagContentTooltipEnabled", true);
@@ -196,6 +197,11 @@ public class TestClientConfig implements IClientConfig {
 	@Override
 	public IJeiConfigValue<Integer> smoothScrollRate() {
 		return smoothScrollRate;
+	}
+
+	@Override
+	public IJeiConfigValue<Boolean> copyFullComponentsEnabled() {
+		return copyFullComponentsEnabled;
 	}
 
 	@Override

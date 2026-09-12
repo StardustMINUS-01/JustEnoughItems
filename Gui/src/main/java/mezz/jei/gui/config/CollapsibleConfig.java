@@ -2,7 +2,7 @@ package mezz.jei.gui.config;
 
 import mezz.jei.gui.collapsible.CollapsibleRules;
 import mezz.jei.gui.collapsible.CollapsibleRulesSerializer;
-import mezz.jei.gui.collapsible.CollapsibleSettings;
+import mezz.jei.gui.collapsible.CollapsibleGroup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -10,37 +10,76 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 public final class CollapsibleConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
-	private static final String FILE_NAME = "collapsible-items.txt";
+	private static final String FILE_NAME = "collapsible-items-default.txt";
 
 	private final Path path;
 
 	public CollapsibleConfig(Path jeiConfigurationDir) {
-		this.path = jeiConfigurationDir.resolve(FILE_NAME);
+		this.path = jeiConfigurationDir.resolve("collapsible-items");
 	}
 
-	public record LoadedConfig(CollapsibleRules rules, CollapsibleSettings settings) {}
-
-	public LoadedConfig load() {
-		ensureDefaultFile();
+	public CollapsibleRules load() {
+		List<CollapsibleGroup> groups = new ArrayList<>();
 		try {
-			return CollapsibleRulesSerializer.deserialize(Files.readAllLines(path));
+			for (Path file : getFiles()) {
+				try {
+					groups.addAll(CollapsibleRulesSerializer.deserialize(Files.readAllLines(file), file.toString()));
+				} catch (IOException e) {
+					LOGGER.error("Failed to read collapsible rules from {}", file, e);
+				}
+			}
 		} catch (IOException | RuntimeException e) {
-			LOGGER.error("Failed to load collapsible items config from file {}", path, e);
-			return new LoadedConfig(CollapsibleRules.EMPTY, CollapsibleSettings.DEFAULT);
+			LOGGER.error("Failed to load collapsible rules from {}", path, e);
+		}
+		return new CollapsibleRules(groups);
+	}
+
+	public void initialize() {
+		try {
+			Files.createDirectories(path);
+			try (var files = Files.list(path.getParent())) {
+				for (Path source : files.filter(Files::isRegularFile).filter(file -> {
+					String name = file.getFileName().toString();
+					return name.equals("collapsible-items.txt") || name.startsWith("collapsible-items-") && name.endsWith(".txt");
+				}).toList()) {
+					String name = source.getFileName().toString();
+					try {
+						Files.move(source, path.resolve(name.equals("collapsible-items.txt") ? FILE_NAME : name));
+					} catch (IOException e) {
+						LOGGER.error("Failed to migrate collapsible rules {} into {}", source, path, e);
+					}
+				}
+			}
+			if (getFiles().isEmpty()) {
+				writeDefaultFile();
+			}
+		} catch (IOException e) {
+			LOGGER.error("Failed to initialize collapsible rules directory {}", path, e);
 		}
 	}
 
-	public void ensureDefaultFile() {
-		if (!Files.exists(path)) {
-			writeDefaultFile();
-		}
-	}
-
-	public Path getPath() {
+	public Path getDirectory() {
 		return path;
+	}
+
+	private List<Path> getFiles() throws IOException {
+		try (var files = Files.list(path)) {
+			return files.filter(Files::isRegularFile)
+				.filter(file -> file.getFileName().toString().endsWith(".txt"))
+				.sorted(Comparator.comparing((Path file) -> !hasPriority(file))
+					.thenComparing(file -> file.getFileName().toString()))
+				.toList();
+		}
+	}
+
+	private static boolean hasPriority(Path file) {
+		String name = file.getFileName().toString();
+		return name.startsWith("[") && name.indexOf(']') > 1;
 	}
 
 	private void writeDefaultFile() {
@@ -52,12 +91,10 @@ public final class CollapsibleConfig {
 			"$ Selectors: item:id, fluid:id, id, #tag, wildcards like gtceu:*_wire or *:path;",
 			"$ tag wildcards like #*:ingots.",
 			"$ \"$\" starts a line comment; \"$$ ... $$\" starts a block comment.",
-			"$ Quick import: drop files named \"collapsible-items-*.txt\" into this folder;",
-			"$ their contents are appended to this file and the files are deleted automatically.",
-			"",
-			"$ Optional group slot colors (ARGB hex).",
-			"collapsedColor = 0x335555EE",
-			"expandedColor = 0x335555EE",
+			"$ Place .txt rule files in this folder. Files prefixed with [name] match first;",
+			"$ files at the same priority are ordered by filename. All files participate.",
+			"$ Default rules are generated at startup only when no .txt files exist.",
+			"$ An empty .txt file prevents generation. Configure colors in JEI settings.",
 			"",
 			"item = minecraft:*_log & !minecraft:stripped_*_log",
 			"item = minecraft:stripped_*_log",
@@ -130,8 +167,7 @@ public final class CollapsibleConfig {
 			"item = minecraft:ominous_bottle"
 		);
 		try {
-			Files.createDirectories(path.getParent());
-			Files.write(path, lines);
+			Files.write(path.resolve(FILE_NAME), lines);
 		} catch (IOException e) {
 			LOGGER.error("Failed to create default collapsible items config at {}", path, e);
 		}

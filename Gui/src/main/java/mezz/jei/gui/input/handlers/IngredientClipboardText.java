@@ -8,12 +8,35 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import mezz.jei.gui.match.ComponentPattern;
+import com.mojang.serialization.DynamicOps;
+import net.minecraft.nbt.Tag;
+import java.util.ArrayList;
+import java.util.Optional;
+import java.util.Map;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 public final class IngredientClipboardText {
 	private IngredientClipboardText() {
+	}
+
+	public static Optional<String> getComponentRule(ItemStack stack, DynamicOps<Tag> ops, boolean fullComponents) {
+		List<String> components = new ArrayList<>();
+		var types = fullComponents ? stack.getComponents().keySet().iterator() : stack.getComponentsPatch().entrySet().stream()
+			.filter(entry -> entry.getValue().isPresent()).map(Map.Entry::getKey).iterator();
+		while (types.hasNext()) {
+			var type = types.next();
+			var encoded = ComponentPattern.encode(stack.getComponents(), type, ops);
+			if (encoded.isEmpty()) {
+				return Optional.empty();
+			}
+			components.add(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type) + " = " + encoded.get().toString().replace("*", "\\*"));
+		}
+		components.sort(String::compareTo);
+		String item = "item = " + getItemStackId(stack);
+		return Optional.of(components.isEmpty() ? item : item + " &\n  component:{" + String.join(",\n    ", components) + "}");
 	}
 
 	public static <T> String getIngredientName(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {

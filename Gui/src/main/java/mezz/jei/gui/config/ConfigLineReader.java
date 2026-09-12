@@ -1,6 +1,7 @@
 package mezz.jei.gui.config;
 
 import org.jetbrains.annotations.Nullable;
+import mezz.jei.gui.match.ExpressionSyntax;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,92 +19,87 @@ public final class ConfigLineReader {
 
 	public static List<Entry> read(List<String> lines) {
 		List<Entry> entries = new ArrayList<>();
-		String stripped = stripComments(String.join("\n", lines));
-		String[] strippedLines = stripped.split("\n", -1);
-		@Nullable String currentKey = null;
-		StringBuilder currentValue = new StringBuilder();
-		for (String line : strippedLines) {
-			String trimmed = line.trim();
-			if (trimmed.isEmpty()) {
-				continue;
-			}
-			if (trimmed.startsWith("[[") && trimmed.endsWith("]]")) {
-				flush(entries, currentKey, currentValue);
-				currentKey = null;
-				currentValue = new StringBuilder();
-				continue;
-			}
-			int separator = findSeparator(line);
-			if (separator >= 0) {
-				flush(entries, currentKey, currentValue);
-				currentKey = line.substring(0, separator).trim();
-				currentValue = new StringBuilder(line.substring(separator + 1).trim());
-			} else if (currentKey != null) {
-				if (!currentValue.isEmpty()) {
-					currentValue.append('\n');
+		LineReader reader = new LineReader();
+		@Nullable String key = null;
+		StringBuilder value = new StringBuilder();
+		for (int i = 0; i <= lines.size(); i++) {
+			if (i == lines.size()) {
+				if (reader.text.isEmpty()) {
+					break;
 				}
-				currentValue.append(trimmed);
+				reader.blockComment = false;
+			}
+			boolean quotedStart = reader.syntax.isQuoted();
+			String text = reader.read(i < lines.size() ? lines.get(i) : "");
+			if (text == null || text.isBlank() && !quotedStart) {
+				continue;
+			}
+			String trimmed = text.trim();
+			boolean section = reader.syntax.isTopLevel() && trimmed.startsWith("[[") && trimmed.endsWith("]]");
+			if (section || reader.separator >= 0) {
+				if (key != null) {
+					entries.add(new Entry(key, value.toString().trim()));
+				}
+				key = section ? null : text.substring(0, reader.separator).trim();
+				value.setLength(0);
+				text = section ? "" : text.substring(reader.separator + 1);
+			}
+			if (key != null) {
+				if (!value.isEmpty()) {
+					value.append('\n');
+				}
+				text = quotedStart ? text : text.stripLeading();
+				value.append(reader.syntax.isQuoted() ? text : text.stripTrailing());
+			} else {
+				reader.syntax = new ExpressionSyntax();
 			}
 		}
-		flush(entries, currentKey, currentValue);
-		return entries;
-	}
-
-	private static void flush(List<Entry> entries, @Nullable String key, StringBuilder value) {
 		if (key != null) {
 			entries.add(new Entry(key, value.toString().trim()));
 		}
+		return entries;
 	}
 
-	static String stripComments(String text) {
-		StringBuilder result = new StringBuilder();
-		boolean inQuotes = false;
-		boolean inBlockComment = false;
-		for (int i = 0; i < text.length(); i++) {
-			char c = text.charAt(i);
-			if (inBlockComment) {
-				if (c == '$' && i + 1 < text.length() && text.charAt(i + 1) == '$') {
-					inBlockComment = false;
-					i++;
-					while (i < text.length() && text.charAt(i) != '\n') {
-						i++;
+	private static final class LineReader {
+		private ExpressionSyntax syntax = new ExpressionSyntax();
+		private final StringBuilder text = new StringBuilder();
+		private boolean blockComment;
+		private int separator = -1;
+
+		@Nullable
+		private String read(String line) {
+			if (text.isEmpty()) {
+				separator = -1;
+			}
+			for (int i = 0; i < line.length(); i++) {
+				char c = line.charAt(i);
+				if (blockComment) {
+					if (line.startsWith("$$", i)) {
+						blockComment = false;
+						return null;
 					}
-				}
-				continue;
-			}
-			if (c == '"') {
-				inQuotes = !inQuotes;
-				result.append(c);
-				continue;
-			}
-			if (!inQuotes && c == '$') {
-				if (i + 1 < text.length() && text.charAt(i + 1) == '$') {
-					inBlockComment = true;
-					i++;
+				} else if (c == '$' && !syntax.isQuoted()) {
+					blockComment = line.startsWith("$$", i);
+					if (blockComment) {
+						i++;
+					} else {
+						break;
+					}
 				} else {
-					while (i < text.length() && text.charAt(i) != '\n') {
-						i++;
+					if (c == '=' && separator < 0 && syntax.isTopLevel()) {
+						separator = text.length();
 					}
-					result.append('\n');
-					continue;
+					syntax.accept(c);
+					text.append(c);
 				}
-			} else {
-				result.append(c);
 			}
-		}
-		return result.toString();
-	}
-
-	private static int findSeparator(String line) {
-		boolean inQuotes = false;
-		for (int i = 0; i < line.length(); i++) {
-			char c = line.charAt(i);
-			if (c == '"') {
-				inQuotes = !inQuotes;
-			} else if (c == '=' && !inQuotes) {
-				return i;
+			if (blockComment) {
+				return null;
 			}
+			syntax.accept('\n');
+			String result = text.toString();
+			text.setLength(0);
+			return result;
 		}
-		return -1;
 	}
 }

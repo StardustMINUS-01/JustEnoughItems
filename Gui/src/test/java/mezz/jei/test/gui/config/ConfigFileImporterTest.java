@@ -35,12 +35,12 @@ public class ConfigFileImporterTest {
 
 	@Test
 	public void ignoresNonMatchingFiles() throws Exception {
-		Path target = writeFile("collapsible-items.txt", "item = minecraft:dirt");
+		Path target = writeFile("recipe-preferences.txt", "output = minecraft:dirt");
 		Path unrelated = writeFile("other.txt", "item = minecraft:stone");
 
-		new ConfigFileImporter(tempDir).importFiles("collapsible-items-", target);
+		new ConfigFileImporter(tempDir).importFiles("recipe-preferences-", target);
 
-		Assertions.assertEquals(List.of("item = minecraft:dirt"), Files.readAllLines(target));
+		Assertions.assertEquals(List.of("output = minecraft:dirt"), Files.readAllLines(target));
 		Assertions.assertTrue(Files.exists(unrelated));
 	}
 
@@ -61,12 +61,12 @@ public class ConfigFileImporterTest {
 
 	@Test
 	public void removesEmptySource() throws Exception {
-		Path target = writeFile("collapsible-items.txt", "item = minecraft:dirt");
-		Path empty = writeFile("collapsible-items-empty.txt");
+		Path target = writeFile("recipe-preferences.txt", "output = minecraft:dirt");
+		Path empty = writeFile("recipe-preferences-empty.txt");
 
-		new ConfigFileImporter(tempDir).importFiles("collapsible-items-", target);
+		new ConfigFileImporter(tempDir).importFiles("recipe-preferences-", target);
 
-		Assertions.assertEquals(List.of("item = minecraft:dirt"), Files.readAllLines(target));
+		Assertions.assertEquals(List.of("output = minecraft:dirt"), Files.readAllLines(target));
 		Assertions.assertFalse(Files.exists(empty));
 	}
 

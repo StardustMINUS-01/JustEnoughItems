@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.component.DataComponentMap;
 
 import java.util.Set;
 import java.util.Optional;
@@ -18,8 +19,12 @@ import java.util.stream.Stream;
 public record IngredientMatchInfo(
 	Kind kind,
 	ResourceLocation id,
-	Set<ResourceLocation> tagIds
+	Set<ResourceLocation> tagIds,
+	DataComponentMap components
 ) {
+	public IngredientMatchInfo(Kind kind, ResourceLocation id, Set<ResourceLocation> tagIds) {
+		this(kind, id, tagIds, DataComponentMap.EMPTY);
+	}
 	public IngredientMatchInfo {
 		tagIds = tagIds == null ? Set.of() : Set.copyOf(tagIds);
 	}
@@ -40,13 +45,17 @@ public record IngredientMatchInfo(
 		ITypedIngredient<?> ingredient,
 		boolean includeBlockTags
 	) {
+		return fromIngredient(ingredient, includeBlockTags, true);
+	}
+
+	public static Optional<IngredientMatchInfo> fromIngredient(ITypedIngredient<?> ingredient, boolean includeBlockTags, boolean includeComponents) {
 		return ingredient.getItemStack()
 			.filter(stack -> !stack.isEmpty())
-			.map(stack -> fromItemStack(stack, includeBlockTags))
+			.map(stack -> fromItemStack(stack, includeBlockTags, includeComponents))
 			.or(() -> fromFluidIngredient(ingredient, Services.PLATFORM.getFluidHelper()));
 	}
 
-	private static IngredientMatchInfo fromItemStack(ItemStack stack, boolean includeBlockTags) {
+	private static IngredientMatchInfo fromItemStack(ItemStack stack, boolean includeBlockTags, boolean includeComponents) {
 		Stream<ResourceLocation> tagLocations = stack.getTags().map(TagKey::location);
 		if (stack.getItem() instanceof BlockItem blockItem && includeBlockTags) {
 			tagLocations = Stream.concat(
@@ -56,7 +65,8 @@ public record IngredientMatchInfo(
 		}
 		Set<ResourceLocation> tagIds = tagLocations
 			.collect(Collectors.toUnmodifiableSet());
-		return item(BuiltInRegistries.ITEM.getKey(stack.getItem()), tagIds);
+		return new IngredientMatchInfo(Kind.ITEM, BuiltInRegistries.ITEM.getKey(stack.getItem()), tagIds,
+			includeComponents ? stack.getComponents() : DataComponentMap.EMPTY);
 	}
 
 	private static boolean includeBlockTags() {

@@ -15,11 +15,18 @@ public class ConfigLineReaderTest {
 			"output = minecraft:iron_ingot $ trailing",
 			"$$ block",
 			"$$ end",
-			"input = \"minecraft:iron_ore\""
+			"input = \"minecraft:iron_ore\"",
+			"item = minecraft:$$ inline",
+			"ignored = true",
+			"$$ end",
+			"stone",
+			"item = minecraft:dirt $$ unfinished"
 		);
 		Assertions.assertEquals(List.of(
 			new Entry("output", "minecraft:iron_ingot"),
-			new Entry("input", "\"minecraft:iron_ore\"")
+			new Entry("input", "\"minecraft:iron_ore\""),
+			new Entry("item", "minecraft:stone"),
+			new Entry("item", "minecraft:dirt")
 		), ConfigLineReader.read(lines));
 	}
 

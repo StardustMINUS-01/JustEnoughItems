@@ -45,6 +45,7 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 
 	IJeiKeyMapping getCopyIngredientName();
 	IJeiKeyMapping getCopyIngredientTags();
+	IJeiKeyMapping getCopyIngredientComponents();
 	IJeiKeyMapping getCopyIngredientId();
 
 	IJeiKeyMapping getTransferRecipeBookmark();

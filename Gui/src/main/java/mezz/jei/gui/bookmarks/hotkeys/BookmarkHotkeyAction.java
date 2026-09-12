@@ -33,5 +33,6 @@ public enum BookmarkHotkeyAction {
 	TOGGLE_INPUT_NONCONSUMABLE,
 	COPY_NAME,
 	COPY_ID,
+	COPY_COMPONENTS,
 	COPY_OREDICT
 }

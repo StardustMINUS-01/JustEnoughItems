@@ -42,6 +42,9 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.collapsible.CollapsibleManager;
 import mezz.jei.gui.collapsible.CollapsibleState;
 import mezz.jei.gui.config.CollapsibleConfig;
+import mezz.jei.common.config.CollapsibleColorConfig;
+import mezz.jei.gui.collapsible.CollapsibleRules;
+import mezz.jei.gui.collapsible.CollapsibleSettings;
 import mezz.jei.gui.config.CollapsibleStateStore;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import mezz.jei.gui.config.BookmarkConfigEntryCodec;
@@ -166,14 +169,11 @@ public class JeiGuiStarter {
 		RecipePreferenceRules recipePreferenceRules = recipePreferenceConfig.loadRules();
 		CollapsibleManager collapsibleManager = null;
 		if (!collapsibleGroupsInstalled) {
-			collapsibleConfig.ensureDefaultFile();
-			configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath());
 			CollapsibleState collapsibleState = new CollapsibleState();
 			collapsibleState.load(collapsibleStateStore.load());
-			var loadedConfig = collapsibleConfig.load();
 			collapsibleManager = new CollapsibleManager(
-				loadedConfig.rules(),
-				loadedConfig.settings(),
+				collapsibleConfig.load(),
+				CollapsibleSettings.fromConfig(),
 				collapsibleState
 			);
 			collapsibleState.addListener(() -> collapsibleStateStore.save(collapsibleState.toMap()));
@@ -335,19 +335,19 @@ public class JeiGuiStarter {
 		);
 		if (collapsibleManager != null) {
 			CollapsibleManager activeCollapsibleManager = collapsibleManager;
-			ConfigRulesReloadController<CollapsibleConfig.LoadedConfig> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
+			CollapsibleColorConfig.getCollapsedColor().addListener(color ->
+				activeCollapsibleManager.setSettings(new CollapsibleSettings(color, activeCollapsibleManager.settings().expandedColor())));
+			CollapsibleColorConfig.getExpandedColor().addListener(color ->
+				activeCollapsibleManager.setSettings(new CollapsibleSettings(activeCollapsibleManager.settings().collapsedColor(), color)));
+			ConfigRulesReloadController<CollapsibleRules> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
 				collapsibleConfig::load,
 				minecraft::execute,
-				config -> activeCollapsibleManager.reload(config.rules(), config.settings())
-			);
-			Internal.getFileWatcher().addCallback(
-				collapsibleConfig.getPath(),
-				collapsibleRulesReloadController::onConfigFileChanged
+				activeCollapsibleManager::reload
 			);
 			Internal.getFileWatcher().addDirectoryCallback(
-				configData.configDir(),
-				path -> path.getFileName().toString().startsWith("collapsible-items-"),
-				() -> configFileImporter.importFiles("collapsible-items-", collapsibleConfig.getPath())
+				collapsibleConfig.getDirectory(),
+				path -> path.getFileName().toString().endsWith(".txt"),
+				collapsibleRulesReloadController::onConfigFileChanged
 			);
 		}
 		Internal.getFileWatcher().addDirectoryCallback(

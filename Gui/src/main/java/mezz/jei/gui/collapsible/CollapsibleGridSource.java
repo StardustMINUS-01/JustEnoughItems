@@ -88,7 +88,7 @@ public final class CollapsibleGridSource implements IIngredientGridSource {
 		}
 		if (layout == null) {
 			layout = CollapsibleLayout.prepare(delegate.getElements(), manager.rules(),
-				typedIngredient -> IngredientMatchInfo.fromIngredient(typedIngredient, includeBlockTags));
+				typedIngredient -> IngredientMatchInfo.fromIngredient(typedIngredient, includeBlockTags, manager.rules().hasComponents()));
 		}
 		this.foldedElements = layout.project(manager.state(), (element, info) -> new CollapsedGroupElement<>(
 			element, info.group(), manager, !info.expanded(), !info.autoExpanded(), info.groupSize(), info.hiddenMembers()));

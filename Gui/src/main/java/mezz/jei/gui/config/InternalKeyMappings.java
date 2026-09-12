@@ -59,6 +59,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMappingWithExtraModifiers showUses;
 	private final IJeiKeyMapping copyIngredientName;
 	private final IJeiKeyMapping copyIngredientTags;
+	private final IJeiKeyMapping copyIngredientComponents;
 	private final IJeiKeyMapping copyIngredientId;
 
 	private final IJeiKeyMapping cheatOneItem;
@@ -222,6 +223,12 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
 			.buildKeyboardKey(GLFW.GLFW_KEY_D)
+			.register(registerMethod);
+
+		copyIngredientComponents = mouseHover.createMapping("key.jei.copyIngredientComponents")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_S)
 			.register(registerMethod);
 
 		copyIngredientId = mouseHover.createMapping("key.jei.copyIngredientId")
@@ -572,6 +579,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getCopyIngredientTags() {
 		return copyIngredientTags;
+	}
+
+	@Override
+	public IJeiKeyMapping getCopyIngredientComponents() {
+		return copyIngredientComponents;
 	}
 
 	@Override

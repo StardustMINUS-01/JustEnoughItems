@@ -1,7 +1,6 @@
 package mezz.jei.gui.collapsible;
 
 import mezz.jei.gui.config.ConfigLineReader;
-import mezz.jei.gui.config.CollapsibleConfig;
 import mezz.jei.gui.match.IngredientExpression;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,36 +19,26 @@ public final class CollapsibleRulesSerializer {
 
 	private CollapsibleRulesSerializer() {}
 
-	public static CollapsibleConfig.LoadedConfig deserialize(List<String> lines) {
+	public static List<CollapsibleGroup> deserialize(List<String> lines) {
+		return deserialize(lines, "collapsible rules");
+	}
+
+	public static List<CollapsibleGroup> deserialize(List<String> lines, String source) {
 		List<CollapsibleGroup> groups = new ArrayList<>();
-		int collapsedColor = CollapsibleSettings.DEFAULT_COLLAPSED_COLOR;
-		int expandedColor = CollapsibleSettings.DEFAULT_EXPANDED_COLOR;
+		int rule = 0;
 		for (ConfigLineReader.Entry entry : ConfigLineReader.read(lines)) {
-			if ("collapsedColor".equals(entry.key())) {
-				collapsedColor = parseColor(entry.value(), collapsedColor);
-			} else if ("expandedColor".equals(entry.key())) {
-				expandedColor = parseColor(entry.value(), expandedColor);
-			}
 			if (!"item".equals(entry.key())) {
 				continue;
 			}
 			String value = entry.value();
+			rule++;
 			Optional<IngredientExpression> expression = IngredientExpression.parseIngredient(value);
 			if (value.isBlank() || expression.isEmpty()) {
-				LOGGER.error("Skipping invalid collapsible group: {}", value);
+				LOGGER.error("Skipping invalid collapsible group in {}, rule {}: {}", source, rule, value);
 				continue;
 			}
 			groups.add(CollapsibleGroup.create(value, expression.get()));
 		}
-		return new CollapsibleConfig.LoadedConfig(new CollapsibleRules(groups), new CollapsibleSettings(collapsedColor, expandedColor));
-	}
-
-	private static int parseColor(String value, int fallback) {
-		try {
-			return Integer.decode(value.trim());
-		} catch (RuntimeException e) {
-			LOGGER.error("Invalid collapsible color value '{}', using {}", value, String.format("0x%08X", fallback));
-			return fallback;
-		}
+		return groups;
 	}
 }

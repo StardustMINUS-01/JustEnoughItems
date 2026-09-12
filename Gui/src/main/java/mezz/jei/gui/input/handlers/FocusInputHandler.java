@@ -7,6 +7,9 @@ import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.chat.JeiChatItemLinks;
+import mezz.jei.common.Internal;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.nbt.NbtOps;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.config.IClientConfig;
@@ -49,6 +52,7 @@ public class FocusInputHandler implements IUserInputHandler {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final CommandUtil commandUtil;
+	private final IClientConfig clientConfig;
 	private final IngredientTagSelectionTooltip tagSelectionTooltip = new IngredientTagSelectionTooltip();
 
 	public IngredientTagSelectionTooltip getTagSelectionTooltip() {
@@ -72,10 +76,15 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
 		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
+		this.clientConfig = clientConfig;
 	}
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getCopyIngredientComponents()) &&
+			(screen.getFocused() instanceof EditBox || Internal.getJeiRuntime().getIngredientListOverlay().hasKeyboardFocus())) {
+			return Optional.empty();
+		}
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
@@ -200,6 +209,9 @@ public class FocusInputHandler implements IUserInputHandler {
 	}
 
 	private static Optional<BookmarkHotkeyAction> getIngredientKeyboardAction(UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getCopyIngredientComponents())) {
+			return Optional.of(BookmarkHotkeyAction.COPY_COMPONENTS);
+		}
 		BookmarkHotkeyContext context = BookmarkHotkeyContext.builder(BookmarkHotkeySubject.INGREDIENT)
 			.hasIngredient(true)
 			.build();
@@ -218,10 +230,17 @@ public class FocusInputHandler implements IUserInputHandler {
 	private <T> void executeIngredientKeyboardShortcut(mezz.jei.api.ingredients.ITypedIngredient<T> typedIngredient, BookmarkHotkeyAction action) {
 		Minecraft minecraft = Minecraft.getInstance();
 		String text = switch (action) {
+			case COPY_COMPONENTS -> typedIngredient.getItemStack()
+				.flatMap(stack -> IngredientClipboardText.getComponentRule(stack, minecraft.level.registryAccess().createSerializationContext(NbtOps.INSTANCE), clientConfig.copyFullComponentsEnabled().getValue()))
+				.orElse("");
 			case COPY_NAME -> IngredientClipboardText.getIngredientName(typedIngredient, ingredientManager);
 			case COPY_ID -> IngredientClipboardText.getIngredientId(typedIngredient, ingredientManager);
 			default -> "";
 		};
+		if (action == BookmarkHotkeyAction.COPY_COMPONENTS && text.isEmpty()) {
+			displayClientMessage(Component.translatable("jei.message.copy.components.failure"));
+			return;
+		}
 		minecraft.keyboardHandler.setClipboard(text);
 		JeiClientSoundUtil.playClickSound();
 	}

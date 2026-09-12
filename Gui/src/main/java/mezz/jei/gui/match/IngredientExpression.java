@@ -1,6 +1,10 @@
 package mezz.jei.gui.match;
 
 import net.minecraft.resources.ResourceLocation;
+import com.mojang.brigadier.StringReader;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.minecraft.nbt.Tag;
+import java.util.function.Function;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,15 +15,21 @@ import java.util.regex.Pattern;
 public final class IngredientExpression {
 	private final List<Expr> tiers;
 	private final Kind kind;
+	private final boolean components;
 
 	private enum Kind {
 		INGREDIENT,
 		UID
 	}
 
-	private IngredientExpression(List<Expr> tiers, Kind kind) {
+	private IngredientExpression(List<Expr> tiers, Kind kind, boolean components) {
 		this.tiers = tiers;
 		this.kind = kind;
+		this.components = components;
+	}
+
+	public boolean hasComponents() {
+		return components;
 	}
 
 	public static Optional<IngredientExpression> parseIngredient(String text) {
@@ -59,11 +69,15 @@ public final class IngredientExpression {
 	 * Avoids the list allocation of {@link #rank(List)}.
 	 */
 	public boolean matches(IngredientMatchInfo info) {
+		return matches(info, components ? ComponentPattern.createLookup(info.components()) : id -> Optional.empty());
+	}
+
+	public boolean matches(IngredientMatchInfo info, Function<ResourceLocation, Optional<Tag>> components) {
 		if (kind != Kind.INGREDIENT) {
 			throw new IllegalStateException("Cannot match a uid expression with an ingredient");
 		}
 		for (Expr tier : tiers) {
-			if (eval(tier, info)) {
+			if (eval(tier, info, components)) {
 				return true;
 			}
 		}
@@ -79,35 +93,32 @@ public final class IngredientExpression {
 			return Optional.empty();
 		}
 		List<Expr> tiers = new ArrayList<>(tierTexts.size());
+		boolean components = false;
 		for (String tierText : tierTexts) {
-			Optional<Expr> expr = new Parser(tierText, kind).parse();
+			Parser parser = new Parser(tierText, kind);
+			Optional<Expr> expr = parser.parse();
 			if (expr.isEmpty()) {
 				return Optional.empty();
 			}
 			tiers.add(expr.get());
+			components |= parser.components;
 		}
-		return Optional.of(new IngredientExpression(List.copyOf(tiers), kind));
+		return Optional.of(new IngredientExpression(List.copyOf(tiers), kind, components));
 	}
 
 	private static List<String> splitTiers(String text) {
 		List<String> tiers = new ArrayList<>();
-		int depth = 0;
+		ExpressionSyntax syntax = new ExpressionSyntax();
 		int start = 0;
 		for (int i = 0; i < text.length(); i++) {
 			char c = text.charAt(i);
-			if (c == '(') {
-				depth++;
-			} else if (c == ')') {
-				depth--;
-				if (depth < 0) {
-					return List.of();
-				}
-			} else if (c == ';' && depth == 0) {
+			if (c == ';' && syntax.isTopLevel()) {
 				tiers.add(text.substring(start, i));
 				start = i + 1;
 			}
+			syntax.accept(c);
 		}
-		if (depth != 0) {
+		if (!syntax.isTopLevel()) {
 			return List.of();
 		}
 		tiers.add(text.substring(start));
@@ -118,6 +129,9 @@ public final class IngredientExpression {
 	}
 
 	private boolean eval(Expr expr, List<IngredientMatchInfo> ingredients) {
+		if (expr instanceof ComponentAtom) {
+			return ingredients.stream().anyMatch(info -> eval(expr, info, ComponentPattern.createLookup(info.components())));
+		}
 		if (expr instanceof IngredientAtom atom) {
 			return ingredients.stream().anyMatch(atom.target()::matches);
 		}
@@ -133,18 +147,21 @@ public final class IngredientExpression {
 		throw new IllegalStateException("Unexpected expression node: " + expr);
 	}
 
-	private boolean eval(Expr expr, IngredientMatchInfo info) {
+	private boolean eval(Expr expr, IngredientMatchInfo info, Function<ResourceLocation, Optional<Tag>> components) {
+		if (expr instanceof ComponentAtom atom) {
+			return info.kind() == IngredientMatchInfo.Kind.ITEM && atom.pattern().matches(components);
+		}
 		if (expr instanceof IngredientAtom atom) {
 			return atom.target().matches(info);
 		}
 		if (expr instanceof Not not) {
-			return !eval(not.inner(), info);
+			return !eval(not.inner(), info, components);
 		}
 		if (expr instanceof And and) {
-			return eval(and.left(), info) && eval(and.right(), info);
+			return eval(and.left(), info, components) && eval(and.right(), info, components);
 		}
 		if (expr instanceof Or or) {
-			return eval(or.left(), info) || eval(or.right(), info);
+			return eval(or.left(), info, components) || eval(or.right(), info, components);
 		}
 		throw new IllegalStateException("Unexpected expression node: " + expr);
 	}
@@ -165,8 +182,10 @@ public final class IngredientExpression {
 		throw new IllegalStateException("Unexpected expression node: " + expr);
 	}
 
-	private sealed interface Expr permits IngredientAtom, UidAtom, Not, And, Or {
+	private sealed interface Expr permits IngredientAtom, ComponentAtom, UidAtom, Not, And, Or {
 	}
+
+	private record ComponentAtom(ComponentPattern pattern) implements Expr {}
 
 	private record IngredientAtom(IngredientSelector target) implements Expr {
 	}
@@ -187,6 +206,7 @@ public final class IngredientExpression {
 		private final String text;
 		private final Kind kind;
 		private int index = 0;
+		private boolean components;
 
 		private Parser(String text, Kind kind) {
 			this.text = text;
@@ -240,6 +260,19 @@ public final class IngredientExpression {
 
 		private Expr parsePrimary() {
 			skipWhitespace();
+			if (kind == Kind.INGREDIENT && text.startsWith("component:", index)) {
+				StringReader reader = new StringReader(text);
+				reader.setCursor(index + "component:".length());
+				reader.skipWhitespace();
+				try {
+					ComponentPattern pattern = ComponentPattern.parse(reader);
+					index = reader.getCursor();
+					components = true;
+					return new ComponentAtom(pattern);
+				} catch (CommandSyntaxException e) {
+					throw new IllegalArgumentException(e.getMessage(), e);
+				}
+			}
 			if (consume('(')) {
 				Expr inner = parseOr();
 				skipWhitespace();

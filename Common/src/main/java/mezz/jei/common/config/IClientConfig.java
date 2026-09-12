@@ -69,6 +69,8 @@ public interface IClientConfig {
 
 	IJeiConfigValue<Boolean> recipeSlotCyclingEnabled();
 
+	IJeiConfigValue<Boolean> copyFullComponentsEnabled();
+
 	IJeiConfigValue<List<IngredientSortStage>> ingredientSorterStages();
 
 	IJeiConfigValue<List<RecipeSorterStage>> recipeSorterStages();
