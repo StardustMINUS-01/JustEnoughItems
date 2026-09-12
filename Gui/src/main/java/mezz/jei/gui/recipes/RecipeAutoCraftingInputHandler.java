@@ -53,7 +53,8 @@ public class RecipeAutoCraftingInputHandler implements IUserInputHandler {
 		double mouseY = input.getMouseY();
 		if (!BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems()) ||
 			!recipeLayout.isMouseOver(mouseX, mouseY) ||
-			!isOutputSlotUnderMouse(mouseX, mouseY)) {
+			!isOutputSlotUnderMouse(mouseX, mouseY)
+		) {
 			return Optional.empty();
 		}
 		if (!BookmarkAutoCraftingActivator.claimAutoCraftingInput(input, keyBindings.getCraftItems())) {

@@ -112,6 +112,9 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	}
 
 	private void updateScreenPropertiesIfDirty() {
+		if (Minecraft.getInstance().screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return;
+		}
 		if (this.screenPropertiesDirty) {
 			this.screenPropertiesDirty = false;
 			Minecraft minecraft = Minecraft.getInstance();

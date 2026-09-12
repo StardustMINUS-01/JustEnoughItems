@@ -38,7 +38,8 @@ public final class BookmarkRecipeSelection {
 		Map<Integer, List<ITypedIngredient<?>>> candidates = new LinkedHashMap<>();
 		List<IRecipeSlotView> slots = layout.getRecipeSlotsView().getSlotViews();
 		List<List<BookmarkIngredientKey>> slotKeys = slots.stream().map(slot -> slot.getAllIngredients()
-			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, manager)).toList()).toList();
+			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, manager)).toList())
+			.toList();
 		int inputIndex = 0;
 		for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
 			IRecipeSlotView slot = slots.get(slotIndex);
@@ -59,7 +60,8 @@ public final class BookmarkRecipeSelection {
 				boolean hasLaterSlot = false;
 				for (int later = slotIndex + 1; later < slots.size(); later++) {
 					if (slots.get(later).getRole() == slot.getRole() && matches(source, slotKeys.get(later))) {
-						hasLaterSlot = true; break;
+						hasLaterSlot = true;
+						break;
 					}
 				}
 				// Geometry distributes merged inputs; the last matching slot retains any edited quantity.
@@ -86,11 +88,19 @@ public final class BookmarkRecipeSelection {
 			if (slot.getRole() == RecipeIngredientRole.INPUT) {
 				candidates.put(inputIndex, binding == null ? List.of() : binding.candidates());
 				if (binding != null) {
-					inputs.put(inputIndex, binding); selected.put(inputIndex, binding.source().selectedKey());
+					inputs.put(inputIndex, binding);
+					selected.put(inputIndex, binding.source().selectedKey());
 				}
 				inputIndex++;
 			}
-			if (slot instanceof IRecipeSlotDrawable drawable) {
+			if (slot instanceof IRecipeSlotCandidateView view) {
+				view.setDisplayedCandidates(binding == null ? List.of() : binding.candidates());
+				if (slot.getRole() == RecipeIngredientRole.OUTPUT && binding != null) {
+					view.setSelectedCandidate(binding.candidates().stream()
+						.filter(value -> source.selectedKey().equals(BookmarkItemMetadataFactory.createPermutationKey(value, manager)))
+						.findFirst().orElse(null));
+				}
+			} else if (slot instanceof IRecipeSlotDrawable drawable) {
 				// Selected inputs are applied together below; missing slots need explicit empty overrides.
 				if (slot.getRole() == RecipeIngredientRole.OUTPUT || binding == null) {
 					drawable.clearDisplayOverrides();
@@ -99,9 +109,6 @@ public final class BookmarkRecipeSelection {
 						binding.candidates().stream().filter(value -> source.selectedKey().equals(BookmarkItemMetadataFactory.createPermutationKey(value, manager)))
 							.findFirst().ifPresent(overrides::addTypedIngredient);
 					}
-				}
-				if (slot instanceof IRecipeSlotCandidateView view) {
-					view.setDisplayedCandidates(binding == null ? List.of() : binding.candidates());
 				}
 			}
 		}
@@ -140,9 +147,10 @@ public final class BookmarkRecipeSelection {
 	private boolean applySelectedInputs(Map<Integer, BookmarkIngredientKey> before, BookmarkList bookmarks) {
 		var after = selections.selectedKeys();
 		List<Choice> choices = inputs.entrySet().stream().map(entry -> {
-			Binding binding = entry.getValue();
-			return new Choice(binding.source().index(), binding.source().selectedKey(), after.get(entry.getKey()), binding.amount());
-		}).toList();
+				Binding binding = entry.getValue();
+				return new Choice(binding.source().index(), binding.source().selectedKey(), after.get(entry.getKey()), binding.amount());
+			})
+			.toList();
 		if (!bookmarks.applyRecipeInputChoices(choices)) {
 			selections.setSelectedKeys(before);
 			selections.apply(layout);
@@ -155,6 +163,6 @@ public final class BookmarkRecipeSelection {
 		return manager.createTypedIngredient(ingredient.getType(), value, false).orElse(ingredient);
 	}
 
-	public record Choice(int sourceIndex, BookmarkIngredientKey before, BookmarkIngredientKey after, long amount) { }
-	private record Binding(RecipeChainInput source, long amount, List<ITypedIngredient<?>> candidates) { }
+	public record Choice(int sourceIndex, BookmarkIngredientKey before, BookmarkIngredientKey after, long amount) {}
+	private record Binding(RecipeChainInput source, long amount, List<ITypedIngredient<?>> candidates) {}
 }

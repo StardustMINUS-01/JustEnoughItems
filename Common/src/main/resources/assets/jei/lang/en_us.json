@@ -1,5 +1,6 @@
 {
   "jei.settings.configuration": "Configuration",
+  "jei.settings.apply": "Apply",
   "jei.settings.keybindings": "Key Bindings",
   "jei.settings.recordKey": "Press a key...",
   "jei.settings.singleModifier": "Use at most one modifier.",
@@ -283,6 +284,8 @@
   "jei.config.client.appearance.description": "Config options to change the appearance of JEI.",
   "jei.config.client.appearance.centerSearch": "Center Search Bar",
   "jei.config.client.appearance.quantityFieldEnabled": "Show Quantity Field",
+  "jei.config.client.appearance.configScreenTransparency": "Config Screen Background Transparency",
+  "jei.config.client.appearance.configScreenTransparency.description": "Background transparency percentage for the config screen. 0 is fully opaque; 100 is fully transparent. Applies after saving, without affecting text or buttons.",
   "jei.config.client.appearance.quantityFieldEnabled.description": "Show the quantity field. When disabled, Ctrl+Shift+scroll adjusts quantities by 64; Ctrl+scroll still adjusts by 1.",
   "jei.config.client.appearance.centerSearch.description": "Move the JEI search bar to the bottom center of the screen.",
   "jei.config.client.appearance.recipeGuiHeight": "Recipe GUI Height",

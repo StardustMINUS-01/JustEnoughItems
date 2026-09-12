@@ -56,6 +56,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -177,7 +178,7 @@ public class JeiDebugPlugin implements IModPlugin {
 			new ItemStack(Blocks.JUNGLE_DOOR),
 			new ItemStack(Blocks.ACACIA_DOOR),
 			new ItemStack(Blocks.DARK_OAK_DOOR)
-			),
+		),
 			Component.translatable("description.jei.wooden.door.1"), // actually 2 lines
 			Component.translatable("description.jei.wooden.door.2"),
 			Component.translatable("description.jei.wooden.door.3")
@@ -202,15 +203,17 @@ public class JeiDebugPlugin implements IModPlugin {
 				Component.translatable("description.jei.debug.formatting.3", "various").withStyle(ChatFormatting.DARK_AQUA)
 			),
 			Component.translatable("description.jei.debug.formatting.2",
-				Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
-				Component.literal("various").withStyle(ChatFormatting.RED)
-			).withStyle(ChatFormatting.BLUE),
+					Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
+					Component.literal("various").withStyle(ChatFormatting.RED)
+				)
+				.withStyle(ChatFormatting.BLUE),
 			Component.translatable("description.jei.debug.formatting.1",
 				Component.translatable("description.jei.debug.formatting.3",
 					Component.translatable("description.jei.debug.formatting.2",
-						Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
-						Component.literal("various").withStyle(ChatFormatting.RED)
-					).withStyle(ChatFormatting.DARK_AQUA)
+							Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
+							Component.literal("various").withStyle(ChatFormatting.RED)
+						)
+						.withStyle(ChatFormatting.DARK_AQUA)
 				)
 			)
 		);
@@ -300,10 +303,17 @@ public class JeiDebugPlugin implements IModPlugin {
 
 	private <T> void registerRecipeCatalysts(IRecipeCatalystRegistration registration, IPlatformFluidHelper<T> fluidHelper) {
 		long bucketVolume = fluidHelper.bucketVolume();
-
 		registration.addRecipeCatalyst(DebugIngredient.TYPE, new DebugIngredient(7), DebugRecipeCategory.TYPE);
 		registration.addRecipeCatalyst(fluidHelper.getFluidIngredientType(), fluidHelper.create(Fluids.WATER.defaultFluidState().holder(), bucketVolume), DebugRecipeCategory.TYPE);
 		registration.addRecipeCatalyst(Items.STICK, DebugRecipeCategory.TYPE);
+		registration.addRecipeCatalyst(
+			RecipeTypes.CRAFTING,
+			acceptor -> {
+				acceptor.addIngredients(Ingredient.of(ItemTags.PLANKS));
+				acceptor.addItemLike(Items.EMERALD);
+				acceptor.addItemLike(Items.DIAMOND);
+			}
+		);
 
 		RegistryUtil.getRegistry(Registries.ITEM)
 			.stream()

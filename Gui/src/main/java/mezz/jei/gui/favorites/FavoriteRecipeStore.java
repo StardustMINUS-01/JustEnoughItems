@@ -25,9 +25,7 @@ public class FavoriteRecipeStore {
 	public void setGeneratedFavoriteResolver(
 		@Nullable Function<BookmarkIngredientKey, Optional<FocusedRecipe>> generatedFavoriteResolver
 	) {
-		this.generatedFavoriteResolver = generatedFavoriteResolver == null ?
-			null :
-			(key, layoutCache) -> generatedFavoriteResolver.apply(key);
+		this.generatedFavoriteResolver = generatedFavoriteResolver == null ? null : (key, layoutCache) -> generatedFavoriteResolver.apply(key);
 	}
 
 	public void setGeneratedFavoriteResolver(
@@ -269,9 +267,7 @@ public class FavoriteRecipeStore {
 
 	public record FavoriteSlotInput(BookmarkIngredientKey selected, List<BookmarkIngredientKey> permutations) {
 		public FavoriteSlotInput {
-			permutations = permutations == null || permutations.isEmpty() ?
-				List.of(selected) :
-				List.copyOf(permutations);
+			permutations = permutations == null || permutations.isEmpty() ? List.of(selected) : List.copyOf(permutations);
 		}
 	}
 

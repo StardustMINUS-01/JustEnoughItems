@@ -115,7 +115,11 @@ public class ConfigButtonController implements IIconButtonController {
 		Optional<Screen> configScreen = configHelper.getConfigScreen();
 
 		if (configScreen.isPresent()) {
-			mc.setScreen(configScreen.get());
+			if (configScreen.get() instanceof mezz.jei.gui.config.screen.JeiConfigScreen settings) {
+				settings.open();
+			} else {
+				mc.setScreen(configScreen.get());
+			}
 		} else {
 			Component message = getMissingConfigScreenMessage(configHelper);
 			mc.player.displayClientMessage(message, false);

@@ -75,7 +75,8 @@ public record JeiPatternEncodeRequestWire(
 			catalysts.add(JeiPatternCatalystWire.STREAM_CODEC.decode(buffer));
 		}
 		List<@Nullable GenericStack> canonicalInputGuides = readGenericStackList(buffer);
-		@Nullable ResourceLocation canonicalRecipeId = buffer.readBoolean() ? buffer.readResourceLocation() : null;
+		@Nullable
+		ResourceLocation canonicalRecipeId = buffer.readBoolean() ? buffer.readResourceLocation() : null;
 		boolean allowSubstitution = buffer.readBoolean();
 		boolean allowFluidSubstitution = buffer.readBoolean();
 		return new JeiPatternEncodeRequestWire(

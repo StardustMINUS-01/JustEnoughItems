@@ -70,7 +70,8 @@ public class FavoriteTreeRecipeLayoutResolverTest {
 		List<FavoriteTreeBuilder.ResolvedInput> inputs = resolver.resolve(new FocusedRecipe(
 			layout.category().getRecipeType().getUid(),
 			RECIPE_UID
-		)).orElseThrow().inputs();
+		))
+			.orElseThrow().inputs();
 
 		Assertions.assertEquals(1, inputs.size());
 		Assertions.assertEquals("minecraft:iron_ingot", inputs.get(0).displayedKey().ingredientUid());
@@ -92,7 +93,8 @@ public class FavoriteTreeRecipeLayoutResolverTest {
 		List<FavoriteTreeBuilder.ResolvedInput> inputs = resolver.resolve(new FocusedRecipe(
 			layout.category().getRecipeType().getUid(),
 			RECIPE_UID
-		)).orElseThrow().inputs();
+		))
+			.orElseThrow().inputs();
 
 		Assertions.assertEquals(2, inputs.size());
 		Assertions.assertEquals(0, inputs.get(0).inputSlotIndex());

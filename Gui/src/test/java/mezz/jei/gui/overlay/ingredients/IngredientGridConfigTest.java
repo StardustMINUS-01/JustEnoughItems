@@ -698,10 +698,8 @@ public class IngredientGridConfigTest {
 		);
 
 		// Operation: calculate layout with navigation enabled and disabled.
-		IngredientGridWithNavigationLayout enabledLayout =
-			IngredientGridWithNavigationLayout.fromGridArea(gridConfig, gridArea, true);
-		IngredientGridWithNavigationLayout disabledLayout =
-			IngredientGridWithNavigationLayout.fromGridArea(gridConfig, gridArea, false);
+		IngredientGridWithNavigationLayout enabledLayout = IngredientGridWithNavigationLayout.fromGridArea(gridConfig, gridArea, true);
+		IngredientGridWithNavigationLayout disabledLayout = IngredientGridWithNavigationLayout.fromGridArea(gridConfig, gridArea, false);
 
 		// Assertions: enabled navigation reserves an area above the grid, while disabled navigation has no area.
 		assertPositiveArea(enabledLayout.navigationArea());
@@ -728,10 +726,8 @@ public class IngredientGridConfigTest {
 			.drawBackground(true);
 
 		// Operation: calculate layout with navigation disabled so background padding is isolated.
-		IngredientGridWithNavigationLayout withoutBackground =
-			IngredientGridWithNavigationLayout.fromGridArea(withoutBackgroundConfig, gridArea, false);
-		IngredientGridWithNavigationLayout withBackground =
-			IngredientGridWithNavigationLayout.fromGridArea(withBackgroundConfig, gridArea, false);
+		IngredientGridWithNavigationLayout withoutBackground = IngredientGridWithNavigationLayout.fromGridArea(withoutBackgroundConfig, gridArea, false);
+		IngredientGridWithNavigationLayout withBackground = IngredientGridWithNavigationLayout.fromGridArea(withBackgroundConfig, gridArea, false);
 
 		// Assertions: background drawing adds padding around slots and around the final background area.
 		assertEquals(gridArea, withoutBackground.slotBackgroundArea());
@@ -755,8 +751,7 @@ public class IngredientGridConfigTest {
 		);
 
 		// Operation: calculate the combined layout.
-		IngredientGridWithNavigationLayout layout =
-			IngredientGridWithNavigationLayout.fromGridArea(gridConfig, gridArea, true);
+		IngredientGridWithNavigationLayout layout = IngredientGridWithNavigationLayout.fromGridArea(gridConfig, gridArea, true);
 
 		// Assertions: the outer background contains both the slot background and the navigation area.
 		assertPositiveArea(layout.navigationArea());
@@ -983,11 +978,11 @@ public class IngredientGridConfigTest {
 
 		// Operation: block a slot in the selected fallback layout with the drag cursor.
 		long blockedSlots = IngredientGridLayout.calculateSlots(
-			layout.ingredientGridArea(),
-			guiExclusionAreas,
-			mouseExclusionPoint,
-			0
-		)
+				layout.ingredientGridArea(),
+				guiExclusionAreas,
+				mouseExclusionPoint,
+				0
+			)
 			.stream()
 			.filter(IngredientGridLayout.SlotLayout::blocked)
 			.count();
@@ -1385,9 +1380,8 @@ public class IngredientGridConfigTest {
 		);
 
 		// Operation: recalculate layout with no vertical space left after avoiding navigation.
-		// Operation: recalculate layout with no vertical space left after avoiding navigation and its padding.
-		IngredientGridWithNavigationLayout obstructedLayout = assertDoesNotThrow(() ->
-			IngredientGridButtonNavigationLayout.calculate(gridConfig, availableArea, Set.of(overTallExclusion), 0)
+		IngredientGridWithNavigationLayout obstructedLayout = assertDoesNotThrow(
+			() -> IngredientGridButtonNavigationLayout.calculate(gridConfig, availableArea, Set.of(overTallExclusion), 0)
 		);
 
 		// Assertions: no valid overlay remains, but layout calculation handles it without invalid rectangles.

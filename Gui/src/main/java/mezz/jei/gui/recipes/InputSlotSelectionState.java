@@ -76,7 +76,7 @@ public final class InputSlotSelectionState {
 			.getSlotViews(RecipeIngredientRole.INPUT);
 		Map<BookmarkIngredientKey, Boolean> matchesByCandidate = new HashMap<>();
 		for (int index = 0; index < inputSlots.size(); index++) {
-			List<ITypedIngredient<?>> candidates = inputSlots.get(index).getAllIngredients().toList();
+			List<ITypedIngredient<?>> candidates = getCandidates(inputSlots.get(index)).toList();
 			List<ITypedIngredient<?>> matches = candidates.stream()
 				.filter(candidate -> matchesByCandidate.computeIfAbsent(key(candidate), ignored -> candidateFilter.test(candidate)))
 				.toList();
@@ -136,7 +136,7 @@ public final class InputSlotSelectionState {
 						continue;
 					}
 				} else if (filtered != null) {
-					transferSlots.add(new FilteredRecipeSlotView(slot, filtered));
+					transferSlots.add(new FilteredRecipeSlotView(slot, listCandidates(slot, inputSlotIndex)));
 					inputSlotIndex++;
 					continue;
 				}
@@ -161,9 +161,9 @@ public final class InputSlotSelectionState {
 		}
 		List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
 		if (filtered == null) {
-			return slot.getDisplayedIngredient()
-				.or(() -> slot.getAllIngredients().findFirst());
+			return slot.getDisplayedIngredient();
 		}
+		filtered = listCandidates(slot, inputSlotIndex);
 		Optional<ITypedIngredient<?>> displayed = slot.getDisplayedIngredient();
 		if (displayed.isPresent() && indexOf(filtered, displayed.get()) >= 0) {
 			return displayed;
@@ -230,9 +230,7 @@ public final class InputSlotSelectionState {
 			}
 			if (clear) {
 				selectedKeys.remove(index);
-				if (inputSlots.get(index) instanceof IRecipeSlotDrawable drawable) {
-					drawable.clearDisplayOverrides();
-				}
+				setSelectedCandidate(inputSlots.get(index), null);
 			} else {
 				selectedKeys.put(index, selectedKey);
 			}
@@ -263,19 +261,30 @@ public final class InputSlotSelectionState {
 		for (int index = 0; index < inputSlots.size(); index++) {
 			IRecipeSlotView slot = inputSlots.get(index);
 			int inputSlotIndex = index;
-			if (!(slot instanceof IRecipeSlotDrawable drawable)) {
-				continue;
-			}
 			BookmarkIngredientKey selectedKey = selectedKeys.get(inputSlotIndex);
 			if (selectedKey != null) {
-				drawable.clearDisplayOverrides();
-				findByKey(slot, inputSlotIndex, selectedKey)
-					.ifPresentOrElse(
-						selected -> drawable.createDisplayOverrides().addTypedIngredient(selected),
-						() -> selectedKeys.remove(inputSlotIndex)
-					);
+				var selected = findByKey(slot, inputSlotIndex, selectedKey);
+				setSelectedCandidate(slot, selected.orElse(null));
+				if (selected.isEmpty()) {
+					selectedKeys.remove(inputSlotIndex);
+				}
 			}
 		}
+	}
+
+	private static void setSelectedCandidate(IRecipeSlotView slot, @Nullable ITypedIngredient<?> selected) {
+		if (slot instanceof IRecipeSlotCandidateView view) {
+			view.setSelectedCandidate(selected);
+		} else if (slot instanceof IRecipeSlotDrawable drawable) {
+			drawable.clearDisplayOverrides();
+			if (selected != null) {
+				drawable.createDisplayOverrides().addTypedIngredient(selected);
+			}
+		}
+	}
+
+	private static Stream<ITypedIngredient<?>> getCandidates(IRecipeSlotView slot) {
+		return slot instanceof IRecipeSlotCandidateView view ? view.getCandidateIngredients() : slot.getDisplayedIngredients();
 	}
 
 	private Optional<ITypedIngredient<?>> findByKey(IRecipeSlotView slot, int inputSlotIndex, BookmarkIngredientKey key) {
@@ -285,13 +294,19 @@ public final class InputSlotSelectionState {
 	}
 
 	private Stream<ITypedIngredient<?>> streamCandidates(IRecipeSlotView slot, int inputSlotIndex) {
+		if (slot instanceof IRecipeSlotCandidateView view) {
+			return view.getCandidateIngredients();
+		}
 		List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
-		return filtered == null ? slot.getAllIngredients() : filtered.stream();
+		return filtered == null ? getCandidates(slot) : filtered.stream();
 	}
 
 	private List<ITypedIngredient<?>> listCandidates(IRecipeSlotView slot, int inputSlotIndex) {
+		if (slot instanceof IRecipeSlotCandidateView view) {
+			return view.getCandidateIngredients().toList();
+		}
 		List<ITypedIngredient<?>> filtered = filteredCandidates.get(inputSlotIndex);
-		return filtered == null ? slot.getAllIngredients().toList() : filtered;
+		return filtered == null ? getCandidates(slot).toList() : filtered;
 	}
 
 	private int indexOf(List<ITypedIngredient<?>> candidates, ITypedIngredient<?> ingredient) {

@@ -69,7 +69,8 @@ class BookmarkSelectionTest {
 		var saved = book.getRecipeChainTooltipInputs(group).stream().map(input -> new RecipeChainInput(input.index(),
 			input.metadata().withPermutations(input.metadata().permutations().stream()
 				.map(key -> new BookmarkIngredientKey(key.ingredientTypeUid(), key.ingredientUid())).collect(Collectors.toSet())),
-			input.selectedKey(), input.selectedIngredient())).toList();
+			input.selectedKey(), input.selectedIngredient()))
+			.toList();
 		var selection = new BookmarkRecipeSelection(preview(first, missing, output, missingOutput), saved, MANAGER);
 		assertTrue(first.displayed.getItemStack().orElseThrow().is(Items.SPRUCE_PLANKS));
 		assertEquals(2, first.candidates.size());
@@ -110,8 +111,12 @@ class BookmarkSelectionTest {
 	void selectsBookmarkCandidates() {
 		var book = bookmarks();
 		var family = List.<ITypedIngredient<?>>of(item(Items.OAK_PLANKS), item(Items.SPRUCE_PLANKS));
-		int group = book.addRecipeLayoutProjectionBookmarkGroup(List.of(new RecipeLayoutProjection(layout("first", List.of(family))),
-			new RecipeLayoutProjection(layout("other", List.of(family)))), false).orElseThrow();
+		int group = book.addRecipeLayoutProjectionBookmarkGroup(
+				List.of(new RecipeLayoutProjection(layout("first", List.of(family))),
+					new RecipeLayoutProjection(layout("other", List.of(family)))),
+				false
+			)
+			.orElseThrow();
 		var original = book.getBookmarks().stream().filter(value -> book.getBookmarkMetadata(value).type().isGraphInput()).findFirst().orElseThrow();
 		assertEquals(ResourceLocation.fromNamespaceAndPath("test", "first"), book.getBookmarkMetadata(original).recipeUid());
 		var replacement = book.selectBookmarkPermutation(original, key(Items.SPRUCE_PLANKS), true).orElseThrow();
@@ -231,12 +236,14 @@ class BookmarkSelectionTest {
 
 	private static IBookmark findBookmark(BookmarkList book, int group, Item item) {
 		return book.getBookmarks().stream().filter(value -> book.getBookmarkGroupId(value) == group &&
-			value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(item)).findFirst().orElseThrow();
+			value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(item))
+			.findFirst().orElseThrow();
 	}
 
 	private static long inputAmount(BookmarkList book, int group, Item item) {
 		return book.getBookmarks().stream().filter(value -> book.getBookmarkGroupId(value) == group && book.getBookmarkMetadata(value).type().isGraphInput() &&
-			value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(item)).mapToLong(value -> book.getBookmarkMetadata(value).factor()).sum();
+			value.getElement().getTypedIngredient().getItemStack().orElseThrow().is(item))
+			.mapToLong(value -> book.getBookmarkMetadata(value).factor()).sum();
 	}
 
 	private static BookmarkList bookmarks() {
@@ -275,8 +282,14 @@ class BookmarkSelectionTest {
 				case "getRole" -> role;
 				case "getAllIngredients" -> original.stream();
 				case "getDisplayedIngredient" -> Optional.ofNullable(displayed);
+				case "getCandidateIngredients" -> candidates.stream();
+				case "setSelectedCandidate" -> {
+					displayed = (ITypedIngredient<?>) args[0];
+					yield null;
+				}
 				case "setDisplayedCandidates" -> {
 					candidates = (List<ITypedIngredient<?>>) args[0];
+					displayed = candidates.stream().findFirst().orElse(null);
 					yield null;
 				}
 				case "clearDisplayOverrides" -> {

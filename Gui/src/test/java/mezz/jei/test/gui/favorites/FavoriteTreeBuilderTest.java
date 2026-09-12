@@ -478,11 +478,9 @@ public class FavoriteTreeBuilderTest {
 	}
 
 	private static ResolvedInput input(int inputSlotIndex, String displayed, String... permutations) {
-		List<BookmarkIngredientKey> permutationKeys = permutations.length == 0 ?
-			List.of(key(displayed)) :
-			List.of(permutations).stream()
-				.map(FavoriteTreeBuilderTest::key)
-				.toList();
+		List<BookmarkIngredientKey> permutationKeys = permutations.length == 0 ? List.of(key(displayed)) : List.of(permutations).stream()
+			.map(FavoriteTreeBuilderTest::key)
+			.toList();
 		return new ResolvedInput(inputSlotIndex, key(displayed), permutationKeys, List.of());
 	}
 

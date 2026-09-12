@@ -21,9 +21,9 @@ public class JeiMultiKeyMapping implements IJeiKeyMappingWithExtraModifiers {
 	}
 
 	@Override
-	public boolean matchesIgnoringModifiers(InputConstants.Key key) {
+	public boolean isActiveAndMatchesShortcut(InputConstants.Key key) {
 		return this.mappings.stream()
-			.anyMatch(m -> m.matchesIgnoringModifiers(key));
+			.anyMatch(m -> IJeiKeyMappingWithExtraModifiers.matchesShortcut(m, key));
 	}
 
 	@Override
@@ -49,8 +49,7 @@ public class JeiMultiKeyMapping implements IJeiKeyMappingWithExtraModifiers {
 			.filter(m -> !m.isUnbound())
 			.map(IJeiKeyMapping::getTranslatedKeyMessage)
 			.findFirst()
-			.orElseGet(() ->
-				this.mappings.stream()
+			.orElseGet(() -> this.mappings.stream()
 				.map(IJeiKeyMapping::getTranslatedKeyMessage)
 				.findFirst()
 				.orElseGet(() -> Component.literal("error"))

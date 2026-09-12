@@ -2,7 +2,7 @@ package mezz.jei.gui.recipes;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
-import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 final class InteractiveIngredientTooltipController implements IGuiInputLayer, IPinnedTooltipHolder, IRecipeFocusSource {
 	private final RecipesGui recipesGui;
 	private final FocusUtil focusUtil;
-	private final IRecipeManager recipeManager;
+	private final IGuiHelper guiHelper;
 	private final IIngredientManager ingredientManager;
 	private final RecipeSlotClickTargetFactory clickTargetFactory;
 
@@ -37,13 +37,13 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 	public InteractiveIngredientTooltipController(
 		RecipesGui recipesGui,
 		FocusUtil focusUtil,
-		IRecipeManager recipeManager,
+		IGuiHelper guiHelper,
 		IIngredientManager ingredientManager,
 		RecipeSlotClickTargetFactory clickTargetFactory
 	) {
 		this.recipesGui = recipesGui;
 		this.focusUtil = focusUtil;
-		this.recipeManager = recipeManager;
+		this.guiHelper = guiHelper;
 		this.ingredientManager = ingredientManager;
 		this.clickTargetFactory = clickTargetFactory;
 	}
@@ -99,7 +99,7 @@ final class InteractiveIngredientTooltipController implements IGuiInputLayer, IP
 			this,
 			this.recipesGui,
 			this.focusUtil,
-			this.recipeManager,
+			this.guiHelper,
 			this.ingredientManager,
 			this.clickTargetFactory,
 			sourceSlot,

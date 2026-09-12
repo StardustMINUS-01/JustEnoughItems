@@ -105,16 +105,12 @@ public final class RecipePreferenceConfigSerializer {
 				invalidate("invalid output expression");
 				return Optional.empty();
 			}
-			Optional<IngredientExpression> inputExpression = input == null ?
-				Optional.empty() :
-				IngredientExpression.parseIngredient(input);
+			Optional<IngredientExpression> inputExpression = input == null ? Optional.empty() : IngredientExpression.parseIngredient(input);
 			if (input != null && inputExpression.isEmpty()) {
 				invalidate("invalid input expression");
 				return Optional.empty();
 			}
-			Optional<IngredientExpression> recipeExpression = recipe == null ?
-				Optional.empty() :
-				IngredientExpression.parseUid(recipe);
+			Optional<IngredientExpression> recipeExpression = recipe == null ? Optional.empty() : IngredientExpression.parseUid(recipe);
 			if (recipe != null && recipeExpression.isEmpty()) {
 				invalidate("invalid recipe expression");
 				return Optional.empty();

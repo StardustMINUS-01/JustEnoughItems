@@ -18,12 +18,12 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -301,8 +301,7 @@ public class IngredientListOverlayControllerTest {
 	}
 
 	private static ImmutableRect2i area(String name, @Nullable ImmutableRect2i area) {
-		assertNotNull(area, name + " area should be set");
-		return area;
+		return Objects.requireNonNull(area, name + " area should be set");
 	}
 
 	private static void assertRightOfGui(ImmutableRect2i area, IGuiProperties guiProperties) {
@@ -374,7 +373,8 @@ public class IngredientListOverlayControllerTest {
 	}
 
 	private static class TestGuiPropertiesCache implements IGuiPropertiesCache {
-		@Nullable IGuiProperties guiProperties;
+		@Nullable
+		IGuiProperties guiProperties;
 		Set<ImmutableRect2i> guiExclusionAreas = Set.of();
 
 		@Override
@@ -436,6 +436,7 @@ public class IngredientListOverlayControllerTest {
 		@Nullable
 		IElement<?> layoutPageAnchorElement;
 		ImmutableRect2i backgroundArea = ImmutableRect2i.EMPTY;
+		ImmutableRect2i ingredientGridArea = ImmutableRect2i.EMPTY;
 		@Nullable
 		ImmutableRect2i availableArea;
 
@@ -480,6 +481,11 @@ public class IngredientListOverlayControllerTest {
 		@Override
 		public ImmutableRect2i getBackgroundArea() {
 			return backgroundArea;
+		}
+
+		@Override
+		public ImmutableRect2i getIngredientGridArea() {
+			return ingredientGridArea;
 		}
 	}
 

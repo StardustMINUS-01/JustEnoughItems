@@ -75,7 +75,8 @@ public class PreferenceRulesTest {
 		Assertions.assertEquals(0, input.rank(List.of(item("gtceu:iron"), item("gtceu:gold"))).orElseThrow());
 		Assertions.assertEquals(1, input.rank(List.of(
 			IngredientMatchInfo.item(ResourceLocation.parse("gtceu:plate"), Set.of(ResourceLocation.parse("c:plates")))
-		)).orElseThrow());
+		))
+			.orElseThrow());
 		Assertions.assertTrue(input.rank(List.of(item("minecraft:dirt"))).isEmpty());
 	}
 

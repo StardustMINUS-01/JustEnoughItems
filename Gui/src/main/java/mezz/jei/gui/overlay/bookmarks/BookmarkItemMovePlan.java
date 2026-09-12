@@ -38,8 +38,7 @@ public record BookmarkItemMovePlan(
 		List<IBookmark> orderedBookmarks,
 		double mouseY
 	) {
-		Optional<BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark>> recipeBoundaryTarget =
-			BookmarkPanelLayout.getRecipeBoundaryInsertionTarget(panelSlots, targetRow, mouseY);
+		Optional<BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark>> recipeBoundaryTarget = BookmarkPanelLayout.getRecipeBoundaryInsertionTarget(panelSlots, targetRow, mouseY);
 		if (recipeBoundaryTarget.isPresent()) {
 			BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark> target = recipeBoundaryTarget.get();
 			return new BookmarkItemMovePlan(target.item(), target.groupId(), target.offset());
@@ -71,8 +70,7 @@ public record BookmarkItemMovePlan(
 		if (plan.rejected()) {
 			return plan;
 		}
-		Optional<BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark>> recipeBoundaryTarget =
-			BookmarkPanelLayout.getRecipeBoundaryInsertionTarget(panelSlots, targetRow, mouseY);
+		Optional<BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark>> recipeBoundaryTarget = BookmarkPanelLayout.getRecipeBoundaryInsertionTarget(panelSlots, targetRow, mouseY);
 		if (recipeBoundaryTarget.isPresent()) {
 			BookmarkPanelLayout.RecipeBoundaryInsertionTarget<IBookmark> target = recipeBoundaryTarget.get();
 			if (plan.targetGroupId() == target.groupId()) {
@@ -142,13 +140,15 @@ public record BookmarkItemMovePlan(
 
 		int targetGroupId = preferredGroupId;
 		if (!(targetRow.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID) &&
-			!(preferredGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
+			!(preferredGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)
+		) {
 			targetGroupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
 		}
 
 		if ((targetRow.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID) &&
 			!(preferredGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID) &&
-			oppositeRow.filter(row -> !(row.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)).isPresent()) {
+			oppositeRow.filter(row -> !(row.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)).isPresent()
+		) {
 			return Optional.empty();
 		}
 

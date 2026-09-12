@@ -114,10 +114,10 @@ public class CollapsedGroupElement<T> implements IElement<T> {
 	) {
 		delegate.getTooltip(tooltip, tooltipHelper, ingredientRenderer, ingredientHelper);
 		if (groupSize > 1) {
-			tooltip.add(Component.translatable(
-				"jei.collapsible.group.tooltip", groupSize).withStyle(ChatFormatting.GRAY));
-			tooltip.add(Component.translatable(
-				"jei.collapsible.toggle.hint").withStyle(ChatFormatting.GRAY));
+			tooltip.add(Component.translatable("jei.collapsible.group.tooltip", groupSize)
+				.withStyle(ChatFormatting.GRAY));
+			tooltip.add(Component.translatable("jei.collapsible.toggle.hint")
+				.withStyle(ChatFormatting.GRAY));
 		}
 	}
 

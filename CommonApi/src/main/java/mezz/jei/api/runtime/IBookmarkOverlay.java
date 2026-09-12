@@ -35,13 +35,4 @@ public interface IBookmarkOverlay {
 	default ItemStack getItemStackUnderMouse() {
 		return getIngredientUnderMouse(VanillaTypes.ITEM_STACK);
 	}
-
-	/**
-	 * Add an ingredient to the bookmark overlay.
-	 *
-	 * @return true if the ingredient was added, false if it was already bookmarked or could not be added.
-	 */
-	default boolean addBookmark(ITypedIngredient<?> ingredient) {
-		return false;
-	}
 }

@@ -85,7 +85,8 @@ public class BookmarkDragManager {
 		@Override
 		public Optional<IDragHandler> handleDragStart(Screen screen, UserInput input) {
 			if (input.getKey().getType() != InputConstants.Type.MOUSE ||
-				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT) {
+				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT
+			) {
 				stopDrag();
 				return Optional.empty();
 			}
@@ -111,7 +112,8 @@ public class BookmarkDragManager {
 				.flatMap(clicked -> {
 					ItemStack mouseItem = player.containerMenu.getCarried();
 					if (mouseItem.isEmpty() &&
-						handleClickIngredient(clicked, input)) {
+						handleClickIngredient(clicked, input)
+					) {
 						return Optional.of(this);
 					}
 					return Optional.empty();

@@ -192,6 +192,7 @@ public class InputSelectionTest {
 		return proxy(IRecipeSlotDrawable.class, (proxy, method, args) -> switch (method.getName()) {
 			case "getRole" -> RecipeIngredientRole.INPUT;
 			case "getAllIngredients" -> candidates.stream();
+			case "getDisplayedIngredients" -> candidates.stream();
 			case "getAllIngredientsList" -> candidates;
 			case "getDisplayedIngredient" -> Optional.of(displayed.get());
 			case "clearDisplayOverrides" -> {

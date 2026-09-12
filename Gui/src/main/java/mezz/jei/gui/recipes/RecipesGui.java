@@ -3,13 +3,14 @@ package mezz.jei.gui.recipes;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
+import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientType;
-import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IFocusGroup;
@@ -84,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSource {
@@ -281,7 +283,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			searchStorageBuilderFactory
 		);
 		this.logic = navigationLogic;
-		this.recipeCatalysts = new RecipeCatalysts(recipeManager);
+		this.recipeCatalysts = new RecipeCatalysts(guiHelper);
 		this.recipeGuiTabs = new RecipeGuiTabs(this.logic, recipeManager, guiHelper);
 		this.optionButtons = new RecipeOptionButtons(this.logic::goToFirstPage);
 		this.recipeSearchField = new RecipeSearchTextField();
@@ -304,7 +306,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.interactiveIngredientTooltipController = new InteractiveIngredientTooltipController(
 			this,
 			focusUtil,
-			recipeManager,
+			guiHelper,
 			ingredientManager,
 			clickTargetFactory
 		);
@@ -660,7 +662,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	public void tick() {
 		super.tick();
 
-		this.layouts.tick(getParentContainerMenu());
+		this.layouts.tick();
 		this.optionButtons.tick();
 		this.filterModeButton.tick();
 		this.logic.tick();
@@ -928,14 +930,12 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	RecipeLayoutForkExtras createRecipeLayoutForkExtras(IRecipeLayoutDrawable<?> recipeLayoutDrawable) {
-		InputSlotSelectionState inputSlotSelectionState = navigationLogic.hasInputSearchTerms() ?
-			new InputSlotSelectionState(
-				ingredientManager,
-				candidate -> navigationLogic.matchesInputCandidate(
-					RecipeSearchIngredientFactory.create(candidate, ingredientManager)
-				)
-			) :
-			new InputSlotSelectionState(ingredientManager);
+		InputSlotSelectionState inputSlotSelectionState = navigationLogic.hasInputSearchTerms() ? new InputSlotSelectionState(
+			ingredientManager,
+			candidate -> navigationLogic.matchesInputCandidate(
+				RecipeSearchIngredientFactory.create(candidate, ingredientManager)
+			)
+		) : new InputSlotSelectionState(ingredientManager);
 		inputSlotSelectionState.applyCandidateFilter(recipeLayoutDrawable);
 		Optional.ofNullable(getFocusedRecipe(recipeLayoutDrawable))
 			.map(pendingFavoriteInputs::remove)
@@ -1022,6 +1022,16 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	private boolean openInteractiveIngredientTooltip(double mouseX, double mouseY) {
+		Optional<RecipeSlotUnderMouse> recipeCatalyst = recipeCatalysts.getSlotUnderMouse(mouseX, mouseY);
+		if (recipeCatalyst.isPresent()) {
+			RecipeSlotUnderMouse slotUnderMouse = recipeCatalyst.get();
+			return interactiveIngredientTooltipController.show(
+				slotUnderMouse,
+				slotUnderMouse::isMouseOver,
+				mouseX,
+				mouseY
+			);
+		}
 		return getRecipeLayoutUnderMouse(mouseX, mouseY)
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
 			.flatMap(layout -> layout.getSlotUnderMouse(mouseX, mouseY)
@@ -1050,9 +1060,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			.cropLeft(titleControlsInset)
 			.cropRight(titleControlsInset);
 		IRecipeCategory<?> recipeCategory = logic.getSelectedRecipeCategory();
-		this.recipeCategoryTitle = logic.hasRecipeResults() ?
-			RecipeCategoryTitle.create(recipeCategory, font, titleArea) :
-			new RecipeCategoryTitle();
+		this.recipeCategoryTitle = logic.hasRecipeResults() ? RecipeCategoryTitle.create(recipeCategory, font, titleArea) : new RecipeCategoryTitle();
 
 		ImmutableRect2i recipeLayoutsArea = getRecipeLayoutsArea();
 		final int availableHeight = recipeLayoutsArea.getHeight();
@@ -1068,7 +1076,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		int recipesPerPage = this.logic.getRecipesPerPage();
 
 		this.layouts.setRecipeLayoutsWithButtons(recipeLayoutsWithButtons);
-		this.layouts.tick(containerMenu);
+		this.layouts.tick();
 		this.area = calculateAreaToFitLayouts(this.idealArea, this.width, this.layouts.getWidth());
 		recipeLayoutsArea = getRecipeLayoutsArea();
 
@@ -1085,8 +1093,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 		optionButtons.updateLayout(this.area);
 		ImmutableRect2i optionButtonsArea = optionButtons.getArea();
-		List<ITypedIngredient<?>> recipeCatalystIngredients = logic.getRecipeCatalysts().toList();
-		recipeCatalysts.updateLayout(recipeCatalystIngredients, this.area, optionButtonsArea);
+		List<Consumer<IIngredientAcceptor<?>>> recipeCatalystGroups = logic.getRecipeCatalystGroups().toList();
+		this.recipeCatalysts.updateLayout(recipeCatalystGroups, this.area, optionButtonsArea);
 		recipeGuiTabs.initLayout(this.idealArea);
 		updateRecipeFilterLayout();
 	}

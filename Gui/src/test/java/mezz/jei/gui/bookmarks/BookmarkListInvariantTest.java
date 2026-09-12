@@ -535,7 +535,7 @@ public class BookmarkListInvariantTest {
 
 		RecipeBookmark<Object, ItemStack> groupedBookmark = new RecipeBookmark<>(
 			new TestRecipeCategory(RECIPE_B),
-			new Object(),
+			RECIPE_B,
 			RECIPE_B,
 			new TestTypedIngredient<>(VanillaTypes.ITEM_STACK, new ItemStack(Items.GOLD_INGOT)),
 			RecipeIngredientRole.OUTPUT,
@@ -856,7 +856,7 @@ public class BookmarkListInvariantTest {
 	private static RecipeBookmark<Object, ItemStack> recipeBookmark(ResourceLocation recipeUid, Item item, RecipeIngredientRole role) {
 		return new RecipeBookmark<>(
 			new TestRecipeCategory(recipeUid),
-			new Object(),
+			recipeUid,
 			recipeUid,
 			new TestTypedIngredient<>(VanillaTypes.ITEM_STACK, new ItemStack(item)),
 			role,
@@ -907,7 +907,7 @@ public class BookmarkListInvariantTest {
 
 		@Override
 		public @Nullable ResourceLocation getRegistryName(Object recipe) {
-			return recipeUid;
+			return (ResourceLocation) recipe;
 		}
 	}
 

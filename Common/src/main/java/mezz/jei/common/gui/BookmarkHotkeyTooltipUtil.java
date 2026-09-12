@@ -129,9 +129,7 @@ public final class BookmarkHotkeyTooltipUtil {
 			addCraftItemsHotkeys(tooltip, keyBindings, "jei.tooltip.bookmarks.group.hotkeys");
 		}
 		if (grouped) {
-			String rightClickAction = craftingMode ?
-				"jei.tooltip.bookmarks.group.hotkeys.to_group" :
-				"jei.tooltip.bookmarks.group.hotkeys.to_recipe_chain";
+			String rightClickAction = craftingMode ? "jei.tooltip.bookmarks.group.hotkeys.to_group" : "jei.tooltip.bookmarks.group.hotkeys.to_recipe_chain";
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), rightClickAction);
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.left"), "jei.tooltip.bookmarks.group.hotkeys.mode");
 			HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right_drag"), "jei.tooltip.bookmarks.group.hotkeys.exclude");
@@ -176,9 +174,7 @@ public final class BookmarkHotkeyTooltipUtil {
 			addPullHotkeys(tooltip, keyBindings);
 		}
 		addGroupTransferHotkeys(tooltip, keyBindings, craftingMode);
-		String rightClickAction = craftingMode ?
-			"jei.tooltip.bookmarks.group.hotkeys.to_group" :
-			"jei.tooltip.bookmarks.group.hotkeys.to_recipe_chain";
+		String rightClickAction = craftingMode ? "jei.tooltip.bookmarks.group.hotkeys.to_group" : "jei.tooltip.bookmarks.group.hotkeys.to_recipe_chain";
 		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.right"), rightClickAction);
 		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.left"), "jei.tooltip.bookmarks.group.hotkeys.mode");
 		HotkeyTooltipLine.add(tooltip, Component.translatable("jei.tooltip.bookmarks.group.keys.alt_left"), "jei.tooltip.bookmarks.group.hotkeys.collapse");
@@ -276,7 +272,8 @@ public final class BookmarkHotkeyTooltipUtil {
 	private static boolean addControlHotkeySection(ITooltipBuilder tooltip, boolean controlDown) {
 		if (!controlDown) {
 			tooltip.add(Component.translatable("jei.tooltip.bookmarks.hotkeys.hold_ctrl",
-				Component.literal("CTRL").withStyle(ChatFormatting.BOLD, ChatFormatting.YELLOW)).withStyle(ChatFormatting.GRAY));
+				Component.literal("CTRL").withStyle(ChatFormatting.BOLD, ChatFormatting.YELLOW))
+				.withStyle(ChatFormatting.GRAY));
 		}
 		return controlDown;
 	}

@@ -82,7 +82,8 @@ public final class CollapsibleSlotVisualsProvider {
 		if (!dirty &&
 			columnCount == context.columnCount() &&
 			slotCount == context.slotCount() &&
-			layoutVersion == context.layoutVersion()) {
+			layoutVersion == context.layoutVersion()
+		) {
 			return;
 		}
 		this.dirty = false;

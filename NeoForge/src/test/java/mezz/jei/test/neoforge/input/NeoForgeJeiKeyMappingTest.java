@@ -1,5 +1,7 @@
 package mezz.jei.test.neoforge.input;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.keys.JeiKeyModifier;
@@ -18,6 +20,6 @@ public class NeoForgeJeiKeyMappingTest {
 
 		InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_A);
 
-		assertTrue(mapping.matchesIgnoringModifiers(key));
+		assertTrue(IJeiKeyMappingWithExtraModifiers.matchesShortcut(mapping, key));
 	}
 }

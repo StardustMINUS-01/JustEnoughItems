@@ -1,5 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DynamicOps;
@@ -139,7 +141,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			}
 		}
 		if (!InputModifiers.hasShift(input) && !InputModifiers.hasControl(input) &&
-			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())) {
+			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())
+		) {
 			Optional<IUserInputHandler> recipeHandler = handleRecipeBookmark(input);
 			if (recipeHandler.isPresent()) {
 				return recipeHandler;
@@ -214,20 +217,20 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			);
 		} else {
 			handled = BookmarkAutoCraftingBridge.createTask(
-				bookmarkList.getRecipeChainInputs(hoveredGroupId),
-				bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
-				targetSlotCount,
-				menu.containerId,
-				() -> getAutoCraftingInventoryInputs(hoveredGroupId),
-				recipeChainInventoryProvider::getAvailableStacks,
-				recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
-				serverConnection::sendPacketToServer,
-				() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
-					activeScreen.getMenu() == menu,
-				craftAll
-			)
-			.map(autoCraftingRunner::start)
-			.orElse(false);
+					bookmarkList.getRecipeChainInputs(hoveredGroupId),
+					bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
+					targetSlotCount,
+					menu.containerId,
+					() -> getAutoCraftingInventoryInputs(hoveredGroupId),
+					recipeChainInventoryProvider::getAvailableStacks,
+					recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
+					serverConnection::sendPacketToServer,
+					() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
+						activeScreen.getMenu() == menu,
+					craftAll
+				)
+				.map(autoCraftingRunner::start)
+				.orElse(false);
 		}
 		if (!handled) {
 			BookmarkAutoCraftingActivator.releaseAutoCraftingInput(input.getKey());
@@ -350,7 +353,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		int modifiers = input.getModifiers();
 		return !hasAlt(modifiers) &&
 			hasShiftOrControl(modifiers) &&
-			bookmarkKey.matchesIgnoringModifiers(input.getKey());
+			IJeiKeyMappingWithExtraModifiers.matchesShortcut(bookmarkKey, input.getKey());
 	}
 
 	private static boolean isFavoriteActionInput(UserInput input, IInternalKeyMappings keyBindings) {
@@ -366,13 +369,13 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return true;
 		}
 		int modifiers = input.getModifiers();
-		return hasShift(modifiers) && !hasControlOrAlt(modifiers) && bookmarkPullKey.matchesIgnoringModifiers(input.getKey());
+		return hasShift(modifiers) && !hasControlOrAlt(modifiers) && IJeiKeyMappingWithExtraModifiers.matchesShortcut(bookmarkPullKey, input.getKey());
 	}
 
 	private static boolean isSaveMissingInput(UserInput input, IJeiKeyMapping bookmarkPullKey) {
 		int modifiers = input.getModifiers();
 		return hasAlt(modifiers) && !hasShift(modifiers) && (modifiers & GLFW.GLFW_MOD_CONTROL) == 0 &&
-			bookmarkPullKey.matchesIgnoringModifiers(input.getKey());
+			IJeiKeyMappingWithExtraModifiers.matchesShortcut(bookmarkPullKey, input.getKey());
 	}
 
 	private Optional<IUserInputHandler> handleGroupShare(UserInput input) {
@@ -481,12 +484,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				}
 
 				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
-					clicked.getElement(),
-					input,
-					keyBindings,
-					ingredient -> Optional.of(createKey(ingredient)),
-					favoriteRecipeLookup
-				)
+						clicked.getElement(),
+						input,
+						keyBindings,
+						ingredient -> Optional.of(createKey(ingredient)),
+						favoriteRecipeLookup
+					)
 					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
 				return favoriteIngredientHandled
 					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
@@ -543,12 +546,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				}
 
 				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
-					clicked.getElement(),
-					input,
-					keyBindings,
-					ingredient -> Optional.of(createKey(ingredient)),
-					favoriteRecipeLookup
-				)
+						clicked.getElement(),
+						input,
+						keyBindings,
+						ingredient -> Optional.of(createKey(ingredient)),
+						favoriteRecipeLookup
+					)
 					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
 				return favoriteIngredientHandled
 					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
@@ -624,7 +627,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private BookmarkIngredientKey createKey(ITypedIngredient<?> ingredient) {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
 	}
-
 
 	private Optional<IUserInputHandler> handleBookmark(UserInput input, IInternalKeyMappings keyBindings) {
 		boolean shiftDown = InputModifiers.hasShift(input);
@@ -738,9 +740,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
 			Optional<IBookmark> bookmark = element.getBookmark();
 			if (bookmark.isPresent()) {
-				BookmarkHotkeySubject subject = bookmark.get() instanceof RecipeBookmark<?, ?> ?
-					BookmarkHotkeySubject.RECIPE_BOOKMARK :
-					BookmarkHotkeySubject.ITEM_BOOKMARK;
+				BookmarkHotkeySubject subject = bookmark.get() instanceof RecipeBookmark<?, ?> ? BookmarkHotkeySubject.RECIPE_BOOKMARK : BookmarkHotkeySubject.ITEM_BOOKMARK;
 				return BookmarkHotkeyContext.builder(subject)
 					.hasIngredient(true)
 					.hasRecipe(subject == BookmarkHotkeySubject.RECIPE_BOOKMARK)

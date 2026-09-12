@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public final class BookmarkCandidateTooltipHelper {
-	private BookmarkCandidateTooltipHelper() { }
+	private BookmarkCandidateTooltipHelper() {}
 
 	public static void addTo(JeiTooltip tooltip, BookmarkCandidateTooltipState state,
 		List<BookmarkIngredientKey> candidates, Supplier<IIngredientCandidateSource> source) {
@@ -23,7 +23,8 @@ public final class BookmarkCandidateTooltipHelper {
 			grid.setMousePosition(-10000, -10000);
 			tooltip.add(grid);
 			if (Internal.getKeyMappings().getPauseRecipeCycling().isDown() &&
-				Internal.getJeiRuntime().getRecipesGui() instanceof RecipesGui gui) {
+				Internal.getJeiRuntime().getRecipesGui() instanceof RecipesGui gui
+			) {
 				gui.showCandidateTooltip(candidateSource, grid, (int) MouseUtil.getX(), (int) MouseUtil.getY());
 			}
 		});

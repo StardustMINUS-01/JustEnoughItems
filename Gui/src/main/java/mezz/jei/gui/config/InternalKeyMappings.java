@@ -255,10 +255,10 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.register(registerMethod);
 
 		quickMove = mouseHover.createMapping("key.jei.quickMove")
-				.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
-				.setModifier(JeiKeyModifier.SHIFT)
-				.buildMouseLeft()
-				.register(registerMethod);
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.SHIFT)
+			.buildMouseLeft()
+			.register(registerMethod);
 
 		searchIngredientInTerminal = mouseHover.createMapping("key.jei.searchIngredientInTerminal")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
@@ -267,10 +267,10 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.register(registerMethod);
 
 		shareToChat = mouseHover.createMapping("key.jei.shareToChat")
-				.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
-				.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
-				.buildKeyboardKey(GLFW.GLFW_KEY_L)
-				.register(registerMethod);
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_L)
+			.register(registerMethod);
 
 		bookmarkWorldTarget = worldTarget.createMapping("key.jei.bookmarkWorldTarget")
 			.setContext(JeiKeyConflictContext.IN_GAME)

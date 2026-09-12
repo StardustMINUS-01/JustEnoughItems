@@ -36,7 +36,8 @@ public record BookmarkIngredientKey(
 			return true;
 		}
 		if (!ITEM_STACK_TYPE_UID.equals(ingredientTypeUid) ||
-			!ITEM_STACK_TYPE_UID.equals(available.ingredientTypeUid)) {
+			!ITEM_STACK_TYPE_UID.equals(available.ingredientTypeUid)
+		) {
 			return false;
 		}
 		String requiredBase = itemRegistryUid(ingredientUid);
@@ -55,7 +56,8 @@ public record BookmarkIngredientKey(
 		String baseUid = itemRegistryUid(ingredientUid);
 		if (itemNamespace(baseUid)
 			.map(CraftingStackMatcher::isNbtRelaxedCraftingNamespace)
-			.orElse(false)) {
+			.orElse(false)
+		) {
 			return new BookmarkIngredientKey(ingredientTypeUid, baseUid);
 		}
 		return this;

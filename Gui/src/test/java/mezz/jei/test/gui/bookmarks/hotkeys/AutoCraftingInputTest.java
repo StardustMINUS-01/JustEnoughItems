@@ -111,7 +111,8 @@ public class AutoCraftingInputTest {
 		AtomicBoolean valid = new AtomicBoolean(true);
 		var task = BookmarkAutoCraftingBridge.createTask(chain, Set.of(), 9, 7, inventory::get,
 			() -> List.of(new ItemStack(Items.OAK_PLANKS)), uid -> Optional.of(layout()),
-			packets::add, valid::get, craftAll).orElseThrow();
+			packets::add, valid::get, craftAll)
+			.orElseThrow();
 
 		assertTrue(task.start());
 		assertEquals(1, packets.size());
@@ -125,7 +126,8 @@ public class AutoCraftingInputTest {
 		assertEquals(1, packets.size());
 
 		var cancelled = BookmarkAutoCraftingBridge.createTask(chain, Set.of(), 9, 7, List::of,
-			List::of, uid -> Optional.of(layout()), packets::add, valid::get, craftAll).orElseThrow();
+			List::of, uid -> Optional.of(layout()), packets::add, valid::get, craftAll)
+			.orElseThrow();
 		valid.set(false);
 		assertFalse(cancelled.start());
 		assertEquals(1, packets.size());

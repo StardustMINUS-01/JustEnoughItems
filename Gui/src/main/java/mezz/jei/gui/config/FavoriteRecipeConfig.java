@@ -5,8 +5,9 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.Internal;
 import mezz.jei.common.config.file.JsonArrayFileHelper;
-import mezz.jei.common.util.DeduplicatingRunner;
+import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import net.minecraft.core.RegistryAccess;
@@ -30,7 +31,7 @@ public class FavoriteRecipeConfig {
 	private final Path jeiConfigurationDir;
 	private final Codec<FavoriteRecipeStore.Entry> entryCodec;
 	private final RegistryOps<JsonElement> registryOps;
-	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
+	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
 
 	public FavoriteRecipeConfig(
 		Path jeiConfigurationDir,

@@ -1,5 +1,7 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.common.Internal;
 import mezz.jei.common.network.IConnectionToServer;
@@ -31,7 +33,7 @@ public final class BookmarkGhostOverlayActivator {
 		if (input.is(overlayRecipeKey)) {
 			return true;
 		}
-		return InputModifiers.hasShift(input) && overlayRecipeKey.matchesIgnoringModifiers(input.getKey());
+		return InputModifiers.hasShift(input) && IJeiKeyMappingWithExtraModifiers.matchesShortcut(overlayRecipeKey, input.getKey());
 	}
 
 	public static boolean activate(
@@ -180,9 +182,10 @@ public final class BookmarkGhostOverlayActivator {
 		}
 
 		BookmarkRecipeOverlayPlan plan = BookmarkRecipeOverlayPlan.fromHotkeyAction(
-			BookmarkHotkeyAction.OVERLAY_RECIPE,
-			OptionalInt.empty()
-		).orElseThrow();
+				BookmarkHotkeyAction.OVERLAY_RECIPE,
+				OptionalInt.empty()
+			)
+			.orElseThrow();
 		Optional<BookmarkGhostOverlay> overlay = BookmarkGhostOverlay.create(plan, recipeLayout, targetSlots);
 		if (overlay.isEmpty()) {
 			return false;
@@ -218,9 +221,7 @@ public final class BookmarkGhostOverlayActivator {
 			return false;
 		}
 
-		BookmarkHotkeyAction action = hasControl && bookmarkQuantity.isPresent() ?
-			BookmarkHotkeyAction.FILL_CRAFTING_GRID_QUANTITY :
-			BookmarkHotkeyAction.FILL_CRAFTING_GRID;
+		BookmarkHotkeyAction action = hasControl && bookmarkQuantity.isPresent() ? BookmarkHotkeyAction.FILL_CRAFTING_GRID_QUANTITY : BookmarkHotkeyAction.FILL_CRAFTING_GRID;
 		BookmarkRecipeOverlayPlan plan = BookmarkRecipeOverlayPlan.fromHotkeyAction(action, bookmarkQuantity)
 			.orElseThrow();
 		Optional<BookmarkCraftingGridFill> fill = BookmarkCraftingGridFill.create(

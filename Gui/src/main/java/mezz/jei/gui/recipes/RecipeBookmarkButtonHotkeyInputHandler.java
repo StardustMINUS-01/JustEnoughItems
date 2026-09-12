@@ -1,5 +1,7 @@
 package mezz.jei.gui.recipes;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.InputModifiers;
@@ -44,6 +46,6 @@ public class RecipeBookmarkButtonHotkeyInputHandler implements IUserInputHandler
 	private static boolean isBookmarkRecipeHotkey(UserInput input, IInternalKeyMappings keyBindings) {
 		return InputModifiers.hasShift(input.getModifiers()) &&
 			!InputModifiers.hasAlt(input.getModifiers()) &&
-			keyBindings.getBookmark().matchesIgnoringModifiers(input.getKey());
+			IJeiKeyMappingWithExtraModifiers.matchesShortcut(keyBindings.getBookmark(), input.getKey());
 	}
 }

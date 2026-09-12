@@ -39,11 +39,9 @@ public record RecipeChainTooltipModel(
 		Map<BookmarkIngredientKey, Item> targets = collectOrdinaryTargets(recipeInputs, ingredientManager);
 		boolean hasOrdinaryTargets = recipeInputs.stream()
 			.anyMatch(input -> input.metadata().type() == BookmarkItemType.ITEM);
-		RecipeChainDetails recipeDetails = hasOrdinaryTargets ?
-			RecipeChainMath.refresh(recipeInputs.stream()
-				.filter(input -> input.metadata().type() != BookmarkItemType.ITEM)
-				.toList(), collapsedRecipes) :
-			baseRecipeDetails;
+		RecipeChainDetails recipeDetails = hasOrdinaryTargets ? RecipeChainMath.refresh(recipeInputs.stream()
+			.filter(input -> input.metadata().type() != BookmarkItemType.ITEM)
+			.toList(), collapsedRecipes) : baseRecipeDetails;
 		if (!shiftDown) {
 			Map<BookmarkIngredientKey, Item> inputs = collectMissing(recipeInputs, recipeDetails);
 			targets.values().forEach(target -> merge(inputs, target));
@@ -52,9 +50,7 @@ public record RecipeChainTooltipModel(
 			addSection(sections, RecipeChainTooltipSectionType.INPUT, sorted(inputs));
 			return new RecipeChainTooltipModel(sections);
 		}
-		List<RecipeChainInput> adjustedRecipeInputs = !controlDown ?
-			expandOutputRecipeMultipliers(recipeInputs, recipeDetails, inventoryInputs) :
-			recipeInputs;
+		List<RecipeChainInput> adjustedRecipeInputs = !controlDown ? expandOutputRecipeMultipliers(recipeInputs, recipeDetails, inventoryInputs) : recipeInputs;
 		List<RecipeChainInput> calculationInputs = new ArrayList<>(adjustedRecipeInputs.size() + inventoryInputs.size());
 		for (RecipeChainInput input : adjustedRecipeInputs) {
 			if (input.metadata().type() != BookmarkItemType.ITEM) {
@@ -94,11 +90,10 @@ public record RecipeChainTooltipModel(
 		for (RecipeChainInput input : recipeInputs) {
 			BookmarkItemMetadata metadata = input.metadata();
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (
-				!metadata.type().isGraphOutput() ||
-					recipeUid == null ||
-					metadata.emptyFactor() ||
-					!originalDetails.outputRecipes().contains(recipeUid)
+			if (!metadata.type().isGraphOutput() ||
+				recipeUid == null ||
+				metadata.emptyFactor() ||
+				!originalDetails.outputRecipes().contains(recipeUid)
 			) {
 				adjusted.add(input);
 				continue;
@@ -244,11 +239,10 @@ public record RecipeChainTooltipModel(
 		Map<BookmarkIngredientKey, Item> items = new LinkedHashMap<>();
 		for (RecipeChainInput input : inputs) {
 			RecipeChainItem item = details.calculatedItems().get(input.index());
-			if (
-				item != null &&
-					input.metadata().type().isGraphOutput() &&
-					item.type() == RecipeChainItemType.REMAINDER &&
-					item.requiredAmount() > 0
+			if (item != null &&
+				input.metadata().type().isGraphOutput() &&
+				item.type() == RecipeChainItemType.REMAINDER &&
+				item.requiredAmount() > 0
 			) {
 				toItem(input, item.requiredAmount()).ifPresent(needed -> merge(items, needed));
 			}

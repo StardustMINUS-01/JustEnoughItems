@@ -13,7 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class RecipeTreeSummary {
-	private RecipeTreeSummary() { }
+	private RecipeTreeSummary() {}
 
 	public static RecipeChainTooltipModel create(List<RecipeChainInput> inputs, Optional<RecipeChainDetails> details,
 		Set<ResourceLocation> collapsed, List<RecipeChainInput> inventory, IIngredientManager ingredients) {
@@ -26,8 +26,7 @@ public final class RecipeTreeSummary {
 			var section = model.sections().stream().filter(value -> value.type() == type).findFirst();
 			if (section.isPresent()) {
 				sections.add(section.get());
-			}
-			else if (type == RecipeChainTooltipSectionType.MISSING || type == RecipeChainTooltipSectionType.AVAILABLE || type == RecipeChainTooltipSectionType.REMAINDER) {
+			} else if (type == RecipeChainTooltipSectionType.MISSING || type == RecipeChainTooltipSectionType.AVAILABLE || type == RecipeChainTooltipSectionType.REMAINDER) {
 				sections.add(new RecipeChainTooltipModel.Section(type, List.of()));
 			}
 		}

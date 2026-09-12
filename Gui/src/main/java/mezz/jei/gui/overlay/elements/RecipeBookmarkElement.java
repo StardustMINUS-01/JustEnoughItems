@@ -89,7 +89,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public ITypedIngredient<I> getTypedIngredient() {
-		return recipeBookmark.getRecipeOutput();
+		return recipeBookmark.getDisplayIngredient();
 	}
 
 	@Override
@@ -231,7 +231,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	}
 
 	private OptionalInt getBookmarkQuantity() {
-		return recipeBookmark.getRecipeOutput()
+		return recipeBookmark.getDisplayIngredient()
 			.getIngredient(VanillaTypes.ITEM_STACK)
 			.map(ItemStack::getCount)
 			.stream()
@@ -291,7 +291,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 		JeiTooltip bookmarkTooltip = new JeiTooltip();
 		boolean previewAdded = addBookmarkTooltipFeaturesIfEnabled(bookmarkTooltip, pinned);
 
-		if (recipeBookmark.getDisplayRole() == RecipeIngredientRole.OUTPUT) {
+		if (recipeBookmark.isDisplayIsOutput()) {
 			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
 			IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 			IModIdHelper modIdHelper = jeiRuntime.getJeiHelpers().getModIdHelper();
@@ -474,7 +474,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
 			IFocusFactory focusFactory = jeiRuntime.getJeiHelpers().getFocusFactory();
 			IScalableDrawable recipePreviewBackground = Internal.getTextures().getRecipePreviewBackground();
-			IFocus<?> focus = focusFactory.createFocus(recipeBookmark.getDisplayRole(), recipeBookmark.getRecipeOutput());
+			IFocus<?> focus = focusFactory.createFocus(recipeBookmark.getDisplayRole(), recipeBookmark.getDisplayIngredient());
 			IFocusGroup focusGroup = focusFactory.createFocusGroup(List.of(focus));
 
 			cachedLayoutDrawable = recipeManager.createRecipeLayoutDrawable(

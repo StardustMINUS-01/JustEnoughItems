@@ -292,11 +292,11 @@ public final class RecipePreferenceCandidateResolver {
 		) {
 			try {
 				return recipeManager.createRecipeLayoutDrawable(
-					recipeCategory,
-					recipe,
-					focusFactory.getEmptyFocusGroup()
-				)
-				.map(layout -> (IRecipeLayoutDrawable<?>) layout);
+						recipeCategory,
+						recipe,
+						focusFactory.getEmptyFocusGroup()
+					)
+					.map(layout -> (IRecipeLayoutDrawable<?>) layout);
 			} catch (RuntimeException | LinkageError e) {
 				LOGGER.warn(
 					"Skipping recipe preference scan for recipe {} in category {}.",

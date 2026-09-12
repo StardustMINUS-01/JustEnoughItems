@@ -52,23 +52,23 @@ public class NetworkHandler {
 	public void registerPacketHandlers(PermanentEventSubscriptions subscriptions) {
 		subscriptions.register(RegisterPayloadHandlersEvent.class, ev -> {
 			var registrar = ev.registrar(this.protocolVersion)
-			.executesOn(HandlerThread.MAIN)
-			.optional()
-			.playToServer(PacketDeletePlayerItem.TYPE, PacketDeletePlayerItem.STREAM_CODEC, wrapServerHandler(PacketDeletePlayerItem::process))
-			.playToServer(PacketGiveItemStack.TYPE, PacketGiveItemStack.STREAM_CODEC, wrapServerHandler(PacketGiveItemStack::process))
-			.playToServer(PacketRecipeTransfer.TYPE, PacketRecipeTransfer.STREAM_CODEC, wrapServerHandler(PacketRecipeTransfer::process))
-			.playToServer(PacketRecipeTransferCounted.TYPE, PacketRecipeTransferCounted.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferCounted::process))
-			.playToServer(PacketRecipeTransferWithResult.TYPE, PacketRecipeTransferWithResult.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferWithResult::process))
-			.playToServer(PacketRecipeTransferCountedWithResult.TYPE, PacketRecipeTransferCountedWithResult.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferCountedWithResult::process))
-			.playToServer(PacketSetHotbarItemStack.TYPE, PacketSetHotbarItemStack.STREAM_CODEC, wrapServerHandler(PacketSetHotbarItemStack::process))
-			.playToServer(PacketRequestCheatPermission.TYPE, PacketRequestCheatPermission.STREAM_CODEC, wrapServerHandler(PacketRequestCheatPermission::process))
-			.playToServer(PacketPullBookmarkItems.TYPE, PacketPullBookmarkItems.STREAM_CODEC, wrapServerHandler(PacketPullBookmarkItems::process))
-			.playToServer(PacketFillCraftingGrid.TYPE, PacketFillCraftingGrid.STREAM_CODEC, wrapServerHandler(PacketFillCraftingGrid::process))
-			.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
-			.playToServer(PacketShareBookmarkGroup.TYPE, PacketShareBookmarkGroup.STREAM_CODEC, wrapServerHandler(PacketShareBookmarkGroup::process))
-			.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
-			.playToClient(PacketRecipeTransferResult.TYPE, PacketRecipeTransferResult.STREAM_CODEC, wrapClientHandler(PacketRecipeTransferResult::process))
-			.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
+				.executesOn(HandlerThread.MAIN)
+				.optional()
+				.playToServer(PacketDeletePlayerItem.TYPE, PacketDeletePlayerItem.STREAM_CODEC, wrapServerHandler(PacketDeletePlayerItem::process))
+				.playToServer(PacketGiveItemStack.TYPE, PacketGiveItemStack.STREAM_CODEC, wrapServerHandler(PacketGiveItemStack::process))
+				.playToServer(PacketRecipeTransfer.TYPE, PacketRecipeTransfer.STREAM_CODEC, wrapServerHandler(PacketRecipeTransfer::process))
+				.playToServer(PacketRecipeTransferCounted.TYPE, PacketRecipeTransferCounted.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferCounted::process))
+				.playToServer(PacketRecipeTransferWithResult.TYPE, PacketRecipeTransferWithResult.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferWithResult::process))
+				.playToServer(PacketRecipeTransferCountedWithResult.TYPE, PacketRecipeTransferCountedWithResult.STREAM_CODEC, wrapServerHandler(PacketRecipeTransferCountedWithResult::process))
+				.playToServer(PacketSetHotbarItemStack.TYPE, PacketSetHotbarItemStack.STREAM_CODEC, wrapServerHandler(PacketSetHotbarItemStack::process))
+				.playToServer(PacketRequestCheatPermission.TYPE, PacketRequestCheatPermission.STREAM_CODEC, wrapServerHandler(PacketRequestCheatPermission::process))
+				.playToServer(PacketPullBookmarkItems.TYPE, PacketPullBookmarkItems.STREAM_CODEC, wrapServerHandler(PacketPullBookmarkItems::process))
+				.playToServer(PacketFillCraftingGrid.TYPE, PacketFillCraftingGrid.STREAM_CODEC, wrapServerHandler(PacketFillCraftingGrid::process))
+				.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
+				.playToServer(PacketShareBookmarkGroup.TYPE, PacketShareBookmarkGroup.STREAM_CODEC, wrapServerHandler(PacketShareBookmarkGroup::process))
+				.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
+				.playToClient(PacketRecipeTransferResult.TYPE, PacketRecipeTransferResult.STREAM_CODEC, wrapClientHandler(PacketRecipeTransferResult::process))
+				.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
 			if (CompatUtil.isModLoaded("ae2")) {
 				registrar.playToServer(PacketEncodeRecipeChainPatterns.TYPE, PacketEncodeRecipeChainPatterns.STREAM_CODEC, wrapServerHandler(PacketEncodeRecipeChainPatterns::process));
 			}

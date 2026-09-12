@@ -51,7 +51,8 @@ public final class RecipeChainMath {
 	/** Returns the visitor for this demand's children, or null to skip recording that subtree. */
 	@FunctionalInterface
 	public interface IDemandVisitor {
-		@Nullable IDemandVisitor visit(RecipeChainInput input, long requested, long remaining);
+		@Nullable
+		IDemandVisitor visit(RecipeChainInput input, long requested, long remaining);
 	}
 
 	public static void visitDemands(List<RecipeChainInput> inputs, Set<ResourceLocation> collapsedRecipes, IDemandVisitor visitor) {
@@ -514,9 +515,7 @@ public final class RecipeChainMath {
 			long required = requiredAmount.getOrDefault(result, 0L);
 			long calculatedAmount = metadata.amount(calculatedMultiplier);
 			long shiftAmount = Math.max(0, calculatedAmount - required);
-			RecipeChainItemType type = recipeUid != null && outputRecipes.containsKey(recipeUid) && isOutputTarget(result) ?
-				RecipeChainItemType.RESULT :
-				RecipeChainItemType.REMAINDER;
+			RecipeChainItemType type = recipeUid != null && outputRecipes.containsKey(recipeUid) && isOutputTarget(result) ? RecipeChainItemType.RESULT : RecipeChainItemType.REMAINDER;
 			if (shiftAmount > 0 && type == RecipeChainItemType.REMAINDER) {
 				remainderItems.add(result.index());
 			}
@@ -537,9 +536,7 @@ public final class RecipeChainMath {
 			BookmarkItemMetadata metadata = ingredient.metadata();
 			long calculatedMultiplier = workingMultipliers.getOrDefault(ingredient, 0L);
 			RecipeChainInput preferred = preferredItems.get(ingredient);
-			long required = requiredAmount.containsKey(preferred) ?
-				0 :
-				requiredAmount.getOrDefault(ingredient, metadata.amount(calculatedMultiplier));
+			long required = requiredAmount.containsKey(preferred) ? 0 : requiredAmount.getOrDefault(ingredient, metadata.amount(calculatedMultiplier));
 			if (required > 0) {
 				missingIngredients.add(ingredient.index());
 				addMissedItem(missedItems, metadata, required);
@@ -716,9 +713,7 @@ public final class RecipeChainMath {
 			for (BlockAccumulator accumulator : collected) {
 				long realMultiplier;
 				if (accumulator.anchor()) {
-					realMultiplier = middleRecipes.contains(root) ?
-						Math.max(0, accumulator.metadata().multiplier() - 1) :
-						accumulator.metadata().multiplier();
+					realMultiplier = middleRecipes.contains(root) ? Math.max(0, accumulator.metadata().multiplier() - 1) : accumulator.metadata().multiplier();
 				} else {
 					realMultiplier = accumulator.metadata()
 						.multiplierFromAmount(shadowShifts.getOrDefault(accumulator.key(), 0L));
@@ -815,9 +810,7 @@ public final class RecipeChainMath {
 			}
 			if (anchor || amount > 0) {
 				String key = aggregationKey(metadata, result.index());
-				RecipeChainItemType type = outputRecipes.contains(recipeUid) ?
-					RecipeChainItemType.RESULT :
-					RecipeChainItemType.REMAINDER;
+				RecipeChainItemType type = outputRecipes.contains(recipeUid) ? RecipeChainItemType.RESULT : RecipeChainItemType.REMAINDER;
 				BlockAccumulator accumulator = results.computeIfAbsent(
 					key,
 					ignored -> new BlockAccumulator(key, result.index(), metadata, anchor ? RecipeChainItemType.RESULT : type, anchor)
@@ -833,12 +826,8 @@ public final class RecipeChainMath {
 			}
 			RecipeChainInput preferred = preferredItems.get(ingredient);
 			long itemAmount = metadata.amount(workingMultipliers.getOrDefault(ingredient, 0L));
-			long amount = requiredAmount.containsKey(preferred) ?
-				0 :
-				requiredAmount.getOrDefault(ingredient, itemAmount);
-			long refAmount = preferred != null && !topLevelRecipes.contains(preferred.metadata().recipeUid()) ?
-				requiredAmount.getOrDefault(preferred, 0L) :
-				0;
+			long amount = requiredAmount.containsKey(preferred) ? 0 : requiredAmount.getOrDefault(ingredient, itemAmount);
+			long refAmount = preferred != null && !topLevelRecipes.contains(preferred.metadata().recipeUid()) ? requiredAmount.getOrDefault(preferred, 0L) : 0;
 			boolean include = amount != 0 ||
 				(itemAmount > refAmount && requiredAmount.containsKey(preferred)) ||
 				(root.equals(recipeUid) && rootMultiplier == 0);

@@ -20,7 +20,8 @@ public final class ConfigLineReader {
 	public static List<Entry> read(List<String> lines) {
 		List<Entry> entries = new ArrayList<>();
 		LineReader reader = new LineReader();
-		@Nullable String key = null;
+		@Nullable
+		String key = null;
 		StringBuilder value = new StringBuilder();
 		for (int i = 0; i <= lines.size(); i++) {
 			if (i == lines.size()) {

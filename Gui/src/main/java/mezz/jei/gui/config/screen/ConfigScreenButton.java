@@ -51,8 +51,7 @@ final class ConfigScreenButton extends Button {
 		}
 		boolean navigation = style.startsWith("tab");
 		boolean depressed = pressed || !active;
-		ResourceLocation sprite = depressed ? PRESSED :
-			style.equals("button") && isHoveredOrFocused() ? HOVER : background;
+		ResourceLocation sprite = depressed ? PRESSED : style.equals("button") && isHoveredOrFocused() ? HOVER : background;
 		if (navigation) {
 			if (style.equals("tab_selected")) {
 				graphics.blitSprite(background, getX(), getY(), width, height);

@@ -21,8 +21,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.AbstractContainerMenu;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -104,17 +103,6 @@ public class RecipeGuiLayouts {
 		safeCallOnRecipeLayouts(IRecipeLayoutWithButtons::tick);
 	}
 
-	public void tick(@Nullable AbstractContainerMenu parentContainer) {
-		Player player = Minecraft.getInstance().player;
-		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
-			if (recipeLayoutWithButtons instanceof RecipeLayoutWithButtons<?> recipeLayout) {
-				recipeLayout.tick(parentContainer, player);
-			} else {
-				recipeLayoutWithButtons.tick();
-			}
-		}
-	}
-
 	public void setRecipeLayoutsWithButtons(List<IRecipeLayoutWithButtons<?>> recipeLayoutsWithButtons) {
 		this.recipeLayoutsWithButtons.clear();
 		this.recipeLayoutsWithButtons.addAll(recipeLayoutsWithButtons);
@@ -124,7 +112,7 @@ public class RecipeGuiLayouts {
 	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> captureInputSelections() {
 		Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> selections = new LinkedHashMap<>();
 		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
-			if (layout instanceof RecipeLayoutWithButtons<?> layoutWithButtons) {
+			if (layout instanceof RecipeLayoutWithExtras<?> layoutWithButtons) {
 				Map<Integer, BookmarkIngredientKey> selectedInputs = layoutWithButtons.getInputSelections();
 				if (!selectedInputs.isEmpty()) {
 					getFocusedRecipe(layout.getRecipeLayout())
@@ -137,7 +125,7 @@ public class RecipeGuiLayouts {
 
 	public void restoreInputSelections(Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> selections) {
 		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
-			if (layout instanceof RecipeLayoutWithButtons<?> layoutWithButtons) {
+			if (layout instanceof RecipeLayoutWithExtras<?> layoutWithButtons) {
 				getFocusedRecipe(layout.getRecipeLayout())
 					.map(selections::get)
 					.ifPresent(layoutWithButtons::restoreInputSelections);
@@ -201,7 +189,7 @@ public class RecipeGuiLayouts {
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
 			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
 			if (recipeLayout.isMouseOver(mouseX, mouseY) && isOutputSlotUnderMouse(recipeLayout, mouseX, mouseY)) {
-				if (recipeLayoutWithButtons instanceof RecipeLayoutWithButtons<?> recipeLayoutWithForkExtras) {
+				if (recipeLayoutWithButtons instanceof RecipeLayoutWithExtras<?> recipeLayoutWithForkExtras) {
 					return recipeLayoutWithForkExtras.addRecipeBookmarkGroup(input, preserveAmount);
 				}
 				return false;
@@ -241,7 +229,6 @@ public class RecipeGuiLayouts {
 
 	public record RecipeLayoutUnderMouse(IRecipeLayoutDrawable<?> layout, RecipeSlotUnderMouse slotUnderMouse) {
 	}
-
 
 	public boolean mouseDragged(double mouseX, double mouseY, InputConstants.Key input, double dragX, double dragY) {
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {

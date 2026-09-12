@@ -8,23 +8,28 @@ import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.Internal;
 import mezz.jei.common.config.file.JsonArrayFileHelper;
 import mezz.jei.common.transfer.RecipeTransferService;
-import mezz.jei.common.util.DeduplicatingRunner;
+
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.RegistryOps;
+import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -34,15 +39,13 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	private static final Duration SAVE_DELAY_TIME = Duration.ofSeconds(5);
 	private static final int VERSION = 2;
 
+	@SuppressWarnings("deprecation")
+	private final LegacyBookmarkConfig legacyBookmarkConfig;
 	private final Path jeiConfigurationDir;
-	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
 	private BookmarkList bookmarkList;
 	private IIngredientManager ingredientManager;
 	private ICodecHelper codecHelper;
-
-	public BookmarkJsonConfig(Path jeiConfigurationDir) {
-		this.jeiConfigurationDir = jeiConfigurationDir;
-	}
+	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
 
 	private static Optional<Path> getPath(Path jeiConfigurationDir) {
 		return ServerConfigPathUtil.getWorldPath(jeiConfigurationDir)
@@ -53,8 +56,15 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 					LOGGER.error("Unable to create bookmark config folder: {}", configPath, e);
 					return Optional.empty();
 				}
-				return Optional.of(configPath.resolve("bookmarks.json"));
+				Path path = configPath.resolve("bookmarks.json");
+				return Optional.of(path);
 			});
+	}
+
+	@SuppressWarnings("deprecation")
+	public BookmarkJsonConfig(Path jeiConfigurationDir) {
+		this.jeiConfigurationDir = jeiConfigurationDir;
+		this.legacyBookmarkConfig = new LegacyBookmarkConfig(jeiConfigurationDir);
 	}
 
 	private RegistryOps<JsonElement> getRegistryOps(RegistryAccess registryAccess) {
@@ -109,6 +119,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public void loadBookmarks(
 		IRecipeManager recipeManager,
@@ -125,26 +136,114 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		this.bookmarkList = bookmarkList;
 		this.ingredientManager = ingredientManager;
 		this.codecHelper = codecHelper;
-		Optional<Path> optionalPath = getPath(jeiConfigurationDir);
-		if (optionalPath.isEmpty() || !Files.exists(optionalPath.get())) {
-			return;
-		}
-		Path path = optionalPath.get();
-		Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
 		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
-		try (BufferedReader reader = Files.newBufferedReader(path)) {
-			List<BookmarkConfigEntry> entries = JsonArrayFileHelper.read(
-				reader,
-				VERSION,
-				entryCodec,
-				registryOps,
-				(element, error) -> LOGGER.error("Encountered an error when loading bookmark config from file {}\n{}\n{}", path, element, error),
-				(element, exception) -> LOGGER.error("Encountered an exception when loading bookmark config from file {}\n{}", path, element, exception)
-			);
-			BookmarkJsonSerializer.applyEntries(entries, bookmarkList);
-			LOGGER.debug("Loaded bookmarks config from file: {}", path);
-		} catch (RuntimeException | IOException e) {
-			LOGGER.error("Failed to load bookmarks config from file {}", path, e);
+		loadJsonBookmarks(ingredientManager, recipeManager, registryOps, codecHelper, bookmarkCodec);
+		List<IBookmark> legacyBookmarks = new ArrayList<>(legacyBookmarkConfig.loadBookmarks(
+			recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkFactory, recipeTransferService));
+		legacyBookmarks.addAll(loadLegacyCompressedJsonBookmarks(ingredientManager, recipeManager, registryAccess, codecHelper, bookmarkCodec));
+		if (!legacyBookmarks.isEmpty()) {
+			for (IBookmark bookmark : legacyBookmarks) {
+				bookmarkList.addToListWithoutNotifying(bookmark, false);
+			}
+			getPath(jeiConfigurationDir).ifPresent(path -> migrate(path, registryOps, bookmarkCodec));
 		}
+		bookmarkList.notifyListenersOfChange();
+	}
+
+	@SuppressWarnings("deprecation")
+	private void migrate(Path path, RegistryOps<JsonElement> registryOps, Codec<IBookmark> bookmarkCodec) {
+		try {
+			BookmarkJsonSerializer.migrate(
+				path, VERSION, LegacyBookmarkConfig.getPath(jeiConfigurationDir),
+				BookmarkJsonSerializer.createEntries(bookmarkList),
+				BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec), registryOps);
+		} catch (RuntimeException | IOException e) {
+			LOGGER.error("Failed to migrate bookmark config to file {}", path, e);
+		}
+	}
+
+	@Unmodifiable
+	private List<IBookmark> loadJsonBookmarks(
+		IIngredientManager ingredientManager,
+		IRecipeManager recipeManager,
+		RegistryOps<JsonElement> registryOps,
+		ICodecHelper codecHelper,
+		Codec<IBookmark> bookmarkCodec
+	) {
+		return getPath(jeiConfigurationDir)
+			.<List<IBookmark>>map(path -> {
+				if (!Files.exists(path)) {
+					return List.of();
+				}
+
+				List<IBookmark> bookmarks;
+				Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
+
+				try (BufferedReader reader = Files.newBufferedReader(path)) {
+					List<BookmarkConfigEntry> entries = JsonArrayFileHelper.read(
+						reader,
+						VERSION,
+						entryCodec,
+						registryOps,
+						(element, error) -> {
+							LOGGER.error("Encountered an error when loading the bookmark config from file {}\n{}\n{}", path, element, error);
+						},
+						(element, exception) -> {
+							LOGGER.error("Encountered an exception when loading the bookmark config from file {}\n{}", path, element, exception);
+						}
+					);
+					BookmarkJsonSerializer.applyEntriesWithoutNotifying(entries, bookmarkList);
+					bookmarks = bookmarkList.getBookmarks();
+					LOGGER.debug("Loaded bookmarks config from file: {}", path);
+				} catch (RuntimeException | IOException e) {
+					LOGGER.error("Failed to load bookmarks from file {}", path, e);
+					bookmarks = new ArrayList<>();
+				}
+
+				return bookmarks;
+			})
+			.orElseGet(List::of);
+	}
+
+	@Unmodifiable
+	private List<IBookmark> loadLegacyCompressedJsonBookmarks(
+		IIngredientManager ingredientManager,
+		IRecipeManager recipeManager,
+		RegistryAccess registryAccess,
+		ICodecHelper codecHelper,
+		Codec<IBookmark> bookmarkCodec
+	) {
+		return getPath(jeiConfigurationDir)
+			.<List<IBookmark>>map(path -> {
+				if (!Files.exists(path)) {
+					return List.of();
+				}
+
+				List<IBookmark> bookmarks;
+
+				RegistryOps<JsonElement> compressedOps = registryAccess.createSerializationContext(JsonOps.COMPRESSED);
+
+				try (BufferedReader reader = Files.newBufferedReader(path)) {
+					bookmarks = JsonArrayFileHelper.read(
+						reader,
+						null,
+						bookmarkCodec,
+						compressedOps,
+						(element, error) -> {
+							// ignore errors
+						},
+						(element, exception) -> {
+							// ignore errors
+						}
+					);
+					LOGGER.debug("Loaded legacy compressed json bookmarks config from file: {}", path);
+				} catch (RuntimeException | IOException e) {
+					LOGGER.error("Failed to load legacy compressed json bookmarks from file {}", path, e);
+					bookmarks = new ArrayList<>();
+				}
+
+				return bookmarks;
+			})
+			.orElseGet(List::of);
 	}
 }

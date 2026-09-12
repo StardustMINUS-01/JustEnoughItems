@@ -6,6 +6,10 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import mezz.jei.common.chat.JeiChatItemLinks;
+import mezz.jei.common.config.file.JsonArrayFileHelper;
+import mezz.jei.common.util.PathUtil;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -14,6 +18,10 @@ import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -21,7 +29,26 @@ import java.util.List;
 import java.util.Optional;
 
 public final class BookmarkJsonSerializer {
+	private static final Logger LOGGER = LogManager.getLogger();
 	private BookmarkJsonSerializer() {
+	}
+
+	public static void migrate(Path path, int version, Optional<Path> legacyPath, List<BookmarkConfigEntry> entries,
+		Codec<BookmarkConfigEntry> codec, DynamicOps<JsonElement> ops) throws IOException {
+		if (Files.exists(path)) {
+			Path backup = path.resolveSibling(path.getFileName() + ".bak");
+			Files.copy(path, backup, StandardCopyOption.REPLACE_EXISTING);
+			LOGGER.info("Backed up legacy json compressed bookmarks config file to '{}'", backup);
+		}
+		// Abort the atomic write on any encoding error before retiring the legacy source.
+		JsonArrayFileHelper.write(path, version, entries, codec, ops,
+			error -> { throw new IllegalStateException(error.message()); },
+			(entry, exception) -> { throw exception; });
+		if (legacyPath.isPresent() && Files.exists(legacyPath.get())) {
+			Path backup = legacyPath.get().resolveSibling(legacyPath.get().getFileName() + ".bak");
+			PathUtil.moveAtomicReplace(legacyPath.get(), backup);
+			LOGGER.info("Backed up legacy bookmarks config file to '{}'", backup);
+		}
 	}
 
 	public static List<BookmarkConfigEntry> createEntries(BookmarkList bookmarkList) {
@@ -41,6 +68,11 @@ public final class BookmarkJsonSerializer {
 	}
 
 	public static void applyEntries(List<BookmarkConfigEntry> entries, BookmarkList bookmarkList) {
+		applyEntriesWithoutNotifying(entries, bookmarkList);
+		bookmarkList.notifyListenersOfChange();
+	}
+
+	static void applyEntriesWithoutNotifying(List<BookmarkConfigEntry> entries, BookmarkList bookmarkList) {
 		for (BookmarkConfigEntry entry : entries) {
 			if (entry.group() != null) {
 				bookmarkList.addGroupFromConfig(entry.group());
@@ -49,7 +81,6 @@ public final class BookmarkJsonSerializer {
 				bookmarkList.moveBookmarkMetadataFromConfig(entry.bookmark(), entry.metadata());
 			}
 		}
-		bookmarkList.notifyListenersOfChange();
 	}
 
 	public static Optional<String> serializeGroupSnapshot(
@@ -114,7 +145,8 @@ public final class BookmarkJsonSerializer {
 				snapshot.group().title().length() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
 				snapshot.bookmarks().isEmpty() ||
 				snapshot.bookmarks().size() > JeiChatItemLinks.MAX_BOOKMARK_GROUP_ENTRIES ||
-				snapshot.bookmarks().stream().anyMatch(entry -> entry.bookmark() == null || entry.metadata() == null)) {
+				snapshot.bookmarks().stream().anyMatch(entry -> entry.bookmark() == null || entry.metadata() == null)
+			) {
 				return Optional.empty();
 			}
 
@@ -158,10 +190,11 @@ public final class BookmarkJsonSerializer {
 
 	private static Codec<GroupSnapshot> createGroupSnapshotCodec(Codec<BookmarkConfigEntry> entryCodec) {
 		return RecordCodecBuilder.create(instance -> instance.group(
-			Codec.INT.fieldOf("version").forGetter(GroupSnapshot::version),
-			BookmarkConfigEntryCodec.GROUP_CODEC.fieldOf("group").forGetter(GroupSnapshot::group),
-			entryCodec.listOf().fieldOf("bookmarks").forGetter(GroupSnapshot::bookmarks)
-		).apply(instance, GroupSnapshot::new));
+				Codec.INT.fieldOf("version").forGetter(GroupSnapshot::version),
+				BookmarkConfigEntryCodec.GROUP_CODEC.fieldOf("group").forGetter(GroupSnapshot::group),
+				entryCodec.listOf().fieldOf("bookmarks").forGetter(GroupSnapshot::bookmarks)
+			)
+			.apply(instance, GroupSnapshot::new));
 	}
 
 	private record GroupSnapshot(int version, BookmarkGroup group, List<BookmarkConfigEntry> bookmarks) {

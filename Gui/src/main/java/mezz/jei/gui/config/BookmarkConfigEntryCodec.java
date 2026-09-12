@@ -31,25 +31,23 @@ import java.util.Set;
 public final class BookmarkConfigEntryCodec {
 	private static final String TYPE_GROUP = "group";
 	private static final Codec<String> GROUP_TYPE_CODEC = Codec.STRING.flatXmap(
-		type -> TYPE_GROUP.equals(type) ?
-			DataResult.success(type) :
-			DataResult.error(() -> "Unknown bookmark config entry type: " + type),
+		type -> TYPE_GROUP.equals(type) ? DataResult.success(type) : DataResult.error(() -> "Unknown bookmark config entry type: " + type),
 		DataResult::success
 	);
 	private static final Codec<Set<ResourceLocation>> RESOURCE_LOCATION_SET_CODEC = ResourceLocation.CODEC.listOf()
 		.xmap(LinkedHashSet::new, List::copyOf);
 
 	public static final Codec<BookmarkGroup> GROUP_CODEC = RecordCodecBuilder.create(instance -> instance.group(
-		GROUP_TYPE_CODEC.fieldOf("type").forGetter(group -> TYPE_GROUP),
-		Codec.INT.fieldOf("id").forGetter(BookmarkGroup::id),
-		Codec.STRING.fieldOf("title").forGetter(BookmarkGroup::title),
-		EnumCodec.create(BookmarkViewMode.class).optionalFieldOf("viewMode", BookmarkViewMode.DEFAULT).forGetter(BookmarkGroup::viewMode),
-		Codec.BOOL.optionalFieldOf("collapsed", false).forGetter(BookmarkGroup::collapsed),
-		Codec.BOOL.optionalFieldOf("crafting", false).forGetter(BookmarkGroup::craftingMode),
-		RESOURCE_LOCATION_SET_CODEC.optionalFieldOf("collapsedRecipes", Set.of()).forGetter(BookmarkGroup::collapsedRecipeIds)
-	).apply(instance, (type, id, title, viewMode, collapsed, crafting, collapsedRecipes) ->
-		new BookmarkGroup(id, title, viewMode, collapsed, crafting, collapsedRecipes)
-	));
+			GROUP_TYPE_CODEC.fieldOf("type").forGetter(group -> TYPE_GROUP),
+			Codec.INT.fieldOf("id").forGetter(BookmarkGroup::id),
+			Codec.STRING.fieldOf("title").forGetter(BookmarkGroup::title),
+			EnumCodec.create(BookmarkViewMode.class).optionalFieldOf("viewMode", BookmarkViewMode.DEFAULT).forGetter(BookmarkGroup::viewMode),
+			Codec.BOOL.optionalFieldOf("collapsed", false).forGetter(BookmarkGroup::collapsed),
+			Codec.BOOL.optionalFieldOf("crafting", false).forGetter(BookmarkGroup::craftingMode),
+			RESOURCE_LOCATION_SET_CODEC.optionalFieldOf("collapsedRecipes", Set.of()).forGetter(BookmarkGroup::collapsedRecipeIds)
+		)
+		.apply(instance, (type, id, title, viewMode, collapsed, crafting, collapsedRecipes) -> new BookmarkGroup(id, title, viewMode, collapsed, crafting, collapsedRecipes)
+		));
 
 	private BookmarkConfigEntryCodec() {
 	}
@@ -63,18 +61,17 @@ public final class BookmarkConfigEntryCodec {
 		Codec<BookmarkIngredientKey> keyCodec = createIngredientKeyCodec(typedIngredientCodec, ingredientManager);
 		Codec<ForkData> forkDataCodec = createForkDataCodec(typedIngredientCodec, keyCodec);
 		Codec<BookmarkConfigEntry> bookmarkEntryCodec = Codec.pair(
-			bookmarkCodec,
-			forkDataCodec.optionalFieldOf("forkData").codec()
-		).flatXmap(
-			pair -> decodeBookmark(pair.getFirst(), pair.getSecond().orElse(null), ingredientManager),
-			entry -> {
-				ForkData forkData = ForkData.create(entry, ingredientManager);
-				Optional<ForkData> encodedForkData = forkData.isDefaultIngredient(entry.bookmark()) ?
-					Optional.empty() :
-					Optional.of(forkData);
-				return DataResult.success(Pair.of(normalizeIngredientBookmark(entry.bookmark(), ingredientManager), encodedForkData));
-			}
-		);
+				bookmarkCodec,
+				forkDataCodec.optionalFieldOf("forkData").codec()
+			)
+			.flatXmap(
+				pair -> decodeBookmark(pair.getFirst(), pair.getSecond().orElse(null), ingredientManager),
+				entry -> {
+					ForkData forkData = ForkData.create(entry, ingredientManager);
+					Optional<ForkData> encodedForkData = forkData.isDefaultIngredient(entry.bookmark()) ? Optional.empty() : Optional.of(forkData);
+					return DataResult.success(Pair.of(normalizeIngredientBookmark(entry.bookmark(), ingredientManager), encodedForkData));
+				}
+			);
 		return Codec.either(GROUP_CODEC, bookmarkEntryCodec)
 			.xmap(
 				either -> either.map(BookmarkConfigEntry::group, entry -> entry),
@@ -107,18 +104,19 @@ public final class BookmarkConfigEntryCodec {
 		Codec<BookmarkIngredientKey> keyCodec
 	) {
 		return RecordCodecBuilder.create(instance -> instance.group(
-			Codec.INT.optionalFieldOf("group", BookmarkGroupManager.DEFAULT_GROUP_ID).forGetter(ForkData::groupId),
-			EnumCodec.create(BookmarkItemType.class).optionalFieldOf("kind", BookmarkItemType.ITEM).forGetter(ForkData::type),
-			typedIngredientCodec.optionalFieldOf("displayIngredient").forGetter(ForkData::displayIngredient),
-			Codec.LONG.optionalFieldOf("amount", 1L).forGetter(ForkData::amount),
-			Codec.LONG.optionalFieldOf("multiplier", 1L).forGetter(ForkData::multiplier),
-			Codec.LONG.optionalFieldOf("factor", 1L).forGetter(ForkData::factor),
-			Codec.LONG.optionalFieldOf("chance", BookmarkItemMetadata.CHANCE_FULL).forGetter(ForkData::chance),
-			keyCodec.listOf().optionalFieldOf("permutations", List.of()).forGetter(ForkData::permutations),
-			keyCodec.optionalFieldOf("containerItem").forGetter(ForkData::containerItem),
-			Codec.LONG.optionalFieldOf("containerItemCraftingUses", 1L).forGetter(ForkData::containerItemCraftingUses),
-			keyCodec.optionalFieldOf("brokenContainerItem").forGetter(ForkData::brokenContainerItem)
-		).apply(instance, ForkData::new));
+				Codec.INT.optionalFieldOf("group", BookmarkGroupManager.DEFAULT_GROUP_ID).forGetter(ForkData::groupId),
+				EnumCodec.create(BookmarkItemType.class).optionalFieldOf("kind", BookmarkItemType.ITEM).forGetter(ForkData::type),
+				typedIngredientCodec.optionalFieldOf("displayIngredient").forGetter(ForkData::displayIngredient),
+				Codec.LONG.optionalFieldOf("amount", 1L).forGetter(ForkData::amount),
+				Codec.LONG.optionalFieldOf("multiplier", 1L).forGetter(ForkData::multiplier),
+				Codec.LONG.optionalFieldOf("factor", 1L).forGetter(ForkData::factor),
+				Codec.LONG.optionalFieldOf("chance", BookmarkItemMetadata.CHANCE_FULL).forGetter(ForkData::chance),
+				keyCodec.listOf().optionalFieldOf("permutations", List.of()).forGetter(ForkData::permutations),
+				keyCodec.optionalFieldOf("containerItem").forGetter(ForkData::containerItem),
+				Codec.LONG.optionalFieldOf("containerItemCraftingUses", 1L).forGetter(ForkData::containerItemCraftingUses),
+				keyCodec.optionalFieldOf("brokenContainerItem").forGetter(ForkData::brokenContainerItem)
+			)
+			.apply(instance, ForkData::new));
 	}
 
 	private static DataResult<BookmarkConfigEntry> decodeBookmark(
@@ -190,10 +188,8 @@ public final class BookmarkConfigEntryCodec {
 		private static ForkData create(BookmarkConfigEntry entry, IIngredientManager ingredientManager) {
 			IBookmark bookmark = entry.bookmark();
 			BookmarkItemMetadata metadata = entry.metadata();
-			Optional<ITypedIngredient<?>> displayIngredient = bookmark instanceof RecipeBookmark<?, ?> recipeBookmark ?
-				Optional.of(recipeBookmark.getRecipeOutput()) : Optional.empty();
-			long amount = bookmark instanceof IngredientBookmark<?> ?
-				BookmarkIngredientAmountResolver.getAmount(bookmark.getElement().getTypedIngredient(), ingredientManager) : 1;
+			Optional<ITypedIngredient<?>> displayIngredient = bookmark instanceof RecipeBookmark<?, ?> recipeBookmark ? Optional.of(recipeBookmark.getDisplayIngredient()) : Optional.empty();
+			long amount = bookmark instanceof IngredientBookmark<?> ? BookmarkIngredientAmountResolver.getAmount(bookmark.getElement().getTypedIngredient(), ingredientManager) : 1;
 			return new ForkData(
 				metadata.groupId(),
 				metadata.type(),
@@ -210,12 +206,9 @@ public final class BookmarkConfigEntryCodec {
 		}
 
 		private static ForkData createDefault(IBookmark bookmark, IIngredientManager ingredientManager) {
-			BookmarkItemType type = bookmark instanceof RecipeBookmark<?, ?> recipeBookmark ?
-				BookmarkItemType.fromRecipeRole(recipeBookmark.getDisplayRole()) : BookmarkItemType.ITEM;
-			Optional<ITypedIngredient<?>> displayIngredient = bookmark instanceof RecipeBookmark<?, ?> recipeBookmark ?
-				Optional.of(recipeBookmark.getRecipeOutput()) : Optional.empty();
-			long amount = bookmark instanceof IngredientBookmark<?> ?
-				BookmarkIngredientAmountResolver.getAmount(bookmark.getElement().getTypedIngredient(), ingredientManager) : 1;
+			BookmarkItemType type = bookmark instanceof RecipeBookmark<?, ?> recipeBookmark ? BookmarkItemType.fromRecipeRole(recipeBookmark.getDisplayRole()) : BookmarkItemType.ITEM;
+			Optional<ITypedIngredient<?>> displayIngredient = bookmark instanceof RecipeBookmark<?, ?> recipeBookmark ? Optional.of(recipeBookmark.getDisplayIngredient()) : Optional.empty();
+			long amount = bookmark instanceof IngredientBookmark<?> ? BookmarkIngredientAmountResolver.getAmount(bookmark.getElement().getTypedIngredient(), ingredientManager) : 1;
 			return new ForkData(0, type, displayIngredient, amount, 1, 1, BookmarkItemMetadata.CHANCE_FULL, List.of(), Optional.empty(), 1, Optional.empty());
 		}
 

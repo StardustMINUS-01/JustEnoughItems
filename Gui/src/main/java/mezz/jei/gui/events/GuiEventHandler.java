@@ -14,6 +14,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayRenderer;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayState;
 import mezz.jei.gui.input.IGuiInputLayer;
+import mezz.jei.gui.config.screen.JeiConfigScreen;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import net.minecraft.client.DeltaTracker;
@@ -54,6 +55,9 @@ public class GuiEventHandler {
 	public void onGuiInit(Screen screen) {
 		BookmarkGhostOverlayState.INSTANCE.clear();
 		bookmarkAutoCraftingRunner.stop();
+		if (screen instanceof JeiConfigScreen) {
+			return;
+		}
 		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
 			.map(ImmutableRect2i::new)
 			.collect(Collectors.toUnmodifiableSet());
@@ -68,6 +72,9 @@ public class GuiEventHandler {
 	}
 
 	public void onGuiOpen(Screen screen) {
+		if (screen instanceof JeiConfigScreen) {
+			return;
+		}
 		BookmarkGhostOverlayState.INSTANCE.clear();
 		bookmarkAutoCraftingRunner.stop();
 		ingredientListOverlay.getScreenPropertiesUpdater()
@@ -79,6 +86,9 @@ public class GuiEventHandler {
 	}
 
 	public void onClientTick() {
+		if (Minecraft.getInstance().screen instanceof JeiConfigScreen) {
+			return;
+		}
 		ingredientListOverlay.tick();
 		bookmarkOverlay.tick();
 		bookmarkAutoCraftingRunner.tick();
@@ -92,6 +102,9 @@ public class GuiEventHandler {
 	}
 
 	public void updateForScreenRender(Screen screen, int mouseX, int mouseY) {
+		if (Minecraft.getInstance().screen instanceof JeiConfigScreen) {
+			return;
+		}
 		IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
 		updateOverlayProperties(screen, guiProperties);
 		this.inputLayers.forEach(inputLayer -> inputLayer.update(mouseX, mouseY));
@@ -101,7 +114,11 @@ public class GuiEventHandler {
 	 * Draws the JEI overlay backgrounds before the screen contents are drawn.
 	 */
 	public void drawForScreenBackground(Screen screen, GuiGraphics guiGraphics) {
-		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
+		if (screen instanceof JeiConfigScreen) {
+			return;
+		}
+		@Nullable
+		IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
 		updateOverlayProperties(screen, guiProperties);
 		drawOverlayBackgrounds(guiGraphics);
 	}
@@ -110,7 +127,11 @@ public class GuiEventHandler {
 	 * Draws the JEI overlay foregrounds after the screen contents and before deferred tooltips are extracted.
 	 */
 	public void drawForScreenForeground(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		@Nullable IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
+		if (screen instanceof JeiConfigScreen) {
+			return;
+		}
+		@Nullable
+		IGuiProperties guiProperties = screenHelper.getGuiProperties(screen).orElse(null);
 		if (screen instanceof AbstractContainerScreen<?> containerScreen) {
 			BookmarkGhostOverlayState.INSTANCE.getActive(containerScreen.getMenu())
 				.ifPresent(overlay -> BookmarkGhostOverlayRenderer.render(guiGraphics, overlay));
@@ -121,6 +142,10 @@ public class GuiEventHandler {
 	}
 
 	private void updateOverlayProperties(Screen screen, @Nullable IGuiProperties guiProperties) {
+		// Global exclusion handlers inspect the foreground screen, not the background layer.
+		if (Minecraft.getInstance().screen instanceof JeiConfigScreen) {
+			return;
+		}
 		Set<ImmutableRect2i> guiExclusionAreas = screenHelper.getGuiExclusionAreas(screen)
 			.map(ImmutableRect2i::new)
 			.collect(Collectors.toUnmodifiableSet());
@@ -154,6 +179,9 @@ public class GuiEventHandler {
 	}
 
 	private void drawPostForeground(Screen screen, @Nullable IGuiProperties guiProperties, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (Minecraft.getInstance().screen instanceof JeiConfigScreen) {
+			return;
+		}
 		Minecraft minecraft = Minecraft.getInstance();
 		boolean mouseOverInputLayer = this.inputLayers.stream()
 			.anyMatch(inputLayer -> inputLayer.isMouseOver(mouseX, mouseY));

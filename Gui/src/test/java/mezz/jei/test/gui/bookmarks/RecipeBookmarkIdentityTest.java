@@ -2,6 +2,8 @@ package mezz.jei.test.gui.bookmarks;
 
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeCategory;
 import mezz.jei.common.ingredients.TypedIngredient;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import net.minecraft.SharedConstants;
@@ -23,6 +25,8 @@ import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.typed;
 
 public class RecipeBookmarkIdentityTest {
 	private static final ResourceLocation RECIPE = ResourceLocation.parse("test:plate");
+	private static final RecipeType<Object> CRAFTING = RecipeType.create("test", "crafting", Object.class);
+	private static final TestRecipeCategory CATEGORY = new TestRecipeCategory(CRAFTING, RECIPE);
 	private static final IIngredientType<String> TYPE = () -> String.class;
 
 	@BeforeAll
@@ -40,13 +44,19 @@ public class RecipeBookmarkIdentityTest {
 		Assertions.assertEquals(first, bookmark("group_1"));
 		Assertions.assertNotEquals(unscoped, first);
 		Assertions.assertNotEquals(first, bookmark("group_2"));
+		var otherType = RecipeType.create("test", "smelting", Object.class);
+		var other = new RecipeBookmark<>(new TestRecipeCategory(otherType, RECIPE), "recipe", RECIPE,
+			TypedIngredient.createUnvalidated(TYPE, "plate"), RecipeIngredientRole.OUTPUT);
+		Assertions.assertEquals(2, Set.of(unscoped, other).size());
+		Assertions.assertTrue(unscoped.isRecipe(CRAFTING, new Object()));
+		Assertions.assertFalse(unscoped.isRecipe(otherType, new Object()));
 	}
 
 	@Test
 	public void survivesStackMutation() {
 		ItemStack stack = new ItemStack(Items.NETHERITE_BLOCK);
 		stack.set(DataComponents.CUSTOM_NAME, Component.literal("before"));
-		var bookmark = new RecipeBookmark<>(null, "recipe", RECIPE, typed(stack), RecipeIngredientRole.OUTPUT);
+		var bookmark = new RecipeBookmark<>(CATEGORY, "recipe", RECIPE, typed(stack), RecipeIngredientRole.OUTPUT);
 		Set<RecipeBookmark<?, ?>> set = new HashSet<>();
 		set.add(bookmark);
 		Assertions.assertTrue(set.contains(bookmark));
@@ -56,8 +66,8 @@ public class RecipeBookmarkIdentityTest {
 		Assertions.assertTrue(set.contains(bookmark), "HashSet membership must survive ingredient mutation");
 	}
 
-	private static RecipeBookmark<String, String> bookmark(@Nullable Object scope) {
-		return new RecipeBookmark<>(null, "recipe", RECIPE,
+	private static RecipeBookmark<Object, String> bookmark(@Nullable Object scope) {
+		return new RecipeBookmark<>(CATEGORY, "recipe", RECIPE,
 			TypedIngredient.createUnvalidated(TYPE, "plate"), RecipeIngredientRole.OUTPUT, scope);
 	}
 }

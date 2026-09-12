@@ -180,8 +180,7 @@ public class Ae2BookmarkPullTransferHandler implements ServerBookmarkPullTransfe
 					Field field = owner.getDeclaredField(name);
 					field.setAccessible(true);
 					return field;
-				} catch (NoSuchFieldException ignored) {
-				}
+				} catch (NoSuchFieldException ignored) {}
 			}
 			throw new NoSuchFieldException(String.join(", ", names));
 		}

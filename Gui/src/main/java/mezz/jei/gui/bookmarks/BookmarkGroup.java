@@ -33,9 +33,7 @@ public record BookmarkGroup(
 	}
 
 	public BookmarkGroup toggleViewMode() {
-		return withViewMode(viewMode == BookmarkViewMode.DEFAULT ?
-			BookmarkViewMode.TODO_LIST :
-			BookmarkViewMode.DEFAULT);
+		return withViewMode(viewMode == BookmarkViewMode.DEFAULT ? BookmarkViewMode.TODO_LIST : BookmarkViewMode.DEFAULT);
 	}
 
 	public BookmarkGroup toggleCollapsed() {

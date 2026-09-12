@@ -2,23 +2,26 @@ package mezz.jei.library.load.registration;
 
 import com.google.common.collect.ImmutableListMultimap;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.common.ingredients.TypedIngredient;
+import mezz.jei.common.util.ErrorUtil;
+import mezz.jei.library.ingredients.SimpleIngredientAcceptor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ItemLike;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class RecipeCatalystRegistration implements IRecipeCatalystRegistration {
-	private final ListMultiMap<RecipeType<?>, ITypedIngredient<?>> recipeCatalysts = new ListMultiMap<>();
+	private final ListMultiMap<RecipeType<?>, Consumer<IIngredientAcceptor<?>>> recipeCatalysts = new ListMultiMap<>();
 	private final IIngredientManager ingredientManager;
 	private final IJeiHelpers jeiHelpers;
 
@@ -45,11 +48,12 @@ public class RecipeCatalystRegistration implements IRecipeCatalystRegistration {
 
 		for (RecipeType<?> recipeType : recipeTypes) {
 			ErrorUtil.checkNotNull(recipeType, "recipeType");
-			@Nullable ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, true);
+			@Nullable
+			ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, true);
 			if (typedIngredient == null) {
 				throw new IllegalArgumentException("Recipe catalyst must be a valid ingredient");
 			}
-			this.recipeCatalysts.put(recipeType, typedIngredient);
+			addRecipeCatalyst(recipeType, typedIngredient);
 		}
 	}
 
@@ -60,11 +64,12 @@ public class RecipeCatalystRegistration implements IRecipeCatalystRegistration {
 
 		for (ItemLike itemLike : ingredients) {
 			ItemStack itemStack = itemLike.asItem().getDefaultInstance();
-			@Nullable ITypedIngredient<ItemStack> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, VanillaTypes.ITEM_STACK, itemStack, true);
+			@Nullable
+			ITypedIngredient<ItemStack> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, VanillaTypes.ITEM_STACK, itemStack, true);
 			if (typedIngredient == null) {
 				throw new IllegalArgumentException("Recipe catalyst must be a valid ingredient");
 			}
-			this.recipeCatalysts.put(recipeType, typedIngredient);
+			addRecipeCatalyst(recipeType, typedIngredient);
 		}
 	}
 
@@ -75,15 +80,32 @@ public class RecipeCatalystRegistration implements IRecipeCatalystRegistration {
 		ErrorUtil.checkNotNull(ingredients, "ingredients");
 
 		for (T ingredient : ingredients) {
-			@Nullable ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, true);
+			@Nullable
+			ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, true);
 			if (typedIngredient == null) {
 				throw new IllegalArgumentException("Recipe catalyst must be a valid ingredient");
 			}
-			this.recipeCatalysts.put(recipeType, typedIngredient);
+			addRecipeCatalyst(recipeType, typedIngredient);
 		}
 	}
 
-	public ImmutableListMultimap<RecipeType<?>, ITypedIngredient<?>> getRecipeCatalysts() {
+	private void addRecipeCatalyst(RecipeType<?> recipeType, ITypedIngredient<?> ingredient) {
+		addRecipeCatalyst(recipeType, acceptor -> acceptor.addTypedIngredient(ingredient));
+	}
+
+	@Override
+	public void addRecipeCatalyst(RecipeType<?> recipeType, Consumer<IIngredientAcceptor<?>> ingredientAdder) {
+		ErrorUtil.checkNotNull(recipeType, "recipeType");
+		ErrorUtil.checkNotNull(ingredientAdder, "ingredientAdder");
+
+		SimpleIngredientAcceptor acceptor = new SimpleIngredientAcceptor(ingredientManager);
+		ingredientAdder.accept(acceptor);
+		if (!acceptor.getAllIngredients().isEmpty()) {
+			this.recipeCatalysts.put(recipeType, ingredientAdder);
+		}
+	}
+
+	public ImmutableListMultimap<RecipeType<?>, Consumer<IIngredientAcceptor<?>>> getRecipeCatalysts() {
 		return recipeCatalysts.toImmutable();
 	}
 }

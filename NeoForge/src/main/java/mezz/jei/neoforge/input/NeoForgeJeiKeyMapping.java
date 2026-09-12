@@ -22,7 +22,7 @@ public class NeoForgeJeiKeyMapping implements IJeiKeyMappingInternal {
 	}
 
 	@Override
-	public boolean matchesIgnoringModifiers(InputConstants.Key key) {
+	public boolean isActiveAndMatchesShortcut(InputConstants.Key key) {
 		return key != InputConstants.UNKNOWN &&
 			key.equals(keyMapping.getKey()) &&
 			keyMapping.getKeyConflictContext().isActive();

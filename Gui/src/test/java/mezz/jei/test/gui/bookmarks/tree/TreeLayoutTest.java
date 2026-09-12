@@ -343,8 +343,8 @@ class TreeLayoutTest {
 			input(1, "root", BookmarkItemType.INGREDIENT, "raw", 1));
 		var tree = new RecipeTreeLayout(inputs, RecipeChainMath.refresh(inputs, Set.of()));
 		var root = tree.nodes().getFirst();
-		for (double x : new double[] {0, RecipeTreeLayout.WIDTH / 2.0, RecipeTreeLayout.WIDTH - 0.1}) {
-			for (double y : new double[] {0, root.height() / 2.0, root.height() - 0.1}) {
+		for (double x : new double[]{0, RecipeTreeLayout.WIDTH / 2.0, RecipeTreeLayout.WIDTH - 0.1}) {
+			for (double y : new double[]{0, root.height() / 2.0, root.height() - 0.1}) {
 				assertSame(root, tree.nodeAt(root.x() + x, root.y() + y).orElseThrow());
 			}
 		}

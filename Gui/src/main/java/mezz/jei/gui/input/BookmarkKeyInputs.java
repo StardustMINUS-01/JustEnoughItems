@@ -1,5 +1,7 @@
 package mezz.jei.gui.input;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import mezz.jei.common.input.IInternalKeyMappings;
 
 public final class BookmarkKeyInputs {
@@ -15,11 +17,11 @@ public final class BookmarkKeyInputs {
 		int modifiers = input.getModifiers();
 		return InputModifiers.hasShift(modifiers) &&
 			!InputModifiers.hasControlOrAlt(modifiers) &&
-			keyBindings.getBookmark().matchesIgnoringModifiers(input.getKey());
+			IJeiKeyMappingWithExtraModifiers.matchesShortcut(keyBindings.getBookmark(), input.getKey());
 	}
 
 	public static boolean isBookmarkKeyWithoutControlOrAlt(UserInput input, IInternalKeyMappings keyBindings) {
 		return !InputModifiers.hasControlOrAlt(input.getModifiers()) &&
-			keyBindings.getBookmark().matchesIgnoringModifiers(input.getKey());
+			IJeiKeyMappingWithExtraModifiers.matchesShortcut(keyBindings.getBookmark(), input.getKey());
 	}
 }

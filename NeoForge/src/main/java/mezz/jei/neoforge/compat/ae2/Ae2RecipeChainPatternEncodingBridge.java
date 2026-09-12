@@ -152,7 +152,8 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 				!RecipeTypes.CRAFTING.equals(recipeType) ||
 				!(recipe instanceof RecipeHolder<?> recipeHolder) ||
 				!(recipeHolder.value() instanceof CraftingRecipe craftingRecipe) ||
-				craftingRecipe.getType() != RecipeType.CRAFTING) {
+				craftingRecipe.getType() != RecipeType.CRAFTING
+			) {
 				return false;
 			}
 			List<List<GenericStack>> ingredients = createCraftingIngredients(slotsView);

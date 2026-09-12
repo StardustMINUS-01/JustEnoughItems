@@ -236,8 +236,7 @@ public final class BookmarkItemMetadataFactory {
 			if (value instanceof Number number) {
 				return Math.max(1, number.longValue());
 			}
-		} catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {}
 		return 100;
 	}
 
@@ -349,8 +348,7 @@ public final class BookmarkItemMetadataFactory {
 			if (value instanceof Number number) {
 				return number.longValue();
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return 0;
 	}
 
@@ -370,8 +368,7 @@ public final class BookmarkItemMetadataFactory {
 					return number.longValue();
 				}
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return 0;
 	}
 
@@ -393,8 +390,7 @@ public final class BookmarkItemMetadataFactory {
 			if (value instanceof Number number) {
 				return number.longValue();
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return 0;
 	}
 

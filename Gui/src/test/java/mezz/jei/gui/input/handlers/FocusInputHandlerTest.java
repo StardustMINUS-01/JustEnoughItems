@@ -50,8 +50,8 @@ public class FocusInputHandlerTest {
 			new Class<?>[]{IInternalKeyMappings.class},
 			(proxy, method, args) -> method.getName().equals("getSearchIngredientInTerminal") ? matching : noMatch
 		);
-		FocusInputHandler handler = new FocusInputHandler(
-			focusSource, null, null, null, null, null, null, null
+		FocusInputHandler handler = new IngredientShortcutInputHandler(
+			focusSource, null, null, null, null, null, null
 		);
 		int[] searches = {0};
 		ExternalIngredientSearchHandlerRegistry.register((screen, searchedIngredient, simulate) -> {
@@ -73,7 +73,7 @@ public class FocusInputHandlerTest {
 			IJeiKeyMapping.class.getClassLoader(),
 			new Class<?>[]{mezz.jei.common.input.keys.IJeiKeyMappingInternal.class},
 			(proxy, method, args) -> switch (method.getName()) {
-				case "isActiveAndMatches", "matchesIgnoringModifiers" -> key.equals(args[0]);
+				case "isActiveAndMatches", "isActiveAndMatchesShortcut" -> key.equals(args[0]);
 				case "isUnbound", "isDown" -> false;
 				case "getTranslatedKeyMessage" -> Component.empty();
 				default -> null;

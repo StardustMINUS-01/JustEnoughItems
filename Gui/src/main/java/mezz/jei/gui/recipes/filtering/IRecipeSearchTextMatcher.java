@@ -15,10 +15,14 @@ public interface IRecipeSearchTextMatcher {
 
 	static IRecipeSearchTextMatcher create(ISearchStorage<String> searchStorage) {
 		Map<String, Set<String>> resultsByToken = new HashMap<>();
-		return (text, token) -> resultsByToken.computeIfAbsent(token, key -> {
-			Set<String> results = new HashSet<>();
-			searchStorage.getSearchResults(key, results::addAll);
-			return results;
-		}).contains(text);
+		return (text, token) -> resultsByToken.computeIfAbsent(
+				token,
+				key -> {
+					Set<String> results = new HashSet<>();
+					searchStorage.getSearchResults(key, results::addAll);
+					return results;
+				}
+			)
+			.contains(text);
 	}
 }

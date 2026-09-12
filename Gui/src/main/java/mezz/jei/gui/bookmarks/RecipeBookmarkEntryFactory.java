@@ -77,9 +77,7 @@ final class RecipeBookmarkEntryFactory {
 		GtmVirtualCircuitCompat.VirtualInputProjection virtualInputs,
 		Object equalityScope
 	) {
-		IRecipeSlotsView recipeSlotsView = role == RecipeIngredientRole.INPUT ?
-			projection.getRecipeSlotsView() :
-			recipeLayout.getRecipeSlotsView();
+		IRecipeSlotsView recipeSlotsView = role == RecipeIngredientRole.INPUT ? projection.getRecipeSlotsView() : recipeLayout.getRecipeSlotsView();
 		List<IRecipeSlotView> roleSlots = recipeSlotsView.getSlotViews(role);
 		if (role != RecipeIngredientRole.INPUT) {
 			for (IRecipeSlotView slotView : roleSlots) {
@@ -172,15 +170,12 @@ final class RecipeBookmarkEntryFactory {
 		R recipe = recipeLayout.getRecipe();
 		ResourceLocation recipeUid = recipeCategory.getRegistryName(recipe);
 		if (recipeUid == null) {
-			IBookmark bookmark = preserveAmount ?
-				IngredientBookmark.createPreservingAmount(ingredient, ingredientManager) :
-				IngredientBookmark.create(ingredient, ingredientManager);
+			IBookmark bookmark = preserveAmount ? IngredientBookmark.createPreservingAmount(ingredient, ingredientManager) : IngredientBookmark.create(ingredient, ingredientManager);
 			return new RecipeBookmarkEntry(bookmark, BookmarkItemMetadata.defaultForGroup(BookmarkGroupManager.DEFAULT_GROUP_ID));
 		}
 		ITypedIngredient<T> bookmarkIngredient = preserveAmount ? ingredient : ingredientManager.normalizeTypedIngredient(ingredient);
 		IBookmark bookmark = new RecipeBookmark<>(recipeCategory, recipe, recipeUid, bookmarkIngredient, RecipeIngredientRole.INPUT, equalityScope);
-		long factor = virtualInput.programmedCircuit() ?
-			0 : BookmarkIngredientAmountResolver.getAmount(ingredient, ingredientManager);
+		long factor = virtualInput.programmedCircuit() ? 0 : BookmarkIngredientAmountResolver.getAmount(ingredient, ingredientManager);
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			recipeCategory.getRecipeType().getUid(),
@@ -246,17 +241,14 @@ final class RecipeBookmarkEntryFactory {
 		ITypedIngredient<T> bookmarkIngredient = preserveAmount ? ingredient : ingredientManager.normalizeTypedIngredient(ingredient);
 		ResourceLocation recipeUid = recipeCategory.getRegistryName(recipe);
 		if (recipeUid == null) {
-			IBookmark bookmark = preserveAmount ?
-				IngredientBookmark.createPreservingAmount(ingredient, ingredientManager) :
-				IngredientBookmark.create(ingredient, ingredientManager);
+			IBookmark bookmark = preserveAmount ? IngredientBookmark.createPreservingAmount(ingredient, ingredientManager) : IngredientBookmark.create(ingredient, ingredientManager);
 			return new RecipeBookmarkEntry(bookmark, BookmarkItemMetadata.defaultForGroup(BookmarkGroupManager.DEFAULT_GROUP_ID));
 		}
 		IBookmark bookmark = new RecipeBookmark<>(recipeCategory, recipe, recipeUid, bookmarkIngredient, role, equalityScope);
 		boolean virtualInput = role == RecipeIngredientRole.INPUT && virtualInputs.inputs().stream()
 			.map(GtmVirtualCircuitCompat.VirtualInput::ingredient)
 			.anyMatch(candidate -> sameIngredient(ingredient, candidate));
-		BookmarkItemType type = virtualInput ?
-			BookmarkItemType.NONCONSUMABLE : BookmarkItemType.fromRecipeRole(role);
+		BookmarkItemType type = virtualInput ? BookmarkItemType.NONCONSUMABLE : BookmarkItemType.fromRecipeRole(role);
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForRecipeSlotWithFactor(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
 			recipeCategory,

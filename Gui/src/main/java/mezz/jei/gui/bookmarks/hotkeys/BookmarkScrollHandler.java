@@ -5,7 +5,7 @@ import mezz.jei.gui.bookmarks.IBookmark;
 
 /** Shared bookmark edits; navigation is owned by the enclosing view. */
 public final class BookmarkScrollHandler {
-	private BookmarkScrollHandler() { }
+	private BookmarkScrollHandler() {}
 
 	public static boolean apply(BookmarkList bookmarks, IBookmark bookmark, double delta,
 		boolean control, boolean alt, boolean shift, long amountStep, java.util.function.LongPredicate shiftAmount) {

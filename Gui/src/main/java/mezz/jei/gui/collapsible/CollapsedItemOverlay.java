@@ -53,8 +53,7 @@ public final class CollapsedItemOverlay implements IDrawable {
 	) {
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		@SuppressWarnings("unchecked")
-		IIngredientRenderer<Object> renderer =
-			(IIngredientRenderer<Object>) ingredientManager.getIngredientRenderer(typedIngredient.getType());
+		IIngredientRenderer<Object> renderer = (IIngredientRenderer<Object>) ingredientManager.getIngredientRenderer(typedIngredient.getType());
 		@SuppressWarnings("unchecked")
 		IIngredientType<Object> type = (IIngredientType<Object>) typedIngredient.getType();
 		guiGraphics.pose().pushPose();

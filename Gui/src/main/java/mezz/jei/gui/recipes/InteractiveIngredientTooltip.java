@@ -11,10 +11,10 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.datafixers.util.Either;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
+import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.gui.IngredientGridTooltipComponent;
@@ -57,7 +57,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		InteractiveIngredientTooltipController controller,
 		RecipesGui recipesGui,
 		FocusUtil focusUtil,
-		IRecipeManager recipeManager,
+		IGuiHelper guiHelper,
 		IIngredientManager ingredientManager,
 		RecipeSlotClickTargetFactory clickTargetFactory,
 		RecipeSlotUnderMouse sourceSlot,
@@ -65,8 +65,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		double mouseX,
 		double mouseY
 	) {
-		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot() instanceof IRecipeSlotCandidateView candidates ?
-			candidates.getCandidates() : sourceSlot.slot().getDisplayedIngredients().toList();
+		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot() instanceof IRecipeSlotCandidateView candidates ? candidates.getCandidateIngredients().toList() : sourceSlot.slot().getDisplayedIngredients().toList();
 		if (displayedIngredients.isEmpty() || (displayedIngredients.size() == 1 && sourceSlot.slot().getAllIngredients().limit(2).count() <= 1)) {
 			return Optional.empty();
 		}
@@ -78,7 +77,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 			clickTargetFactory,
 			sourceSlot,
 			sourceMouseOverable,
-			new InteractiveIngredientGridTooltipComponent(recipeManager, displayedIngredients),
+			new InteractiveIngredientGridTooltipComponent(guiHelper, displayedIngredients),
 			(int) mouseX,
 			(int) mouseY
 		));
@@ -103,7 +102,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		this.clickTargetFactory = clickTargetFactory;
 		this.sourceSlot = sourceSlot;
 		var owner = recipesGui.getRecipeLayoutUnderMouse(anchorX, anchorY)
-			.filter(RecipeLayoutWithButtons.class::isInstance).map(value -> (RecipeLayoutWithButtons<?>) value);
+			.filter(RecipeLayoutWithExtras.class::isInstance).map(value -> (RecipeLayoutWithExtras<?>) value);
 		this.source = new IIngredientCandidateSource() {
 
 			@Override
@@ -200,7 +199,8 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		replaceIngredientGrid(tooltip, this.ingredientGrid);
 		if (source.canSelect()) {
 			tooltip.add(Component.translatable(sourceSlot == null ? "jei.tooltip.bookmark.select.input" : "jei.tooltip.recipe.select.input",
-				Internal.getKeyMappings().getSelectRecipeInput().getTranslatedKeyMessage()).withStyle(ChatFormatting.GRAY));
+				Internal.getKeyMappings().getSelectRecipeInput().getTranslatedKeyMessage())
+				.withStyle(ChatFormatting.GRAY));
 		}
 		this.ingredientGrid.setSelectedIngredient(this.source.getSelectedIngredient());
 		this.ingredientGrid.setMousePosition(mouseX, mouseY);
@@ -273,14 +273,14 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		}
 
 		if (source.canSelect() &&
-			keyBindings.getSelectRecipeInput().isActiveAndMatchesAllowingExtraModifiers(input.getKey())) {
+			keyBindings.getSelectRecipeInput().isActiveAndMatchesAllowingExtraModifiers(input.getKey())
+		) {
 			Optional<ITypedIngredient<?>> selected = this.ingredientGrid.getTypedIngredientUnderMouse(input.getMouseX(), input.getMouseY());
 			if (selected.isPresent()) {
 				if (!input.isSimulate()) {
 					source.select(selected.get(), !Screen.hasControlDown());
 				}
-				return Optional.of(new SameElementInputHandler(this, (x, y) ->
-					this.ingredientGrid.getTypedIngredientUnderMouse(x, y).filter(selected.get()::equals).isPresent()));
+				return Optional.of(new SameElementInputHandler(this, (x, y) -> this.ingredientGrid.getTypedIngredientUnderMouse(x, y).filter(selected.get()::equals).isPresent()));
 			}
 		}
 

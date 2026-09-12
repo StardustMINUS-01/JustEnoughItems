@@ -84,7 +84,6 @@ public final class BookmarkExternalStorageSnapshots {
 		return copy;
 	}
 
-
 	public record Entry(ItemStack stack, long amount) {
 		public Entry {
 			stack = normalized(stack);

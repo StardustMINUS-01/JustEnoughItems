@@ -27,7 +27,8 @@ public record BookmarkMoveSelection(
 		Optional<ResourceLocation> recipeUid = Optional.ofNullable(metadata.recipeUid());
 		if (!metadata.type().isGraphOutput() ||
 			recipeUid.isEmpty() ||
-			!canMoveRecipe(bookmarkList, metadata.groupId())) {
+			!canMoveRecipe(bookmarkList, metadata.groupId())
+		) {
 			return new BookmarkMoveSelection(List.of(draggedBookmark), false);
 		}
 
@@ -101,7 +102,8 @@ public record BookmarkMoveSelection(
 		if (targetRecipeUid == null ||
 			!targetMetadata.type().isRecipeAssociated() ||
 			recipeIds.contains(targetRecipeUid) ||
-			targetGroupId != targetMetadata.groupId()) {
+			targetGroupId != targetMetadata.groupId()
+		) {
 			return new MoveTarget(targetBookmark, offset);
 		}
 
@@ -110,7 +112,8 @@ public record BookmarkMoveSelection(
 			BookmarkItemMetadata metadata = bookmarkList.getBookmarkMetadata(bookmark);
 			if (targetGroupId == metadata.groupId() &&
 				metadata.type().isRecipeAssociated() &&
-				targetRecipeUid.equals(metadata.recipeUid())) {
+				targetRecipeUid.equals(metadata.recipeUid())
+			) {
 				return new MoveTarget(bookmark, offset <= 0 ? 0 : 1);
 			}
 		}

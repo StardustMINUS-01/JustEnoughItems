@@ -263,5 +263,4 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		recipePreviewState.tick();
 	}
 
-
 }

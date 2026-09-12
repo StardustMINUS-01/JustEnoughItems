@@ -26,7 +26,8 @@ public class ChainPlanTest {
 		var candidates = Set.of(key("plate"), key("plate_variant"));
 		var required = input(3, ingredient(MACHINE, key("plate"), 1).withPermutations(candidates));
 		var exact = input(4, result(ResourceLocation.fromNamespaceAndPath("test", "exact_plate"),
-			key("plate"), 1, 1).withPermutations(candidates));
+			key("plate"), 1, 1)
+			.withPermutations(candidates));
 		var graph = RecipeChainGraph.create(List.of(plate, ingot, machine, required, exact));
 
 		Assertions.assertEquals(List.of(required), graph.ingredientsFor(MACHINE));

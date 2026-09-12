@@ -39,6 +39,7 @@ public final class RecipeSlotIngredients {
 	private @Nullable List<@Nullable ITypedIngredient<?>> displayIngredients;
 
 	private @Nullable List<ITypedIngredient<?>> filteredCandidates;
+	private @Nullable List<ITypedIngredient<?>> selectedCandidate;
 	private @Nullable DisplayIngredientAcceptor displayOverrides;
 	private final Runnable displayOverridesChangedListener;
 
@@ -84,6 +85,14 @@ public final class RecipeSlotIngredients {
 	}
 
 	private List<@Nullable ITypedIngredient<?>> getDisplayIngredients() {
+		if (this.selectedCandidate != null && (this.displayOverrides == null ||
+			this.displayOverrides.getAllIngredients().contains(this.selectedCandidate.getFirst()))) {
+			return this.selectedCandidate;
+		}
+		return getCandidateList();
+	}
+
+	private List<@Nullable ITypedIngredient<?>> getCandidateList() {
 		if (this.displayOverrides != null) {
 			return this.displayOverrides.getAllIngredients();
 		}
@@ -111,7 +120,15 @@ public final class RecipeSlotIngredients {
 	}
 
 	public Stream<ITypedIngredient<?>> getCandidateIngredients() {
-		return filteredCandidates == null ? getAllIngredients() : filteredCandidates.stream();
+		return getCandidateList().stream().filter(Objects::nonNull);
+	}
+
+	public void setSelectedCandidate(@Nullable ITypedIngredient<?> candidate) {
+		if (candidate == (this.selectedCandidate == null ? null : this.selectedCandidate.getFirst())) {
+			return;
+		}
+		this.selectedCandidate = candidate == null ? null : List.of(candidate);
+		displayOverridesChangedListener.run();
 	}
 
 	public void clearDisplayOverrides() {

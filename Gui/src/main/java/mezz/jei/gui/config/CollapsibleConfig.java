@@ -46,7 +46,9 @@ public final class CollapsibleConfig {
 				for (Path source : files.filter(Files::isRegularFile).filter(file -> {
 					String name = file.getFileName().toString();
 					return name.equals("collapsible-items.txt") || name.startsWith("collapsible-items-") && name.endsWith(".txt");
-				}).toList()) {
+					})
+					.toList()
+				) {
 					String name = source.getFileName().toString();
 					try {
 						Files.move(source, path.resolve(name.equals("collapsible-items.txt") ? FILE_NAME : name));

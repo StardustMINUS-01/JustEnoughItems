@@ -339,12 +339,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.lookupHistoryOverlay.close();
 			return;
 		}
-		updateBounds(guiProperties);
+		updateBounds(guiProperties, this.guiPropertiesCache.getGuiExclusionAreas());
 	}
 
-	private void updateBounds(IGuiProperties guiProperties) {
+	private void updateBounds(IGuiProperties guiProperties, Set<ImmutableRect2i> guiExclusionAreas) {
 		ImmutableRect2i displayArea = getDisplayArea(guiProperties);
-		Set<ImmutableRect2i> guiExclusionAreas = this.guiPropertiesCache.getGuiExclusionAreas();
 		ImmutablePoint2i mouseExclusionArea = this.guiPropertiesCache.getMouseExclusionArea();
 		Set<ImmutableRect2i> contentGuiExclusionAreas = guiExclusionAreas;
 		ImmutablePoint2i contentMouseExclusionArea = mouseExclusionArea;
@@ -367,12 +366,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				contentMouseExclusionArea = filterContentMouseExclusionPoint(contentsLayoutArea, mouseExclusionArea);
 			}
 		}
-		layoutAreas.historyArea().ifPresent(historyArea -> {
-			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, mouseExclusionArea);
-			this.lookupHistoryOverlay.updateLayout();
-		});
 		this.contents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), contentGuiExclusionAreas, contentMouseExclusionArea);
 		this.contents.updateLayout(false);
+		layoutAreas.historyArea().ifPresent(historyArea -> {
+			this.lookupHistoryOverlay.updateBounds(alignLookupHistoryArea(historyArea), guiExclusionAreas, mouseExclusionArea);
+			this.lookupHistoryOverlay.updateLayout();
+		});
 
 		this.favoriteContents.updateBounds(layoutAreas.contentsLayoutArea(), layoutAreas.contentsBottomLimit(), contentGuiExclusionAreas, contentMouseExclusionArea);
 		this.favoriteContents.updateLayout(false);
@@ -422,12 +421,15 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	private void updateScreenPropertiesIfDirty() {
+		if (Minecraft.getInstance().screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return;
+		}
 		if (this.screenPropertiesDirty) {
 			this.screenPropertiesDirty = false;
 			Minecraft minecraft = Minecraft.getInstance();
-		this.getScreenPropertiesUpdater()
-			.updateScreen(minecraft.screen)
-			.forceUpdate();
+			this.getScreenPropertiesUpdater()
+				.updateScreen(minecraft.screen)
+				.forceUpdate();
 		}
 	}
 
@@ -541,12 +543,20 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return new LayoutAreas(contentsLayoutArea, historyArea, contentsBottomLimit);
 	}
 
+	private ImmutableRect2i alignLookupHistoryArea(ImmutableRect2i lookupHistoryArea) {
+		ImmutableRect2i ingredientGridArea = this.contents.getIngredientGridArea();
+		if (ingredientGridArea.isEmpty()) {
+			return lookupHistoryArea;
+		}
+		return lookupHistoryArea.matchWidthAndX(ingredientGridArea);
+	}
+
 	private static ImmutableRect2i getDisplayArea(IGuiProperties guiProperties) {
-		int width = guiProperties.getGuiLeft();
+		int width = guiProperties.guiLeft();
 		if (width <= 0) {
 			width = 0;
 		}
-		int screenHeight = guiProperties.getScreenHeight();
+		int screenHeight = guiProperties.screenHeight();
 		return new ImmutableRect2i(0, 0, width, screenHeight);
 	}
 
@@ -743,7 +753,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			.findFirst();
 	}
 
-	@Override
 	public boolean addBookmark(ITypedIngredient<?> ingredient) {
 		boolean added = bookmarkList.addIngredientBookmark(ingredient, true);
 		if (added) {
@@ -832,10 +841,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			this.favoriteContents.createDragHandler()
 		);
 		final IDragHandler sortDragHandler = dragHandlers.createSortDragHandler();
-		final IDragHandler contentsDragHandler = new ProxyDragHandler(() ->
-			groupPanelDrag != null && groupPanelDrag.isDropMode()
-				? NullDragHandler.INSTANCE
-				: this.contents.createDragHandler()
+		final IDragHandler contentsDragHandler = new ProxyDragHandler(() -> groupPanelDrag != null && groupPanelDrag.isDropMode()
+			? NullDragHandler.INSTANCE
+			: this.contents.createDragHandler()
 		);
 		final IDragHandler combinedDragHandlers = new CombinedDragHandler(
 			sortDragHandler,
@@ -926,7 +934,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return toggleState;
 	}
 
-	@Nullable GroupPanelDrag getGroupPanelDrag() {
+	@Nullable
+	GroupPanelDrag getGroupPanelDrag() {
 		return groupPanelDrag;
 	}
 
@@ -934,7 +943,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		this.groupPanelDrag = groupPanelDrag;
 	}
 
-	@Nullable BookmarkSortDragState getSortDragState() {
+	@Nullable
+	BookmarkSortDragState getSortDragState() {
 		return sortDragState;
 	}
 
@@ -942,7 +952,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		this.sortDragState = sortDragState;
 	}
 
-	@Nullable FavoriteRecipeSortDragState getFavoriteSortDragState() {
+	@Nullable
+	FavoriteRecipeSortDragState getFavoriteSortDragState() {
 		return favoriteSortDragState;
 	}
 

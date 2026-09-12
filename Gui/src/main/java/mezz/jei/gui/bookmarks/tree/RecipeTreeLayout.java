@@ -153,9 +153,11 @@ public final class RecipeTreeLayout {
 	}
 
 	public RecipeTreeViewState.Expansion captureExpansion(@Nullable Node selected) {
-		record Pending(Node node, int parent, int child) { }
+		record Pending(Node node, int parent, int child) {}
 		var pending = new ArrayDeque<Pending>();
-		for (int i = 0; i < Math.min(roots.size(), MAX_NODES); i++) { pending.add(new Pending(roots.get(i), -1, i)); }
+		for (int i = 0; i < Math.min(roots.size(), MAX_NODES); i++) {
+			pending.add(new Pending(roots.get(i), -1, i));
+		}
 		List<RecipeTreeViewState.Branch> branches = new ArrayList<>();
 		int selection = -1;
 		while (!pending.isEmpty()) {

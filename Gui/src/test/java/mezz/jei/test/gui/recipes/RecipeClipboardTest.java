@@ -79,7 +79,8 @@ public class RecipeClipboardTest {
 		assertEquals(List.of("test:current_recipe"), ids);
 		assertTrue(RecipeIdClipboardHandler.getRecipeIdsForCopy(
 			layout(category("test:unknown", "unknown", null), "unknown"),
-			INGOT, unusedManager(), new TestFocusFactory()).isEmpty());
+			INGOT, unusedManager(), new TestFocusFactory())
+			.isEmpty());
 	}
 
 	private record TestFocus<V>(RecipeIngredientRole role, ITypedIngredient<V> typedValue) implements IFocus<V> {

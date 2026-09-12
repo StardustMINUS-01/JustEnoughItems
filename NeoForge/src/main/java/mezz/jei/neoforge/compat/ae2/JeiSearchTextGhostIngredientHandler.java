@@ -57,9 +57,10 @@ public class JeiSearchTextGhostIngredientHandler<T extends Screen> implements IG
 
 	private static <I> Optional<String> toSearchText(ITypedIngredient<I> ingredient) {
 		String searchText = IngredientClipboardText.getIngredientName(
-			ingredient,
-			Internal.getJeiRuntime().getIngredientManager()
-		).trim();
+				ingredient,
+				Internal.getJeiRuntime().getIngredientManager()
+			)
+			.trim();
 		return searchText.isEmpty() ? Optional.empty() : Optional.of(searchText);
 	}
 

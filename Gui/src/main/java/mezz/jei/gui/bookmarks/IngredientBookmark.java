@@ -11,10 +11,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
-
 public class IngredientBookmark<T> implements IBookmark {
 	private final IElement<T> element;
-	private final String uid;
+	private final Object uid;
 	private final ITypedIngredient<T> typedIngredient;
 	@Nullable
 	private final Object equalityScope;
@@ -45,11 +44,11 @@ public class IngredientBookmark<T> implements IBookmark {
 		return createPreservingAmount(ingredientWithAmount, ingredientManager);
 	}
 
-	IngredientBookmark(ITypedIngredient<T> typedIngredient, String uid) {
+	IngredientBookmark(ITypedIngredient<T> typedIngredient, Object uid) {
 		this(typedIngredient, uid, null);
 	}
 
-	private IngredientBookmark(ITypedIngredient<T> typedIngredient, String uid, @Nullable Object equalityScope) {
+	private IngredientBookmark(ITypedIngredient<T> typedIngredient, Object uid, @Nullable Object equalityScope) {
 		this.typedIngredient = typedIngredient;
 		this.uid = uid;
 		this.equalityScope = equalityScope;
@@ -87,6 +86,15 @@ public class IngredientBookmark<T> implements IBookmark {
 	@Override
 	public void setVisible(boolean visible) {
 		this.visible = visible;
+	}
+
+	@Override
+	public String toString() {
+		return "IngredientBookmark{" +
+			"uid=" + uid +
+			", typedIngredient=" + typedIngredient +
+			", visible=" + visible +
+			'}';
 	}
 
 	@Override

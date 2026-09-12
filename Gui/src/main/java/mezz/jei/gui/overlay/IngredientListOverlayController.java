@@ -177,15 +177,15 @@ class IngredientListOverlayController {
 			config.isQuantityFieldEnabled()
 		);
 
-		layout.lookupHistoryArea()
-			.ifPresent(lookupHistoryArea -> {
-				this.lookupHistory.updateBounds(lookupHistoryArea, guiExclusionAreas, null);
-				this.lookupHistory.updateLayout();
-			});
-
 		IElement<?> pageAnchorElement = this.contentsPageNavigation.getPageAnchorElement();
 		this.contentsView.updateBounds(layout.availableContentsArea(), guiExclusionAreas, null);
 		this.contentsPageNavigation.updateLayoutKeepingPageAnchorVisible(pageAnchorElement);
+
+		layout.lookupHistoryArea()
+			.ifPresent(lookupHistoryArea -> {
+				this.lookupHistory.updateBounds(alignLookupHistoryArea(lookupHistoryArea), guiExclusionAreas, null);
+				this.lookupHistory.updateLayout();
+			});
 
 		IngredientListOverlayLayout.SearchAndConfigAreas searchAndConfigAreas = layout.getSearchAndConfigAreas(
 			this.contentsView.hasRoom(),
@@ -195,6 +195,14 @@ class IngredientListOverlayController {
 		this.searchField.updateBounds(searchAndConfigAreas.searchArea());
 		this.configButton.updateBounds(searchAndConfigAreas.configButtonArea());
 		this.quantityArea = config.isQuantityFieldEnabled() ? layout.getQuantityArea(contentsView.hasRoom(), contentsView.getBackgroundArea()) : ImmutableRect2i.EMPTY;
+	}
+
+	private ImmutableRect2i alignLookupHistoryArea(ImmutableRect2i lookupHistoryArea) {
+		ImmutableRect2i ingredientGridArea = this.contentsView.getIngredientGridArea();
+		if (ingredientGridArea.isEmpty()) {
+			return lookupHistoryArea;
+		}
+		return lookupHistoryArea.matchWidthAndX(ingredientGridArea);
 	}
 
 	interface Config {

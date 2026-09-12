@@ -79,9 +79,7 @@ public final class RecipeChainGraph {
 			resultsByPermutations.computeIfAbsent(permutations, ignored -> new ArrayList<>()).add(input);
 			for (BookmarkIngredientKey key : permutations) {
 				resultsByKey.computeIfAbsent(key, ignored -> new ArrayList<>()).add(input);
-				getRelaxedItemId(key).ifPresent(itemId ->
-					relaxedItemResultsById.computeIfAbsent(itemId, ignored -> new ArrayList<>()).add(input)
-				);
+				getRelaxedItemId(key).ifPresent(itemId -> relaxedItemResultsById.computeIfAbsent(itemId, ignored -> new ArrayList<>()).add(input));
 			}
 		}
 
@@ -141,8 +139,7 @@ public final class RecipeChainGraph {
 		for (RecipeChainInput result : candidates) {
 			BookmarkItemMetadata resultMetadata = result.metadata();
 			ResourceLocation recipeUid = resultMetadata.recipeUid();
-			if (
-				resultMetadata.emptyFactor() ||
+			if (resultMetadata.emptyFactor() ||
 				recipeUid == null ||
 				visited.contains(recipeUid) ||
 				!ingredientMetadata.isSatisfiedBy(resultMetadata)

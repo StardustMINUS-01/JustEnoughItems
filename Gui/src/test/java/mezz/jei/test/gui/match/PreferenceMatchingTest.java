@@ -222,12 +222,8 @@ public class PreferenceMatchingTest {
 
 	private static RecipePreferenceRule rule(String outputExpr, String inputExpr, String recipeExpr) {
 		IngredientExpression output = IngredientExpression.parseIngredient(outputExpr).orElseThrow();
-		Optional<IngredientExpression> input = inputExpr == null ?
-			Optional.empty() :
-			Optional.of(IngredientExpression.parseIngredient(inputExpr).orElseThrow());
-		Optional<IngredientExpression> recipe = recipeExpr == null ?
-			Optional.empty() :
-			Optional.of(IngredientExpression.parseUid(recipeExpr).orElseThrow());
+		Optional<IngredientExpression> input = inputExpr == null ? Optional.empty() : Optional.of(IngredientExpression.parseIngredient(inputExpr).orElseThrow());
+		Optional<IngredientExpression> recipe = recipeExpr == null ? Optional.empty() : Optional.of(IngredientExpression.parseUid(recipeExpr).orElseThrow());
 		return new RecipePreferenceRule(output, input, recipe);
 	}
 

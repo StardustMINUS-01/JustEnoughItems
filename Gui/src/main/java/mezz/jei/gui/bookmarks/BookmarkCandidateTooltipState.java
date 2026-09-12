@@ -15,7 +15,7 @@ public final class BookmarkCandidateTooltipState {
 			candidates = List.copyOf(keys);
 			var ingredients = keys.stream().map(BookmarkIngredientKey::typedIngredient).filter(java.util.Objects::nonNull).toList();
 			grid = ingredients.size() > 1 ? Optional.of(new InteractiveIngredientGridTooltipComponent(
-				Internal.getJeiRuntime().getRecipeManager(), ingredients)) : Optional.empty();
+				Internal.getJeiRuntime().getJeiHelpers().getGuiHelper(), ingredients)) : Optional.empty();
 		}
 		return grid;
 	}

@@ -147,7 +147,8 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	static void updateStateForTransferError(IButtonState state, @Nullable IRecipeTransferError recipeTransferError) {
 		if (recipeTransferError == null ||
-			recipeTransferError.getType().allowsTransfer) {
+			recipeTransferError.getType().allowsTransfer
+		) {
 			state.setActive(true);
 			state.setVisible(true);
 		} else {
@@ -163,7 +164,8 @@ public class RecipeTransferButtonController implements IIconButtonController {
 		if (tree.isPresent()) {
 			if (!input.isSimulate() && tree.get().addRecipe(recipeLayout,
 				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.selectedKeys(),
-				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.filteredCandidates())) {
+				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.filteredCandidates())
+			) {
 				recipesGui.onClose();
 			}
 			return true;
@@ -204,7 +206,8 @@ public class RecipeTransferButtonController implements IIconButtonController {
 	@Override
 	public void getTooltips(ITooltipBuilder tooltip) {
 		if (treeTarget().isPresent()) {
-			tooltip.add(Component.translatable("jei.tree.add_recipe")); return;
+			tooltip.add(Component.translatable("jei.tree.add_recipe"));
+			return;
 		}
 		getTooltips(this.recipeTransferError, tooltip);
 	}

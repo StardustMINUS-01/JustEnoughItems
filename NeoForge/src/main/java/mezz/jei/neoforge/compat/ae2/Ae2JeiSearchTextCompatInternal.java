@@ -12,9 +12,8 @@ final class Ae2JeiSearchTextCompatInternal {
 	}
 
 	static void register() {
-		ExternalIngredientSearchHandlerRegistry.register((screen, ingredient, simulate) ->
-			(MEStorageScreen.class.isInstance(screen) || PatternAccessTermScreen.class.isInstance(screen)) &&
-				JeiSearchTextGhostIngredientHandler.search(screen, ingredient, simulate)
+		ExternalIngredientSearchHandlerRegistry.register((screen, ingredient, simulate) -> (MEStorageScreen.class.isInstance(screen) || PatternAccessTermScreen.class.isInstance(screen)) &&
+			JeiSearchTextGhostIngredientHandler.search(screen, ingredient, simulate)
 		);
 		JeiGuiPlugin.addGuiHandlerHook(registration -> {
 			registration.addGhostIngredientHandler(MEStorageScreen.class, new JeiSearchTextGhostIngredientHandler<>());

@@ -45,8 +45,7 @@ public class BookmarkLayoutTest {
 		var collapsed = folded ? Set.of(PLATE_RECIPE) : Set.<ResourceLocation>of();
 		var group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, collapsed);
 		var details = createDetails(items, metadata, collapsed);
-		var slots = Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
-			BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), 1));
+		var slots = Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () -> BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), 1));
 		Assertions.assertEquals(List.of(0, 1, 2), slots.stream().map(BookmarkDisplaySlot::slotIndex).toList());
 		Assertions.assertEquals(items, slots.stream().map(slot -> slot.entry().item()).toList());
 	}
@@ -60,8 +59,7 @@ public class BookmarkLayoutTest {
 		}
 		var group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		var details = createDetails(items, metadata, Set.of());
-		var slots = Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
-			BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), 3, List.of(1, 1, 3)));
+		var slots = Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () -> BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), 3, List.of(1, 1, 3)));
 		Assertions.assertEquals(List.of(0, 1, 3, 4, 5), slots.stream().map(BookmarkDisplaySlot::slotIndex).toList());
 	}
 

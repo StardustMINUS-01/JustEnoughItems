@@ -20,14 +20,16 @@ public final class RecipeTreeSidebarLayout<T> {
 		for (T entry : entries) {
 			if (isHeading.test(entry)) {
 				if (column != 0) {
-					y += PITCH; column = 0;
+					y += PITCH;
+					column = 0;
 				}
 				cells.add(new Cell<>(entry, 0, y, this.width, PITCH));
 				y += PITCH;
 			} else {
 				cells.add(new Cell<>(entry, column * PITCH, y, Math.min(20, this.width), 20));
 				if (++column == columns) {
-					column = 0; y += PITCH;
+					column = 0;
+					y += PITCH;
 				}
 			}
 		}
@@ -41,8 +43,9 @@ public final class RecipeTreeSidebarLayout<T> {
 
 	public Optional<T> entryAt(double x, double y) {
 		return cells.stream().filter(cell -> x >= cell.x() && x < cell.x() + cell.width() &&
-			y >= cell.y() && y < cell.y() + cell.height()).map(Cell::entry).findFirst();
+			y >= cell.y() && y < cell.y() + cell.height())
+			.map(Cell::entry).findFirst();
 	}
 
-	public record Cell<T>(T entry, int x, int y, int width, int height) { }
+	public record Cell<T>(T entry, int x, int y, int width, int height) {}
 }

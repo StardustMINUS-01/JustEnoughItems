@@ -280,7 +280,8 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		}
 
 		if (input.is(keyBindings.getQuickMove()) &&
-			!InputModifiers.isCheatGiveInput(input, keyBindings.getCheatItemStack(), toggleState.isCheatItemsEnabled())) {
+			!InputModifiers.isCheatGiveInput(input, keyBindings.getCheatItemStack(), toggleState.isCheatItemsEnabled())
+		) {
 			if (this.ghostIngredientQuickMoveManager.quickMove(screen, input)) {
 				return Optional.of(this);
 			}

@@ -3,6 +3,7 @@ package mezz.jei.gui.recipes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IFocusGroup;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class RecipeGuiLogic implements IRecipeGuiLogic {
@@ -285,7 +287,6 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		navigationHistory.clear();
 	}
 
-	// Mixin contract signature: setState(ILookupState, boolean) -> boolean
 	private boolean setState(ILookupState state, boolean saveHistory) {
 		List<IRecipeCategory<?>> recipeCategories = state.getRecipeCategories();
 		if (recipeCategories.isEmpty()) {
@@ -360,9 +361,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		ITypedIngredient<T> typedIngredient = focus.getTypedValue();
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
 		Component ingredientName = Component.literal(ingredientHelper.getDisplayName(typedIngredient.getIngredient()));
-		String translationKey = focus.getRole() == mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT ?
-			"gui.jei.recipe_navigation.target.recipes" :
-			"gui.jei.recipe_navigation.target.uses";
+		String translationKey = focus.getRole() == mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT ? "gui.jei.recipe_navigation.target.recipes" : "gui.jei.recipe_navigation.target.uses";
 		return Component.translatable(translationKey, ingredientName);
 	}
 
@@ -377,18 +376,12 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			return;
 		}
 
-		RecipePreferenceRules preferenceRules = filterMode != RecipeFilterMode.ALL || snapshotPreferenceRules != null ?
-			preferenceRulesSupplier.get() :
-			null;
+		RecipePreferenceRules preferenceRules = filterMode != RecipeFilterMode.ALL || snapshotPreferenceRules != null ? preferenceRulesSupplier.get() : null;
 		if (snapshot == null || snapshotPreferenceRules != preferenceRules) {
-			this.snapshot = preferenceRules == null ?
-				snapshotFactory.create(unfilteredState) :
-				snapshotFactory.create(unfilteredState, preferenceRules);
+			this.snapshot = preferenceRules == null ? snapshotFactory.create(unfilteredState) : snapshotFactory.create(unfilteredState, preferenceRules);
 			this.snapshotPreferenceRules = preferenceRules;
 		}
-		this.searchTextMatcher = searchQuery.isEmpty() ?
-			IRecipeSearchTextMatcher.DEFAULT :
-			snapshot.createSearchTextMatcher();
+		this.searchTextMatcher = searchQuery.isEmpty() ? IRecipeSearchTextMatcher.DEFAULT : snapshot.createSearchTextMatcher();
 		this.state = new ProjectedLookupState(
 			unfilteredState,
 			snapshot.project(filterMode, searchQuery, searchTextMatcher)
@@ -469,19 +462,14 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	}
 
 	@Override
-	public Stream<ITypedIngredient<?>> getRecipeCatalysts() {
+	public Stream<Consumer<IIngredientAcceptor<?>>> getRecipeCatalystGroups() {
 		if (!hasRecipeResults()) {
 			return Stream.empty();
 		}
 		IRecipeCategory<?> category = getSelectedRecipeCategory();
-		return getRecipeCatalysts(category);
-	}
-
-	@Override
-	public Stream<ITypedIngredient<?>> getRecipeCatalysts(IRecipeCategory<?> recipeCategory) {
-		RecipeType<?> recipeType = recipeCategory.getRecipeType();
+		RecipeType<?> recipeType = category.getRecipeType();
 		return recipeManager.createRecipeCatalystLookup(recipeType)
-			.get();
+			.getGroups();
 	}
 
 	@Override
@@ -509,7 +497,10 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
 		Set<RecipeSorterStage> recipeSorterStages = RecipeSorterStage.getEnabled(clientConfig);
 
-		int containerId = container == null ? -1 : container.containerId;
+		int containerId = -1;
+		if (container != null) {
+			containerId = container.containerId;
+		}
 		if (!recipeSorterStages.equals(cachedSorterStages) ||
 			this.cachedRecipeLayoutsWithButtons == null ||
 			this.cachedRecipeCategory != recipeCategory ||
@@ -532,12 +523,11 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			this.cachedContainerId = containerId;
 		}
 
-		final int recipeHeight =
-			this.cachedRecipeLayoutsWithButtons.findFirst()
-				.map(IRecipeLayoutWithButtons::getRecipeLayout)
-				.map(IRecipeLayoutDrawable::getRectWithBorder)
-				.map(Rect2i::getHeight)
-				.orElseGet(recipeCategory::getHeight);
+		final int recipeHeight = this.cachedRecipeLayoutsWithButtons.findFirst()
+			.map(IRecipeLayoutWithButtons::getRecipeLayout)
+			.map(IRecipeLayoutDrawable::getRectWithBorder)
+			.map(Rect2i::getHeight)
+			.orElseGet(recipeCategory::getHeight);
 
 		final int recipesPerPage = Math.max(1, 1 + ((availableHeight - recipeHeight) / (recipeHeight + minRecipePadding)));
 		this.state.setRecipesPerPage(recipesPerPage);

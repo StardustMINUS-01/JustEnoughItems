@@ -81,7 +81,7 @@ import mezz.jei.gui.input.handlers.ChatLinkInputHandler;
 import mezz.jei.gui.input.handlers.CheatInputHandler;
 import mezz.jei.gui.input.handlers.DragRouter;
 import mezz.jei.gui.input.handlers.EditInputHandler;
-import mezz.jei.gui.input.handlers.FocusInputHandler;
+import mezz.jei.gui.input.handlers.IngredientShortcutInputHandler;
 import mezz.jei.gui.input.handlers.GlobalInputHandler;
 import mezz.jei.gui.input.handlers.GuiAreaInputHandler;
 import mezz.jei.gui.input.handlers.UserInputRouter;
@@ -186,14 +186,13 @@ public class JeiGuiStarter {
 		IIngredientGridConfig bookmarkListConfig = jeiClientConfigs.getBookmarkListConfig();
 		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
 
-		Function<List<IListElementInfo<?>>, Comparator<IListElement<?>>> sortIndexUpdater =
-			ingredients -> IngredientSorter.sortIngredients(
-				clientConfig,
-				modNameSortingConfig,
-				ingredientTypeSortingConfig,
-				ingredientManager,
-				ingredients
-			);
+		Function<List<IListElementInfo<?>>, Comparator<IListElement<?>>> sortIndexUpdater = ingredients -> IngredientSorter.sortIngredients(
+			clientConfig,
+			modNameSortingConfig,
+			ingredientTypeSortingConfig,
+			ingredientManager,
+			ingredients
+		);
 
 		IngredientFilter ingredientFilter = new IngredientFilter(
 			filterTextSource,
@@ -335,10 +334,8 @@ public class JeiGuiStarter {
 		);
 		if (collapsibleManager != null) {
 			CollapsibleManager activeCollapsibleManager = collapsibleManager;
-			CollapsibleColorConfig.getCollapsedColor().addListener(color ->
-				activeCollapsibleManager.setSettings(new CollapsibleSettings(color, activeCollapsibleManager.settings().expandedColor())));
-			CollapsibleColorConfig.getExpandedColor().addListener(color ->
-				activeCollapsibleManager.setSettings(new CollapsibleSettings(activeCollapsibleManager.settings().collapsedColor(), color)));
+			CollapsibleColorConfig.getCollapsedColor().addListener(color -> activeCollapsibleManager.setSettings(new CollapsibleSettings(color, activeCollapsibleManager.settings().expandedColor())));
+			CollapsibleColorConfig.getExpandedColor().addListener(color -> activeCollapsibleManager.setSettings(new CollapsibleSettings(activeCollapsibleManager.settings().collapsedColor(), color)));
 			ConfigRulesReloadController<CollapsibleRules> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
 				collapsibleConfig::load,
 				minecraft::execute,
@@ -397,7 +394,7 @@ public class JeiGuiStarter {
 			bookmarkOverlay,
 			new GuiContainerWrapper(screenHelper)
 		);
-		var focusInputHandler = new FocusInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, serverConnection);
+		var focusInputHandler = new IngredientShortcutInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory);
 		var tagSelectionTooltip = focusInputHandler.getTagSelectionTooltip();
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,

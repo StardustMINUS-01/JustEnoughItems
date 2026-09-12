@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableSetMultimap;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.helpers.IModIdHelper;
@@ -68,6 +69,7 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class PluginLoader {
 	private PluginLoader() {}
@@ -77,9 +79,7 @@ public final class PluginLoader {
 		List<IModPlugin> plugins = data.plugins();
 		SubtypeRegistration subtypeRegistration = new SubtypeRegistration();
 		PluginCaller.callOnPlugins("Registering item subtypes", plugins, p -> p.registerItemSubtypes(subtypeRegistration));
-		PluginCaller.callOnPlugins("Registering fluid subtypes", plugins, p ->
-			p.registerFluidSubtypes(subtypeRegistration, fluidHelper)
-		);
+		PluginCaller.callOnPlugins("Registering fluid subtypes", plugins, p -> p.registerFluidSubtypes(subtypeRegistration, fluidHelper));
 		SubtypeInterpreters subtypeInterpreters = subtypeRegistration.getInterpreters();
 		return new SubtypeManager(subtypeInterpreters);
 	}
@@ -213,7 +213,7 @@ public final class PluginLoader {
 
 		RecipeCatalystRegistration recipeCatalystRegistration = new RecipeCatalystRegistration(ingredientManager, jeiHelpers);
 		PluginCaller.callOnPlugins("Registering recipe catalysts", plugins, p -> p.registerRecipeCatalysts(recipeCatalystRegistration));
-		ImmutableListMultimap<RecipeType<?>, ITypedIngredient<?>> recipeCatalysts = recipeCatalystRegistration.getRecipeCatalysts();
+		ImmutableListMultimap<RecipeType<?>, Consumer<IIngredientAcceptor<?>>> recipeCatalysts = recipeCatalystRegistration.getRecipeCatalysts();
 
 		LoggedTimer timer = new LoggedTimer();
 		timer.start("Building recipe registry");

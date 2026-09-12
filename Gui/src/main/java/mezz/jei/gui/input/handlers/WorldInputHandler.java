@@ -3,7 +3,7 @@ package mezz.jei.gui.input.handlers;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.runtime.IBookmarkOverlay;
+import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -16,13 +16,13 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class WorldInputHandler {
-	private final IBookmarkOverlay bookmarkOverlay;
+	private final BookmarkOverlay bookmarkOverlay;
 	private final IRecipesGui recipesGui;
 	private final FocusUtil focusUtil;
 	private final IIngredientManager ingredientManager;
 
 	public WorldInputHandler(
-		IBookmarkOverlay bookmarkOverlay,
+		BookmarkOverlay bookmarkOverlay,
 		IRecipesGui recipesGui,
 		FocusUtil focusUtil,
 		IIngredientManager ingredientManager

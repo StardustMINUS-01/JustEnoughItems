@@ -83,7 +83,8 @@ public final class BookmarkDisplayGenerator {
 				}
 				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, rowLayout);
 			} else if (group == null || !group.collapsed() ||
-				groupId == BookmarkGroupManager.DEFAULT_GROUP_ID) {
+				groupId == BookmarkGroupManager.DEFAULT_GROUP_ID
+			) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			} else if (isResultOnlyGroupOutput(metadata)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
@@ -149,9 +150,7 @@ public final class BookmarkDisplayGenerator {
 	private static <T> int getBorderColor(BookmarkDisplayEntry<T> entry, Map<Integer, BookmarkGroup> groups) {
 		BookmarkGroup group = groups.get(entry.metadata().groupId());
 		if (group != null && group.collapsed()) {
-			return group.craftingMode() ?
-				BookmarkSlotBorder.GROUP_CHAIN_COLOR :
-				BookmarkSlotBorder.GROUP_NONE_COLOR;
+			return group.craftingMode() ? BookmarkSlotBorder.GROUP_CHAIN_COLOR : BookmarkSlotBorder.GROUP_NONE_COLOR;
 		}
 		return BookmarkSlotBorder.RECIPE_COLOR;
 	}

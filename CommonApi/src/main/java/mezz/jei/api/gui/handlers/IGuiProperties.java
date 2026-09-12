@@ -58,30 +58,6 @@ public interface IGuiProperties {
 	 */
 	int screenHeight();
 
-	default int getGuiLeft() {
-		return guiLeft();
-	}
-
-	default int getGuiTop() {
-		return guiTop();
-	}
-
-	default int getGuiXSize() {
-		return guiXSize();
-	}
-
-	default int getGuiYSize() {
-		return guiYSize();
-	}
-
-	default int getScreenWidth() {
-		return screenWidth();
-	}
-
-	default int getScreenHeight() {
-		return screenHeight();
-	}
-
 	/**
 	 * The right edge of the GUI rectangle in screen coordinates.
 	 *

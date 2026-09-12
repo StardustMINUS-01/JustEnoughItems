@@ -15,9 +15,7 @@ public final class RecipeSearchQuery {
 				.filter(term -> term.scope() == Scope.INPUT || term.scope() == Scope.ALL)
 				.toList())
 			.toList();
-		this.inputAlternatives = inputAlternatives.stream().anyMatch(List::isEmpty) ?
-			List.of() :
-			inputAlternatives;
+		this.inputAlternatives = inputAlternatives.stream().anyMatch(List::isEmpty) ? List.of() : inputAlternatives;
 	}
 
 	public static RecipeSearchQuery parse(String query) {

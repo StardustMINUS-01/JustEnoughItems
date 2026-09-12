@@ -53,8 +53,7 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 	public void rejectsNonTerminalMenuBeforeAnyPlayerStateIsChecked() {
 		JeiPatternEncodeRequestWire request = processingRequest(List.of(), List.of());
 
-		JeiBatchPatternEncodeResult result =
-			JeiRecipeChainPatternEncodingService.encodeRecipeChainPatterns(null, new FakeMenu(), List.of(request));
+		JeiBatchPatternEncodeResult result = JeiRecipeChainPatternEncodingService.encodeRecipeChainPatterns(null, new FakeMenu(), List.of(request));
 
 		Assertions.assertEquals(JeiPatternEncodeStopReason.NOT_PATTERN_ENCODING_TERMINAL, result.stopReason());
 		Assertions.assertEquals(1, result.notProcessedCount());

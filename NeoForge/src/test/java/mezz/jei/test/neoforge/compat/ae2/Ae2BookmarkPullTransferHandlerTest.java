@@ -76,14 +76,12 @@ public class Ae2BookmarkPullTransferHandlerTest {
 		TestMenu menu = new TestMenu(7);
 		BookmarkIngredientKey diamondKey = new BookmarkIngredientKey("test:item", "diamond");
 		Ae2BookmarkStorageSnapshotProvider provider = new Ae2BookmarkStorageSnapshotProvider(
-			currentMenu -> currentMenu == menu ?
-				Optional.of(List.of(new BookmarkExternalStorageSnapshots.Entry(new ItemStack(Items.DIAMOND), 9))) :
-				Optional.empty()
+			currentMenu -> currentMenu == menu ? Optional.of(List.of(new BookmarkExternalStorageSnapshots.Entry(new ItemStack(Items.DIAMOND), 9))) : Optional.empty()
 		);
 
-		var snapshot = provider.scan(menu, new Object(), stack ->
-			stack.is(Items.DIAMOND) ? Optional.of(diamondKey) : Optional.empty()
-		).orElseThrow();
+		var snapshot = provider.scan(menu, new Object(), stack -> stack.is(Items.DIAMOND) ? Optional.of(diamondKey) : Optional.empty()
+			)
+			.orElseThrow();
 
 		assertEquals(9L, snapshot.amounts().get(diamondKey));
 		assertEquals(Items.DIAMOND, snapshot.representatives().get(diamondKey).getItem());

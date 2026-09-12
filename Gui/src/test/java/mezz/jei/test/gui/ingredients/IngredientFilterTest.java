@@ -67,12 +67,10 @@ class IngredientFilterTest {
 			searchConfig.colorSearchMode(), searchConfig.resourceLocationSearchMode(), searchConfig.creativeTabSearchMode())
 			.forEach(value -> value.set(SearchMode.DISABLED));
 		var baseManager = ItemStackIngredientTestFixtures.ingredientManager();
-		IIngredientManager manager = proxy(IIngredientManager.class, (p, m, a) ->
-			m.getName().equals("getIngredientAliases") ? List.of() : m.invoke(baseManager, a));
+		IIngredientManager manager = proxy(IIngredientManager.class, (p, m, a) -> m.getName().equals("getIngredientAliases") ? List.of() : m.invoke(baseManager, a));
 		IModIdHelper mods = proxy(IModIdHelper.class, (p, m, a) -> a[0]);
 		var hidden = new HashSet<Item>();
-		IIngredientVisibility visibility = proxy(IIngredientVisibility.class, (p, m, a) ->
-			!hidden.contains(((mezz.jei.api.ingredients.ITypedIngredient<?>) a[0]).getItemStack().orElseThrow().getItem()));
+		IIngredientVisibility visibility = proxy(IIngredientVisibility.class, (p, m, a) -> !hidden.contains(((mezz.jei.api.ingredients.ITypedIngredient<?>) a[0]).getItemStack().orElseThrow().getItem()));
 		var text = new FilterTextSource();
 		AtomicInteger comparisons = new AtomicInteger();
 		List<IListElementInfo<?>> infos = new ArrayList<>();

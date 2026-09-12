@@ -1,5 +1,7 @@
 package mezz.jei.gui.recipes;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
@@ -236,7 +238,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		if (InputModifiers.hasControl(modifiers) || InputModifiers.hasAlt(modifiers)) {
 			return Optional.empty();
 		}
-		if (!keyBindings.getFavoriteRecipe().matchesIgnoringModifiers(input.getKey())) {
+		if (!IJeiKeyMappingWithExtraModifiers.matchesShortcut(keyBindings.getFavoriteRecipe(), input.getKey())) {
 			return Optional.empty();
 		}
 		if (InputModifiers.hasShift(modifiers)) {

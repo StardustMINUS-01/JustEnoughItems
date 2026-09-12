@@ -217,9 +217,10 @@ public class JeiChatItemLinksTest {
 		String snapshot = createBookmarkGroupSnapshot();
 		String groupMarker = JeiChatItemLinks.createBookmarkGroupLinkMarker(snapshot).trim();
 		Component mixed = JeiChatItemLinks.parseChatMessage(
-			Component.literal("[JEI-other] " + diamondMarker + " " + groupMarker + " " + stickMarker),
-			JeiChatItemLinksTest::getItemName
-		).orElseThrow();
+				Component.literal("[JEI-other] " + diamondMarker + " " + groupMarker + " " + stickMarker),
+				JeiChatItemLinksTest::getItemName
+			)
+			.orElseThrow();
 		assertEquals("[JEI-other] [Diamond] [Factory] [Stick]", mixed.getString());
 		assertRunCommand(mixed.getSiblings().get(1), "minecraft:diamond");
 		assertEquals(Optional.of(snapshot), JeiChatItemLinkHover.getBookmarkGroupSnapshot(mixed.getSiblings().get(3).getStyle()));

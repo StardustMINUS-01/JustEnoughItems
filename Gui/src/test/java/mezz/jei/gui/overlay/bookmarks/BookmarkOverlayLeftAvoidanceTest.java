@@ -120,12 +120,8 @@ public class BookmarkOverlayLeftAvoidanceTest {
 		ImmutableRect2i adjustedArea = BookmarkOverlay.avoidTopLeftExclusions(area, Set.of(exclusion));
 
 		Set<ImmutableRect2i> contentExclusions = BookmarkOverlay.filterContentExclusionAreas(adjustedArea, Set.of(exclusion));
-		IngredientGridLayout.SlotLayout firstSlot = IngredientGridLayout.calculateSlots(
-			adjustedArea,
-			contentExclusions,
-			null,
-			1
-		).getFirst();
+		IngredientGridLayout.SlotLayout firstSlot = IngredientGridLayout.calculateSlots(adjustedArea, contentExclusions, null, 1)
+			.getFirst();
 
 		assertFalse(firstSlot.blocked());
 	}

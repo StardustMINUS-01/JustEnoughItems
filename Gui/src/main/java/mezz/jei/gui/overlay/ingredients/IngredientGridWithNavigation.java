@@ -255,6 +255,7 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return this.backgroundArea;
 	}
 
+	@Override
 	public ImmutableRect2i getIngredientGridArea() {
 		updateLayoutIfDirty();
 		return this.ingredientGrid.getArea();

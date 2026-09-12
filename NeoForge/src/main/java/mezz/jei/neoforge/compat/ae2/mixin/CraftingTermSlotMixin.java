@@ -37,30 +37,30 @@ public abstract class CraftingTermSlotMixin implements IJeiCraftingTermSlotExten
 					actualTimes = Math.min(actualTimes, count);
 				}
 			}
-		if (actualTimes <= 0) {
-			return 0;
-		}
+			if (actualTimes <= 0) {
+				return 0;
+			}
 
-		// Simulate placement before consuming anything: only craft as many results as the player
-		// inventory and the ME network can fully hold. Creative-only networks accept nothing that is
-		// not configured, so this clamps the batch instead of failing it (and never duplicates items).
-		int totalCount = result.getCount() * actualTimes;
-		ItemStack totalResult = result.copyWithCount(totalCount);
-		int playerRoom = getInsertableCount(player.getInventory(), totalResult);
-		long networkRoom = getNetworkRoom(menu, totalResult, totalCount - playerRoom);
-		int maxTimes = (int) Math.min(actualTimes, (playerRoom + networkRoom) / result.getCount());
-		if (maxTimes <= 0) {
-			return 0;
-		}
-		actualTimes = maxTimes;
-		totalCount = result.getCount() * actualTimes;
-		totalResult = result.copyWithCount(totalCount);
-		playerRoom = getInsertableCount(player.getInventory(), totalResult);
-		int remainderCount = totalCount - playerRoom;
+			// Simulate placement before consuming anything: only craft as many results as the player
+			// inventory and the ME network can fully hold. Creative-only networks accept nothing that is
+			// not configured, so this clamps the batch instead of failing it (and never duplicates items).
+			int totalCount = result.getCount() * actualTimes;
+			ItemStack totalResult = result.copyWithCount(totalCount);
+			int playerRoom = getInsertableCount(player.getInventory(), totalResult);
+			long networkRoom = getNetworkRoom(menu, totalResult, totalCount - playerRoom);
+			int maxTimes = (int) Math.min(actualTimes, (playerRoom + networkRoom) / result.getCount());
+			if (maxTimes <= 0) {
+				return 0;
+			}
+			actualTimes = maxTimes;
+			totalCount = result.getCount() * actualTimes;
+			totalResult = result.copyWithCount(totalCount);
+			playerRoom = getInsertableCount(player.getInventory(), totalResult);
+			int remainderCount = totalCount - playerRoom;
 
-		List<ItemStack> consumed = new ArrayList<>(grid.size());
-		for (int i = 0; i < grid.size(); i++) {
-			if (grid.getStackInSlot(i).isEmpty()) {
+			List<ItemStack> consumed = new ArrayList<>(grid.size());
+			for (int i = 0; i < grid.size(); i++) {
+				if (grid.getStackInSlot(i).isEmpty()) {
 					consumed.add(ItemStack.EMPTY);
 					continue;
 				}
@@ -69,23 +69,23 @@ public abstract class CraftingTermSlotMixin implements IJeiCraftingTermSlotExten
 					restoreConsumed(grid, consumed);
 					return 0;
 				}
-			consumed.add(extracted);
-		}
-
-		// Insert the network portion before touching the player inventory, so a network failure
-		// can restore the grid without leaving duplicated items behind.
-		if (remainderCount > 0) {
-			long inserted = insertIntoNetwork(menu, totalResult.copyWithCount(remainderCount), remainderCount);
-			if (inserted < remainderCount) {
-				restoreConsumed(grid, consumed);
-				return 0;
+				consumed.add(extracted);
 			}
-		}
-		if (playerRoom > 0) {
-			player.getInventory().add(totalResult.copyWithCount(playerRoom));
-		}
-		if (menu instanceof CraftingTermMenu craftingTermMenu) {
-			craftingTermMenu.slotsChanged(grid.toContainer());
+
+			// Insert the network portion before touching the player inventory, so a network failure
+			// can restore the grid without leaving duplicated items behind.
+			if (remainderCount > 0) {
+				long inserted = insertIntoNetwork(menu, totalResult.copyWithCount(remainderCount), remainderCount);
+				if (inserted < remainderCount) {
+					restoreConsumed(grid, consumed);
+					return 0;
+				}
+			}
+			if (playerRoom > 0) {
+				player.getInventory().add(totalResult.copyWithCount(playerRoom));
+			}
+			if (menu instanceof CraftingTermMenu craftingTermMenu) {
+				craftingTermMenu.slotsChanged(grid.toContainer());
 			}
 			return actualTimes;
 		} catch (RuntimeException e) {

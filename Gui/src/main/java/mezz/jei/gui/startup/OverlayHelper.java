@@ -133,11 +133,10 @@ public final class OverlayHelper {
 		);
 		if (collapsibleManager != null && collapsibleGridSource != null) {
 			CollapsibleGridSource activeCollapsibleGridSource = collapsibleGridSource;
-			CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider =
-				new CollapsibleSlotVisualsProvider(
-					ingredientListGridNavigation::getAllSlots,
-					collapsibleManager::settings
-				);
+			CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider = new CollapsibleSlotVisualsProvider(
+				ingredientListGridNavigation::getAllSlots,
+				collapsibleManager::settings
+			);
 			ingredientListGridNavigation.setSlotVisualsResolver(collapsibleSlotVisualsProvider::apply);
 			activeCollapsibleGridSource.addSourceListChangedListener(collapsibleSlotVisualsProvider::invalidate);
 			collapsibleManager.state().addListener(() -> {
@@ -216,17 +215,16 @@ public final class OverlayHelper {
 			screenHelper,
 			false
 		);
-		bookmarkListGridNavigation.setSlotVisualsResolver(element ->
-			element.element()
-				.getBookmark()
-				.flatMap(bookmarkList::getDisplayEntry)
-				.flatMap(entry -> BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
-					getBookmarkSlotDisplayMode(),
-					getHoveredBookmarkDisplayEntry(bookmarkList, element),
-					element.rowIndex(),
-					element.hoveredRowIndex(),
-					clientConfig.bookmarkRecipeMarkerMode().getValue()
-				)))
+		bookmarkListGridNavigation.setSlotVisualsResolver(element -> element.element()
+			.getBookmark()
+			.flatMap(bookmarkList::getDisplayEntry)
+			.flatMap(entry -> BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
+				getBookmarkSlotDisplayMode(),
+				getHoveredBookmarkDisplayEntry(bookmarkList, element),
+				element.rowIndex(),
+				element.hoveredRowIndex(),
+				clientConfig.bookmarkRecipeMarkerMode().getValue()
+			)))
 		);
 
 		FavoriteRecipePanelState favoritePanelState = new FavoriteRecipePanelState();
@@ -254,11 +252,10 @@ public final class OverlayHelper {
 			screenHelper,
 			false
 		);
-		favoriteRecipeGridNavigation.setSlotVisualsResolver(context ->
-			Optional.of(context.element())
-				.filter(FavoriteRecipeElement.class::isInstance)
-				.map(FavoriteRecipeElement.class::cast)
-				.flatMap(FavoriteRecipeSlotVisuals::create)
+		favoriteRecipeGridNavigation.setSlotVisualsResolver(context -> Optional.of(context.element())
+			.filter(FavoriteRecipeElement.class::isInstance)
+			.map(FavoriteRecipeElement.class::cast)
+			.flatMap(FavoriteRecipeSlotVisuals::create)
 		);
 
 		LookupHistoryOverlay lookupHistoryOverlay = new LookupHistoryOverlay(

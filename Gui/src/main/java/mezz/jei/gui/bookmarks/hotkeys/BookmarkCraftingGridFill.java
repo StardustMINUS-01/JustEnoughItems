@@ -77,7 +77,8 @@ public record BookmarkCraftingGridFill(
 			candidateSlots.add(List.of());
 		}
 		if (recipeLayout.getRecipeCategory().getRecipeType().equals(RecipeTypes.CRAFTING) && inputSlots.size() == 9 &&
-			(targetSlotCount == 4 || targetSlotCount == 9)) {
+			(targetSlotCount == 4 || targetSlotCount == 9)
+		) {
 			int columns = targetSlotCount == 4 ? 2 : 3;
 			// JEI crafting layouts retain all nine slots, including empty right and bottom edges.
 			for (int i = 0; i < inputSlots.size(); i++) {
@@ -234,9 +235,7 @@ public record BookmarkCraftingGridFill(
 		}
 		bestCandidate.group.distributed += bestCandidate.stack.getCount();
 		bestCandidate.group.distributedSlots++;
-		ItemStack stack = bestCandidate.group.representative.isEmpty() ?
-			bestCandidate.stack.copy() :
-			bestCandidate.group.representative.copy();
+		ItemStack stack = bestCandidate.group.representative.isEmpty() ? bestCandidate.stack.copy() : bestCandidate.group.representative.copy();
 		stack.setCount(bestCandidate.stack.getCount());
 		return stack;
 	}

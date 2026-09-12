@@ -97,9 +97,7 @@ public class PatternEncodingTest {
 			List.of(item(Items.DIAMOND))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = single ?
-			FACTORY.createSingleRequest(layout, Optional.empty()) :
-			FACTORY.createRequests(inputs, Set.of(), resolver(layout));
+		RecipeChainPatternEncodeRequestFactory.Result result = single ? FACTORY.createSingleRequest(layout, Optional.empty()) : FACTORY.createRequests(inputs, Set.of(), resolver(layout));
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = Assertions.assertDoesNotThrow(() -> result.requests().getFirst());
@@ -151,10 +149,11 @@ public class PatternEncodingTest {
 		);
 
 		JeiPatternEncodeRequest request = FACTORY.createSingleRequest(
-			layout,
-			Optional.empty(),
-			List.of(new RecipeChainInput(0, planksMetadata, BookmarkItemMetadataFactory.createPermutationKey(oak, INGREDIENT_MANAGER)))
-		).requests().getFirst();
+				layout,
+				Optional.empty(),
+				List.of(new RecipeChainInput(0, planksMetadata, BookmarkItemMetadataFactory.createPermutationKey(oak, INGREDIENT_MANAGER)))
+			)
+			.requests().getFirst();
 
 		for (int index = 0; index < 3; index++) {
 			Assertions.assertEquals(Items.OAK_PLANKS, request.canonicalInputGuides().get(index).ingredient().getItemStack().orElseThrow().getItem());
@@ -191,13 +190,14 @@ public class PatternEncodingTest {
 		);
 
 		JeiPatternEncodeRequest request = FACTORY.createSingleRequest(
-			layout,
-			Optional.empty(),
-			List.of(
-				new RecipeChainInput(0, oakMetadata, BookmarkItemMetadataFactory.createPermutationKey(oak, INGREDIENT_MANAGER)),
-				new RecipeChainInput(1, birchMetadata, BookmarkItemMetadataFactory.createPermutationKey(birch, INGREDIENT_MANAGER))
+				layout,
+				Optional.empty(),
+				List.of(
+					new RecipeChainInput(0, oakMetadata, BookmarkItemMetadataFactory.createPermutationKey(oak, INGREDIENT_MANAGER)),
+					new RecipeChainInput(1, birchMetadata, BookmarkItemMetadataFactory.createPermutationKey(birch, INGREDIENT_MANAGER))
+				)
 			)
-		).requests().getFirst();
+			.requests().getFirst();
 
 		Assertions.assertEquals(Items.OAK_PLANKS, request.canonicalInputGuides().getFirst().ingredient().getItemStack().orElseThrow().getItem());
 		Assertions.assertEquals(7, request.canonicalInputGuides().subList(1, 8).stream()
@@ -329,9 +329,7 @@ public class PatternEncodingTest {
 			List.of(item(Items.GOLD_INGOT))
 		);
 
-		RecipeChainPatternEncodeRequestFactory.Result result = single ?
-			FACTORY.createSingleRequest(layout, Optional.empty(), inputs) :
-			FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
+		RecipeChainPatternEncodeRequestFactory.Result result = single ? FACTORY.createSingleRequest(layout, Optional.empty(), inputs) : FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
 		Assertions.assertEquals(RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		JeiPatternEncodeRequest request = result.requests().getFirst();
@@ -422,8 +420,7 @@ public class PatternEncodingTest {
 
 		RecipeChainPatternEncodeRequestFactory.Result result = FACTORY.createRequests(inputs, Set.of(), recipeUid -> Optional.empty());
 
-		Assertions.assertEquals(count > 256 ? RecipeChainPatternEncodeRequestFactory.Status.TOO_MANY_REQUESTS :
-			RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
+		Assertions.assertEquals(count > 256 ? RecipeChainPatternEncodeRequestFactory.Status.TOO_MANY_REQUESTS : RecipeChainPatternEncodeRequestFactory.Status.OK, result.status());
 		Assertions.assertEquals(count > 256 ? 0 : count, result.requests().size());
 	}
 
@@ -434,22 +431,23 @@ public class PatternEncodingTest {
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handle(
-			input(inputType),
-			keyMapping,
-			new TestMenu(),
-			Optional.of("group"),
-			true,
-			bridge,
-			() -> List.of(
-				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
-				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
-			),
-			() -> Set.of(),
-			recipeUid -> Optional.empty(),
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).orElseThrow();
+				input(inputType),
+				keyMapping,
+				new TestMenu(),
+				Optional.of("group"),
+				true,
+				bridge,
+				() -> List.of(
+					input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+					input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
+				),
+				() -> Set.of(),
+				recipeUid -> Optional.empty(),
+				INGREDIENT_MANAGER,
+				message -> {
+				}
+			)
+			.orElseThrow();
 
 		Assertions.assertTrue(result.handled());
 		Assertions.assertEquals(inputType == InputType.EXECUTE, result.sent());
@@ -462,23 +460,24 @@ public class PatternEncodingTest {
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handle(
-			input(InputType.EXECUTE),
-			keyMapping,
-			new TestMenu(),
-			Optional.of("group"),
-			false,
-			true,
-			bridge,
-			() -> List.of(
-				input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
-				input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
-			),
-			() -> Set.of(),
-			recipeUid -> Optional.empty(),
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).orElseThrow();
+				input(InputType.EXECUTE),
+				keyMapping,
+				new TestMenu(),
+				Optional.of("group"),
+				false,
+				true,
+				bridge,
+				() -> List.of(
+					input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+					input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
+				),
+				() -> Set.of(),
+				recipeUid -> Optional.empty(),
+				INGREDIENT_MANAGER,
+				message -> {
+				}
+			)
+			.orElseThrow();
 
 		Assertions.assertTrue(result.handled());
 		Assertions.assertTrue(result.sent());
@@ -498,16 +497,17 @@ public class PatternEncodingTest {
 		);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handleSingleRecipe(
-			input(InputType.EXECUTE),
-			keyMapping,
-			new TestMenu(),
-			bridge,
-			Optional.of(layout),
-			Optional.of(new TestRecipeSlotView(RecipeIngredientRole.INPUT, item(Items.STICK))),
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).orElseThrow();
+				input(InputType.EXECUTE),
+				keyMapping,
+				new TestMenu(),
+				bridge,
+				Optional.of(layout),
+				Optional.of(new TestRecipeSlotView(RecipeIngredientRole.INPUT, item(Items.STICK))),
+				INGREDIENT_MANAGER,
+				message -> {
+				}
+			)
+			.orElseThrow();
 
 		Assertions.assertTrue(result.handled());
 		Assertions.assertTrue(result.sent());
@@ -533,17 +533,18 @@ public class PatternEncodingTest {
 		);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handleSingleRecipe(
-			input(InputType.EXECUTE),
-			keyMapping,
-			new TestMenu(),
-			bridge,
-			Optional.of(layout),
-			Optional.empty(),
-			() -> savedInputs,
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).orElseThrow();
+				input(InputType.EXECUTE),
+				keyMapping,
+				new TestMenu(),
+				bridge,
+				Optional.of(layout),
+				Optional.empty(),
+				() -> savedInputs,
+				INGREDIENT_MANAGER,
+				message -> {
+				}
+			)
+			.orElseThrow();
 
 		Assertions.assertTrue(result.sent());
 		JeiPatternEncodeRequest request = bridge.sentRequests.getFirst();
@@ -555,33 +556,35 @@ public class PatternEncodingTest {
 	public void requiresCompatibleTerminal() {
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 		Assertions.assertTrue(RecipeChainPatternEncodeController.handle(
-			input(InputType.EXECUTE),
-			keyMapping,
-			new TestMenu(),
-			Optional.of("group"),
-			true,
-			new TestBridge(false, true),
-			List::of,
-			Set::of,
-			recipeUid -> Optional.empty(),
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).isEmpty());
+				input(InputType.EXECUTE),
+				keyMapping,
+				new TestMenu(),
+				Optional.of("group"),
+				true,
+				new TestBridge(false, true),
+				List::of,
+				Set::of,
+				recipeUid -> Optional.empty(),
+				INGREDIENT_MANAGER,
+				message -> {
+				}
+			)
+			.isEmpty());
 		Assertions.assertTrue(RecipeChainPatternEncodeController.handle(
-			input(InputType.EXECUTE),
-			keyMapping,
-			new TestMenu(),
-			Optional.of("group"),
-			true,
-			new TestBridge(true, false),
-			List::of,
-			Set::of,
-			recipeUid -> Optional.empty(),
-			INGREDIENT_MANAGER,
-			message -> {
-			}
-		).isEmpty());
+				input(InputType.EXECUTE),
+				keyMapping,
+				new TestMenu(),
+				Optional.of("group"),
+				true,
+				new TestBridge(true, false),
+				List::of,
+				Set::of,
+				recipeUid -> Optional.empty(),
+				INGREDIENT_MANAGER,
+				message -> {
+				}
+			)
+			.isEmpty());
 	}
 
 	private static Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> resolver(IRecipeLayoutDrawable<?> layout) {

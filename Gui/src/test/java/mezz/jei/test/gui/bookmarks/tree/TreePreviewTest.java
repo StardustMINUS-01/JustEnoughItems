@@ -52,7 +52,7 @@ class TreePreviewTest {
 		double mouseX, mouseY;
 
 		IRecipeLayoutDrawable<?> drawable() {
-			return (IRecipeLayoutDrawable<?>) Proxy.newProxyInstance(IRecipeLayoutDrawable.class.getClassLoader(), new Class<?>[] {IRecipeLayoutDrawable.class},
+			return (IRecipeLayoutDrawable<?>) Proxy.newProxyInstance(IRecipeLayoutDrawable.class.getClassLoader(), new Class<?>[]{IRecipeLayoutDrawable.class},
 				(proxy, method, args) -> switch (method.getName()) {
 					case "getRecipeSlotsView" -> (IRecipeSlotsView) List::of;
 					case "getRectWithBorder" -> new Rect2i(x - 4, y - 4, 208, 108);

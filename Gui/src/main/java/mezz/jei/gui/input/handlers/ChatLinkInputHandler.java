@@ -159,8 +159,7 @@ public class ChatLinkInputHandler {
 				InputConstants.Key pendingKey = this.pendingGroupKey;
 				String pendingSnapshot = this.pendingGroupSnapshot;
 				clearPendingGroupInput();
-				if (
-					pendingKey == null ||
+				if (pendingKey == null ||
 					pendingSnapshot == null ||
 					!pendingKey.equals(input.getKey()) ||
 					getHoveredBookmarkGroupSnapshot(chatScreen, input).filter(pendingSnapshot::equals).isEmpty()
@@ -179,12 +178,9 @@ public class ChatLinkInputHandler {
 	}
 
 	private void importBookmarkGroup(String snapshot) {
-		if (BookmarkJsonSerializer.deserializeGroupSnapshot(
-			snapshot,
-			bookmarkList,
-			bookmarkEntryCodec,
-			bookmarkRegistryOps
-		).isPresent()) {
+		if (BookmarkJsonSerializer.deserializeGroupSnapshot(snapshot, bookmarkList, bookmarkEntryCodec, bookmarkRegistryOps)
+			.isPresent()
+		) {
 			JeiClientSoundUtil.playClickSound();
 		}
 	}

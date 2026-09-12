@@ -295,12 +295,9 @@ public class ProjectedBookmarkElementTest {
 	}
 
 	private static IInternalKeyMappings keyMappings() {
-		IJeiKeyMapping leftClick = proxy(IJeiKeyMapping.class, (proxy, method, args) ->
-			method.getName().equals("isActiveAndMatches") && LEFT_MOUSE.equals(args[0])
-		);
+		IJeiKeyMapping leftClick = proxy(IJeiKeyMapping.class, (proxy, method, args) -> method.getName().equals("isActiveAndMatches") && LEFT_MOUSE.equals(args[0]));
 		IJeiKeyMapping noMatch = proxy(IJeiKeyMapping.class, (proxy, method, args) -> false);
-		return proxy(IInternalKeyMappings.class, (proxy, method, args) ->
-			method.getName().equals("getLeftClick") ? leftClick : noMatch
+		return proxy(IInternalKeyMappings.class, (proxy, method, args) -> method.getName().equals("getLeftClick") ? leftClick : noMatch
 		);
 	}
 

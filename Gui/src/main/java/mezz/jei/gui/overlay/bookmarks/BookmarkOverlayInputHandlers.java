@@ -44,7 +44,8 @@ public final class BookmarkOverlayInputHandlers {
 				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
 				InputModifiers.hasShift(input) ||
 				InputModifiers.hasControl(input) ||
-				InputModifiers.hasAlt(input)) {
+				InputModifiers.hasAlt(input)
+			) {
 				return Optional.empty();
 			}
 			Optional<FavoriteRecipeRowPanelSlot> slot = overlay.getFavoriteRecipeRowPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
@@ -63,7 +64,8 @@ public final class BookmarkOverlayInputHandlers {
 				scrollDelta == 0 ||
 				!Screen.hasShiftDown() ||
 				Screen.hasControlDown() ||
-				Screen.hasAltDown()) {
+				Screen.hasAltDown()
+			) {
 				return Optional.empty();
 			}
 			Optional<FavoriteRecipeElementPanelSlot> slot = overlay.getFavoriteRecipeElementSlotUnderMouse(mouseX, mouseY);
@@ -90,7 +92,8 @@ public final class BookmarkOverlayInputHandlers {
 			if (input.getKey().getType() != InputConstants.Type.MOUSE ||
 				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
 				!InputModifiers.hasAlt(input) ||
-				InputModifiers.hasShift(input)) {
+				InputModifiers.hasShift(input)
+			) {
 				return Optional.empty();
 			}
 			Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> target = overlay.getPanelSlots().stream()
@@ -148,9 +151,7 @@ public final class BookmarkOverlayInputHandlers {
 				return Optional.of(this);
 			}
 
-			BookmarkHotkeyMouseButton hotkeyMouseButton = mouseButton == InputConstants.MOUSE_BUTTON_LEFT ?
-				BookmarkHotkeyMouseButton.LEFT :
-				BookmarkHotkeyMouseButton.RIGHT;
+			BookmarkHotkeyMouseButton hotkeyMouseButton = mouseButton == InputConstants.MOUSE_BUTTON_LEFT ? BookmarkHotkeyMouseButton.LEFT : BookmarkHotkeyMouseButton.RIGHT;
 			if (input.getInputType() == InputType.EXECUTE && overlay.getGroupPanelDrag() != null) {
 				boolean handled = overlay.getGroupPanelDrag().complete(input);
 				overlay.setGroupPanelDrag(null);
@@ -205,7 +206,8 @@ public final class BookmarkOverlayInputHandlers {
 
 			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE ||
 				action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING ||
-				action.get() == BookmarkHotkeyAction.GROUP_DROP_DRAG) {
+				action.get() == BookmarkHotkeyAction.GROUP_DROP_DRAG
+			) {
 				if (input.getInputType() == InputType.SIMULATE) {
 					BookmarkHotkeyAction resolvedAction = action.get();
 					if (resolvedAction == BookmarkHotkeyAction.GROUP_DROP_DRAG && !overlay.canStartGroupDrop(slot.get().groupId())) {
@@ -284,7 +286,8 @@ public final class BookmarkOverlayInputHandlers {
 			Optional<IBookmark> bookmark = overlay.getBookmarkUnderMouse(mouseX, mouseY);
 			if (bookmark.isPresent() && BookmarkScrollHandler.apply(
 				overlay.getBookmarkList(), bookmark.get(), scrollDelta, controlDown, altDown, shiftDown, overlay.getScrollStep().getEffectiveStep(),
-				step -> overlay.getBookmarkList().shiftBookmarkAmount(bookmark.get(), step))) {
+				step -> overlay.getBookmarkList().shiftBookmarkAmount(bookmark.get(), step))
+			) {
 				playClickSound();
 				return Optional.of(this);
 			}

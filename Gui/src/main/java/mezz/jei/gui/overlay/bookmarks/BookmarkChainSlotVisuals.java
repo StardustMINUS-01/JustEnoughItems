@@ -81,9 +81,7 @@ public final class BookmarkChainSlotVisuals {
 		if ((metadata.type().isGraphInput() && displayMode != BookmarkSlotDisplayMode.DEFAULT || metadata.type().isNonConsumable()) && metadata.recipeUid() != null) {
 			Optional<String> recipeMarkerText = getRecipeMarkerText(metadata, recipeMarkerMode);
 			return Optional.of(new BookmarkSlotVisuals(
-				displayMode == BookmarkSlotDisplayMode.DEFAULT ?
-					OptionalInt.empty() :
-					OptionalInt.of(metadata.type().isNonConsumable() ? NONCONSUMABLE_COLOR : INGREDIENT_COLOR),
+				displayMode == BookmarkSlotDisplayMode.DEFAULT ? OptionalInt.empty() : OptionalInt.of(metadata.type().isNonConsumable() ? NONCONSUMABLE_COLOR : INGREDIENT_COLOR),
 				OptionalInt.empty(),
 				formatPositiveAmount(metadata, metadata.amount()),
 				getAmountTextColor(metadata),
@@ -143,7 +141,8 @@ public final class BookmarkChainSlotVisuals {
 		}
 		if (!entry.collapsed() && entry.viewMode() == BookmarkViewMode.TODO_LIST &&
 			context.rowIndex() >= 0 &&
-			context.rowIndex() == context.hoveredRowIndex()) {
+			context.rowIndex() == context.hoveredRowIndex()
+		) {
 			return requestedMode;
 		}
 		if (entry.sourceIndex() == hovered.sourceIndex() || sameRecipe(entry, hovered)) {
@@ -191,7 +190,8 @@ public final class BookmarkChainSlotVisuals {
 			displayMode == BookmarkSlotDisplayMode.DEFAULT &&
 			!entry.metadata().type().isGraphInput() &&
 			entry.metadata().recipeUid() != null &&
-			!markerHovered) {
+			!markerHovered
+		) {
 			if (item != null && item.type() == RecipeChainItemType.REMAINDER && item.shiftAmount() > 0) {
 				return OptionalInt.of(REMAINDER_MARKER_BACKGROUND_COLOR);
 			}
@@ -250,7 +250,8 @@ public final class BookmarkChainSlotVisuals {
 		}
 		if (recipeMarkerMode == BookmarkRecipeMarkerMode.TEXT &&
 			!metadata.type().isGraphInput() &&
-			metadata.recipeUid() != null) {
+			metadata.recipeUid() != null
+		) {
 			return Optional.of("R");
 		}
 		return Optional.empty();

@@ -30,7 +30,7 @@ class TreeInputTest {
 		assertEquals(RecipeTreeInput.SHOW_RECIPE, RecipeTreeInput.key(input(GLFW.GLFW_KEY_R, 0), keys).orElseThrow());
 		assertEquals(RecipeTreeInput.SHOW_USES, RecipeTreeInput.key(input(GLFW.GLFW_KEY_U, 0), keys).orElseThrow());
 		assertEquals(RecipeTreeInput.BOOKMARK, RecipeTreeInput.key(input(GLFW.GLFW_KEY_A, 0), keys).orElseThrow());
-		for (int key : new int[] {GLFW.GLFW_KEY_Q, GLFW.GLFW_KEY_C, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_T}) {
+		for (int key : new int[]{GLFW.GLFW_KEY_Q, GLFW.GLFW_KEY_C, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_T}) {
 			assertTrue(RecipeTreeInput.key(input(key, 0), keys).isEmpty());
 		}
 	}
@@ -40,8 +40,8 @@ class TreeInputTest {
 		var keys = keys(GLFW.GLFW_KEY_P);
 		assertTrue(RecipeTreeInput.key(input(GLFW.GLFW_KEY_R, 0), keys).isEmpty());
 		assertEquals(RecipeTreeInput.SHOW_RECIPE, RecipeTreeInput.key(input(GLFW.GLFW_KEY_P, 0), keys).orElseThrow());
-		for (int modifier : new int[] {GLFW.GLFW_MOD_SHIFT, GLFW.GLFW_MOD_CONTROL, GLFW.GLFW_MOD_ALT, GLFW.GLFW_MOD_SUPER}) {
-			for (int key : new int[] {GLFW.GLFW_KEY_P, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) {
+		for (int modifier : new int[]{GLFW.GLFW_MOD_SHIFT, GLFW.GLFW_MOD_CONTROL, GLFW.GLFW_MOD_ALT, GLFW.GLFW_MOD_SUPER}) {
+			for (int key : new int[]{GLFW.GLFW_KEY_P, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) {
 				assertTrue(RecipeTreeInput.key(input(key, modifier), keys).isEmpty());
 			}
 		}
@@ -52,7 +52,7 @@ class TreeInputTest {
 	}
 
 	private static IInternalKeyMappings keys(int recipeKey) {
-		return (IInternalKeyMappings) Proxy.newProxyInstance(IInternalKeyMappings.class.getClassLoader(), new Class<?>[] {IInternalKeyMappings.class},
+		return (IInternalKeyMappings) Proxy.newProxyInstance(IInternalKeyMappings.class.getClassLoader(), new Class<?>[]{IInternalKeyMappings.class},
 			(proxy, method, args) -> new Key(switch (method.getName()) {
 				case "getShowRecipe" -> recipeKey;
 				case "getShowUses" -> GLFW.GLFW_KEY_U;

@@ -1,5 +1,7 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -34,7 +36,7 @@ public final class BookmarkAutoCraftingActivator {
 
 	public static boolean isAutoCraftingInput(UserInput input, IJeiKeyMapping craftItemsKey) {
 		return (input.getModifiers() & GLFW.GLFW_MOD_SHIFT) != 0 &&
-			craftItemsKey.matchesIgnoringModifiers(input.getKey());
+			IJeiKeyMappingWithExtraModifiers.matchesShortcut(craftItemsKey, input.getKey());
 	}
 
 	public static boolean claimAutoCraftingInput(UserInput input, IJeiKeyMapping craftItemsKey) {
@@ -96,7 +98,8 @@ public final class BookmarkAutoCraftingActivator {
 		List<ItemStack> availableStacks
 	) {
 		if (!hasServerSupport || !hasShift || containerMenu == null ||
-			!RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())) {
+			!RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())
+		) {
 			return false;
 		}
 

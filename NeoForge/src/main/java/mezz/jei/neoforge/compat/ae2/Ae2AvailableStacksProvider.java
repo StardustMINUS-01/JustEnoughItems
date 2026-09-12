@@ -38,7 +38,8 @@ public class Ae2AvailableStacksProvider implements BookmarkAvailableStacksProvid
 	public Optional<List<ItemStack>> getAvailableStacks(AbstractContainerMenu menu) {
 		boolean scoped = !BookmarkCraftingScope.getInterests().isEmpty();
 		if (!scoped && cachedMenu == menu && cachedStacks != null &&
-			System.currentTimeMillis() - cachedAtMillis < REFRESH_INTERVAL_MILLIS) {
+			System.currentTimeMillis() - cachedAtMillis < REFRESH_INTERVAL_MILLIS
+		) {
 			return Optional.of(cachedStacks);
 		}
 		Optional<List<ItemStack>> stacks = DirectAvailableStacksAccess.getAvailableStacks(menu);

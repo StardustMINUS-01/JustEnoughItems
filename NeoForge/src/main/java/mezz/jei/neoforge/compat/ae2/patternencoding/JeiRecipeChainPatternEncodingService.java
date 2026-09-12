@@ -64,7 +64,8 @@ public final class JeiRecipeChainPatternEncodingService {
 				skippedExistingCount++;
 			} else if (preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_CATALYST
 				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE
-				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN) {
+				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN
+			) {
 				skippedInvalidCount++;
 			}
 		}

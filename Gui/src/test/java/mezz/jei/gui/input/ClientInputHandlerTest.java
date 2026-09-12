@@ -27,8 +27,8 @@ public class ClientInputHandlerTest {
 
 	@Test
 	public void wheelDoesNotReachPreviousOverlayOnAnUnsupportedScreen() {
-		Screen overlayScreen = new Screen(Component.empty()) { };
-		Screen standaloneScreen = new Screen(Component.empty()) { };
+		Screen overlayScreen = new Screen(Component.empty()) {};
+		Screen standaloneScreen = new Screen(Component.empty()) {};
 		var router = new RecordingMouseRouter();
 		var handler = mouseHandler(overlayScreen, router);
 
@@ -44,8 +44,8 @@ public class ClientInputHandlerTest {
 
 	@Test
 	public void dragDoesNotReachPreviousOverlayOnAnUnsupportedScreen() {
-		Screen overlayScreen = new Screen(Component.empty()) { };
-		Screen standaloneScreen = new Screen(Component.empty()) { };
+		Screen overlayScreen = new Screen(Component.empty()) {};
+		Screen standaloneScreen = new Screen(Component.empty()) {};
 		var router = new RecordingMouseRouter();
 		var handler = mouseHandler(overlayScreen, router);
 

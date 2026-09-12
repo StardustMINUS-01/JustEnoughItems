@@ -58,9 +58,7 @@ public final class FavoriteTreeBookmarkWriter {
 				}
 				continue;
 			}
-			Optional<BookmarkIngredientKey> selectedOutputKey = recipe.recipe().equals(root) ?
-				selectedRootOutputKey :
-				Optional.empty();
+			Optional<BookmarkIngredientKey> selectedOutputKey = recipe.recipe().equals(root) ? selectedRootOutputKey : Optional.empty();
 			Map<Integer, BookmarkIngredientKey> selectedInputKeys = selectedInputKeys(recipe);
 			layouts.add(new RecipeLayoutProjection(layout.get(), selectedOutputKey, selectedInputKeys));
 		}

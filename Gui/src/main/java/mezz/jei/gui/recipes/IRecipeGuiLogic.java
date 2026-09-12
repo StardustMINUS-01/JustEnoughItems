@@ -1,6 +1,6 @@
 package mezz.jei.gui.recipes;
 
-import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
@@ -12,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public interface IRecipeGuiLogic {
@@ -69,8 +70,7 @@ public interface IRecipeGuiLogic {
 	@Unmodifiable
 	List<IRecipeCategory<?>> getRecipeCategories();
 
-	Stream<ITypedIngredient<?>> getRecipeCatalysts();
-	Stream<ITypedIngredient<?>> getRecipeCatalysts(IRecipeCategory<?> recipeCategory);
+	Stream<Consumer<IIngredientAcceptor<?>>> getRecipeCatalystGroups();
 
 	List<IRecipeLayoutWithButtons<?>> getVisibleRecipeLayoutsWithButtons(
 		int availableHeight,

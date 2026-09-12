@@ -33,12 +33,15 @@ public class TooltipInventoryTest {
 		entries.add(new BookmarkExternalStorageSnapshots.Entry(new ItemStack(Items.IRON_INGOT), 500));
 		BookmarkAvailableStacksProviders.registerProvider(candidate -> candidate == menu ? Optional.of(List.of(new ItemStack(Items.IRON_INGOT, 500))) : Optional.empty());
 		try (var registration = BookmarkExternalStorageSnapshots.registerProvider(new BookmarkExternalStorageSnapshots.Provider() {
-			@Override public Optional<BookmarkContainerStorageScanner.StorageSnapshot> scan(Object menu, Object screen,
-				Function<ItemStack, Optional<BookmarkIngredientKey>> keyFactory) { return Optional.empty(); }
-			@Override public Optional<List<BookmarkExternalStorageSnapshots.Entry>> readEntries(Object candidate) {
-				return candidate == menu ? Optional.of(List.copyOf(entries)) : Optional.empty();
+			@Override
+			public Optional<BookmarkContainerStorageScanner.StorageSnapshot> scan(Object menu, Object screen,
+			Function<ItemStack, Optional<BookmarkIngredientKey>> keyFactory) { return Optional.empty(); }
+			@Override
+			public Optional<List<BookmarkExternalStorageSnapshots.Entry>> readEntries(Object candidate) {
+			return candidate == menu ? Optional.of(List.copyOf(entries)) : Optional.empty();
 			}
-		})) {
+			})
+		) {
 			var stacks = PlayerInventoryRecipeChainTooltipInventoryProvider.getTreeAvailableStacks(inventory, menu, menu);
 			assertEquals(500, amount(stacks, Items.IRON_INGOT));
 			assertEquals(3, amount(stacks, Items.DIAMOND));

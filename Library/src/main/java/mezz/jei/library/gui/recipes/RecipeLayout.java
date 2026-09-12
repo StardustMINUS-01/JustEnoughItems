@@ -8,6 +8,7 @@ import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawablesView;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.gui.inputs.IJeiGuiEventListener;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
@@ -38,6 +39,7 @@ import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.MathUtil;
+import mezz.jei.common.util.LimitedLogger;
 import mezz.jei.library.gui.ingredients.CycleTicker;
 import mezz.jei.library.gui.ingredients.RecipeSlot;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeLayoutBuilder;
@@ -47,11 +49,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenPosition;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.FormattedText;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -62,6 +66,8 @@ import java.util.Set;
 
 public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasBuilder {
 	private static final Logger LOGGER = LogManager.getLogger();
+	private static final LimitedLogger LIMITED_LOGGER = new LimitedLogger(LOGGER, Duration.ofSeconds(10));
+
 	private static final int DEFAULT_RECIPE_BORDER_PADDING = 4;
 	public static final int RECIPE_BUTTON_SIZE = 13;
 	public static final int RECIPE_BUTTON_SPACING = 2;
@@ -75,8 +81,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	/**
 	 * All slots, including slots handled by the recipe category and widgets.
 	 */
-	@Unmodifiable
-	private final List<IRecipeSlotDrawable> allSlots;
+	private final IRecipeSlotsView recipeSlotsView;
 	private final List<IDrawable> drawables;
 	private final List<ISlottedRecipeWidget> slottedWidgets;
 	private final Set<ISlottedRecipeWidget> disabledSlottedWidgets;
@@ -131,10 +136,10 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 				recipeBackground,
 				recipeBorderPadding
 			);
-			recipeCategory.createRecipeExtras(recipeLayout, recipe, focuses);
 			return Optional.of(recipeLayout);
 		} catch (RuntimeException | LinkageError e) {
-			LOGGER.error("Error caught from Recipe Category: {}", recipeCategory.getRecipeType(), e);
+			String recipeInfo = ErrorUtil.getRecipeInfo(recipeCategory, recipe);
+			LOGGER.error("Recipe crashed during Recipe Layout creation:\n{}", recipeInfo, e);
 		}
 		return Optional.empty();
 	}
@@ -163,7 +168,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		this.inputHandler = new RecipeLayoutInputHandler<>(this);
 
 		this.recipeCategorySlots = new ArrayList<>(recipeCategorySlots);
-		this.allSlots = Collections.unmodifiableList(allSlots);
+		this.recipeSlotsView = new RecipeSlotsView(Collections.unmodifiableList(allSlots));
 		this.recipeBorderPadding = recipeBorderPadding;
 		this.area = new ImmutableRect2i(
 			0,
@@ -191,6 +196,13 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		updateDisplayedIngredients(false);
 	}
 
+	public void ensureRecipeExtrasAreCreated() {
+		if (!extrasCreated) {
+			extrasCreated = true;
+			recipeCategory.createRecipeExtras(this, recipe, focuses);
+		}
+	}
+
 	@Override
 	public void setPosition(int posX, int posY) {
 		area = area.setPosition(posX, posY);
@@ -198,6 +210,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 
 	@Override
 	public void drawRecipe(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		ensureRecipeExtrasAreCreated();
 		@SuppressWarnings("removal")
 		IDrawable background = recipeCategory.getBackground();
 
@@ -276,6 +289,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 
 	@Override
 	public void drawOverlays(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		ensureRecipeExtrasAreCreated();
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
 		final int recipeMouseX = mouseX - area.getX();
@@ -292,9 +306,23 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 			hoveredSlot.drawTooltip(guiGraphics, mouseX, mouseY);
 		} else if (isMouseOver(mouseX, mouseY)) {
 			JeiTooltip tooltip = new JeiTooltip();
-			recipeCategory.getTooltip(tooltip, recipe, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
-			for (IRecipeCategoryDecorator<R> decorator : recipeCategoryDecorators) {
-				decorator.decorateTooltips(tooltip, recipe, recipeCategory, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
+			try {
+				recipeCategory.getTooltip(tooltip, recipe, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
+				for (IRecipeCategoryDecorator<R> decorator : recipeCategoryDecorators) {
+					decorator.decorateTooltips(tooltip, recipe, recipeCategory, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
+				}
+			} catch (RuntimeException e) {
+				LIMITED_LOGGER.log(
+					Level.ERROR,
+					"recipe.category.tooltip.crash",
+					logger -> {
+						logger.error(
+							"Error while getting tooltip from recipe:\n{}",
+							ErrorUtil.getRecipeInfo(recipeCategory, recipe),
+							e
+						);
+					}
+				);
 			}
 
 			RecipeWidgetTooltipDispatcher.addWidgetTooltips(
@@ -345,6 +373,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 
 	@Override
 	public Optional<RecipeSlotUnderMouse> getSlotUnderMouse(double mouseX, double mouseY) {
+		ensureRecipeExtrasAreCreated();
 		final double recipeMouseX = mouseX - area.getX();
 		final double recipeMouseY = mouseY - area.getY();
 
@@ -407,14 +436,14 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		return getSideButtonArea(1);
 	}
 
-	@SuppressWarnings("RedundantUnmodifiable")
 	@Override
 	public IRecipeSlotsView getRecipeSlotsView() {
-		return () -> Collections.unmodifiableList(allSlots);
+		return recipeSlotsView;
 	}
 
 	@Override
 	public IRecipeSlotDrawablesView getRecipeSlots() {
+		ensureRecipeExtrasAreCreated();
 		return () -> Collections.unmodifiableList(recipeCategorySlots);
 	}
 
@@ -430,6 +459,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 
 	@Override
 	public void tick() {
+		ensureRecipeExtrasAreCreated();
 		for (IRecipeWidget widget : allWidgets) {
 			widget.tick();
 		}
@@ -620,5 +650,12 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		TextWidget textWidget = new TextWidget(text, 0, 0, maxWidth, maxHeight);
 		addWidget(textWidget);
 		return textWidget;
+	}
+
+	private record RecipeSlotsView(@Unmodifiable List<IRecipeSlotView> allSlots) implements IRecipeSlotsView {
+		@Override
+		public @Unmodifiable List<IRecipeSlotView> getSlotViews() {
+			return allSlots;
+		}
 	}
 }

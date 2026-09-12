@@ -8,6 +8,7 @@ import mezz.jei.common.util.ErrorUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.client.ClientHooks;
 
 import java.nio.file.Path;
 import java.util.Optional;
@@ -23,6 +24,7 @@ public class ConfigHelper implements IPlatformConfigHelper {
 	public Optional<Screen> getConfigScreen() {
 		Minecraft minecraft = Minecraft.getInstance();
 		ErrorUtil.checkNotNull(minecraft.screen, "minecraft.screen");
-		return Optional.of(new JeiConfigScreen(minecraft.screen, Internal.getJeiRuntime().getConfigManager(), ConfigKeyBinding.create()));
+		return Optional.of(new JeiConfigScreen(Internal.getJeiRuntime().getConfigManager(), ConfigKeyBinding.create(),
+			screen -> ClientHooks.pushGuiLayer(minecraft, screen), () -> ClientHooks.popGuiLayer(minecraft)));
 	}
 }

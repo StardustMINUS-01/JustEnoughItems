@@ -16,5 +16,5 @@ public record RecipeTreeViewState(
 	}
 
 	public record Branch(int parent, int child, @Nullable ResourceLocation recipeType, @Nullable ResourceLocation recipeUid,
-		boolean recipe, boolean expanded) { }
+		boolean recipe, boolean expanded) {}
 }

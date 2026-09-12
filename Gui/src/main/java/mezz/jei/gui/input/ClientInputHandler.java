@@ -50,7 +50,7 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardKeyPressedPre(Screen screen, UserInput input) {
-		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
@@ -71,6 +71,9 @@ public class ClientInputHandler {
 	 * Without keyboard focus, use Post
 	 */
 	public boolean onKeyboardKeyPressedPost(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (isContainerTextFieldFocused(screen)) {
 			if (screenHelper.getGuiProperties(screen).isPresent()) {
 				return this.inputRouter.handleUserInput(screen, input, keybindings);
@@ -87,7 +90,7 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardCharTypedPre(Screen screen, char codePoint, int modifiers) {
-		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
 		if (PinnedTooltipManager.hasKeyboardFocus() || !isContainerTextFieldFocused(screen)) {
@@ -100,12 +103,18 @@ public class ClientInputHandler {
 	 * Without keyboard focus, use Post
 	 */
 	public void onKeyboardCharTypedPost(Screen screen, char codePoint, int modifiers) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return;
+		}
 		if (isContainerTextFieldFocused(screen)) {
 			handleCharTyped(codePoint, modifiers);
 		}
 	}
 
 	public boolean onGuiMouseClicked(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
 			return true;
 		}
@@ -117,13 +126,17 @@ public class ClientInputHandler {
 		boolean handled = this.inputRouter.handleUserInput(screen, input, keybindings);
 
 		if (Minecraft.getInstance().screen == screen &&
-			isMouseDragButton(input)) {
+			isMouseDragButton(input)
+		) {
 			handled |= this.dragRouter.startDrag(screen, input);
 		}
 		return handled;
 	}
 
 	public boolean onGuiMouseReleased(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
 			return true;
 		}
@@ -141,12 +154,16 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseDragged(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (screenHelper.getGuiProperties(screen).isEmpty()) {
 			return false;
 		}
 
 		if (Minecraft.getInstance().screen == screen &&
-			isMouseDragButton(input)) {
+			isMouseDragButton(input)
+		) {
 			return this.dragRouter.startDragIfIdle(screen, input);
 		}
 		return false;
@@ -166,6 +183,9 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseScroll(Screen screen, double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (screenHelper.getGuiProperties(screen).isEmpty()) {
 			return false;
 		}
@@ -173,6 +193,9 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseDragged(Screen screen, double mouseX, double mouseY, int button, double dragX, double dragY) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (screenHelper.getGuiProperties(screen).isEmpty()) {
 			return false;
 		}

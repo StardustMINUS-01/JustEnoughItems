@@ -13,9 +13,13 @@ import java.util.List;
 
 public class TestClientConfig implements IClientConfig {
 	private final IJeiConfigValue<Boolean> quantityFieldEnabled = value("quantityFieldEnabled", true);
+	private final IJeiConfigValue<Integer> configScreenTransparency = value("configScreenTransparency", 25);
 
 	@Override
 	public IJeiConfigValue<Boolean> quantityFieldEnabled() { return quantityFieldEnabled; }
+
+	@Override
+	public IJeiConfigValue<Integer> configScreenTransparency() { return configScreenTransparency; }
 	private final IJeiConfigValue<Boolean> centerSearchBarEnabled = value("centerSearchBarEnabled", false);
 	private final IJeiConfigValue<Integer> maxRecipeGuiHeight = value("maxRecipeGuiHeight", 500);
 	private final IJeiConfigValue<Boolean> toastReflowEnabled = value("toastReflowEnabled", true);

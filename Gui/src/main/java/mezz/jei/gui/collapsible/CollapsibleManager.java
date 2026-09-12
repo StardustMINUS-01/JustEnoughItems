@@ -44,7 +44,8 @@ public final class CollapsibleManager {
 		var current = rules.groups();
 		var incoming = newRules.groups();
 		if (current.size() == incoming.size() && java.util.stream.IntStream.range(0, current.size())
-			.allMatch(i -> current.get(i).expressionText().equals(incoming.get(i).expressionText()))) {
+			.allMatch(i -> current.get(i).expressionText().equals(incoming.get(i).expressionText()))
+		) {
 			return;
 		}
 		this.rules = newRules;

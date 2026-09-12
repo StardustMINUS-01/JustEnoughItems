@@ -84,9 +84,7 @@ public class BookmarkOverlayRenderer {
 		}
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkOverlayLayout.toRowSlots(panelSlots);
 		boolean hasDragPreview = panelSlots != sourcePanelSlots || sortDragState != null && sortDragState.isActive();
-		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview ?
-			panelSnapshot.boundaryConnections() :
-			BookmarkOverlayLayout.BoundaryConnections.NONE;
+		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview ? panelSnapshot.boundaryConnections() : BookmarkOverlayLayout.BoundaryConnections.NONE;
 		for (int i = 0; i < panelSlots.size(); i++) {
 			GroupPanelSlot slot = panelSlots.get(i);
 			boolean connectedToPrevious = BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i) ||
@@ -94,7 +92,8 @@ public class BookmarkOverlayRenderer {
 			boolean connectedToNext = BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i) ||
 				i == panelSlots.size() - 1 && boundaryConnections.connectedToNext();
 			if (sortDragState != null &&
-				sortDragState.getGroupPanelRenderMode(slot.groupId()) == BookmarkSortDragState.GroupPanelRenderMode.DRAG_PLACEHOLDER) {
+				sortDragState.getGroupPanelRenderMode(slot.groupId()) == BookmarkSortDragState.GroupPanelRenderMode.DRAG_PLACEHOLDER
+			) {
 				ImmutableRect2i area = overlay.getGroupPanelArea(slot.area());
 				guiGraphics.fill(
 					area.getX(),
@@ -252,8 +251,7 @@ public class BookmarkOverlayRenderer {
 		ImmutableRect2i controlArea,
 		IPaged paged
 	) {
-		if (
-			controlArea.isEmpty() ||
+		if (controlArea.isEmpty() ||
 			!overlay.hasDefaultGroupBookmarks() ||
 			!bookmarkList.isGroupCraftingMode(BookmarkGroupManager.DEFAULT_GROUP_ID)
 		) {
@@ -354,15 +352,12 @@ public class BookmarkOverlayRenderer {
 		long bookmarkVersion = bookmarkList.getChangeVersion();
 		long shiftVersion = updateRecipeChainTooltipShiftVersion(shiftDown);
 		RecipeChainHoverTooltip hoverTooltip = recipeChainHoverTooltip;
-		if (
-			hoverTooltip == null ||
-				!hoverTooltip.matches(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown)
+		if (hoverTooltip == null ||
+			!hoverTooltip.matches(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown)
 		) {
 			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 			Optional<RecipeChainDetails> baseDetails = bookmarkList.getRecipeChainDetails(groupId);
-			List<RecipeChainInput> groupInputs = baseDetails.isPresent() ?
-				bookmarkList.getRecipeChainTooltipInputs(groupId) :
-				bookmarkList.getRecipeChainInputs(groupId);
+			List<RecipeChainInput> groupInputs = baseDetails.isPresent() ? bookmarkList.getRecipeChainTooltipInputs(groupId) : bookmarkList.getRecipeChainInputs(groupId);
 			RecipeChainTooltipModel model = RecipeChainTooltipModel.create(
 				groupInputs,
 				baseDetails,

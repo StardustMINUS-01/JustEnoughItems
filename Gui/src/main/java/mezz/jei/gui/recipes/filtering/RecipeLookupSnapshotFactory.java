@@ -103,9 +103,7 @@ public final class RecipeLookupSnapshotFactory {
 			catalysts,
 			recipeText
 		);
-		Optional<RecipePreferenceCandidate> preferenceCandidate = includePreferenceCandidate ?
-			createPreferenceCandidate(category, recipeUid, inputs, outputs) :
-			Optional.empty();
+		Optional<RecipePreferenceCandidate> preferenceCandidate = includePreferenceCandidate ? createPreferenceCandidate(category, recipeUid, inputs, outputs) : Optional.empty();
 		return new RecipeLookupSnapshot.RecipeEntry<>(recipe, document, preferenceCandidate);
 	}
 

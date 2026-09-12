@@ -326,7 +326,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		for (FavoriteRecipeStore.FavoriteSlotInput slotInput : slotInputs.values()) {
 			BookmarkIngredientKey selected = slotInput.selected();
 			if (selected.ingredientTypeUid().equals(inputKey.ingredientTypeUid()) &&
-				selected.ingredientUid().equals(inputKey.ingredientUid())) {
+				selected.ingredientUid().equals(inputKey.ingredientUid())
+			) {
 				return slotInput;
 			}
 		}
