@@ -8,6 +8,9 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.chat.JeiChatItemLinkHover;
 import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.common.chat.JeiChatItemLinks.IngredientLink;
+import mezz.jei.common.chat.SharedChatIngredient;
+import net.minecraft.client.Minecraft;
+import java.util.Objects;
 import mezz.jei.common.gui.IngredientTooltipComponent;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.util.SafeIngredientUtil;
@@ -19,7 +22,33 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 
 public final class ChatIngredientTooltip {
+	private static @Nullable Style sharedStyle;
+	private static @Nullable IJeiRuntime sharedRuntime;
+	private static Optional<ITypedIngredient<?>> sharedIngredient = Optional.empty();
+
 	private ChatIngredientTooltip() {
+	}
+
+	public static void clearSharedIngredient() {
+		sharedStyle = null;
+		sharedRuntime = null;
+		sharedIngredient = Optional.empty();
+	}
+
+	public static Optional<ITypedIngredient<?>> getSharedIngredient(@Nullable Style style) {
+		IJeiRuntime runtime = Internal.getOptionalJeiRuntime().orElse(null);
+		if (!Objects.equals(sharedStyle, style) || sharedRuntime != runtime) {
+			clearSharedIngredient();
+			sharedStyle = style;
+			sharedRuntime = runtime;
+			var player = Minecraft.getInstance().player;
+			if (runtime != null && player != null) {
+				sharedIngredient = SharedChatIngredient.getSnapshot(style)
+					.flatMap(snapshot -> SharedChatIngredient.decode(snapshot, player.registryAccess()))
+					.flatMap(shared -> shared.resolve(runtime.getIngredientManager()));
+			}
+		}
+		return sharedIngredient;
 	}
 
 	public record IngredientTooltipData<T>(
@@ -58,6 +87,10 @@ public final class ChatIngredientTooltip {
 	}
 
 	public static Optional<IngredientTooltipData<?>> getTooltipForHoveredText(@Nullable Style hoveredStyle) {
+		Optional<ITypedIngredient<?>> shared = getSharedIngredient(hoveredStyle);
+		if (shared.isPresent()) {
+			return shared.map(ingredient -> createTooltipData(ingredient, Internal.getJeiRuntime().getIngredientManager()));
+		}
 		Optional<IngredientLink> optionalLink = JeiChatItemLinkHover.getIngredientLink(hoveredStyle);
 		if (optionalLink.isEmpty()) {
 			return Optional.empty();

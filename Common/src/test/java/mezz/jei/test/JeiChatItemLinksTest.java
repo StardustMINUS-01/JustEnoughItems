@@ -4,6 +4,18 @@ import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.common.chat.JeiChatItemLinkHover;
 import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.common.chat.JeiChatItemLinks.IngredientLink;
+import mezz.jei.common.chat.JeiChatRecipeLinks;
+import mezz.jei.common.chat.JeiChatRecipeLinks.RecipeLink;
+import mezz.jei.common.chat.SharedChatIngredient;
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.ResourceLocation;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import net.minecraft.DetectedVersion;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.ClickEvent;
@@ -268,6 +280,71 @@ public class JeiChatItemLinksTest {
 		assertEquals(ClickEvent.Action.RUN_COMMAND, clickEvent.getAction());
 		assertEquals(Optional.of(snapshot), JeiChatItemLinks.parseImportBookmarkGroupCommand(clickEvent.getValue()));
 		assertEquals(Optional.of(snapshot), JeiChatItemLinkHover.getBookmarkGroupSnapshot(link.getStyle()));
+
+		Component shared = roundTrip(JeiChatItemLinks.createBookmarkGroupLink(snapshot).orElseThrow());
+		assertEquals("[Factory]", shared.getString());
+		assertEquals(Optional.of(snapshot), JeiChatItemLinkHover.getBookmarkGroupSnapshot(shared.getStyle()));
+		assertFalse(shared.getStyle().getHoverEvent().getValue(HoverEvent.Action.SHOW_TEXT).getString().contains(snapshot));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"Pickaxe", "[JEI:v1:item_stack;minecraft:diamond]"})
+	public void recipeLinkRoundTrip(String title) {
+		var recipe = new RecipeLink(ResourceLocation.parse("minecraft:crafting"), ResourceLocation.parse("test:pickaxe"));
+		Component shared = roundTrip(JeiChatRecipeLinks.create(recipe, title));
+		assertEquals("[" + title + "]", shared.getString());
+		assertEquals(Optional.of(recipe), JeiChatRecipeLinks.parse(shared.getStyle()));
+		assertEquals(title, shared.getStyle().getHoverEvent().getValue(HoverEvent.Action.SHOW_TEXT).getString());
+		assertTrue(JeiChatItemLinks.parseChatMessage(Component.translatable("chat.type.text", Component.literal("Player"), shared)).isEmpty());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"jei_internal_show minecraft:crafting test:pickaxe", "jei_internal_recipe minecraft:crafting", "jei_internal_recipe minecraft:crafting ", "jei_internal_recipe minecraft:crafting test:Pickaxe", "jei_internal_recipe minecraft:crafting test:pickaxe extra"})
+	public void rejectsInvalidRecipeLinks(String command) {
+		Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command));
+		assertTrue(JeiChatRecipeLinks.parse(style).isEmpty());
+	}
+
+	private static Component roundTrip(Component message) {
+		return Component.Serializer.fromJson(Component.Serializer.toJson(message, RegistryAccess.EMPTY), RegistryAccess.EMPTY);
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void sharedStackRoundTrip(boolean fluid) {
+		var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+		var patch = DataComponentPatch.builder()
+			.set(DataComponents.CUSTOM_NAME, Component.literal("Shared sample"))
+			.set(DataComponents.CUSTOM_MODEL_DATA, new net.minecraft.world.item.component.CustomModelData(17))
+			.remove(DataComponents.RARITY)
+			.build();
+		var original = new SharedChatIngredient(fluid, ResourceLocation.parse(fluid ? "minecraft:water" : "minecraft:diamond"), 4321, patch);
+		String snapshot = original.encode(registries).orElseThrow();
+		var restored = SharedChatIngredient.decode(snapshot, registries).orElseThrow();
+		assertEquals(original, restored);
+		if (!fluid) {
+			Component message = original.createLink(snapshot);
+			Component received = Component.Serializer.fromJson(Component.Serializer.toJson(message, registries), registries);
+			assertEquals("[Shared sample x4321]", received.getString());
+			assertEquals(Optional.of(snapshot), SharedChatIngredient.getSnapshot(received.getStyle()));
+			ItemStack stack = received.getStyle().getHoverEvent().getValue(HoverEvent.Action.SHOW_ITEM).getItemStack();
+			assertEquals(99, stack.getCount());
+			assertEquals(patch, stack.getComponentsPatch());
+			assertTrue(JeiChatItemLinks.parseChatMessage(received).isEmpty());
+			Component plain = received.copy().withStyle(style -> style.withClickEvent(null));
+			assertTrue(SharedChatIngredient.getSnapshot(plain.getStyle()).isEmpty());
+			assertEquals("[Shared sample x4321]", plain.getString());
+		}
+	}
+
+	@Test
+	public void rejectsOversizedStacks() {
+		var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+		var patch = DataComponentPatch.builder().set(DataComponents.CUSTOM_NAME, Component.literal("x".repeat(20000))).build();
+		var stack = new SharedChatIngredient(false, ResourceLocation.parse("minecraft:diamond"), 1, patch);
+		assertTrue(stack.encode(registries).isEmpty());
+		assertTrue(SharedChatIngredient.decode("x".repeat(SharedChatIngredient.MAX_LENGTH + 1), registries).isEmpty());
+		assertTrue(SharedChatIngredient.decode("not base64", registries).isEmpty());
 	}
 
 	@Test

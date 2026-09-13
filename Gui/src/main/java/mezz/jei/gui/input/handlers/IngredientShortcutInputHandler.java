@@ -1,11 +1,16 @@
 package mezz.jei.gui.input.handlers;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
+import mezz.jei.common.chat.SharedChatIngredient;
+import mezz.jei.common.network.packets.PacketShareIngredient;
+import mezz.jei.common.platform.Services;
+import mezz.jei.api.constants.VanillaTypes;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.nbt.NbtOps;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -73,12 +78,44 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getShareToChat())) {
+			var ingredient = focusSource.getIngredientUnderMouse(input, keyBindings)
+				.filter(clicked -> clicked.getElement().isVisible())
+				.filter(clicked -> clicked.getTypedIngredient().getType() == VanillaTypes.ITEM_STACK ||
+					clicked.getTypedIngredient().getType() == Services.PLATFORM.getFluidHelper().getFluidIngredientType())
+				.findFirst();
+			if (ingredient.isPresent()) {
+				if (!input.isSimulate()) {
+					shareIngredient(ingredient.get().getTypedIngredient());
+				}
+				return Optional.of(new SameElementInputHandler(this, ingredient.get()::isMouseOver));
+			}
+		}
 		if (input.is(keyBindings.getCopyIngredientComponents()) &&
 			(screen.getFocused() instanceof EditBox || Internal.getJeiRuntime().getIngredientListOverlay().hasKeyboardFocus())
 		) {
 			return Optional.empty();
 		}
 		return super.handleUserInput(screen, input, keyBindings);
+	}
+
+	private static void shareIngredient(ITypedIngredient<?> ingredient) {
+		var minecraft = Minecraft.getInstance();
+		if (minecraft.player == null) {
+			return;
+		}
+		if (!Internal.getServerConnection().canSendPacket(PacketShareIngredient.TYPE)) {
+			minecraft.player.displayClientMessage(Component.translatable("jei.chat.share.unsupported"), false);
+			return;
+		}
+		Optional<String> snapshot = SharedChatIngredient.from(ingredient)
+			.flatMap(shared -> shared.encode(minecraft.player.registryAccess()));
+		if (snapshot.isEmpty()) {
+			minecraft.player.displayClientMessage(Component.translatable("jei.chat.share.too_large"), false);
+			return;
+		}
+		Internal.getServerConnection().sendPacketToServer(new PacketShareIngredient(snapshot.get()));
+		JeiClientSoundUtil.playClickSound();
 	}
 
 	@Override

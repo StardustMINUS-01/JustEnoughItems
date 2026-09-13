@@ -10,6 +10,12 @@ import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.chat.JeiChatItemLinkHover;
+import mezz.jei.common.chat.JeiChatRecipeLinks;
+import mezz.jei.common.chat.JeiChatRecipeLinks.RecipeLink;
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.gui.chat.ChatRecipeTooltip;
+import mezz.jei.gui.chat.ChatIngredientTooltip;
+import mezz.jei.common.chat.SharedChatIngredient;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -35,6 +41,7 @@ public class ChatLinkInputHandler {
 
 	@Nullable
 	private PendingInput pendingInput;
+	private @Nullable PendingRecipe pendingRecipe;
 	@Nullable
 	private InputConstants.Key pendingGroupKey;
 	@Nullable
@@ -59,10 +66,11 @@ public class ChatLinkInputHandler {
 	public boolean handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (!(screen instanceof ChatScreen chatScreen)) {
 			this.pendingInput = null;
+			this.pendingRecipe = null;
 			clearPendingGroupInput();
 			return false;
 		}
-		if (handleBookmarkGroupInput(chatScreen, input, keyBindings)) {
+		if (handleRecipeInput(chatScreen, input, keyBindings) || handleBookmarkGroupInput(chatScreen, input, keyBindings)) {
 			return true;
 		}
 
@@ -74,8 +82,47 @@ public class ChatLinkInputHandler {
 	}
 
 	public void handleGuiChange() {
+		ChatIngredientTooltip.clearSharedIngredient();
 		this.pendingInput = null;
+		this.pendingRecipe = null;
 		clearPendingGroupInput();
+	}
+
+	private boolean handleRecipeInput(ChatScreen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		Optional<RecipeLink> recipe = JeiChatItemLinkHover.getHoveredStyle(screen, input.getMouseX(), input.getMouseY())
+			.flatMap(JeiChatRecipeLinks::parse);
+		return switch (input.getInputType()) {
+			case IMMEDIATE -> {
+				if (recipe.isEmpty() || !input.is(keyBindings.getShowRecipe())) {
+					yield false;
+				}
+				ChatRecipeTooltip.resolve(recipe.get()).ifPresent(this::showRecipe);
+				yield true;
+			}
+			case SIMULATE -> {
+				pendingRecipe = null;
+				if (recipe.isEmpty() || !input.is(keyBindings.getLeftClick())) {
+					yield false;
+				}
+				pendingInput = null;
+				clearPendingGroupInput();
+				pendingRecipe = new PendingRecipe(input.getKey(), recipe.get());
+				yield true;
+			}
+			case EXECUTE -> {
+				PendingRecipe pending = pendingRecipe;
+				pendingRecipe = null;
+				if (pending == null || !pending.key().equals(input.getKey()) || recipe.filter(pending.recipe()::equals).isEmpty()) {
+					yield false;
+				}
+				ChatRecipeTooltip.resolve(pending.recipe()).ifPresent(this::showRecipe);
+				yield true;
+			}
+		};
+	}
+
+	private <R> void showRecipe(IRecipeLayoutDrawable<R> layout) {
+		recipesGui.showRecipes(layout.getRecipeCategory(), List.of(layout.getRecipe()), List.of());
 	}
 
 	private boolean handleImmediateInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {
@@ -99,6 +146,11 @@ public class ChatLinkInputHandler {
 		this.pendingInput = null;
 
 		Optional<Action> optionalAction = getAction(input, keyBindings);
+		if (input.is(keyBindings.getLeftClick()) && JeiChatItemLinkHover.getHoveredStyle(chatScreen, input.getMouseX(), input.getMouseY())
+			.flatMap(SharedChatIngredient::getSnapshot).isPresent()
+		) {
+			optionalAction = Optional.of(Action.SHOW_RECIPE);
+		}
 		if (optionalAction.isEmpty()) {
 			return false;
 		}
@@ -233,5 +285,8 @@ public class ChatLinkInputHandler {
 	}
 
 	private record PendingInput(InputConstants.Key key, ITypedIngredient<?> typedIngredient, Action action) {
+	}
+
+	private record PendingRecipe(InputConstants.Key key, RecipeLink recipe) {
 	}
 }

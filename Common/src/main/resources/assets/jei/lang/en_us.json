@@ -250,6 +250,9 @@
   "key.jei.quickMove": "Quick Move Ghost Item",
   "key.jei.searchIngredientInTerminal": "Search Hovered Ingredient in Terminal",
   "key.jei.shareToChat": "Share Item or Bookmark Group to Chat",
+  "jei.tooltip.recipe.share": "%s: Share recipe to chat",
+  "jei.chat.share.unsupported": "Sharing items and fluids requires JEIU support on the server.",
+  "jei.chat.share.too_large": "This ingredient cannot be shared: its data is too large or cannot be encoded.",
   "jei.chat.bookmark_group.hover": "Click to save this bookmark group (%s entries)",
 
   "jei.key.category.world.target": "JEI (World Target)",

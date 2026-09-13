@@ -3,8 +3,8 @@ package mezz.jei.common.network.packets;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.common.network.ServerPacketContext;
+import mezz.jei.common.network.IChatConnection;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -36,11 +36,9 @@ public final class PacketShareBookmarkGroup extends PlayToServerPacket<PacketSha
 
 	@Override
 	public void process(ServerPacketContext context) {
-		if (!JeiChatItemLinks.isValidBookmarkGroupSnapshot(snapshot)) {
-			return;
+		if (context.connection() instanceof IChatConnection connection) {
+			JeiChatItemLinks.createBookmarkGroupLink(snapshot)
+				.ifPresent(link -> connection.share(context.player(), link, TYPE));
 		}
-		String marker = JeiChatItemLinks.createBookmarkGroupLinkMarker(snapshot).trim();
-		Component message = Component.translatable("chat.type.text", context.player().getDisplayName(), marker);
-		context.player().server.getPlayerList().broadcastSystemMessage(message, false);
 	}
 }

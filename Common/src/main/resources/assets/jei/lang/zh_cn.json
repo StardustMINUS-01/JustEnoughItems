@@ -256,6 +256,9 @@
   "key.jei.quickMove": "快速移动幽灵物品",
   "key.jei.searchIngredientInTerminal": "在终端中搜索悬停物品",
   "key.jei.shareToChat": "将物品或书签组分享到聊天栏",
+  "jei.tooltip.recipe.share": "%s：将配方分享到聊天栏",
+  "jei.chat.share.unsupported": "分享物品和流体需要服务端安装支持此功能的JEIU。",
+  "jei.chat.share.too_large": "无法分享此材料：数据过大或无法编码。",
   "jei.chat.bookmark_group.hover": "点击保存这个书签组（%s 个条目）",
 
   "jei.key.category.world.target": "JEI（准星目标）",

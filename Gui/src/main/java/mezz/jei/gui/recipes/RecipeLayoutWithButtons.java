@@ -44,8 +44,10 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		RecipeBookmarkButtonController bookmarkButton = new RecipeGroupBookmarkButtonController(bookmarks, recipeLayoutDrawable, recipeBookmark);
 
 		List<IconButton> buttons = new ArrayList<>();
-		buttons.add(new IconButton(transferButton));
-		buttons.add(new IconButton(bookmarkButton));
+		IconButton transferIconButton = new IconButton(transferButton);
+		IconButton bookmarkIconButton = new IconButton(bookmarkButton);
+		buttons.add(transferIconButton);
+		buttons.add(bookmarkIconButton);
 		for (IRecipeButtonControllerFactory buttonControllerFactory : extraButtonControllerFactories) {
 			IIconButtonController buttonController = buttonControllerFactory.createButtonController(recipeLayoutDrawable);
 			if (buttonController != null) {
@@ -54,7 +56,7 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		}
 
 		RecipeLayoutWithButtons<T> layout = new RecipeLayoutWithButtons<>(recipeLayoutDrawable, transferButton, recipeBookmark, buttons);
-		return new RecipeLayoutWithExtras<>(layout, bookmarks, extras);
+		return new RecipeLayoutWithExtras<>(layout, bookmarks, extras, transferIconButton, bookmarkIconButton);
 	}
 
 	private final IRecipeLayoutDrawable<R> recipeLayout;

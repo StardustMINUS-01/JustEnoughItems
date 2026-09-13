@@ -6,9 +6,13 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
+import mezz.jei.common.Internal;
+import mezz.jei.common.chat.JeiChatRecipeLinks;
+import mezz.jei.common.network.packets.PacketShareRecipe;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.gui.GuiGraphics;
@@ -32,10 +36,10 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	private final @Nullable RecipeFavoriteButton favoriteButton;
 	private final InputSlotSelectionState inputSlotSelectionState;
 	private final Runnable showBookmarkPanel;
-	private ImmutableRect2i transferButtonArea = ImmutableRect2i.EMPTY;
-	private ImmutableRect2i bookmarkButtonArea = ImmutableRect2i.EMPTY;
+	private final IconButton transferButton;
+	private final IconButton bookmarkButton;
 
-	RecipeLayoutWithExtras(RecipeLayoutWithButtons<R> delegate, BookmarkList bookmarks, RecipesGui.RecipeLayoutForkExtras extras) {
+	RecipeLayoutWithExtras(RecipeLayoutWithButtons<R> delegate, BookmarkList bookmarks, RecipesGui.RecipeLayoutForkExtras extras, IconButton transferButton, IconButton bookmarkButton) {
 		this.delegate = delegate;
 		this.recipeLayout = delegate.getRecipeLayout();
 		this.recipeBookmark = delegate.getRecipeBookmark();
@@ -43,6 +47,8 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 		this.favoriteButton = extras.favoriteButton();
 		this.inputSlotSelectionState = extras.inputSlotSelectionState();
 		this.showBookmarkPanel = extras.showBookmarkPanel();
+		this.transferButton = transferButton;
+		this.bookmarkButton = bookmarkButton;
 	}
 
 	@Override
@@ -57,8 +63,6 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	public void updateBounds(int recipeXOffset, int recipeYOffset) {
 		int buttonCount = delegate.updateBoundsAndGetButtonCount(recipeXOffset, recipeYOffset);
 		Rect2i layoutRect = recipeLayout.getRect();
-		transferButtonArea = toImmutable(offset(recipeLayout.getRecipeTransferButtonArea(), layoutRect));
-		bookmarkButtonArea = toImmutable(offset(recipeLayout.getRecipeBookmarkButtonArea(), layoutRect));
 		if (favoriteButton != null) {
 			favoriteButton.updateBounds(toImmutable(offset(recipeLayout.getSideButtonArea(buttonCount), layoutRect)));
 		}
@@ -95,8 +99,18 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 			inputHandlers.add(favoriteButton.createInputHandler());
 		}
 		if (recipeBookmark != null) {
-			BiPredicate<Double, Double> bookmarkButtonIsMouseOver = (mouseX, mouseY) -> this.bookmarkButtonArea.contains(mouseX, mouseY);
-			BiPredicate<Double, Double> transferButtonIsMouseOver = (mouseX, mouseY) -> this.transferButtonArea.contains(mouseX, mouseY);
+			BiPredicate<Double, Double> bookmarkButtonIsMouseOver = bookmarkButton::isMouseOver;
+			inputHandlers.add(new IUserInputHandler() {
+				@Override
+				public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+					if (input.is(keyBindings.getRightClick()) && bookmarkButtonIsMouseOver.test(input.getMouseX(), input.getMouseY())) {
+						shareRecipe(input);
+						return Optional.of(this);
+					}
+					return Optional.empty();
+				}
+			});
+			BiPredicate<Double, Double> transferButtonIsMouseOver = transferButton::isMouseOver;
 			BiFunction<UserInput, Boolean, Boolean> addRecipeBookmarkGroup = this::addRecipeBookmarkGroup;
 			inputHandlers.add(new RecipeBookmarkButtonHotkeyInputHandler(
 				bookmarkButtonIsMouseOver,
@@ -115,6 +129,25 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 		inputHandlers.add(new CandidateScrollInputHandler(recipeLayout, inputSlotSelectionState));
 
 		return delegate.createUserInputHandler(inputHandlers);
+	}
+
+	private void shareRecipe(UserInput input) {
+		if (input.isSimulate() || recipeBookmark == null || !Internal.getServerConnection().canSendPacket(PacketShareRecipe.TYPE)) {
+			return;
+		}
+		var recipe = new JeiChatRecipeLinks.RecipeLink(recipeLayout.getRecipeCategory().getRecipeType().getUid(), recipeBookmark.getRecipeUid());
+		if (recipe.recipeType().toString().length() > JeiChatRecipeLinks.MAX_ID_LENGTH || recipe.recipeId().toString().length() > JeiChatRecipeLinks.MAX_ID_LENGTH) {
+			return;
+		}
+		String title = getShareTitle(recipeBookmark.getDisplayIngredient());
+		title = title.substring(0, Math.min(title.length(), JeiChatRecipeLinks.MAX_TITLE_LENGTH));
+		Internal.getServerConnection().sendPacketToServer(new PacketShareRecipe(recipe, title));
+		JeiClientSoundUtil.playClickSound();
+	}
+
+	private static <T> String getShareTitle(ITypedIngredient<T> ingredient) {
+		return Internal.getJeiRuntime().getIngredientManager().getIngredientHelper(ingredient.getType())
+			.getDisplayName(ingredient.getIngredient());
 	}
 
 	@Override

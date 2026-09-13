@@ -9,6 +9,7 @@ import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.chat.JeiChatItemLinkHover;
 import mezz.jei.common.chat.JeiChatItemLinks;
+import mezz.jei.gui.chat.ChatIngredientTooltip;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
@@ -45,7 +46,8 @@ public class ChatScreenHandler implements IScreenHandler<ChatScreen> {
 	}
 
 	private Optional<ITypedIngredient<?>> getIngredient(Style style) {
-		return getJeiChatLinkIngredient(style)
+		return ChatIngredientTooltip.getSharedIngredient(style)
+			.or(() -> getJeiChatLinkIngredient(style))
 			.or(() -> getVanillaChatItemIngredient(style));
 	}
 

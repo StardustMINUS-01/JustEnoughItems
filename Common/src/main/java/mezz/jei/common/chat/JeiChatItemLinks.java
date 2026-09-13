@@ -16,6 +16,7 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -95,6 +96,23 @@ public final class JeiChatItemLinks {
 	}
 
 	public static Optional<Component> parseChatMessage(Component message, Function<IngredientLink, Optional<String>> ingredientNameLookup) {
+		// Server-built links already contain their payload; their titles are not legacy markers.
+		boolean hasShareLink = message.visit(
+				(style, text) -> {
+					ClickEvent click = style.getClickEvent();
+					if (click != null && click.getAction() == ClickEvent.Action.RUN_COMMAND &&
+						(click.getValue().startsWith(IMPORT_BOOKMARK_GROUP_COMMAND + " ") || JeiChatRecipeLinks.parse(style).isPresent() || SharedChatIngredient.getSnapshot(style).isPresent())
+					) {
+						return Optional.of(true);
+					}
+					return Optional.empty();
+				},
+				Style.EMPTY
+			)
+			.orElse(false);
+		if (hasShareLink) {
+			return Optional.empty();
+		}
 		return parseLinkedMessage(message.getString(), ingredientNameLookup);
 	}
 
@@ -178,6 +196,11 @@ public final class JeiChatItemLinks {
 
 	public static boolean isValidBookmarkGroupSnapshot(String snapshot) {
 		return parseBookmarkGroupSnapshot(snapshot).isPresent();
+	}
+
+	public static Optional<Component> createBookmarkGroupLink(String snapshot) {
+		return parseBookmarkGroupSnapshot(snapshot)
+			.map(json -> createBookmarkGroupLinkComponent(snapshot, json));
 	}
 
 	private static String createLinkMarker(IngredientLink link) {
@@ -297,7 +320,7 @@ public final class JeiChatItemLinks {
 
 	private static MutableComponent createBookmarkGroupLinkComponent(String snapshot, JsonObject json) {
 		JsonObject group = json.getAsJsonObject("group");
-		String title = group.get("title").getAsString();
+		String title = net.minecraft.util.StringUtil.filterText(group.get("title").getAsString());
 		boolean craftingMode = group.has("crafting") && group.get("crafting").getAsBoolean();
 		int entries = json.getAsJsonArray("bookmarks").size();
 		MutableComponent component = Component.literal("[" + title + "]");
@@ -306,7 +329,7 @@ public final class JeiChatItemLinks {
 			.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, createImportBookmarkGroupCommand(snapshot)))
 			.withHoverEvent(new HoverEvent(
 				HoverEvent.Action.SHOW_TEXT,
-				Component.translatable("jei.chat.bookmark_group.hover", entries)
+				Component.translatableWithFallback("jei.chat.bookmark_group.hover", "%s bookmarks", entries)
 			))
 		);
 	}

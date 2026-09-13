@@ -19,6 +19,8 @@ import mezz.jei.common.network.packets.PacketRecipeTransferWithResult;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
 import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
+import mezz.jei.common.network.packets.PacketShareRecipe;
+import mezz.jei.common.network.packets.PacketShareIngredient;
 import mezz.jei.common.network.packets.PlayToClientPacket;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.neoforge.compat.CompatUtil;
@@ -66,6 +68,8 @@ public class NetworkHandler {
 				.playToServer(PacketFillCraftingGrid.TYPE, PacketFillCraftingGrid.STREAM_CODEC, wrapServerHandler(PacketFillCraftingGrid::process))
 				.playToServer(PacketCraftingGridCraft.TYPE, PacketCraftingGridCraft.STREAM_CODEC, wrapServerHandler(PacketCraftingGridCraft::process))
 				.playToServer(PacketShareBookmarkGroup.TYPE, PacketShareBookmarkGroup.STREAM_CODEC, wrapServerHandler(PacketShareBookmarkGroup::process))
+				.playToServer(PacketShareRecipe.TYPE, PacketShareRecipe.STREAM_CODEC, wrapServerHandler(PacketShareRecipe::process))
+				.playToServer(PacketShareIngredient.TYPE, PacketShareIngredient.STREAM_CODEC, wrapServerHandler(PacketShareIngredient::process))
 				.playToClient(PacketCheatPermission.TYPE, PacketCheatPermission.STREAM_CODEC, wrapClientHandler(PacketCheatPermission::process))
 				.playToClient(PacketRecipeTransferResult.TYPE, PacketRecipeTransferResult.STREAM_CODEC, wrapClientHandler(PacketRecipeTransferResult::process))
 				.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
