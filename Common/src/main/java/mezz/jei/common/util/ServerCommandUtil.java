@@ -17,6 +17,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -79,7 +80,7 @@ public final class ServerCommandUtil {
 				return;
 			}
 			if (giveMode == GiveMode.INVENTORY) {
-				giveToInventory(sender, itemStack);
+				fillInventory(sender, itemStack);
 			} else if (giveMode == GiveMode.MOUSE_PICKUP) {
 				mousePickupItemStack(sender, itemStack);
 			}
@@ -165,11 +166,35 @@ public final class ServerCommandUtil {
 
 	/**
 	 * Gives a player an item.
+	 * Retained to preserve the upstream implementation; inventory giving uses fillInventory instead.
 	 *
 	 * @see GiveCommand#giveItem(CommandSource, ItemInput, Collection, int)
 	 */
 	@SuppressWarnings("JavadocReference")
 	private static void giveToInventory(Player entityplayermp, ItemStack itemStack) {
+		ItemStack itemStackCopy = itemStack.copy();
+		boolean flag = entityplayermp.getInventory().add(itemStack);
+		if (flag && itemStack.isEmpty()) {
+			itemStack.setCount(1);
+			ItemEntity entityitem = entityplayermp.drop(itemStack, false);
+			if (entityitem != null) {
+				entityitem.makeFakeItem();
+			}
+
+			entityplayermp.level().playSound(null, entityplayermp.getX(), entityplayermp.getY(), entityplayermp.getZ(), SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F, ((entityplayermp.getRandom().nextFloat() - entityplayermp.getRandom().nextFloat()) * 0.7F + 1.0F) * 2.0F);
+			entityplayermp.inventoryMenu.broadcastChanges();
+		} else {
+			ItemEntity entityitem = entityplayermp.drop(itemStack, false);
+			if (entityitem != null) {
+				entityitem.setNoPickUpDelay();
+				entityitem.setTarget(entityplayermp.getUUID());
+			}
+		}
+
+		notifyGive(entityplayermp, itemStackCopy);
+	}
+
+	private static void fillInventory(Player entityplayermp, ItemStack itemStack) {
 		ServerPlayer sender = (ServerPlayer) entityplayermp;
 		Inventory inventory = entityplayermp.getInventory();
 		int remaining = itemStack.getCount();
