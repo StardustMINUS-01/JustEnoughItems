@@ -1485,6 +1485,17 @@ public class BookmarkList implements IIngredientGridSource {
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private BookmarkItemMetadata hydrateRecipeChainMetadata(IBookmark bookmark, BookmarkItemMetadata metadata) {
+		// Ported from 1.21.1 fork (commit 3937793e6): when an ordinary item bookmark
+		// is rendered as a recipe-chain tooltip target, it needs a permutation key
+		// built from the ingredient itself so the demand math can resolve it. Without
+		// this, ordinary (non-recipe) bookmarks have empty permutations and the
+		// chain input/output amounts are stuck at the first adjustment.
+		if (metadata.type() == BookmarkItemType.ITEM && metadata.permutations().isEmpty() && ingredientManager != null) {
+			ITypedIngredient<?> ingredient = bookmark.getElement().getTypedIngredient();
+			if (ingredient != null) {
+				return metadata.withPermutations(Set.of(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)));
+			}
+		}
 		if (
 			recipeManager == null ||
 				focusFactory == null ||

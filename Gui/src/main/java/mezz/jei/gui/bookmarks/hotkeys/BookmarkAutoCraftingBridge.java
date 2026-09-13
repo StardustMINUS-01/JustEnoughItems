@@ -8,6 +8,7 @@
  */
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -589,7 +590,7 @@ public final class BookmarkAutoCraftingBridge {
 		Runnable afterCraftAccepted
 	) {
 		IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutResolver.apply(recipeUid).orElse(null);
-		if (recipeLayout == null) {
+		if (recipeLayout == null || !RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())) {
 			return false;
 		}
 

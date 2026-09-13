@@ -373,15 +373,20 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		// meaningfully cover its top-left slot cell so group borders never split a partial row.
 		ImmutableRect2i contentsLayoutArea = avoidTopLeftExclusions(layoutAreas.contentsLayoutArea(), guiExclusionAreas);
 		layoutAreas = new LayoutAreas(contentsLayoutArea, layoutAreas.historyArea(), layoutAreas.contentsBottomLimit());
-		layoutAreas.historyArea().ifPresent(historyArea -> {
-			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, mouseExclusionArea);
-			this.lookupHistoryOverlay.updateLayout();
-		});
 		this.contents.updateBounds(contentsLayoutArea, layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
 		this.contents.updateLayout(false);
 
 		this.favoriteContents.updateBounds(contentsLayoutArea, layoutAreas.contentsBottomLimit(), guiExclusionAreas, mouseExclusionArea);
 		this.favoriteContents.updateLayout(false);
+
+		// Ported from 1.21.1 fork (commit ce0be287e): align the lookup history with
+		// the ingredient grid so the columns stay visually consistent when the grid
+		// is narrower than the available overlay area. Run after the contents/favorites
+		// have been laid out so the ingredient grid area is up to date.
+		layoutAreas.historyArea().ifPresent(historyArea -> {
+			this.lookupHistoryOverlay.updateBounds(alignLookupHistoryArea(historyArea), guiExclusionAreas, mouseExclusionArea);
+			this.lookupHistoryOverlay.updateLayout();
+		});
 
 		if (contents.hasRoom()) {
 			ImmutableRect2i contentsArea = this.contents.getBackgroundArea();
@@ -520,6 +525,17 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 		int screenHeight = guiProperties.getScreenHeight();
 		return new ImmutableRect2i(0, 0, width, screenHeight);
+	}
+
+	private ImmutableRect2i alignLookupHistoryArea(ImmutableRect2i lookupHistoryArea) {
+		// Ported from 1.21.1 fork (commit ce0be287e): align the lookup history width
+		// and X with the ingredient grid so the columns stay visually consistent
+		// when the grid is narrower than the available overlay area.
+		ImmutableRect2i ingredientGridArea = this.contents.getIngredientGridArea();
+		if (ingredientGridArea.isEmpty()) {
+			return lookupHistoryArea;
+		}
+		return lookupHistoryArea.matchWidthAndX(ingredientGridArea);
 	}
 
 	public void drawScreen(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {

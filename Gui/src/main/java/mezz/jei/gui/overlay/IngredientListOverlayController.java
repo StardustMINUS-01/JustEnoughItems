@@ -178,15 +178,17 @@ class IngredientListOverlayController {
 			config.isQuantityFieldEnabled()
 		);
 
-		layout.lookupHistoryArea()
-			.ifPresent(lookupHistoryArea -> {
-				this.lookupHistory.updateBounds(lookupHistoryArea, guiExclusionAreas, null);
-				this.lookupHistory.updateLayout();
-			});
-
+		// Ported from 1.21.1 fork (commit ce0be287e): update the contents view first
+		// so the lookup history can be aligned to the now-laid-out ingredient grid.
 		IElement<?> pageAnchorElement = this.contentsPageNavigation.getPageAnchorElement();
 		this.contentsView.updateBounds(layout.availableContentsArea(), guiExclusionAreas, null);
 		this.contentsPageNavigation.updateLayoutKeepingPageAnchorVisible(pageAnchorElement);
+
+		layout.lookupHistoryArea()
+			.ifPresent(lookupHistoryArea -> {
+				this.lookupHistory.updateBounds(alignLookupHistoryArea(lookupHistoryArea), guiExclusionAreas, null);
+				this.lookupHistory.updateLayout();
+			});
 
 		IngredientListOverlayLayout.SearchAndConfigAreas searchAndConfigAreas = layout.getSearchAndConfigAreas(
 			this.contentsView.hasRoom(),
@@ -198,6 +200,17 @@ class IngredientListOverlayController {
 		this.quantityArea = config.isQuantityFieldEnabled()
 			? layout.getQuantityArea(this.contentsView.hasRoom(), this.contentsView.getBackgroundArea())
 			: ImmutableRect2i.EMPTY;
+	}
+
+	private ImmutableRect2i alignLookupHistoryArea(ImmutableRect2i lookupHistoryArea) {
+		// Ported from 1.21.1 fork (commit ce0be287e): align the lookup history width
+		// and X with the ingredient grid so the columns stay visually consistent
+		// when the grid is narrower than the available overlay area.
+		ImmutableRect2i ingredientGridArea = this.contentsView.getIngredientGridArea();
+		if (ingredientGridArea.isEmpty()) {
+			return lookupHistoryArea;
+		}
+		return lookupHistoryArea.matchWidthAndX(ingredientGridArea);
 	}
 
 	interface Config {

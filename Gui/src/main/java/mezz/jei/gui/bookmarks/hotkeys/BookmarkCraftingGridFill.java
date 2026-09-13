@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public record BookmarkCraftingGridFill(
 	List<ItemStack> targetStacks,
@@ -47,14 +49,18 @@ public record BookmarkCraftingGridFill(
 			return Optional.empty();
 		}
 
-		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView()
-			.getSlotViews(RecipeIngredientRole.INPUT);
 		if (DebugConfig.isDebugModeEnabled()) {
+			int inputSlotCount = recipeLayout.getRecipeSlotsView()
+				.getSlotViews(RecipeIngredientRole.INPUT)
+				.size();
 			LOGGER.info("[Bug6] GRIDFILL-CREATE targetSlotCount={} inputSlots={} multiplier={} availableStacks={}",
-				targetSlotCount, inputSlots.size(), multiplier, availableStacks.size());
+				targetSlotCount, inputSlotCount, multiplier, availableStacks.size());
 		}
 		List<IngredientGroup> groups = new ArrayList<>();
-		List<List<Candidate>> candidateSlots = createCandidateSlots(inputSlots, targetSlotCount, groups);
+		List<List<Candidate>> candidateSlots = createCandidateSlots(recipeLayout, targetSlotCount, groups);
+		if (candidateSlots.isEmpty()) {
+			return Optional.empty();
+		}
 		findInventoryQuantities(groups, availableStacks);
 
 		List<ItemStack> targetStacks = new ArrayList<>(targetSlotCount);
@@ -81,13 +87,35 @@ public record BookmarkCraftingGridFill(
 	}
 
 	private static List<List<Candidate>> createCandidateSlots(
-		List<IRecipeSlotView> inputSlots,
+		IRecipeLayoutDrawable<?> recipeLayout,
 		int targetSlotCount,
 		List<IngredientGroup> groups
 	) {
+		List<IRecipeSlotView> inputSlots = recipeLayout.getRecipeSlotsView()
+			.getSlotViews(RecipeIngredientRole.INPUT);
 		List<List<Candidate>> candidateSlots = new ArrayList<>(targetSlotCount);
 		for (int i = 0; i < targetSlotCount; i++) {
-			candidateSlots.add(new ArrayList<>());
+			candidateSlots.add(List.of());
+		}
+		// JEI crafting layouts retain all nine slots, including empty right and bottom
+		// edges. Map them onto the actual target grid (2x2 or 3x3) by row/column so a
+		// right-edge crafting-table recipe still aligns to a 2x2 inventory.
+		if (recipeLayout.getRecipeCategory().getRecipeType().equals(RecipeTypes.CRAFTING) && inputSlots.size() == 9 &&
+			(targetSlotCount == 4 || targetSlotCount == 9)) {
+			int columns = targetSlotCount == 4 ? 2 : 3;
+			for (int i = 0; i < inputSlots.size(); i++) {
+				IRecipeSlotView slot = inputSlots.get(i);
+				int row = i / 3;
+				int column = i % 3;
+				if (row >= columns || column >= columns) {
+					if (!slot.isEmpty()) {
+						return List.of();
+					}
+					continue;
+				}
+				candidateSlots.set(row * columns + column, createCandidates(slot, groups));
+			}
+			return candidateSlots;
 		}
 		if (addPositionedCandidateSlots(inputSlots, targetSlotCount, groups, candidateSlots)) {
 			return candidateSlots;
@@ -120,29 +148,20 @@ public record BookmarkCraftingGridFill(
 			positionedSlots.add(new PositionedSlot(slot, getSlotRect(drawable)));
 		}
 		List<Integer> xs = distinctSortedPositions(positionedSlots.stream()
-			.map(slot -> slot.rect.getX())
-			.toList());
+			.map(slot -> slot.rect.getX()));
 		List<Integer> ys = distinctSortedPositions(positionedSlots.stream()
-			.map(slot -> slot.rect.getY())
-			.toList());
+			.map(slot -> slot.rect.getY()));
 		if (xs.size() > columns || ys.size() > columns) {
 			return false;
 		}
-		List<Integer> targetIndexes = new ArrayList<>(positionedSlots.size());
 		for (PositionedSlot positionedSlot : positionedSlots) {
 			int column = xs.indexOf(positionedSlot.rect.getX());
 			int row = ys.indexOf(positionedSlot.rect.getY());
-			if (column < 0 || row < 0) {
-				return false;
-			}
-			targetIndexes.add(row * columns + column);
-		}
-		for (int i = 0; i < positionedSlots.size(); i++) {
-			candidateSlots.set(targetIndexes.get(i), createCandidates(positionedSlots.get(i).slot, groups));
+			candidateSlots.set(row * columns + column, createCandidates(positionedSlot.slot, groups));
 		}
 		if (DebugConfig.isDebugModeEnabled()) {
-			LOGGER.info("[Bug6] GRIDFILL-POSITIONED xs={} ys={} targetIndexes={}",
-				xs, ys, targetIndexes);
+			LOGGER.info("[Bug6] GRIDFILL-POSITIONED xs={} ys={}",
+				xs, ys);
 		}
 		return true;
 	}
@@ -152,8 +171,8 @@ public record BookmarkCraftingGridFill(
 		return slot.getRect();
 	}
 
-	private static List<Integer> distinctSortedPositions(List<Integer> positions) {
-		return positions.stream()
+	private static List<Integer> distinctSortedPositions(Stream<Integer> positions) {
+		return positions
 			.distinct()
 			.sorted(Comparator.naturalOrder())
 			.toList();

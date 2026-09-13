@@ -47,9 +47,15 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 	public DisplayIngredientAcceptor addIngredientsUnsafe(List<?> ingredients) {
 		Preconditions.checkNotNull(ingredients, "ingredients");
 
+		// Ported from 1.21.1 fork (commit 56d013367): preserve intentional blank positions
+		// (null input) while filtering out invalid items (non-null input that became
+		// null after validation). Otherwise a rotation of [valid, invalid, null, invalid]
+		// would show [valid, blank, blank, blank] instead of the expected [valid, blank].
 		for (Object ingredient : ingredients) {
 			@Nullable ITypedIngredient<?> typedIngredient = TypedIngredient.createAndFilterInvalidForDisplay(ingredientManager, ingredient, false);
-			this.ingredients.add(typedIngredient);
+			if (ingredient == null || typedIngredient != null) {
+				this.ingredients.add(typedIngredient);
+			}
 		}
 
 		return this;
@@ -73,8 +79,18 @@ public class DisplayIngredientAcceptor implements IIngredientAcceptor<DisplayIng
 		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		Preconditions.checkNotNull(ingredients, "ingredients");
 
+		// Ported from 1.21.1 fork (commit 56d013367): preserve intentional blank positions
+		// (null input) while filtering out invalid items (non-null input that became
+		// null after validation). Otherwise a rotation of [valid, invalid, null, invalid]
+		// would show [valid, blank, blank, blank] instead of the expected [valid, blank].
 		List<@Nullable ITypedIngredient<T>> typedIngredients = TypedIngredient.createAndFilterInvalidListForDisplay(this.ingredientManager, ingredientType, ingredients, false);
-		this.ingredients.addAll(typedIngredients);
+		for (int i = 0; i < typedIngredients.size(); i++) {
+			@Nullable T ingredient = ingredients.get(i);
+			@Nullable ITypedIngredient<T> typedIngredient = typedIngredients.get(i);
+			if (ingredient == null || typedIngredient != null) {
+				this.ingredients.add(typedIngredient);
+			}
+		}
 
 		return this;
 	}
