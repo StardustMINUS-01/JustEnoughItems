@@ -10,6 +10,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.chat.JeiChatItemLinkHover;
 import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.gui.chat.ChatIngredientTooltip;
+import mezz.jei.gui.chat.ChatRecipeTooltip;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
@@ -38,6 +39,9 @@ public class ChatScreenHandler implements IScreenHandler<ChatScreen> {
 		double mouseX,
 		double mouseY
 	) {
+		if (ChatRecipeTooltip.INSTANCE.isPinned()) {
+			return ChatRecipeTooltip.INSTANCE.getIngredient(factory, mouseX, mouseY);
+		}
 		return JeiChatItemLinkHover.getHoveredText(chatScreen, mouseX, mouseY)
 			.flatMap(hoveredText -> getIngredient(hoveredText.style())
 				.flatMap(typedIngredient -> factory.createBuilder(typedIngredient)

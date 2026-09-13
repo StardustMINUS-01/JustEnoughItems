@@ -230,6 +230,21 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 			});
 	}
 
+	public boolean handlePreviewCopy(ITypedIngredient<?> ingredient, UserInput input, IInternalKeyMappings keys) {
+		Optional<BookmarkHotkeyAction> action = getIngredientKeyboardAction(input, keys);
+		if (action.isEmpty()) {
+			return false;
+		}
+		if (!input.isSimulate()) {
+			if (action.get() == BookmarkHotkeyAction.COPY_OREDICT) {
+				tagSelectionTooltip.show(ingredient, ingredientManager, input.getMouseX(), input.getMouseY());
+			} else {
+				executeIngredientKeyboardShortcut(ingredient, action.get());
+			}
+		}
+		return true;
+	}
+
 	private static Optional<BookmarkHotkeyAction> getIngredientKeyboardAction(UserInput input, IInternalKeyMappings keyBindings) {
 		if (input.is(keyBindings.getCopyIngredientComponents())) {
 			return Optional.of(BookmarkHotkeyAction.COPY_COMPONENTS);

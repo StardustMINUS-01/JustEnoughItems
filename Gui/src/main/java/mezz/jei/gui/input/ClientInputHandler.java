@@ -8,6 +8,8 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.input.handlers.ChatLinkInputHandler;
 import mezz.jei.gui.input.handlers.DragRouter;
 import mezz.jei.gui.input.handlers.UserInputRouter;
+import mezz.jei.gui.chat.ChatRecipeTooltip;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -90,6 +92,11 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardCharTypedPre(Screen screen, char codePoint, int modifiers) {
+		if (screen instanceof ChatScreen &&
+			(ChatRecipeTooltip.INSTANCE.isPinned() || ChatRecipeTooltip.INSTANCE.hasTags())
+		) {
+			return true;
+		}
 		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
@@ -154,6 +161,11 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseDragged(Screen screen, UserInput input) {
+		if (screen instanceof ChatScreen &&
+			(ChatRecipeTooltip.INSTANCE.isPinned() || ChatRecipeTooltip.INSTANCE.hasTags())
+		) {
+			return true;
+		}
 		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
@@ -183,6 +195,9 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseScroll(Screen screen, double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+		if (screen instanceof ChatScreen && ChatRecipeTooltip.INSTANCE.scroll(mouseX, mouseY, scrollDeltaX, scrollDeltaY)) {
+			return true;
+		}
 		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
@@ -193,6 +208,11 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseDragged(Screen screen, double mouseX, double mouseY, int button, double dragX, double dragY) {
+		if (screen instanceof ChatScreen &&
+			(ChatRecipeTooltip.INSTANCE.isPinned() || ChatRecipeTooltip.INSTANCE.hasTags())
+		) {
+			return true;
+		}
 		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}

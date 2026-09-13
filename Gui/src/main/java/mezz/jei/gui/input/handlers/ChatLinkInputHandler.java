@@ -14,7 +14,6 @@ import mezz.jei.common.chat.JeiChatRecipeLinks;
 import mezz.jei.common.chat.JeiChatRecipeLinks.RecipeLink;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.gui.chat.ChatRecipeTooltip;
-import mezz.jei.gui.chat.ChatIngredientTooltip;
 import mezz.jei.common.chat.SharedChatIngredient;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
@@ -22,6 +21,9 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.input.InputType;
+import mezz.jei.api.runtime.IJeiKeyMapping;
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -70,6 +72,33 @@ public class ChatLinkInputHandler {
 			clearPendingGroupInput();
 			return false;
 		}
+		var preview = ChatRecipeTooltip.INSTANCE;
+		if (preview.handleTags(screen, input, keyBindings)) {
+			return true;
+		}
+		if (preview.isPinned()) {
+			pendingInput = null;
+			pendingRecipe = null;
+			clearPendingGroupInput();
+			UserInput previewInput = new UserInput(input.getKey(), input.getMouseX(), input.getMouseY(), input.getModifiers(), input.getInputType()) {
+				@Override
+				public boolean is(IJeiKeyMapping mapping) {
+					if (getKey().getType() != InputConstants.Type.MOUSE && mapping instanceof IJeiKeyMappingWithExtraModifiers key) {
+						return key.isActiveAndMatchesAllowingExtraModifiers(getKey());
+					}
+					return super.is(mapping);
+				}
+			};
+			var ingredient = getHoveredIngredient(chatScreen, input);
+			if (ingredient.isPresent() && preview.copy(ingredient.get(), previewInput, keyBindings)) {
+				return true;
+			}
+			if (input.getInputType() == InputType.IMMEDIATE && handleImmediateInput(chatScreen, previewInput, keyBindings)) {
+				return true;
+			}
+			// The preview owns mouse input while pinned, including blank areas above chat links.
+			return input.getKey().getType() == InputConstants.Type.MOUSE;
+		}
 		if (handleRecipeInput(chatScreen, input, keyBindings) || handleBookmarkGroupInput(chatScreen, input, keyBindings)) {
 			return true;
 		}
@@ -82,7 +111,7 @@ public class ChatLinkInputHandler {
 	}
 
 	public void handleGuiChange() {
-		ChatIngredientTooltip.clearSharedIngredient();
+		ChatRecipeTooltip.INSTANCE.clear();
 		this.pendingInput = null;
 		this.pendingRecipe = null;
 		clearPendingGroupInput();

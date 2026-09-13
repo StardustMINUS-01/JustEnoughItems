@@ -9,6 +9,7 @@ import mezz.jei.gui.input.handlers.DragRouter;
 import mezz.jei.gui.input.handlers.UserInputRouter;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
 import org.lwjgl.glfw.GLFW;
@@ -36,6 +37,7 @@ public class ClientInputHandlerTest {
 		assertEquals(List.of(12.0, 45.0, 0.25, -1.0), router.wheel);
 		assertFalse(handler.onGuiMouseScroll(standaloneScreen, 12, 45, 0, 1));
 		assertFalse(handler.onGuiMouseScroll(standaloneScreen, 12, 45, 0, -1));
+		assertFalse(handler.onGuiMouseScroll(new ChatScreen(""), 12, 45, 0, -1));
 		assertEquals(1, router.wheelCalls);
 		assertTrue(handler.onGuiMouseScroll(overlayScreen, 24, 60, 0, 1));
 		assertEquals(2, router.wheelCalls);
@@ -51,6 +53,7 @@ public class ClientInputHandlerTest {
 
 		assertTrue(handler.onGuiMouseDragged(overlayScreen, 12, 45, 0, 3, 4));
 		assertFalse(handler.onGuiMouseDragged(standaloneScreen, 12, 45, 0, 3, 4));
+		assertFalse(handler.onGuiMouseDragged(new ChatScreen(""), 12, 45, 0, 3, 4));
 		assertEquals(1, router.dragCalls);
 	}
 

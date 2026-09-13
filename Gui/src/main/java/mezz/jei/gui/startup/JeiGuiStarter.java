@@ -395,6 +395,7 @@ public class JeiGuiStarter {
 			new GuiContainerWrapper(screenHelper)
 		);
 		var focusInputHandler = new IngredientShortcutInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory);
+		mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.setShortcuts(focusInputHandler);
 		var tagSelectionTooltip = focusInputHandler.getTagSelectionTooltip();
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,

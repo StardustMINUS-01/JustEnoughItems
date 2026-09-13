@@ -114,7 +114,7 @@ public final class ChatIngredientTooltip {
 		return Optional.of(tooltipData);
 	}
 
-	private static <T> IngredientTooltipData<T> createTooltipData(
+	public static <T> IngredientTooltipData<T> createTooltipData(
 		ITypedIngredient<T> typedIngredient,
 		IIngredientManager ingredientManager
 	) {
