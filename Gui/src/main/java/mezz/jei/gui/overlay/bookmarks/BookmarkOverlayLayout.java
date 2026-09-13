@@ -3,8 +3,10 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
 import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
+import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.IPaged;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -22,7 +24,8 @@ import java.util.Optional;
 /**
  * Owns the bookmark panel slot layout and its cached panel snapshot.
  * Ported from JEI 1.21.1 (BookmarkOverlayLayout.java), keeping the 1.20.1 snapshot key
- * (pageNumber * pageSize) and the 1.20.1 PanelSnapshot shape (no BoundaryConnections).
+ * (pageNumber * pageSize) and the 1.21.1 PanelSnapshot shape that now includes
+ * {@link BoundaryConnections} so group brackets connect across page boundaries.
  */
 public class BookmarkOverlayLayout {
 	private final BookmarkList bookmarkList;
@@ -84,9 +87,10 @@ public class BookmarkOverlayLayout {
 		List<ImmutableRect2i> pageAreas,
 		PanelSnapshotKey key
 	) {
+		List<Integer> usableColumnsPerRow = this.contents.getUsableColumnsPerRow();
 		List<BookmarkDisplaySlot<IBookmark>> displaySlots = this.bookmarkList.getDisplaySlots(
 			this.contents.getUsableColumnCount(),
-			this.contents.getUsableColumnsPerRow()
+			usableColumnsPerRow
 		);
 		int firstDisplaySlotIndex = key.pageNumber() * key.pageSize();
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots = BookmarkPanelLayout.createPagePanelSlots(
@@ -107,7 +111,83 @@ public class BookmarkOverlayLayout {
 			.toList();
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots = createPanelSlots(visibleSlots, displaySlots, firstDisplaySlotIndex);
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = toRowSlots(groupPanelSlots);
-		return new PanelSnapshot(panelSlots, projectedPanelSlots, groupPanelSlots, rowSlots);
+		BoundaryConnections boundaryConnections = calculateBoundaryConnections(
+			displaySlots,
+			pageAreas,
+			firstDisplaySlotIndex,
+			key.columns(),
+			usableColumnsPerRow,
+			rowSlots
+		);
+		return new PanelSnapshot(panelSlots, projectedPanelSlots, groupPanelSlots, rowSlots, boundaryConnections);
+	}
+
+	static <T> BoundaryConnections calculateBoundaryConnections(
+		List<BookmarkDisplaySlot<T>> displaySlots,
+		List<ImmutableRect2i> pageAreas,
+		int firstDisplaySlotIndex,
+		int columns,
+		List<Integer> usableColumnsPerRow,
+		List<BookmarkPanelLayout.RowSlot<T>> rowSlots
+	) {
+		if (rowSlots.isEmpty() || pageAreas.isEmpty()) {
+			return BoundaryConnections.NONE;
+		}
+		int firstGroupId = rowSlots.get(0).groupId();
+		int lastGroupId = rowSlots.get(rowSlots.size() - 1).groupId();
+		int previousRowEnd = firstDisplaySlotIndex;
+		int previousRowStart = previousRowEnd <= 0 ? 0 : BookmarkRowLayout.rowStart(
+			previousRowEnd - 1,
+			columns,
+			usableColumnsPerRow
+		);
+		int nextRowStart = firstDisplaySlotIndex + pageAreas.size();
+		int nextRowEnd = BookmarkRowLayout.nextRowStart(nextRowStart, columns, usableColumnsPerRow);
+		return new BoundaryConnections(
+			isConnectedToAdjacentRow(displaySlots, previousRowStart, previousRowEnd, firstGroupId),
+			isConnectedToAdjacentRow(displaySlots, nextRowStart, nextRowEnd, lastGroupId)
+		);
+	}
+
+	private static <T> boolean isConnectedToAdjacentRow(
+		List<BookmarkDisplaySlot<T>> displaySlots,
+		int rowStart,
+		int rowEnd,
+		int visibleGroupId
+	) {
+		if (rowStart >= rowEnd || (visibleGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
+			return false;
+		}
+		int slotIndex = lowerBound(displaySlots, rowStart);
+		int adjacentGroupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
+		for (int i = slotIndex; i < displaySlots.size(); i++) {
+			BookmarkDisplaySlot<T> displaySlot = displaySlots.get(i);
+			if (displaySlot.slotIndex() >= rowEnd) {
+				break;
+			}
+			int groupId = displaySlot.entry().metadata().groupId();
+			if (adjacentGroupId == BookmarkGroupManager.DEFAULT_GROUP_ID) {
+				adjacentGroupId = groupId;
+			}
+			if (!(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID)) {
+				break;
+			}
+		}
+		return visibleGroupId == adjacentGroupId;
+	}
+
+	private static <T> int lowerBound(List<BookmarkDisplaySlot<T>> displaySlots, int slotIndex) {
+		int low = 0;
+		int high = displaySlots.size();
+		while (low < high) {
+			int middle = (low + high) >>> 1;
+			if (displaySlots.get(middle).slotIndex() < slotIndex) {
+				low = middle + 1;
+			} else {
+				high = middle;
+			}
+		}
+		return low;
 	}
 
 	void clearPanelSnapshot() {
@@ -218,7 +298,12 @@ public class BookmarkOverlayLayout {
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots,
 		List<GroupPanelSlot> groupPanelSlots,
-		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots
+		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots,
+		BoundaryConnections boundaryConnections
 	) {
+	}
+
+	record BoundaryConnections(boolean connectedToPrevious, boolean connectedToNext) {
+		static final BoundaryConnections NONE = new BoundaryConnections(false, false);
 	}
 }

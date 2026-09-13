@@ -27,6 +27,17 @@ public interface IRecipeWidget {
 	ScreenPosition getPosition();
 
 	/**
+	 * Get the area this widget occupies, including its position and dimensions.
+	 * Not part of the {@link IRecipeWidget} interface; provided by {@link AbstractRecipeWidgetBuilder}
+	 * and other concrete widget types via their concrete classes. Callers that need this in 1.20.1
+	 * should declare the variable as a concrete type (e.g. {@code AbstractRecipeWidgetBuilder<?>})
+	 * or check {@link #getPosition()} and dimensions directly.
+	 *
+	 * @since 15.58.1
+	 */
+	// Intentionally not a default on the interface: IRecipeWidget in 1.20.1 has no getWidth/getHeight.
+
+	/**
 	 * Draw extras or additional info about the recipe, relative to its {@link #getPosition()}.
 	 * Use the mouse position for things like button highlights.
 	 *

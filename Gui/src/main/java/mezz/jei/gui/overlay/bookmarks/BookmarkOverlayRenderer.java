@@ -85,8 +85,16 @@ public class BookmarkOverlayRenderer {
 			panelSlots = groupPanelDrag.getPreviewGroupPanelSlots(panelSlotsForPreview, panelSlots);
 		}
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkOverlayLayout.toRowSlots(panelSlots);
+		// Boundary connections keep the first/last row of this page linked to a row on the previous/next page
+		// when the same group straddles a page boundary, so the bracket line draws all the way through the seam.
+		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = panelSnapshot.boundaryConnections();
+		int lastRowIndex = rowSlots.size() - 1;
 		for (int i = 0; i < panelSlots.size(); i++) {
 			GroupPanelSlot slot = panelSlots.get(i);
+			boolean connectedToPrevious = BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i) ||
+				(i == 0 && boundaryConnections.connectedToPrevious());
+			boolean connectedToNext = BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i) ||
+				(i == lastRowIndex && boundaryConnections.connectedToNext());
 			if (sortDragState != null &&
 				sortDragState.getGroupPanelRenderMode(slot.groupId()) == BookmarkSortDragState.GroupPanelRenderMode.DRAG_PLACEHOLDER) {
 				ImmutableRect2i area = overlay.getGroupPanelArea(slot.area());
@@ -100,8 +108,8 @@ public class BookmarkOverlayRenderer {
 				drawGroupPanelPlaceholderLine(
 					guiGraphics,
 					slot.area(),
-					BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i),
-					BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i)
+					connectedToPrevious,
+					connectedToNext
 				);
 				continue;
 			}
@@ -112,8 +120,8 @@ public class BookmarkOverlayRenderer {
 					guiGraphics,
 					slot.area(),
 					getGroupPanelColor(slot.groupId()),
-					BookmarkPanelLayout.isConnectedToPreviousRow(rowSlots, i),
-					BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i)
+					connectedToPrevious,
+					connectedToNext
 				);
 			}
 		}

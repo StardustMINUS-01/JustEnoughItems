@@ -16,6 +16,7 @@ import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.gui.placement.IPlaceable;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
+import mezz.jei.api.gui.widgets.IDrawableWidget;
 import mezz.jei.api.gui.widgets.IScrollBoxWidget;
 import mezz.jei.api.gui.widgets.IScrollGridWidget;
 import mezz.jei.api.gui.widgets.ISlottedRecipeWidget;
@@ -28,7 +29,9 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.DrawableAnimated;
+import mezz.jei.common.gui.elements.DrawableBlank;
 import mezz.jei.common.gui.elements.DrawableCombined;
+import mezz.jei.common.gui.elements.DrawableRecipeWidget;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.gui.elements.TextWidget;
 import mezz.jei.common.gui.textures.Textures;
@@ -440,6 +443,28 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		OffsetDrawable offsetDrawable = new OffsetDrawable(drawable, 0, 0);
 		this.drawables.add(offsetDrawable);
 		return offsetDrawable;
+	}
+
+	@Override
+	public IDrawableWidget addDrawableWidget(IDrawable drawable) {
+		ErrorUtil.checkNotNull(drawable, "drawable");
+		DrawableRecipeWidget widget = new DrawableRecipeWidget(drawable);
+		addWidget(widget);
+		return widget;
+	}
+
+	@Override
+	public IDrawableWidget addTooltipArea(int xPos, int yPos, int width, int height) {
+		if (width < 0) {
+			throw new IllegalArgumentException("width must be non-negative");
+		}
+		if (height < 0) {
+			throw new IllegalArgumentException("height must be non-negative");
+		}
+		DrawableRecipeWidget widget = new DrawableRecipeWidget(new DrawableBlank(width, height));
+		widget.setPosition(xPos, yPos);
+		addWidget(widget);
+		return widget;
 	}
 
 	@Override

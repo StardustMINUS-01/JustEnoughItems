@@ -51,6 +51,26 @@ public interface IRecipeExtrasBuilder {
 	IPlaceable<?> addDrawable(IDrawable drawable);
 
 	/**
+	 * Add a drawable widget for the recipe category.
+	 *
+	 * Its tooltip bounds are derived from {@link IDrawable#getWidth()} and
+	 * {@link IDrawable#getHeight()}, including drawable-builder padding. Configure it with methods
+	 * such as {@link IDrawableWidget#setPosition(int, int)} and
+	 * {@link IDrawableWidget#setTooltip(FormattedText)}.
+	 *
+	 * @since 15.58.1
+	 */
+	IDrawableWidget addDrawableWidget(IDrawable drawable);
+
+	/**
+	 * Add a hover-only rectangular tooltip region, then configure its tooltip with
+	 * {@link IDrawableWidget#setTooltip(FormattedText)} or another {@code setTooltip} overload.
+	 *
+	 * @since 15.58.1
+	 */
+	IDrawableWidget addTooltipArea(int xPos, int yPos, int width, int height);
+
+	/**
 	 * Add a {@link IRecipeWidget} for the recipe category.
 	 *
 	 * @since 15.10.0

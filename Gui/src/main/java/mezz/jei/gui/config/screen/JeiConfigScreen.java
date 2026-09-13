@@ -637,6 +637,10 @@ public final class JeiConfigScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+		// 1.20.1 vanilla Screen#render does not call renderBackground automatically (it only iterates
+		// the renderables list). 1.21.1's Screen#render does, but here on 1.20.1 we must call it
+		// explicitly or the dark overlay + sidebar/footer bands never get drawn.
+		renderBackground(graphics);
 		super.render(graphics, mouseX, mouseY, partialTick);
 		if (keyView) {
 			for (int i = row; i < Math.min(visibleKeys.size(), row + capacity); i++) {
