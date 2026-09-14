@@ -185,11 +185,16 @@ public final class BookmarkPanelLayout {
 	public static <T> boolean shouldUpdateDragEnd(
 		RowSlot<T> start,
 		@Nullable RowSlot<T> existingEnd,
-		RowSlot<T> current,
+		double mouseY,
 		long elapsedMillis,
 		long thresholdMillis
 	) {
-		boolean rowChanged = current.area().getY() != start.area().getY();
+		// Ported from 1.21.1 fork (commit 3661a05df): use mouseY instead of a
+		// captured RowSlot<>.area().getY() so the bracket-drag grouping fires
+		// the moment the pointer leaves the start row, even when the visible
+		// row slot has already been re-laid-out to a different Y by the
+		// grouping preview.
+		boolean rowChanged = mouseY < start.area().getY() || mouseY >= start.area().getY() + start.area().getHeight();
 		boolean heldLongEnough = elapsedMillis >= thresholdMillis;
 		return existingEnd != null || rowChanged || heldLongEnough;
 	}

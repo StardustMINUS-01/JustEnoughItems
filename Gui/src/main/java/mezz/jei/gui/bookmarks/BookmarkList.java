@@ -1120,7 +1120,12 @@ public class BookmarkList implements IIngredientGridSource {
 			ingredient,
 			ingredientManager,
 			factor
-		);
+		)
+			// Ported from 1.21.1 fork (commit 3661a05df): the multiplier must reflect
+			// whether the entry is a "counted" demand or just a catalytic placeholder,
+			// otherwise the recipe-tree amount adjustment treats the entry as sticky
+			// and only the first increment sticks.
+			.withMultiplier(preserveAmount ? 1 : 0);
 		return new RecipeBookmarkEntry(bookmark, metadata);
 	}
 
@@ -1178,7 +1183,11 @@ public class BookmarkList implements IIngredientGridSource {
 			selectedIngredient,
 			ingredientManager,
 			factor
-		);
+		)
+			// Ported from 1.21.1 fork (commit 3661a05df): mirror the synthetic-input
+			// multiplier so recipe-tree amount adjustment applies uniformly across
+			// counted and non-counted entries.
+			.withMultiplier(preserveAmount ? 1 : 0);
 		if (lockedInputPermutation != null) {
 			metadata = metadata.withPermutations(Set.of(lockedInputPermutation));
 		}

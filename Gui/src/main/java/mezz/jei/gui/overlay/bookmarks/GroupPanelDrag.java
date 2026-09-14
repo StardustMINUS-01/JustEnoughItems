@@ -10,6 +10,7 @@ import mezz.jei.gui.ghost.GhostIngredientDrag;
 import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
+import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.Rect2i;
 import org.jetbrains.annotations.Nullable;
@@ -66,6 +67,21 @@ class GroupPanelDrag {
 
 	public boolean isDropMode() {
 		return dropMode;
+	}
+
+	/**
+	 * Ported from 1.21.1 fork (commit 29334012f): allow the user to scroll the
+	 * ingredient grid while a grouping drag is in progress so the preview can
+	 * extend past the current page boundary. Falls back to a plain updateEndSlot
+	 * since the 1.20.1 fork does not yet model cross-page grouping.
+	 */
+	public void scroll(double deltaX, double deltaY, double mouseY) {
+		IngredientGridWithNavigation contents = overlay.getContents();
+		ImmutableRect2i area = contents.getIngredientGridArea();
+		if (!area.isEmpty()) {
+			contents.createInputHandler().handleMouseScrolled(area.getX() + 1, area.getY() + 1, deltaY);
+		}
+		updateEndSlot(mouseY);
 	}
 
 	public List<GroupPanelSlot> getPreviewGroupPanelSlots(
@@ -221,7 +237,7 @@ class GroupPanelDrag {
 		if (BookmarkPanelLayout.shouldUpdateDragEnd(
 			BookmarkOverlayLayout.toRowSlot(startSlot),
 			this.endSlot == null ? null : BookmarkOverlayLayout.toRowSlot(this.endSlot),
-			BookmarkOverlayLayout.toRowSlot(currentEndSlot),
+			mouseY,
 			elapsedMillis,
 			GROUP_PANEL_DRAG_THRESHOLD_MS
 		)) {

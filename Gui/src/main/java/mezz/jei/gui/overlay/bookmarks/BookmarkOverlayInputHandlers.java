@@ -244,6 +244,14 @@ public final class BookmarkOverlayInputHandlers {
 
 		@Override
 		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+			// Ported from 1.21.1 fork (commit 29334012f): when a group-panel drag is
+			// active and not in drop mode, route scroll to the ingredient grid so the
+			// user can scroll past the page boundary to extend the grouping preview.
+			GroupPanelDrag groupPanelDrag = overlay.getGroupPanelDrag();
+			if (groupPanelDrag != null && !groupPanelDrag.isDropMode()) {
+				groupPanelDrag.scroll(0, scrollDelta, mouseY);
+				return Optional.of(this);
+			}
 			if (overlay.getScrollStepArea().contains(mouseX, mouseY)) {
 				if (scrollDelta == 0) {
 					return Optional.empty();
