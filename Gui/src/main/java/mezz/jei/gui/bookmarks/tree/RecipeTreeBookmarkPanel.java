@@ -138,7 +138,12 @@ public final class RecipeTreeBookmarkPanel {
 			var overlay = Internal.getJeiRuntime().getBookmarkOverlay();
 			long step = overlay instanceof BookmarkOverlay bookmarkOverlay ? bookmarkOverlay.getScrollStep().getEffectiveStep() : 64;
 			hovered.ifPresent(bookmark -> BookmarkScrollHandler.apply(bookmarks, bookmark, delta, control, alt, shift, step,
-				amount -> bookmarks.shiftBookmarkAmount(bookmark, amount)));
+				// Ported from 1.21.1 fork: the recipe tree panel always shows the
+				// group expanded for display, so amount adjustments must skip the
+				// collapsed-group fast path in shiftBookmarkAmount and target the
+				// hovered recipe only (otherwise scrolling on one item shifts the
+				// entire group and the chain re-order displaces every other item).
+				amount -> bookmarks.shiftRecipeAmount(bookmark, amount)));
 			refresh();
 			return;
 		}

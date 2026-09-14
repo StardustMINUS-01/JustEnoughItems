@@ -2026,7 +2026,26 @@ public class BookmarkList implements IIngredientGridSource {
 		if (groupCollapsed && BookmarkGroupManager.DEFAULT_GROUP_ID != groupId) {
 			return shiftGroupAmount(groupId, shift);
 		}
+		return shiftRecipeAmount(bookmark, shift);
+	}
 
+	/**
+	 * Ported from 1.21.1 fork: adjust this recipe independently of how its group is
+	 * displayed. Used by the recipe tree panel, which always shows the group
+	 * expanded for display but must NOT route through the collapsed-group path
+	 * (otherwise scrolling on one item would shift the entire group and the chain
+	 * re-order would visually displace every other item on the same page).
+	 */
+	public boolean shiftRecipeAmount(IBookmark bookmark, long shift) {
+		if (shift == 0) {
+			return false;
+		}
+		int index = identityIndexOf(bookmark);
+		if (index < 0) {
+			return false;
+		}
+		bookmark = bookmarksList.get(index);
+		int groupId = bookmarkGroups.getGroupId(bookmark);
 		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
 		if (targetMetadata.type().isCatalyst()) {
 			return false;
