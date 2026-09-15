@@ -211,7 +211,7 @@ public final class JeiChainReferenceScenarios {
 		int index = 0;
 		inputs.add(input(index++, result(plateRecipe, plate, 1, 1)));
 		inputs.add(input(index++, ingredient(plateRecipe, ingot, 2)));
-		inputs.add(input(index++, ingredient(plateRecipe, mold, 1).withType(BookmarkItemType.CATALYST)));
+		inputs.add(input(index++, ingredient(plateRecipe, mold, 1).withType(BookmarkItemType.NONCONSUMABLE)));
 
 		Map<BookmarkIngredientKey, Long> inventoryAmounts = new LinkedHashMap<>();
 		if (mode != JeiDataMode.MISSING) {

@@ -46,7 +46,7 @@ public final class BookmarkPullPlanner {
 		Map<BookmarkIngredientKey, Long> amounts = new LinkedHashMap<>();
 		for (RecipeChainInput input : inputs) {
 			BookmarkItemMetadata metadata = input.metadata();
-			if (metadata.type().isCatalyst()) {
+			if (metadata.type().isNonConsumable()) {
 				continue;
 			}
 			if (metadata.recipeUid() != null && metadata.type().isRecipeAssociated()) {
@@ -76,7 +76,7 @@ public final class BookmarkPullPlanner {
 			.orElse(-1) + 1;
 		for (RecipeChainInput input : inputs) {
 			BookmarkItemMetadata metadata = input.metadata();
-			if (metadata.type().isCatalyst()) {
+			if (metadata.type().isNonConsumable()) {
 				continue;
 			}
 			if (metadata.recipeUid() == null || !metadata.type().isRecipeAssociated()) {

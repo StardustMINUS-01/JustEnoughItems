@@ -52,7 +52,7 @@ public class BookmarkChainSlotVisualsTest {
 	public void catalystBookmarkShowsYellowCatalystMarker() {
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			1,
 			1,
 			BookmarkItemMetadata.CHANCE_FULL,
@@ -106,7 +106,7 @@ public class BookmarkChainSlotVisualsTest {
 	public void catalystBookmarkShowsYellowHighlightInRealMode() {
 		BookmarkItemMetadata metadata = new BookmarkItemMetadata(
 			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			1,
 			1,
 			BookmarkItemMetadata.CHANCE_FULL,

@@ -79,7 +79,7 @@ public class BookmarkListVirtualCircuitTest {
 		Assertions.assertEquals(0, metadata.factor());
 		Assertions.assertEquals(0, metadata.amount());
 		Assertions.assertEquals(RECIPE_UID, metadata.recipeUid());
-		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.CATALYST, metadata.type());
+		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.NONCONSUMABLE, metadata.type());
 	}
 
 	@Test
@@ -101,7 +101,7 @@ public class BookmarkListVirtualCircuitTest {
 			.map(bookmarks::getBookmarkMetadata)
 			.findFirst()
 			.orElseThrow();
-		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.CATALYST, metadata.type());
+		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.NONCONSUMABLE, metadata.type());
 	}
 
 	@Test
@@ -123,7 +123,7 @@ public class BookmarkListVirtualCircuitTest {
 			.map(bookmarks::getBookmarkMetadata)
 			.findFirst()
 			.orElseThrow();
-		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.CATALYST, metadata.type());
+		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.NONCONSUMABLE, metadata.type());
 		Assertions.assertEquals(3, metadata.factor());
 		Assertions.assertEquals(3, metadata.amount());
 	}
@@ -152,7 +152,7 @@ public class BookmarkListVirtualCircuitTest {
 			.map(bookmarks::getBookmarkMetadata)
 			.toList();
 		Assertions.assertEquals(2, catalysts.size());
-		Assertions.assertTrue(catalysts.stream().allMatch(metadata -> metadata.type() == mezz.jei.gui.bookmarks.BookmarkItemType.CATALYST));
+		Assertions.assertTrue(catalysts.stream().allMatch(metadata -> metadata.type() == mezz.jei.gui.bookmarks.BookmarkItemType.NONCONSUMABLE));
 	}
 
 	@Test

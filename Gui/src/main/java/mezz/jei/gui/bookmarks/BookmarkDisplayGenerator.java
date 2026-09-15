@@ -163,12 +163,12 @@ public final class BookmarkDisplayGenerator {
 	) {
 		return (group.collapsed() || group.viewMode() != BookmarkViewMode.TODO_LIST) &&
 			BookmarkGroupManager.DEFAULT_GROUP_ID != groupId &&
-			(metadata.type().isGraphInput() || metadata.type().isCatalyst());
+			(metadata.type().isGraphInput() || metadata.type().isNonConsumable());
 	}
 
 	private static boolean isResultOnlyGroupOutput(BookmarkItemMetadata metadata) {
 		return !metadata.type().isGraphInput() &&
-			!metadata.type().isCatalyst();
+			!metadata.type().isNonConsumable();
 	}
 
 	private static <T> void addCollapsedBlock(
@@ -212,7 +212,7 @@ public final class BookmarkDisplayGenerator {
 	}
 
 	private static boolean isCatalystInCollapsedClosure(BookmarkGroup group, RecipeChainDetails details, BookmarkItemMetadata metadata) {
-		if (!metadata.type().isCatalyst()) {
+		if (!metadata.type().isNonConsumable()) {
 			return false;
 		}
 		ResourceLocation recipeUid = metadata.recipeUid();
@@ -234,7 +234,7 @@ public final class BookmarkDisplayGenerator {
 	) {
 		RecipeChainItem chainItem = details.calculatedItems().get(sourceIndex);
 		if (chainItem == null) {
-			if (metadata.type().isCatalyst() || metadata.type() == BookmarkItemType.ITEM) {
+			if (metadata.type().isNonConsumable() || metadata.type() == BookmarkItemType.ITEM) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			}
 			return;

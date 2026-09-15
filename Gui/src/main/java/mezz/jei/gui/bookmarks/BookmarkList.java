@@ -1725,7 +1725,7 @@ public class BookmarkList implements IIngredientGridSource {
 		bookmark = bookmarksList.get(index);
 		int groupId = bookmarkGroups.getGroupId(bookmark);
 		BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(bookmark);
-		if (targetMetadata.type().isCatalyst()) {
+		if (targetMetadata.type().isNonConsumable()) {
 			return false;
 		}
 		ResourceLocation recipeUid = targetMetadata.recipeUid();
@@ -2056,8 +2056,8 @@ public class BookmarkList implements IIngredientGridSource {
 		}
 		BookmarkItemType toggledType;
 		if (type == BookmarkItemType.INGREDIENT) {
-			toggledType = BookmarkItemType.CATALYST;
-		} else if (type == BookmarkItemType.CATALYST) {
+			toggledType = BookmarkItemType.NONCONSUMABLE;
+		} else if (type == BookmarkItemType.NONCONSUMABLE) {
 			toggledType = BookmarkItemType.INGREDIENT;
 		} else if (type == BookmarkItemType.RESULT) {
 			// GT tool bookmarks (favorited recipe outputs) start as RESULT;

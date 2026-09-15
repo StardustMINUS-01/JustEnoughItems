@@ -144,7 +144,7 @@ public class RecipeChainMathTest {
 	public void catalystInputDoesNotBecomeAConsumedMaterialRequirement() {
 		RecipeChainDetails details = RecipeChainMath.refresh(List.of(
 			input(0, result(PLATE_RECIPE, key("plate"), 1, 1)),
-			input(1, ingredient(PLATE_RECIPE, key("mold"), 1).withType(BookmarkItemType.CATALYST))
+			input(1, ingredient(PLATE_RECIPE, key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE))
 		), Set.of());
 
 		Assertions.assertFalse(details.missedItems().containsKey(key("mold")));

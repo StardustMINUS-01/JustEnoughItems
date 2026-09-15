@@ -84,7 +84,7 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	public void getTooltip(JeiTooltip tooltip, IngredientGridTooltipHelper tooltipHelper, IIngredientRenderer<T> ingredientRenderer, IIngredientHelper<T> ingredientHelper) {
 		ITypedIngredient<T> typedIngredient = createTooltipIngredient(getTypedIngredient(), ingredientHelper, displayEntry);
 		boolean showToggleInputCatalyst = displayEntry.metadata().type().isGraphInput() ||
-			displayEntry.metadata().type().isCatalyst();
+			displayEntry.metadata().type().isNonConsumable();
 		tooltipHelper.getIngredientTooltip(
 			tooltip,
 			typedIngredient,

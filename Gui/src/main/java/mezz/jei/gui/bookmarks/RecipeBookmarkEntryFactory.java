@@ -176,12 +176,12 @@ final class RecipeBookmarkEntryFactory {
 		ITypedIngredient<T> bookmarkIngredient = preserveAmount ? ingredient : ingredientManager.normalizeTypedIngredient(ingredient);
 		IBookmark bookmark = new RecipeBookmark<>(recipeCategory, recipe, recipeUid, bookmarkIngredient, RecipeIngredientRole.INPUT, equalityScope);
 		long factor = virtualInput.programmedCircuit() ? 0 : BookmarkIngredientAmountResolver.getAmount(ingredient, ingredientManager);
-		// 1.20.1 fork: enum value still named BookmarkItemType.CATALYST (1.21.1 renamed to NONCONSUMABLE)
+		// 1.20.1 fork: enum value still named BookmarkItemType.NONCONSUMABLE (1.21.1 renamed to NONCONSUMABLE)
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForSyntheticRecipeInput(
 				BookmarkGroupManager.DEFAULT_GROUP_ID,
 				recipeCategory.getRecipeType().getUid(),
 				recipeUid,
-				BookmarkItemType.CATALYST,
+				BookmarkItemType.NONCONSUMABLE,
 				ingredient,
 				ingredientManager,
 				factor
@@ -256,8 +256,8 @@ final class RecipeBookmarkEntryFactory {
 		boolean virtualInput = role == RecipeIngredientRole.INPUT && virtualInputs.inputs().stream()
 			.map(GtmVirtualCircuitCompat.VirtualInput::ingredient)
 			.anyMatch(candidate -> sameIngredient(ingredient, candidate));
-		// 1.20.1 fork: enum value still named BookmarkItemType.CATALYST (1.21.1 renamed to NONCONSUMABLE)
-		BookmarkItemType type = virtualInput ? BookmarkItemType.CATALYST : BookmarkItemType.fromRecipeRole(role);
+		// 1.20.1 fork: enum value still named BookmarkItemType.NONCONSUMABLE (1.21.1 renamed to NONCONSUMABLE)
+		BookmarkItemType type = virtualInput ? BookmarkItemType.NONCONSUMABLE : BookmarkItemType.fromRecipeRole(role);
 		BookmarkItemMetadata metadata = BookmarkItemMetadataFactory.createForRecipeSlotWithFactor(
 				BookmarkGroupManager.DEFAULT_GROUP_ID,
 				recipeCategory,

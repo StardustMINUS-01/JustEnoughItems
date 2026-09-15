@@ -150,7 +150,7 @@ public class BookmarkDisplayGeneratorTest {
 		List<String> orderedItems = List.of("plate", "mold");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
-			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
+			"mold", metadata(BookmarkItemType.NONCONSUMABLE, PLATE_RECIPE, "mold", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
@@ -163,7 +163,7 @@ public class BookmarkDisplayGeneratorTest {
 		);
 
 		Assertions.assertEquals(List.of("plate", "mold"), slots.stream().map(slot -> slot.entry().item()).toList());
-		Assertions.assertEquals(BookmarkItemType.CATALYST, slots.get(1).entry().metadata().type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, slots.get(1).entry().metadata().type());
 		Assertions.assertTrue(slots.get(1).entry().recipeChainItem().isEmpty());
 	}
 
@@ -198,7 +198,7 @@ public class BookmarkDisplayGeneratorTest {
 		List<String> orderedItems = List.of("plate", "mold");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
-			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
+			"mold", metadata(BookmarkItemType.NONCONSUMABLE, PLATE_RECIPE, "mold", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.DEFAULT, false, true, Set.of());
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
@@ -218,7 +218,7 @@ public class BookmarkDisplayGeneratorTest {
 		List<String> orderedItems = List.of("plate", "mold");
 		Map<String, BookmarkItemMetadata> metadata = Map.of(
 			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
-			"mold", metadata(BookmarkItemType.CATALYST, PLATE_RECIPE, "mold", 1, 1)
+			"mold", metadata(BookmarkItemType.NONCONSUMABLE, PLATE_RECIPE, "mold", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(PLATE_RECIPE));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(PLATE_RECIPE));
@@ -616,7 +616,7 @@ public class BookmarkDisplayGeneratorTest {
 			"in_b", metadata(BookmarkItemType.INGREDIENT, recipeA, "in_b", 1, 1),
 			"in_b_result", metadata(BookmarkItemType.RESULT, recipeB, "in_b", 1, 1),
 			"in_a", metadata(BookmarkItemType.INGREDIENT, recipeB, "in_a", 1, 1),
-			"cat_b", metadata(BookmarkItemType.CATALYST, recipeB, "cat_b", 1, 1)
+			"cat_b", metadata(BookmarkItemType.NONCONSUMABLE, recipeB, "cat_b", 1, 1)
 		);
 		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Machines", BookmarkViewMode.TODO_LIST, false, true, Set.of(recipeA));
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of(recipeA));

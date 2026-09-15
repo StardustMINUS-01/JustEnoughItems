@@ -15,7 +15,7 @@ public enum BookmarkItemType {
 	ITEM(null),
 	RESULT(RecipeIngredientRole.OUTPUT),
 	INGREDIENT(RecipeIngredientRole.INPUT),
-	CATALYST(RecipeIngredientRole.INPUT);
+	NONCONSUMABLE(RecipeIngredientRole.INPUT);
 
 	private final @Nullable RecipeIngredientRole recipeRole;
 
@@ -51,15 +51,11 @@ public enum BookmarkItemType {
 		return isGraphInput() || isGraphOutput();
 	}
 
-	public boolean isCatalyst() {
-		return this == CATALYST;
-	}
-
 	public boolean isNonConsumable() {
-		return isCatalyst();
+		return this == NONCONSUMABLE;
 	}
 
 	public boolean scalesWithMultiplier() {
-		return this != CATALYST;
+		return this != NONCONSUMABLE;
 	}
 }

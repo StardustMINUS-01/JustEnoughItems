@@ -79,17 +79,17 @@ public class BookmarkItemMetadataFactoryTest {
 
 	@Test
 	public void replacingPermutationsPreservesCatalystType() {
-		BookmarkItemMetadata catalyst = ingredient(key("mold"), 1).withType(BookmarkItemType.CATALYST);
+		BookmarkItemMetadata catalyst = ingredient(key("mold"), 1).withType(BookmarkItemType.NONCONSUMABLE);
 
 		BookmarkItemMetadata replaced = catalyst.withPermutations(Set.of(key("hydrated_mold")));
 
-		Assertions.assertEquals(BookmarkItemType.CATALYST, replaced.type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, replaced.type());
 		Assertions.assertEquals(Set.of(key("hydrated_mold")), replaced.permutations());
 	}
 
 	@Test
 	public void catalystTypeIgnoresEveryMultiplier() {
-		BookmarkItemType catalystType = BookmarkItemType.valueOf("CATALYST");
+		BookmarkItemType catalystType = BookmarkItemType.valueOf("NONCONSUMABLE");
 		BookmarkItemMetadata catalyst = new BookmarkItemMetadata(
 			0,
 			catalystType,
@@ -120,11 +120,11 @@ public class BookmarkItemMetadataFactoryTest {
 		Assertions.assertEquals(RecipeIngredientRole.INPUT, BookmarkItemType.INGREDIENT.recipeRole());
 		Assertions.assertTrue(BookmarkItemType.INGREDIENT.isGraphInput());
 
-		Assertions.assertTrue(BookmarkItemType.CATALYST.isRecipeAssociated());
-		Assertions.assertEquals(RecipeIngredientRole.INPUT, BookmarkItemType.CATALYST.recipeRole());
-		Assertions.assertTrue(BookmarkItemType.CATALYST.isCatalyst());
-		Assertions.assertFalse(BookmarkItemType.CATALYST.isGraphInput());
-		Assertions.assertFalse(BookmarkItemType.CATALYST.scalesWithMultiplier());
+		Assertions.assertTrue(BookmarkItemType.NONCONSUMABLE.isRecipeAssociated());
+		Assertions.assertEquals(RecipeIngredientRole.INPUT, BookmarkItemType.NONCONSUMABLE.recipeRole());
+		Assertions.assertTrue(BookmarkItemType.NONCONSUMABLE.isNonConsumable());
+		Assertions.assertFalse(BookmarkItemType.NONCONSUMABLE.isGraphInput());
+		Assertions.assertFalse(BookmarkItemType.NONCONSUMABLE.scalesWithMultiplier());
 	}
 
 	@Test
@@ -133,13 +133,13 @@ public class BookmarkItemMetadataFactoryTest {
 			0,
 			CRAFTING,
 			MACHINE_RECIPE,
-			BookmarkItemType.CATALYST,
+			BookmarkItemType.NONCONSUMABLE,
 			typed(new TestToolIngredient("mold", 3, 0, 0, 0)),
 			ingredientManager(),
 			3
 		);
 
-		Assertions.assertEquals(BookmarkItemType.CATALYST, metadata.type());
+		Assertions.assertEquals(BookmarkItemType.NONCONSUMABLE, metadata.type());
 		Assertions.assertEquals(3, metadata.amount(9));
 	}
 
