@@ -8,7 +8,6 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.bookmarks.IBookmark;
-import mezz.jei.gui.input.IPaged;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
@@ -23,9 +22,12 @@ import java.util.Optional;
 
 /**
  * Owns the bookmark panel slot layout and its cached panel snapshot.
- * Ported from JEI 1.21.1 (BookmarkOverlayLayout.java), keeping the 1.20.1 snapshot key
- * (pageNumber * pageSize) and the 1.21.1 PanelSnapshot shape that now includes
- * {@link BoundaryConnections} so group brackets connect across page boundaries.
+ * Ported from JEI 1.21.1 (BookmarkOverlayLayout.java): the snapshot key now
+ * stores the actual first item index of the visible page (not pageNumber *
+ * pageSize) so the panel layout is correct in scrollbar mode where the grid
+ * is scrolled by row, not by page. Includes the 1.21.1 PanelSnapshot shape
+ * with {@link BoundaryConnections} so group brackets connect across page
+ * boundaries.
  */
 public class BookmarkOverlayLayout {
 	private final BookmarkList bookmarkList;
@@ -66,12 +68,10 @@ public class BookmarkOverlayLayout {
 		List<VisibleSlotKey> visibleContentKeys = visibleSlots.stream()
 			.map(BookmarkOverlayLayout::createVisibleSlotKey)
 			.toList();
-		IPaged pageDelegate = this.contents.getPageDelegate();
 		PanelSnapshotKey key = new PanelSnapshotKey(
 			bookmarkList.getChangeVersion(),
 			this.contents.getUsableColumnCount(),
-			pageDelegate.getPageNumber(),
-			this.contents.size(),
+			this.contents.getFirstItemIndex(),
 			pageAreas,
 			visibleContentKeys
 		);
@@ -92,11 +92,11 @@ public class BookmarkOverlayLayout {
 			this.contents.getUsableColumnCount(),
 			usableColumnsPerRow
 		);
-		int firstDisplaySlotIndex = key.pageNumber() * key.pageSize();
-		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots = BookmarkPanelLayout.createPagePanelSlots(
+		int firstDisplaySlotIndex = key.firstItemIndex();
+		List<BookmarkPanelLayout.PanelSlot<IBookmark>> projectedPanelSlots = createProjectedPanelSlots(
 			displaySlots,
 			pageAreas,
-			firstDisplaySlotIndex
+			key
 		);
 		int gridLeftX = pageAreas.stream()
 			.mapToInt(ImmutableRect2i::getX)
@@ -120,6 +120,17 @@ public class BookmarkOverlayLayout {
 			rowSlots
 		);
 		return new PanelSnapshot(panelSlots, projectedPanelSlots, groupPanelSlots, rowSlots, boundaryConnections);
+	}
+
+	// Ported from 1.21.1 fork (commit 29334012f): factored out so callers can pass
+	// the PanelSnapshotKey directly. Identical to the prior inlined call to
+	// BookmarkPanelLayout.createPagePanelSlots(displaySlots, pageAreas, firstDisplaySlotIndex).
+	static <T> List<BookmarkPanelLayout.PanelSlot<T>> createProjectedPanelSlots(
+		List<BookmarkDisplaySlot<T>> displaySlots,
+		List<ImmutableRect2i> pageAreas,
+		PanelSnapshotKey key
+	) {
+		return BookmarkPanelLayout.createPagePanelSlots(displaySlots, pageAreas, key.firstItemIndex());
 	}
 
 	static <T> BoundaryConnections calculateBoundaryConnections(
@@ -287,8 +298,7 @@ public class BookmarkOverlayLayout {
 	record PanelSnapshotKey(
 		long sourceVersion,
 		int columns,
-		int pageNumber,
-		int pageSize,
+		int firstItemIndex,
 		List<ImmutableRect2i> slotAreas,
 		List<VisibleSlotKey> visibleContentKeys
 	) {
