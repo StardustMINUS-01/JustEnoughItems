@@ -235,6 +235,16 @@ public class IngredientGridWithNavigationController implements IPaged, IUserInpu
 		return this.pageState.getPageNumber();
 	}
 
+	// Ported from 1.21.1 fork (commit 29334012f): expose the first item index so
+	// cross-page features (e.g. GroupPanelDrag.globalRow) can compute global
+	// coordinates that span page boundaries.
+	public int getFirstItemIndex() {
+		if (usesScrollbar()) {
+			return this.scrollController.getFirstItemIndex();
+		}
+		return this.pageState.getFirstItemIndex();
+	}
+
 	@Override
 	public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaY) {
 		if (!mouseOverable.isMouseOver(mouseX, mouseY)) {

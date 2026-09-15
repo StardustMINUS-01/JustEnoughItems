@@ -278,6 +278,13 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return controller;
 	}
 
+	// Ported from 1.21.1 fork (commit 29334012f): expose the first item index of
+	// the current page so cross-page features (e.g. GroupPanelDrag.globalRow) can
+	// resolve the visible-slot Y to a global row index that spans page boundaries.
+	public int getFirstItemIndex() {
+		return this.controller.getFirstItemIndex();
+	}
+
 	@Override
 	public void drawBackground(GuiGraphics guiGraphics) {
 		updateLayoutIfDirty();

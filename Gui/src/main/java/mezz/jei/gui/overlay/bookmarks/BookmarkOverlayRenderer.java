@@ -82,12 +82,22 @@ public class BookmarkOverlayRenderer {
 		List<GroupPanelSlot> sourcePanelSlots = panelSnapshot.groupPanelSlots();
 		List<GroupPanelSlot> panelSlots = sourcePanelSlots;
 		if (groupPanelDrag != null) {
-			panelSlots = groupPanelDrag.getPreviewGroupPanelSlots(panelSlotsForPreview, panelSlots);
+			panelSlots = groupPanelDrag.getPreviewGroupPanelSlots(panelSlots);
 		}
 		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkOverlayLayout.toRowSlots(panelSlots);
 		// Boundary connections keep the first/last row of this page linked to a row on the previous/next page
 		// when the same group straddles a page boundary, so the bracket line draws all the way through the seam.
-		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = panelSnapshot.boundaryConnections();
+		boolean hasDragPreview = panelSlots != sourcePanelSlots || sortDragState != null && sortDragState.isActive();
+		// Ported from 1.21.1 fork (commit 29334012f): when the drag preview is active,
+		// the boundary connections in the static panel snapshot are stale (they reflect
+		// the pre-drag layout). Recompute against the cross-page slots so the seam
+		// bracket still connects the right groups during the drag.
+		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview
+			? panelSnapshot.boundaryConnections()
+			: BookmarkOverlayLayout.BoundaryConnections.NONE;
+		if (groupPanelDrag != null && hasDragPreview) {
+			boundaryConnections = groupPanelDrag.boundaries(panelSlots);
+		}
 		int lastRowIndex = rowSlots.size() - 1;
 		for (int i = 0; i < panelSlots.size(); i++) {
 			GroupPanelSlot slot = panelSlots.get(i);

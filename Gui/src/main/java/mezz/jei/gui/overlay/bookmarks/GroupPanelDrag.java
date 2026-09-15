@@ -4,6 +4,8 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.bookmarks.BookmarkGroupManager;
+import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.ghost.GhostIngredientDrag;
@@ -11,18 +13,19 @@ import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
 import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
+import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.Rect2i;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 class GroupPanelDrag {
-	private static int getGroupingPreviewGroupId() {
-		return Integer.MIN_VALUE + 1;
-	}
+	private static final int GROUPING_PREVIEW_GROUP_ID = -1;
 	private static final int GROUP_PANEL_DRAG_THRESHOLD_MS = 250;
 
 	private final BookmarkOverlay overlay;
@@ -36,6 +39,15 @@ class GroupPanelDrag {
 	private final int dragOffsetX;
 	private final int dragOffsetY;
 	private @Nullable GroupPanelSlot endSlot;
+	// Ported from 1.21.1 fork (commit 29334012f): the cross-page state needed to
+	// resolve any visible-slot Y into a global row that spans page boundaries.
+	private final BookmarkRowLayout.RowLayout rows;
+	private final List<BookmarkPanelLayout.PanelSlot<IBookmark>> slots;
+	private final BookmarkPanelLayout.RowSlot<IBookmark> start;
+	private @Nullable BookmarkGroupingPlan plan;
+	private @Nullable BookmarkPanelLayout.RowSlot<IBookmark> globalEnd;
+	private Set<IBookmark> selected = Set.of();
+	private Set<IBookmark> released = Set.of();
 
 	public GroupPanelDrag(
 		BookmarkOverlay overlay,
@@ -63,6 +75,13 @@ class GroupPanelDrag {
 		this.startY = MouseUtil.getY();
 		this.dragOffsetX = startSlot.area().getX() - (int) Math.round(this.startX);
 		this.dragOffsetY = startSlot.area().getY() - (int) Math.round(this.startY);
+		IngredientGridWithNavigation contents = overlay.getContents();
+		this.rows = BookmarkRowLayout.RowLayout.create(contents.getUsableColumnCount(), contents.getUsableColumnsPerRow());
+		this.slots = dropMode ? List.of() : BookmarkPanelLayout.globalSlots(
+			overlay.getBookmarkList().getDisplaySlots(contents.getUsableColumnCount(), contents.getUsableColumnsPerRow()),
+			rows
+		);
+		this.start = globalRow(startSlot);
 	}
 
 	public boolean isDropMode() {
@@ -70,24 +89,13 @@ class GroupPanelDrag {
 	}
 
 	/**
-	 * Ported from 1.21.1 fork (commit 29334012f): allow the user to scroll the
-	 * ingredient grid while a grouping drag is in progress so the preview can
-	 * extend past the current page boundary. Falls back to a plain updateEndSlot
-	 * since the 1.20.1 fork does not yet model cross-page grouping.
+	 * Ported from 1.21.1 fork (commit 29334012f): the cross-page-aware preview.
+	 * Walks the visible group panel slots and recolors each one based on whether
+	 * its item is in the "selected" set (will be moved into the dragged group),
+	 * the "released" set (will be moved out of the group because the drag
+	 * shortened the group on this side), or neither (keep its current group).
 	 */
-	public void scroll(double deltaX, double deltaY, double mouseY) {
-		IngredientGridWithNavigation contents = overlay.getContents();
-		ImmutableRect2i area = contents.getIngredientGridArea();
-		if (!area.isEmpty()) {
-			contents.createInputHandler().handleMouseScrolled(area.getX() + 1, area.getY() + 1, deltaY);
-		}
-		updateEndSlot(mouseY);
-	}
-
-	public List<GroupPanelSlot> getPreviewGroupPanelSlots(
-		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
-		List<GroupPanelSlot> groupPanelSlots
-	) {
+	public List<GroupPanelSlot> getPreviewGroupPanelSlots(List<GroupPanelSlot> groupPanelSlots) {
 		if (dropMode) {
 			return groupPanelSlots;
 		}
@@ -96,17 +104,44 @@ class GroupPanelDrag {
 			return groupPanelSlots;
 		}
 
-		List<BookmarkPanelLayout.RowSlot<IBookmark>> previewRows = BookmarkPanelLayout.createGroupingPreviewRows(
-			panelSlots,
-			BookmarkOverlayLayout.toRowSlots(groupPanelSlots),
-			BookmarkOverlayLayout.toRowSlot(startSlot),
-			BookmarkOverlayLayout.toRowSlot(this.endSlot),
-			exclude,
-			getGroupingPreviewGroupId()
-		);
-		return previewRows.stream()
-			.map(overlay::toGroupPanelSlot)
+		return groupPanelSlots.stream()
+			.map(row -> new GroupPanelSlot(row.bookmark(),
+				previewGroup(row.bookmark(), row.groupId()), row.area()))
 			.toList();
+	}
+
+	private int previewGroup(IBookmark item, int groupId) {
+		if (selected.contains(item)) {
+			return exclude ? BookmarkGroupManager.DEFAULT_GROUP_ID
+				: (start.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID ? GROUPING_PREVIEW_GROUP_ID : start.groupId());
+		}
+		return released.contains(item) ? BookmarkGroupManager.DEFAULT_GROUP_ID : groupId;
+	}
+
+	/**
+	 * Ported from 1.21.1 fork (commit 29334012f): the renderer asks this when
+	 * drawing a drag preview so that the boundary connection at the visible-page
+	 * seam can be recomputed against the cross-page slots.
+	 */
+	BookmarkOverlayLayout.BoundaryConnections boundaries(List<GroupPanelSlot> visible) {
+		if (plan == null || visible.isEmpty()) {
+			return BookmarkOverlayLayout.BoundaryConnections.NONE;
+		}
+		int first = globalRow(visible.get(0)).area().getY();
+		int last = globalRow(visible.get(visible.size() - 1)).area().getY();
+		var before = slots.stream()
+			.filter(slot -> slot.area().getY() < first)
+			.reduce((a, b) -> b);
+		var after = slots.stream()
+			.filter(slot -> slot.area().getY() > last)
+			.findFirst();
+		return new BookmarkOverlayLayout.BoundaryConnections(
+			visible.get(0).groupId() != BookmarkGroupManager.DEFAULT_GROUP_ID && before
+				.map(slot -> previewGroup(slot.item(), slot.groupId()) == visible.get(0).groupId())
+				.orElse(false),
+			visible.get(visible.size() - 1).groupId() != BookmarkGroupManager.DEFAULT_GROUP_ID && after
+				.map(slot -> previewGroup(slot.item(), slot.groupId()) == visible.get(visible.size() - 1).groupId())
+				.orElse(false));
 	}
 
 	public boolean complete(UserInput input) {
@@ -145,13 +180,7 @@ class GroupPanelDrag {
 			}
 			return changed;
 		}
-		BookmarkGroupingPlan plan = BookmarkGroupingPlan.create(
-			overlay.getPanelSlots(),
-			BookmarkOverlayLayout.toRowSlot(startSlot),
-			BookmarkOverlayLayout.toRowSlot(this.endSlot),
-			exclude
-		);
-		if (plan.bookmarks().isEmpty()) {
+		if (plan == null || plan.bookmarks().isEmpty()) {
 			return false;
 		}
 		boolean changed = input.isSimulate() || plan.apply(overlay.getBookmarkList(), "Group");
@@ -233,15 +262,46 @@ class GroupPanelDrag {
 			return;
 		}
 		GroupPanelSlot currentEndSlot = hoveredSlot.get();
+		BookmarkPanelLayout.RowSlot<IBookmark> end = globalRow(currentEndSlot);
 		long elapsedMillis = System.currentTimeMillis() - startedAtMillis;
-		if (BookmarkPanelLayout.shouldUpdateDragEnd(
+		// Ported from 1.21.1 fork (commit 29334012f): the OR with the global-row
+		// change lets the plan recompute when the user scrolls across a page
+		// boundary, even if the visible-slot Y happens to match the previous
+		// selection (the global Y moves when the visible-page index changes).
+		if (end.area().getY() != start.area().getY() || BookmarkPanelLayout.shouldUpdateDragEnd(
 			BookmarkOverlayLayout.toRowSlot(startSlot),
 			this.endSlot == null ? null : BookmarkOverlayLayout.toRowSlot(this.endSlot),
 			mouseY,
 			elapsedMillis,
 			GROUP_PANEL_DRAG_THRESHOLD_MS
 		)) {
+			if (endSlot == null || !end.equals(globalEnd)) {
+				plan = BookmarkGroupingPlan.create(slots, start, end, exclude);
+				selected = new HashSet<>(plan.bookmarks());
+				released = new HashSet<>(plan.releasedBookmarks());
+				globalEnd = end;
+			}
 			this.endSlot = currentEndSlot;
 		}
+	}
+
+	private BookmarkPanelLayout.RowSlot<IBookmark> globalRow(GroupPanelSlot slot) {
+		IngredientGridWithNavigation contents = overlay.getContents();
+		List<IngredientListSlot> visible = contents.getSlots().toList();
+		int index = 0;
+		while (index < visible.size() && visible.get(index).getArea().getY() != slot.area().getY()) {
+			index++;
+		}
+		int row = BookmarkRowLayout.rowStart(contents.getFirstItemIndex() + index, rows);
+		return new BookmarkPanelLayout.RowSlot<>(slot.bookmark(), slot.groupId(), new ImmutableRect2i(0, row, 1, 1));
+	}
+
+	void scroll(double deltaX, double deltaY, double mouseY) {
+		IngredientGridWithNavigation contents = overlay.getContents();
+		ImmutableRect2i area = contents.getIngredientGridArea();
+		if (!area.isEmpty()) {
+			contents.createInputHandler().handleMouseScrolled(area.getX() + 1, area.getY() + 1, deltaY);
+		}
+		updateEndSlot(mouseY);
 	}
 }

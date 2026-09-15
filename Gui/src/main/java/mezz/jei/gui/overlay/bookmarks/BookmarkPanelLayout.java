@@ -4,6 +4,7 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -95,6 +96,25 @@ public final class BookmarkPanelLayout {
 			));
 		}
 		return List.copyOf(panelSlots);
+	}
+
+	/**
+	 * Ported from 1.21.1 fork (commit 29334012f): projects the bookmark list's
+	 * display slots into a row-coordinate space that spans page boundaries.
+	 * Each slot's area is reduced to (columnWithinRow, globalRow, 1, 1) so that
+	 * cross-page logic (GroupPanelDrag) can compare slot Y coordinates against
+	 * the global row space, not just the visible-page Y space.
+	 */
+	static <T> List<PanelSlot<T>> globalSlots(List<BookmarkDisplaySlot<T>> slots, BookmarkRowLayout.RowLayout rows) {
+		return slots.stream()
+			.map(slot -> {
+				var metadata = slot.entry().metadata();
+				int row = BookmarkRowLayout.rowStart(slot.slotIndex(), rows);
+				Object recipe = metadata.type().isRecipeAssociated() ? slot.entry().displayRecipeUid().orElse(metadata.recipeUid()) : null;
+				return new PanelSlot<>(slot.entry().item(), metadata.groupId(),
+					new ImmutableRect2i(slot.slotIndex() - row, row, 1, 1), slot.shadow(), recipe);
+			})
+			.toList();
 	}
 
 	private static ImmutableRect2i withGridLeft(ImmutableRect2i area, int gridLeftX) {
