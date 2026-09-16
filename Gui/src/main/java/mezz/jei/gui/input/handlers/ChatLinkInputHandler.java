@@ -7,6 +7,8 @@ import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.chat.JeiChatItemLinkHover;
+import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.IngredientElement;
@@ -17,12 +19,18 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 public class ChatLinkInputHandler {
 	private final IRecipesGui recipesGui;
 	private final FocusUtil focusUtil;
 	private final IScreenHelper screenHelper;
 	private final BookmarkList bookmarkList;
+	private final Predicate<String> groupImporter;
+	@Nullable
+	private InputConstants.Key pendingGroupKey;
+	@Nullable
+	private String pendingGroupSnapshot;
 
 	@Nullable
 	private PendingInput pendingInput;
@@ -31,18 +39,24 @@ public class ChatLinkInputHandler {
 		IRecipesGui recipesGui,
 		FocusUtil focusUtil,
 		IScreenHelper screenHelper,
-		BookmarkList bookmarkList
+		BookmarkList bookmarkList,
+		Predicate<String> groupImporter
 	) {
 		this.recipesGui = recipesGui;
 		this.focusUtil = focusUtil;
 		this.screenHelper = screenHelper;
 		this.bookmarkList = bookmarkList;
+		this.groupImporter = groupImporter;
 	}
 
 	public boolean handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (!(screen instanceof ChatScreen chatScreen)) {
 			this.pendingInput = null;
+			clearPendingGroupInput();
 			return false;
+		}
+		if (handleBookmarkGroupInput(chatScreen, input, keyBindings)) {
+			return true;
 		}
 
 		return switch (input.getInputType()) {
@@ -54,6 +68,50 @@ public class ChatLinkInputHandler {
 
 	public void handleGuiChange() {
 		this.pendingInput = null;
+		clearPendingGroupInput();
+	}
+
+	private boolean handleBookmarkGroupInput(ChatScreen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		return switch (input.getInputType()) {
+			case IMMEDIATE -> false;
+			case SIMULATE -> {
+				clearPendingGroupInput();
+				if (!input.is(keyBindings.getLeftClick())) {
+					yield false;
+				}
+				Optional<String> snapshot = getHoveredBookmarkGroupSnapshot(screen, input);
+				if (snapshot.isEmpty()) {
+					yield false;
+				}
+				pendingInput = null;
+				pendingGroupKey = input.getKey();
+				pendingGroupSnapshot = snapshot.get();
+				yield true;
+			}
+			case EXECUTE -> {
+				InputConstants.Key key = pendingGroupKey;
+				String snapshot = pendingGroupSnapshot;
+				clearPendingGroupInput();
+				if (key == null || snapshot == null || !key.equals(input.getKey()) ||
+					getHoveredBookmarkGroupSnapshot(screen, input).filter(snapshot::equals).isEmpty()) {
+					yield false;
+				}
+				if (groupImporter.test(snapshot)) {
+					JeiClientSoundUtil.playClickSound();
+				}
+				yield true;
+			}
+		};
+	}
+
+	private Optional<String> getHoveredBookmarkGroupSnapshot(ChatScreen screen, UserInput input) {
+		return JeiChatItemLinkHover.getHoveredStyle(screen, input.getMouseX(), input.getMouseY())
+			.flatMap(JeiChatItemLinkHover::getBookmarkGroupSnapshot);
+	}
+
+	private void clearPendingGroupInput() {
+		pendingGroupKey = null;
+		pendingGroupSnapshot = null;
 	}
 
 	private boolean handleImmediateInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {

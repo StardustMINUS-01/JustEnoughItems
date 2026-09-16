@@ -11,6 +11,8 @@ import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
+import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
@@ -24,6 +26,8 @@ import mezz.jei.gui.bookmarks.chain.BookmarkContainerPullExecutor;
 import mezz.jei.gui.bookmarks.chain.BookmarkContainerStorageScanner;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingBridge;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
@@ -107,6 +111,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getShareToChat())) {
+			Optional<IUserInputHandler> handler = handleGroupShare(input);
+			if (handler.isPresent()) {
+				return handler;
+			}
+		}
 		if (input.is(keyBindings.getShowRecipeTree())) {
 			return bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
 				.filter(bookmarkList::isGroupCraftingMode)
@@ -127,6 +137,9 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			if (recipeHandler.isPresent()) {
 				return recipeHandler;
 			}
+		}
+		if (isSaveMissingInput(input, keyBindings.getBookmarkPullItems())) {
+			return handleSaveMissingRecipeChain(input);
 		}
 		if (BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
 			return handleBookmarkAutoCrafting(input, keyBindings.getCraftItems());
@@ -359,6 +372,62 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				}
 				return Optional.empty();
 			});
+	}
+
+	private Optional<IUserInputHandler> handleGroupShare(UserInput input) {
+		if (!serverConnection.canShareBookmarkGroup()) {
+			return Optional.empty();
+		}
+		Optional<String> snapshot = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+			.flatMap(groupId -> BookmarkJsonSerializer.serializeGroupSnapshot(bookmarkList, groupId, ingredientManager))
+			.filter(value -> value.length() <= PacketShareBookmarkGroup.MAX_SNAPSHOT_LENGTH);
+		if (snapshot.isEmpty()) {
+			return Optional.empty();
+		}
+		if (!input.isSimulate()) {
+			serverConnection.sendPacketToServer(new PacketShareBookmarkGroup(snapshot.get()));
+			JeiClientSoundUtil.playClickSound();
+		}
+		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
+	}
+
+	private static boolean isSaveMissingInput(UserInput input, IJeiKeyMapping bookmarkPullKey) {
+		int modifiers = input.getModifiers();
+		return hasAlt(modifiers) && !hasShift(modifiers) && (modifiers & GLFW.GLFW_MOD_CONTROL) == 0 &&
+			bookmarkPullKey.matchesIgnoringModifiers(input.getKey());
+	}
+
+	private Optional<IUserInputHandler> handleSaveMissingRecipeChain(UserInput input) {
+		Optional<Integer> optionalGroupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
+			.filter(bookmarkList::isGroupCraftingMode);
+		if (optionalGroupId.isEmpty()) {
+			return Optional.empty();
+		}
+		int groupId = optionalGroupId.get();
+		List<RecipeChainInput> inventoryInputs = new PlayerInventoryRecipeChainTooltipInventoryProvider(Minecraft.getInstance(), ingredientManager).getTooltipInventoryInputs(groupId);
+		List<RecipeChainInput> groupInputs = bookmarkList.getRecipeChainTooltipInputs(groupId);
+		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(
+			groupInputs,
+			bookmarkList.getRecipeChainDetails(groupId),
+			bookmarkList.getCollapsedRecipeIds(groupId),
+			inventoryInputs,
+			true,
+			false,
+			ingredientManager
+		);
+		List<RecipeChainTooltipModel.Item> missingItems = model.sections().stream()
+			.filter(section -> section.type() == RecipeChainTooltipSectionType.MISSING)
+			.flatMap(section -> section.items().stream())
+			.toList();
+		if (missingItems.isEmpty()) {
+			return Optional.empty();
+		}
+		if (!input.isSimulate()) {
+			bookmarkList.addMissingRecipeChainGroup(groupId, missingItems);
+			bookmarkOverlay.showBookmarkPanel();
+			JeiClientSoundUtil.playClickSound();
+		}
+		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
 	}
 
 	private Optional<IUserInputHandler> handleBookmarkPull(UserInput input) {

@@ -81,7 +81,8 @@ public final class BookmarkGroupConfigSerializer {
 			// 1.21.1 parity: a legacy COLLAPSED view mode becomes the separate collapsed flag,
 			// and the boolean arguments must line up with the record order
 			// (id, title, viewMode, collapsed, craftingMode, collapsedRecipeIds).
-			return Optional.of(new BookmarkGroup(id, title, expandedViewMode, viewMode == BookmarkViewMode.COLLAPSED, crafting, collapsedRecipeIds));
+			boolean collapsed = viewMode == BookmarkViewMode.COLLAPSED || json.has("collapsed") && json.get("collapsed").getAsBoolean();
+			return Optional.of(new BookmarkGroup(id, title, expandedViewMode, collapsed, crafting, collapsedRecipeIds));
 		} catch (RuntimeException ignored) {
 			return Optional.empty();
 		}

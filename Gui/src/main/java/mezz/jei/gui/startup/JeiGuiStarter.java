@@ -67,6 +67,9 @@ import mezz.jei.gui.input.GuiContainerWrapper;
 import mezz.jei.gui.input.ICharTypedHandler;
 import mezz.jei.gui.input.handlers.BookmarkInputHandler;
 import mezz.jei.gui.input.handlers.ChatLinkInputHandler;
+import mezz.jei.gui.config.BookmarkJsonSerializer;
+import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
+import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.gui.input.handlers.DragRouter;
 import mezz.jei.gui.input.handlers.EditInputHandler;
 import mezz.jei.gui.input.handlers.FocusInputHandler;
@@ -329,7 +332,9 @@ public class JeiGuiStarter {
 			favoriteRecipeConfig,
 			favoriteTreeBookmarkWriter,
 			bookmarkOverlay::showBookmarkPanel,
-			bookmarkOverlay::showFavoritePanel
+			bookmarkOverlay::showFavoritePanel,
+			recipePreferenceRulesRef::get,
+			searchStorageBuilderFactory
 		);
 		registration.setRecipesGui(recipesGui);
 
@@ -379,7 +384,10 @@ public class JeiGuiStarter {
 		);
 		ClientInputHandler clientInputHandler = new ClientInputHandler(
 			charTypedHandlers,
-			new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList),
+			new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList,
+				snapshot -> BookmarkJsonSerializer.deserializeGroupSnapshot(snapshot, bookmarkList,
+					new RecipeBookmarkSerializer(recipeManager, focusFactory, new TypedIngredientSerializer(ingredientManager), ingredientManager),
+					ingredientManager)),
 			userInputRouter,
 			dragRouter,
 			keyMappings,

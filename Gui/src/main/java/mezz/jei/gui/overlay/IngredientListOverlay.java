@@ -1,5 +1,6 @@
 package mezz.jei.gui.overlay;
 
+import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientListOverlay;
@@ -7,11 +8,10 @@ import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientGridConfig;
-import mezz.jei.common.gui.JeiTooltip;
-import mezz.jei.common.gui.elements.DrawableBlank;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.GuiProperties;
 import mezz.jei.gui.elements.GuiIconToggleButton;
-import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.input.GuiTextFieldFilter;
 import mezz.jei.gui.input.ICharTypedHandler;
@@ -21,7 +21,6 @@ import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.MouseUtil;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedDragHandler;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.input.handlers.NullDragHandler;
@@ -29,177 +28,277 @@ import mezz.jei.gui.input.handlers.NullInputHandler;
 import mezz.jei.gui.input.handlers.ProxyDragHandler;
 import mezz.jei.gui.input.handlers.ProxyInputHandler;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
+import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
-import mezz.jei.gui.overlay.ingredients.IIngredientListOverlayContents;
+import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFocusSource, ICharTypedHandler {
-	private final IconButton configButtonInternal;
-	/**
-	 * Chloride (me.srrapero720:chloride) mixin hard-shadows IngredientListOverlay#configButton as
-	 * mezz.jei.gui.elements.GuiIconToggleButton (its JeiOverlayMixin calls configButton.draw when the
-	 * "hide JEI/REI/EMI" option is enabled). The fork uses IconButton + ConfigButtonController instead,
-	 * so keep a same-named GuiIconToggleButton that delegates drawing to the real button; without it the
-	 * @Shadow type mismatch crashes startup when Chloride is installed.
-	 */
+	private static final int BORDER_MARGIN = 6;
+	private static final int INNER_PADDING = 2;
+	private static final int BUTTON_SIZE = 20;
+	private static final int SEARCH_HEIGHT = BUTTON_SIZE;
+	private static final int LOOKUP_HISTORY_BOTTOM_PADDING = BORDER_MARGIN;
+	private static final int LOOKUP_HISTORY_PADDING_EXTRA = LOOKUP_HISTORY_BOTTOM_PADDING - INNER_PADDING;
+
 	private final GuiIconToggleButton configButton;
-	private final IIngredientListOverlayContents contents;
+	private final IngredientGridWithNavigation contents;
 	private final LookupHistoryOverlay lookupHistoryOverlay;
+	private final IClientConfig clientConfig;
 	private final IClientToggleState toggleState;
 	private final GuiTextFieldFilter searchField;
-	private final IngredientListOverlayController controller;
+	private final IInternalKeyMappings keyBindings;
+	private final ScreenPropertiesCache screenPropertiesCache;
+	private final IFilterTextSource filterTextSource;
+	private String lastFilterText = "";
 	private boolean screenPropertiesDirty;
+	private ImmutableRect2i quantityArea = ImmutableRect2i.EMPTY;
 
 	public IngredientListOverlay(
 		IIngredientGridSource ingredientGridSource,
 		IFilterTextSource filterTextSource,
 		IScreenHelper screenHelper,
-		IIngredientListOverlayContents contents,
+		IngredientGridWithNavigation contents,
 		LookupHistoryOverlay lookupHistoryOverlay,
 		IIngredientGridConfig ingredientGridConfig,
 		IClientConfig clientConfig,
 		IClientToggleState toggleState,
 		IInternalKeyMappings keyBindings
 	) {
-		GuiPropertiesCache<Screen> guiPropertiesCache = new GuiPropertiesCache<>(
-			screen -> screenHelper.getGuiProperties(screen)
-				.orElse(null)
-		);
+		this.screenPropertiesCache = new ScreenPropertiesCache(screenHelper);
 		this.contents = contents;
 		this.lookupHistoryOverlay = lookupHistoryOverlay;
+		this.clientConfig = clientConfig;
 		this.toggleState = toggleState;
 
 		this.searchField = new GuiTextFieldFilter(contents::isEmpty);
-		this.configButtonInternal = new IconButton(new ConfigButtonController(this::isListDisplayed, toggleState, keyBindings));
-		this.configButton = createChlorideCompatConfigButton();
-		this.controller = IngredientListOverlayController.create(
-			guiPropertiesCache,
-			clientConfig,
-			toggleState,
-			keyBindings,
-			filterTextSource,
-			contents,
-			contents,
-			lookupHistoryOverlay,
-			this.searchField,
-			configButtonInternal::updateBounds
-		);
-		this.controller.init();
+		this.keyBindings = keyBindings;
+		this.filterTextSource = filterTextSource;
+		this.searchField.setValue(filterTextSource.getFilterText());
+		this.lastFilterText = filterTextSource.getFilterText();
+		this.searchField.setFocused(false);
 		this.searchField.setResponder(filterTextSource::setFilterText);
+		filterTextSource.addListener((oldText, newText) -> onFilterTextChanged(newText));
 
 		ingredientGridSource.addSourceListChangedListener(this::markScreenPropertiesDirty);
 
+		this.configButton = ConfigButton.create(this::isListDisplayed, toggleState, keyBindings);
+
+		clientConfig.addLookupHistoryEnabledListener(v -> markScreenPropertiesDirty());
+		clientConfig.addLookupHistoryDisplaySideListener(v -> markScreenPropertiesDirty());
+		clientConfig.addMaxLookupHistoryRowsListener(v -> markScreenPropertiesDirty());
 		clientConfig.addCenterSearchBarEnabledListener(v -> markScreenPropertiesDirty());
 		clientConfig.addQuantityFieldEnabledListener(v -> markScreenPropertiesDirty());
-		clientConfig.addLookupHistoryEnabledListener(v -> markScreenPropertiesDirty());
-		clientConfig.addMaxLookupHistoryRowsListener(v -> markScreenPropertiesDirty());
-		clientConfig.addLookupHistoryDisplaySideListener(v -> markScreenPropertiesDirty());
-		addGridConfigListeners(ingredientGridConfig);
+		ingredientGridConfig.addLayoutListener(this::markScreenPropertiesDirty);
 	}
 
 	@Override
 	public boolean isListDisplayed() {
 		updateScreenPropertiesIfDirty();
-		return this.controller.isListDisplayed();
+		// if there is no key binding to toggle it, force the overlay to display if possible
+		return (toggleState.isOverlayEnabled() || keyBindings.getToggleOverlay().isUnbound()) &&
+			screenPropertiesCache.hasValidScreen() &&
+			contents.hasRoom();
 	}
 
 	private void markScreenPropertiesDirty() {
 		this.screenPropertiesDirty = true;
 	}
 
-	private void addGridConfigListeners(IIngredientGridConfig gridConfig) {
-		gridConfig.addLayoutListener(this::markScreenPropertiesDirty);
-	}
-
 	private void updateScreenPropertiesIfDirty() {
 		if (this.screenPropertiesDirty) {
-			this.screenPropertiesDirty = false;
-			Minecraft minecraft = Minecraft.getInstance();
 			getScreenPropertiesUpdater()
-				.updateScreen(minecraft.screen)
+				.updateScreen(Minecraft.getInstance().screen)
 				.forceUpdate();
 		}
 	}
 
-	public IScreenPropertiesUpdater getScreenPropertiesUpdater() {
-		return this.controller.getScreenPropertiesUpdater();
+	public ImmutableRect2i getQuantityArea() {
+		updateScreenPropertiesIfDirty();
+		return quantityArea;
 	}
 
-	public mezz.jei.common.util.ImmutableRect2i getQuantityArea() {
-		updateScreenPropertiesIfDirty();
-		return this.controller.getQuantityArea();
+	private static ImmutableRect2i createDisplayArea(IGuiProperties guiProperties) {
+		ImmutableRect2i screenRectangle = GuiProperties.getScreenRectangle(guiProperties);
+		int guiRight = GuiProperties.getGuiRight(guiProperties);
+		return screenRectangle.cropLeft(guiRight);
+	}
+
+	public ScreenPropertiesCache.Updater getScreenPropertiesUpdater() {
+		return this.screenPropertiesCache.getUpdater(this::onScreenPropertiesChanged);
+	}
+
+	private void onScreenPropertiesChanged() {
+		this.screenPropertiesDirty = false;
+		screenPropertiesCache.getGuiProperties()
+			.ifPresentOrElse(guiProperties -> {
+				ImmutableRect2i displayArea = createDisplayArea(guiProperties);
+				Set<ImmutableRect2i> guiExclusionAreas = screenPropertiesCache.getGuiExclusionAreas();
+				updateBounds(guiProperties, displayArea, guiExclusionAreas);
+			}, () -> {
+				this.quantityArea = ImmutableRect2i.EMPTY;
+				this.contents.close();
+				this.lookupHistoryOverlay.close();
+				this.searchField.setFocused(false);
+			});
+	}
+
+	private void updateBounds(IGuiProperties guiProperties, ImmutableRect2i displayArea, Set<ImmutableRect2i> guiExclusionAreas) {
+		final boolean searchBarCentered = isSearchBarCentered(this.clientConfig, guiProperties);
+
+		boolean bottomRightAvailable = searchBarCentered && !clientConfig.isQuantityFieldEnabled();
+		ImmutableRect2i availableContentsArea = getAvailableContentsArea(displayArea, bottomRightAvailable);
+		Optional<ImmutableRect2i> historyArea = Optional.empty();
+		if (clientConfig.isLookupHistoryEnabled() && lookupHistoryOverlay.isDisplayedOnThisSide()) {
+			int historyHeight = lookupHistoryOverlay.getDisplayHeight();
+			if (historyHeight > 0) {
+				ImmutableRect2i area = getLookupHistoryArea(displayArea, bottomRightAvailable, historyHeight);
+				availableContentsArea = cropBottomTo(availableContentsArea, area.y() - LOOKUP_HISTORY_PADDING_EXTRA);
+				historyArea = Optional.of(area);
+			}
+		}
+		IElement<?> pageAnchorElement = this.contents.getPageAnchorElement();
+		this.contents.updateBounds(availableContentsArea, guiExclusionAreas, null);
+		this.contents.updateLayoutKeepingPageAnchorVisible(pageAnchorElement);
+		historyArea.ifPresent(area -> {
+			ImmutableRect2i gridArea = this.contents.getIngredientGridArea();
+			this.lookupHistoryOverlay.updateBounds(gridArea.isEmpty() ? area : area.matchWidthAndX(gridArea), guiExclusionAreas, null);
+			this.lookupHistoryOverlay.updateLayout();
+		});
+
+		final ImmutableRect2i searchAndConfigArea = getSearchAndConfigArea(displayArea, searchBarCentered, guiProperties);
+		final ImmutableRect2i searchArea = searchAndConfigArea.cropRight(BUTTON_SIZE);
+		final ImmutableRect2i configButtonArea = searchAndConfigArea.keepRight(BUTTON_SIZE);
+
+		this.searchField.setValue(filterTextSource.getFilterText());
+		this.searchField.updateBounds(searchArea);
+
+		this.configButton.updateBounds(configButtonArea);
+		boolean hasQuantitySpace = GuiProperties.getGuiBottom(guiProperties) + SEARCH_HEIGHT < guiProperties.getScreenHeight();
+		this.quantityArea = clientConfig.isQuantityFieldEnabled() && hasQuantitySpace ?
+			getSearchAndConfigArea(displayArea, !searchBarCentered, guiProperties) : ImmutableRect2i.EMPTY;
+	}
+
+	private void onFilterTextChanged(String filterText) {
+		this.searchField.setValue(filterText);
+		if (!this.lastFilterText.isEmpty() && filterText.isEmpty()) {
+			this.contents.updateLayoutToFirstPage();
+		}
+		this.lastFilterText = filterText;
+	}
+
+	private static boolean isSearchBarCentered(IClientConfig clientConfig, IGuiProperties guiProperties) {
+		return clientConfig.isCenterSearchBarEnabled() &&
+			GuiProperties.getGuiBottom(guiProperties) + SEARCH_HEIGHT < guiProperties.getScreenHeight();
+	}
+
+	private ImmutableRect2i getAvailableContentsArea(ImmutableRect2i displayArea, boolean searchBarCentered) {
+		if (searchBarCentered) {
+			return displayArea;
+		}
+		return displayArea.cropBottom(SEARCH_HEIGHT + INNER_PADDING);
+	}
+
+	private static ImmutableRect2i getLookupHistoryArea(ImmutableRect2i displayArea, boolean searchBarCentered, int lookupHistoryHeight) {
+		int bottomReservedHeight = 0;
+		if (!searchBarCentered) {
+			bottomReservedHeight = SEARCH_HEIGHT + LOOKUP_HISTORY_BOTTOM_PADDING;
+		}
+		return displayArea
+			.insetBy(BORDER_MARGIN)
+			.cropBottom(bottomReservedHeight)
+			.keepBottom(lookupHistoryHeight);
+	}
+
+	private static ImmutableRect2i cropBottomTo(ImmutableRect2i area, int bottomY) {
+		int cropAmount = getBottom(area) - bottomY;
+		if (cropAmount <= 0) {
+			return area;
+		}
+		return area.cropBottom(cropAmount);
+	}
+
+	private static int getBottom(ImmutableRect2i area) {
+		return area.y() + area.height();
+	}
+
+	private ImmutableRect2i getSearchAndConfigArea(ImmutableRect2i displayArea, boolean searchBarCentered, IGuiProperties guiProperties) {
+		displayArea = displayArea.insetBy(BORDER_MARGIN);
+		if (searchBarCentered) {
+			ImmutableRect2i guiRectangle = GuiProperties.getGuiRectangle(guiProperties);
+			return displayArea
+				.keepBottom(SEARCH_HEIGHT)
+				.matchWidthAndX(guiRectangle);
+		} else if (this.contents.hasRoom()) {
+			final ImmutableRect2i contentsArea = this.contents.getBackgroundArea();
+			return displayArea
+				.keepBottom(SEARCH_HEIGHT)
+				.matchWidthAndX(contentsArea);
+		} else {
+			return displayArea.keepBottom(SEARCH_HEIGHT);
+		}
 	}
 
 	public void drawScreen(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-		drawBackground(guiGraphics);
-		drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
-	}
-
-	public void drawBackground(GuiGraphics guiGraphics) {
 		if (isListDisplayed()) {
-			this.searchField.drawBackground(guiGraphics);
-			this.contents.drawBackground(guiGraphics);
+			this.searchField.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
+			this.contents.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 		}
-		if (this.controller.hasValidScreen() && toggleState.isOverlayEnabled()) {
+		if (this.screenPropertiesCache.hasValidScreen()) {
+			this.configButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
+
+		}
+		if (this.screenPropertiesCache.hasValidScreen() && toggleState.isOverlayEnabled()) {
 			this.lookupHistoryOverlay.drawBackground(guiGraphics);
-		}
-	}
-
-	public void drawForeground(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-		if (isListDisplayed()) {
-			this.searchField.drawForeground(guiGraphics, mouseX, mouseY, partialTicks);
-			this.contents.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
-		}
-		if (this.controller.hasValidScreen()) {
-			this.configButtonInternal.draw(guiGraphics, mouseX, mouseY, partialTicks);
-
-		}
-		if (this.controller.hasValidScreen() && toggleState.isOverlayEnabled()) {
 			this.lookupHistoryOverlay.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 		}
 	}
 
 	public void drawTooltips(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			this.contents.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 		}
-		if (this.controller.hasValidScreen()) {
-			this.configButtonInternal.drawTooltips(guiGraphics, mouseX, mouseY);
+		if (this.screenPropertiesCache.hasValidScreen()) {
+			this.configButton.drawTooltips(guiGraphics, mouseX, mouseY);
 		}
-		if (this.controller.hasValidScreen() && toggleState.isOverlayEnabled()) {
+		if (this.screenPropertiesCache.hasValidScreen() && toggleState.isOverlayEnabled()) {
 			this.lookupHistoryOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 		}
 	}
 
 	public void drawOnForeground(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			this.contents.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
 		this.lookupHistoryOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 	}
 
+	public void handleTick() {
+		if (this.isListDisplayed()) {
+			this.searchField.tick();
+		}
+	}
+
 	public void tick() {
+		handleTick();
 		if (isListDisplayed()) {
 			this.contents.tick();
 		}
-		if (this.controller.hasValidScreen() && toggleState.isOverlayEnabled()) {
+		if (this.screenPropertiesCache.hasValidScreen() && toggleState.isOverlayEnabled()) {
 			this.lookupHistoryOverlay.tick();
 		}
 	}
 
 	@Override
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
-		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			return Stream.concat(this.contents.getIngredientUnderMouse(mouseX, mouseY), this.lookupHistoryOverlay.getIngredientUnderMouse(mouseX, mouseY));
 		}
@@ -211,7 +310,6 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 
 	@Override
 	public Stream<IDraggableIngredientInternal<?>> getDraggableIngredientUnderMouse(double mouseX, double mouseY) {
-		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			return Stream.concat(this.contents.getDraggableIngredientUnderMouse(mouseX, mouseY), this.lookupHistoryOverlay.getDraggableIngredientUnderMouse(mouseX, mouseY));
 		}
@@ -225,17 +323,17 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		final IUserInputHandler displayedInputHandler = new CombinedInputHandler(
 			"IngredientListOverlay",
 			this.searchField.createInputHandler(),
-			this.configButtonInternal.createInputHandler(),
+			this.configButton.createInputHandler(),
 			this.contents.createInputHandler()
 		);
 
-		final IUserInputHandler configButtonInputHandler = this.configButtonInternal.createInputHandler();
+		final IUserInputHandler configButtonInputHandler = this.configButton.createInputHandler();
 
 		return new ProxyInputHandler(() -> {
 			if (isListDisplayed()) {
 				return displayedInputHandler;
 			}
-			if (this.controller.hasValidScreen()) {
+			if (this.screenPropertiesCache.hasValidScreen()) {
 				return configButtonInputHandler;
 			}
 			return NullInputHandler.INSTANCE;
@@ -243,44 +341,18 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	}
 
 	public IDragHandler createDragHandler() {
-		final IDragHandler combinedDragHandlers = new CombinedDragHandler(
+
+		final IDragHandler combinedDragHandler = new CombinedDragHandler(
 			this.contents.createDragHandler(),
 			this.lookupHistoryOverlay.createDragHandler()
 		);
 
 		return new ProxyDragHandler(() -> {
 			if (isListDisplayed()) {
-				return combinedDragHandlers;
+				return combinedDragHandler;
 			}
 			return NullDragHandler.INSTANCE;
 		});
-	}
-
-	/**
-	 * Chloride-compatible facade over the real config button. Only drawing is delegated; the
-	 * input handling and tooltips stay on the internal IconButton so fork behavior is unchanged.
-	 */
-	private GuiIconToggleButton createChlorideCompatConfigButton() {
-		return new GuiIconToggleButton(DrawableBlank.EMPTY, DrawableBlank.EMPTY) {
-			@Override
-			protected void getTooltips(JeiTooltip tooltip) {
-			}
-
-			@Override
-			protected boolean isIconToggledOn() {
-				return false;
-			}
-
-			@Override
-			protected boolean onMouseClicked(UserInput input) {
-				return false;
-			}
-
-			@Override
-			public void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-				configButtonInternal.draw(guiGraphics, mouseX, mouseY, partialTicks);
-			}
-		};
 	}
 
 	@Override
@@ -323,7 +395,6 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 
 	@Override
 	public <T> List<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
-		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			return this.contents.getVisibleIngredients(ingredientType)
 				.toList();

@@ -19,6 +19,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IRecipesGui;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
@@ -26,6 +27,7 @@ import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.search.BakedSubstringIndexBuilder;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
@@ -34,22 +36,31 @@ import mezz.jei.gui.GuiProperties;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
+import mezz.jei.gui.elements.GuiIconButton;
+import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.favorites.FavoriteRecipeInputs;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
-import mezz.jei.gui.elements.GuiIconButton;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
+import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.MouseUtil;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.UserInputRouter;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
+import mezz.jei.gui.recipes.filtering.RecipeFilterModeButtonController;
+import mezz.jei.gui.recipes.filtering.RecipeFilterSettings;
+import mezz.jei.gui.recipes.filtering.RecipeSearchIngredientFactory;
+import mezz.jei.gui.recipes.filtering.RecipeSearchInputHandler;
+import mezz.jei.gui.recipes.filtering.RecipeSearchTextField;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationButtonController;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -64,6 +75,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSource {
@@ -73,6 +85,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private static final int titleInnerPadding = 14;
 	private static final int smallButtonWidth = 13;
 	private static final int smallButtonHeight = 13;
+	private static final int topBarControlGap = 2;
+	private static final int filterModeButtonWidth = 20;
 	private static final int minGuiWidth = 198;
 
 	private final IInternalKeyMappings keyBindings;
@@ -91,6 +105,14 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 	/* Internal logic for the gui, handles finding recipes */
 	private final IRecipeGuiLogic logic;
+	private final RecipeGuiLogic navigationLogic;
+	private final RecipeFilterSettings filterSettings = new RecipeFilterSettings();
+	private final RecipeSearchTextField recipeSearchField;
+	private final RecipeSearchInputHandler recipeSearchInputHandler;
+	private final IconButton filterModeButton;
+	private final IconButton backNavigation;
+	private final IconButton forwardNavigation;
+	private boolean preserveNavigationOnScreenRemoval;
 
 	/* List of RecipeLayout to display */
 	private final RecipeGuiLayouts layouts;
@@ -142,6 +164,27 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		Runnable showBookmarkPanel,
 		Runnable showFavoritePanel
 	) {
+		this(recipeManager, recipeTransferManager, ingredientManager, keyBindings, focusFactory, bookmarks, lookupHistory, guiHelper,
+			favoriteRecipes, favoriteRecipeConfig, favoriteTreeBookmarkWriter, showBookmarkPanel, showFavoritePanel, () -> RecipePreferenceRules.EMPTY, BakedSubstringIndexBuilder::new);
+	}
+
+	public RecipesGui(
+		IRecipeManager recipeManager,
+		IRecipeTransferManager recipeTransferManager,
+		IIngredientManager ingredientManager,
+		IInternalKeyMappings keyBindings,
+		IFocusFactory focusFactory,
+		BookmarkList bookmarks,
+		LookupHistory lookupHistory,
+		IGuiHelper guiHelper,
+		FavoriteRecipeStore favoriteRecipes,
+		FavoriteRecipeConfig favoriteRecipeConfig,
+		FavoriteTreeBookmarkWriter favoriteTreeBookmarkWriter,
+		Runnable showBookmarkPanel,
+		Runnable showFavoritePanel,
+		Supplier<RecipePreferenceRules> preferenceRulesSupplier,
+		ISearchStorageBuilderFactory searchStorageBuilderFactory
+	) {
 		super(Component.literal("Recipes"));
 		this.bookmarks = bookmarks;
 		this.ingredientManager = ingredientManager;
@@ -152,7 +195,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.favoriteTreeBookmarkWriter = favoriteTreeBookmarkWriter;
 		this.showBookmarkPanel = showBookmarkPanel;
 		this.showFavoritePanel = showFavoritePanel;
-		this.logic = new RecipeGuiLogic(
+		this.navigationLogic = new RecipeGuiLogic(
 			recipeManager,
 			ingredientManager,
 			lookupHistory,
@@ -160,11 +203,24 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			this::updateLayout,
 			focusFactory,
 			bookmarks,
-			this::createRecipeLayoutWithButtons
+			this::createRecipeLayoutWithButtons,
+			preferenceRulesSupplier,
+			searchStorageBuilderFactory
 		);
+		this.logic = navigationLogic;
 		this.recipeCatalysts = new RecipeCatalysts(recipeManager);
 		this.recipeGuiTabs = new RecipeGuiTabs(this.logic, recipeManager, guiHelper);
 		this.optionButtons = new RecipeOptionButtons(this.logic::goToFirstPage);
+		this.recipeSearchField = new RecipeSearchTextField();
+		this.recipeSearchField.setResponder(filterSettings::setDraftQuery);
+		this.recipeSearchInputHandler = new RecipeSearchInputHandler(
+			recipeSearchField,
+			filterSettings,
+			this::applyRecipeResultFilter
+		);
+		this.filterModeButton = new IconButton(
+			new RecipeFilterModeButtonController(filterSettings, this::applyRecipeResultFilter)
+		);
 		this.focusFactory = focusFactory;
 		this.minecraft = Minecraft.getInstance();
 		RecipeSlotClickTargetFactory clickTargetFactory = new RecipeSlotClickTargetFactory();
@@ -190,14 +246,24 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		nextPage = new GuiIconButton(0, 0, smallButtonWidth, smallButtonHeight, arrowNext, b -> logic.nextPage());
 		previousPage = new GuiIconButton(0, 0, smallButtonWidth, smallButtonHeight, arrowPrevious, b -> logic.previousPage());
 
+		backNavigation = new IconButton(new RecipeNavigationButtonController(
+			RecipeNavigationDirection.BACK, this::canNavigate, this::getNavigationTargetTitle, this::navigate));
+		forwardNavigation = new IconButton(new RecipeNavigationButtonController(
+			RecipeNavigationDirection.FORWARD, this::canNavigate, this::getNavigationTargetTitle, this::navigate));
+
 		background = textures.getRecipeGuiBackground();
 
+		IUserInputHandler optionButtonsInputHandler = optionButtons.createInputHandler();
 		inputHandler = new UserInputRouter(
 			"RecipesGui",
+			recipeSearchInputHandler,
 			interactiveIngredientTooltipController,
+			filterModeButton.createInputHandler(),
+			backNavigation.createInputHandler(),
+			forwardNavigation.createInputHandler(),
 			layouts.createInputHandler(),
 			new UserInputHandler(this),
-			optionButtons.createInputHandler(),
+			new mezz.jei.gui.input.handlers.ProxyInputHandler(() -> logic.hasRecipeResults() ? optionButtonsInputHandler : mezz.jei.gui.input.handlers.NullInputHandler.INSTANCE),
 			recipeGuiTabs.createInputHandler(),
 			nextRecipeCategory.createInputHandler(),
 			previousRecipeCategory.createInputHandler(),
@@ -211,6 +277,9 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	public int getLeftSideExtraWidth() {
+		if (!logic.hasRecipeResults()) {
+			return 0;
+		}
 		if (recipeCatalysts.isEmpty()) {
 			return optionButtons.getWidth();
 		}
@@ -251,6 +320,11 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		nextRecipeCategory.setY(recipeClassButtonTop);
 		previousRecipeCategory.setX(leftButtonX);
 		previousRecipeCategory.setY(recipeClassButtonTop);
+
+		int forwardNavigationX = rightButtonX - topBarControlGap - smallButtonWidth;
+		int backNavigationX = forwardNavigationX - topBarControlGap - smallButtonWidth;
+		forwardNavigation.updateBounds(new ImmutableRect2i(forwardNavigationX, recipeClassButtonTop, smallButtonWidth, smallButtonHeight));
+		backNavigation.updateBounds(new ImmutableRect2i(backNavigationX, recipeClassButtonTop, smallButtonWidth, smallButtonHeight));
 
 		int pageButtonTop = recipeClassButtonTop + smallButtonHeight + navBarPadding;
 		nextPage.setX(rightButtonX);
@@ -305,22 +379,37 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		previousRecipeCategory.render(guiGraphics, mouseX, mouseY, partialTicks);
 		nextPage.render(guiGraphics, mouseX, mouseY, partialTicks);
 		previousPage.render(guiGraphics, mouseX, mouseY, partialTicks);
+		backNavigation.draw(guiGraphics, mouseX, mouseY, partialTicks);
+		forwardNavigation.draw(guiGraphics, mouseX, mouseY, partialTicks);
 
 		// 1.21.1 parity: re-evaluate the pinned tooltip every frame, so it closes when the pin key
 		// is released without the mouse having to move first.
 		updateInteractiveIngredientTooltip(mouseX, mouseY);
 
-		Optional<IRecipeLayoutDrawable<?>> hoveredRecipeLayout = this.layouts.draw(guiGraphics, mouseX, mouseY);
-		optionButtons.draw(guiGraphics, mouseX, mouseY, partialTicks);
-		Optional<IRecipeSlotDrawable> hoveredRecipeCatalyst = recipeCatalysts.draw(guiGraphics, mouseX, mouseY);
+		Optional<IRecipeLayoutDrawable<?>> hoveredRecipeLayout = Optional.empty();
+		Optional<IRecipeSlotDrawable> hoveredRecipeCatalyst = Optional.empty();
+		if (logic.hasRecipeResults()) {
+			hoveredRecipeLayout = this.layouts.draw(guiGraphics, mouseX, mouseY);
+			optionButtons.draw(guiGraphics, mouseX, mouseY, partialTicks);
+			hoveredRecipeCatalyst = recipeCatalysts.draw(guiGraphics, mouseX, mouseY);
+		} else {
+			drawEmptyRecipeResults(guiGraphics);
+		}
 
 		recipeGuiTabs.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+		filterModeButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
+		recipeSearchField.render(guiGraphics, mouseX, mouseY, partialTicks);
+		filterModeButton.drawTooltips(guiGraphics, mouseX, mouseY);
+		backNavigation.drawTooltips(guiGraphics, mouseX, mouseY);
+		forwardNavigation.drawTooltips(guiGraphics, mouseX, mouseY);
 
 		if (!interactiveIngredientTooltipController.isVisible()) {
 			this.layouts.drawTooltips(guiGraphics, mouseX, mouseY);
 		}
 
-		optionButtons.drawTooltips(guiGraphics, mouseX, mouseY);
+		if (logic.hasRecipeResults()) {
+			optionButtons.drawTooltips(guiGraphics, mouseX, mouseY);
+		}
 		RenderSystem.disableBlend();
 
 		if (!interactiveIngredientTooltipController.isVisible()) {
@@ -372,6 +461,23 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		}
 	}
 
+	private void drawEmptyRecipeResults(GuiGraphics guiGraphics) {
+		ImmutableRect2i contentArea = getRecipeLayoutsArea();
+		int centerX = contentArea.getX() + (contentArea.getWidth() / 2);
+		int totalHeight = (font.lineHeight * 2) + 8 + font.lineHeight;
+		int top = contentArea.getY() + ((contentArea.getHeight() - totalHeight) / 2);
+
+		guiGraphics.pose().pushPose();
+		guiGraphics.pose().translate(centerX, top, 0);
+		guiGraphics.pose().scale(2.0F, 2.0F, 1.0F);
+		guiGraphics.drawString(font, "UwU", -font.width("UwU") / 2, 0, 0xFFFFFFFF, true);
+		guiGraphics.pose().popPose();
+
+		Component hint = Component.translatable("gui.jei.recipe_filter.empty");
+		int hintY = top + (font.lineHeight * 2) + 8;
+		guiGraphics.drawCenteredString(font, hint, centerX, hintY, 0xFFAAAAAA);
+	}
+
 	private static ImmutableRect2i calculateAreaToFitLayouts(ImmutableRect2i idealArea, int screenWidth, int recipeWidth) {
 		if (recipeWidth == 0) {
 			return idealArea;
@@ -400,6 +506,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		this.layouts.tick(container);
 
 		this.optionButtons.tick();
+		this.filterModeButton.tick();
+		this.recipeSearchField.tick();
 
 		this.logic.tick(container);
 	}
@@ -408,7 +516,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	public boolean isMouseOver(double mouseX, double mouseY) {
 		if (minecraft != null && minecraft.screen == this) {
 			return area.contains(mouseX, mouseY) ||
-				optionButtons.getArea().contains(mouseX, mouseY);
+				recipeGuiTabs.getTopBarArea().contains(mouseX, mouseY) ||
+				(logic.hasRecipeResults() && optionButtons.getArea().contains(mouseX, mouseY));
 		}
 		return false;
 	}
@@ -455,6 +564,9 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+		if (recipeSearchField.isFocused() && !recipeSearchField.isMouseOver(mouseX, mouseY)) {
+			recipeSearchInputHandler.commitAndUnfocus();
+		}
 		boolean handled = UserInput.fromVanilla(mouseX, mouseY, mouseButton, InputType.SIMULATE)
 			.map(this::handleInput)
 			.orElse(false);
@@ -483,6 +595,14 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		return handleInput(input);
 	}
 
+	@Override
+	public boolean charTyped(char codePoint, int modifiers) {
+		if (recipeSearchField.isFocused() && recipeSearchField.charTyped(codePoint, modifiers)) {
+			return true;
+		}
+		return super.charTyped(codePoint, modifiers);
+	}
+
 	private boolean handleInput(UserInput input) {
 		return this.inputHandler.handleUserInput(this, input, keyBindings);
 	}
@@ -494,7 +614,12 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	private void reopenIfOpen() {
 		if (isOpen() && minecraft != null) {
 			Screen currentParentScreen = parentScreen;
-			minecraft.setScreen(currentParentScreen);
+			preserveNavigationOnScreenRemoval = true;
+			try {
+				minecraft.setScreen(currentParentScreen);
+			} finally {
+				preserveNavigationOnScreenRemoval = false;
+			}
 			parentScreen = currentParentScreen;
 			open();
 		}
@@ -511,6 +636,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 	@Override
 	public void onClose() {
+		logic.clearRecipeResultSnapshot();
 		if (isOpen() && minecraft != null) {
 			minecraft.setScreen(parentScreen);
 			parentScreen = null;
@@ -521,9 +647,19 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	@Override
+	public void removed() {
+		super.removed();
+		if (!preserveNavigationOnScreenRemoval) {
+			logic.clearRecipeResultSnapshot();
+			logic.clearHistory();
+		}
+	}
+
+	@Override
 	public void show(List<IFocus<?>> focuses) {
+		prepareForLookup();
 		IFocusGroup checkedFocuses = focusFactory.createFocusGroup(focuses);
-		if (logic.showFocus(checkedFocuses)) {
+		if (logic.showFocus(checkedFocuses) && !isOpen()) {
 			open();
 		}
 	}
@@ -531,8 +667,9 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	@Override
 	public void showTypes(List<RecipeType<?>> recipeTypes) {
 		ErrorUtil.checkNotEmpty(recipeTypes, "recipeTypes");
+		prepareForLookup();
 
-		if (logic.showCategories(recipeTypes)) {
+		if (logic.showCategories(recipeTypes) && !isOpen()) {
 			open();
 		}
 	}
@@ -541,10 +678,11 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	public <T> void showRecipes(IRecipeCategory<T> recipeCategory, List<T> recipes, List<IFocus<?>> focuses) {
 		ErrorUtil.checkNotNull(recipeCategory, "recipeCategory");
 		ErrorUtil.checkNotEmpty(recipes, "recipes");
+		prepareForLookup();
 		IFocusGroup checkedFocuses = focusFactory.createFocusGroup(focuses);
 
 		IFocusedRecipes<T> focusedRecipes = new StaticFocusedRecipes<>(recipeCategory, recipes);
-		if (logic.showRecipes(focusedRecipes, checkedFocuses)) {
+		if (logic.showRecipes(focusedRecipes, checkedFocuses) && !isOpen()) {
 			open();
 		}
 	}
@@ -585,8 +723,50 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	public void back() {
-		logic.back();
+		navigate(RecipeNavigationDirection.BACK, Screen.hasShiftDown());
 	}
+
+	boolean navigate(RecipeNavigationDirection direction, boolean jumpToEnd) {
+		captureCurrentInputSelections();
+		if (navigationLogic.navigate(direction, jumpToEnd)) {
+			restoreNavigationView();
+			return true;
+		}
+		return false;
+	}
+
+	boolean canNavigate(RecipeNavigationDirection direction) {
+		return navigationLogic.canNavigate(direction);
+	}
+
+	Optional<Component> getNavigationTargetTitle(RecipeNavigationDirection direction) {
+		return navigationLogic.getNavigationTargetTitle(direction);
+	}
+
+	private void prepareForLookup() {
+		if (isOpen()) {
+			captureCurrentInputSelections();
+		} else {
+			navigationLogic.clearHistory();
+		}
+	}
+
+	private void captureCurrentInputSelections() {
+		navigationLogic.updateCurrentInputSelections(layouts.captureInputSelections());
+	}
+
+	private void restoreNavigationView() {
+		filterSettings.restore(navigationLogic.getFilterMode(), navigationLogic.getSearchQueryText());
+		recipeSearchField.setValue(filterSettings.getDraftQuery());
+		recipeSearchField.setFocused(false);
+		layouts.restoreInputSelections(navigationLogic.getCurrentInputSelections());
+	}
+
+	private boolean showAllRecipes() {
+		captureCurrentInputSelections();
+		return logic.showAllRecipes();
+	}
+
 
 	public boolean showCandidateTooltip(IIngredientCandidateSource source, InteractiveIngredientGridTooltipComponent grid, int x, int y) {
 		return interactiveIngredientTooltipController.show(source, grid, x, y);
@@ -624,11 +804,13 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			return;
 		}
 
+		int titleControlsInset = nextRecipeCategory.getWidth() + backNavigation.getWidth() + forwardNavigation.getWidth() +
+			(2 * topBarControlGap) + titleInnerPadding;
 		ImmutableRect2i titleArea = MathUtil.union(previousRecipeCategory.getArea(), nextRecipeCategory.getArea())
-			.cropLeft(previousRecipeCategory.getWidth() + titleInnerPadding)
-			.cropRight(nextRecipeCategory.getWidth() + titleInnerPadding);
+			.cropLeft(titleControlsInset)
+			.cropRight(titleControlsInset);
 		IRecipeCategory<?> recipeCategory = logic.getSelectedRecipeCategory();
-		this.recipeCategoryTitle = RecipeCategoryTitle.create(recipeCategory, font, titleArea);
+		this.recipeCategoryTitle = logic.hasRecipeResults() ? RecipeCategoryTitle.create(recipeCategory, font, titleArea) : new RecipeCategoryTitle();
 
 		ImmutableRect2i recipeLayoutsArea = getRecipeLayoutsArea();
 		final int availableHeight = recipeLayoutsArea.getHeight();
@@ -648,6 +830,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		nextPage.active = previousPage.active = logic.hasMultiplePages();
 		nextRecipeCategory.active = previousRecipeCategory.active = logic.hasMultipleCategories();
 
+		backNavigation.tick();
+		forwardNavigation.tick();
 		pageString = logic.getPageString();
 
 		optionButtons.updateLayout(this.area);
@@ -655,6 +839,22 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		List<ITypedIngredient<?>> recipeCatalystIngredients = logic.getRecipeCatalysts().toList();
 		recipeCatalysts.updateLayout(recipeCatalystIngredients, this.area, optionButtonsArea);
 		recipeGuiTabs.initLayout(this.idealArea);
+		updateRecipeFilterLayout();
+	}
+
+	private void updateRecipeFilterLayout() {
+		ImmutableRect2i controlsArea = recipeGuiTabs.getTopBarControlsArea()
+			.cropLeft(topBarControlGap);
+		ImmutableRect2i filterButtonArea = controlsArea.keepLeft(filterModeButtonWidth);
+		filterModeButton.updateBounds(filterButtonArea);
+		ImmutableRect2i searchArea = controlsArea.cropLeft(filterModeButtonWidth + topBarControlGap);
+		recipeSearchField.updateBounds(searchArea);
+	}
+
+	private void applyRecipeResultFilter() {
+		captureCurrentInputSelections();
+		logic.applyRecipeResultFilter(filterSettings.getMode(), filterSettings.getAppliedQuery());
+		layouts.restoreInputSelections(navigationLogic.getCurrentInputSelections());
 	}
 
 	private ImmutableRect2i getRecipeLayoutsArea() {
@@ -680,7 +880,13 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	RecipeLayoutForkExtras createRecipeLayoutForkExtras(IRecipeLayoutDrawable<?> recipeLayoutDrawable) {
-		InputSlotSelectionState inputSlotSelectionState = new InputSlotSelectionState(ingredientManager);
+		InputSlotSelectionState inputSlotSelectionState = navigationLogic.hasInputSearchTerms() ? new InputSlotSelectionState(
+			ingredientManager,
+			candidate -> navigationLogic.matchesInputCandidate(
+				RecipeSearchIngredientFactory.create(candidate, ingredientManager)
+			)
+		) : new InputSlotSelectionState(ingredientManager);
+		inputSlotSelectionState.applyCandidateFilter(recipeLayoutDrawable);
 		Optional.ofNullable(getFocusedRecipe(recipeLayoutDrawable))
 			.map(pendingFavoriteInputs::remove)
 			.ifPresent(inputs -> FavoriteRecipeInputs.apply(recipeLayoutDrawable, inputs, inputSlotSelectionState));
@@ -779,11 +985,20 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			if (recipesGui.isMouseOver(mouseX, mouseY)) {
 				if (recipesGui.recipeCategoryTitle.isMouseOver(mouseX, mouseY)) {
 					if (input.is(keyBindings.getLeftClick())) {
-						if (input.isSimulate() || recipesGui.logic.showAllRecipes()) {
+						if (input.isSimulate() || recipesGui.showAllRecipes()) {
 							return Optional.of(this);
 						}
 					}
 				}
+			}
+
+			Optional<RecipeNavigationKeyInput.Action> navigationAction = RecipeNavigationKeyInput.getAction(input);
+			if (navigationAction.isPresent()) {
+				if (!input.isSimulate()) {
+					RecipeNavigationKeyInput.Action action = navigationAction.get();
+					recipesGui.navigate(action.direction(), action.jumpToEnd());
+				}
+				return Optional.of(this);
 			}
 
 			Minecraft minecraft = Minecraft.getInstance();

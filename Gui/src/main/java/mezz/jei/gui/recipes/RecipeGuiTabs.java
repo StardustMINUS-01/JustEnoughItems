@@ -25,6 +25,7 @@ public class RecipeGuiTabs implements IPaged {
 	private static final int TAB_GUI_OVERLAP = 3;
 	private static final int TAB_HORIZONTAL_INSET = 2;
 	private static final int NAVIGATION_HEIGHT = 20;
+	private static final int NAVIGATION_WIDTH = 72;
 
 	private final IRecipeGuiLogic recipeGuiLogic;
 	private final List<RecipeGuiTab> tabs = new ArrayList<>();
@@ -33,6 +34,7 @@ public class RecipeGuiTabs implements IPaged {
 	private final IGuiHelper guiHelper;
 	private IUserInputHandler inputHandler;
 	private ImmutableRect2i area = ImmutableRect2i.EMPTY;
+	private ImmutableRect2i topBarArea = ImmutableRect2i.EMPTY;
 
 	private int pageCount = 1;
 	private int pageNumber = 0;
@@ -40,7 +42,7 @@ public class RecipeGuiTabs implements IPaged {
 
 	public RecipeGuiTabs(IRecipeGuiLogic recipeGuiLogic, IRecipeManager recipeManager, IGuiHelper guiHelper) {
 		this.recipeGuiLogic = recipeGuiLogic;
-		this.pageNavigation = new PageNavigation(this, true);
+		this.pageNavigation = new PageNavigation(this, false);
 		this.recipeManager = recipeManager;
 		this.guiHelper = guiHelper;
 		this.inputHandler = this.pageNavigation.createInputHandler();
@@ -48,10 +50,6 @@ public class RecipeGuiTabs implements IPaged {
 
 	public void initLayout(ImmutableRect2i recipeGuiArea) {
 		List<IRecipeCategory<?>> categories = this.recipeGuiLogic.getRecipeCategories();
-		if (categories.isEmpty()) {
-			return;
-		}
-
 		final ImmutableRect2i tabsArea = recipeGuiArea
 			.keepTop(RecipeGuiTab.TAB_HEIGHT)
 			// move up above the recipe area and overlap the recipe gui
@@ -59,6 +57,19 @@ public class RecipeGuiTabs implements IPaged {
 			// inset to avoid the recipe gui corners
 			.cropLeft(TAB_HORIZONTAL_INSET)
 			.cropRight(TAB_HORIZONTAL_INSET);
+		this.topBarArea = tabsArea
+			.keepTop(NAVIGATION_HEIGHT)
+			.moveUp(2 + NAVIGATION_HEIGHT);
+		pageNavigation.updateBounds(topBarArea.keepLeft(NAVIGATION_WIDTH));
+
+		if (categories.isEmpty()) {
+			this.area = ImmutableRect2i.EMPTY;
+			this.pageCount = 1;
+			this.pageNumber = 0;
+			this.categoriesPerPage = 1;
+			updateLayout();
+			return;
+		}
 
 		categoriesPerPage = Math.min(tabsArea.getWidth() / RecipeGuiTab.TAB_WIDTH, categories.size());
 		final int tabsWidth = categoriesPerPage * RecipeGuiTab.TAB_WIDTH;
@@ -71,13 +82,15 @@ public class RecipeGuiTabs implements IPaged {
 		int categoryIndex = categories.indexOf(currentCategory);
 		pageNumber = categoryIndex / categoriesPerPage;
 
-		ImmutableRect2i navigationArea = tabsArea
-			.keepTop(NAVIGATION_HEIGHT)
-			.moveUp(2 + NAVIGATION_HEIGHT); // move up and add a little padding
-
-		pageNavigation.updateBounds(navigationArea);
-
 		updateLayout();
+	}
+
+	public ImmutableRect2i getTopBarArea() {
+		return topBarArea;
+	}
+
+	public ImmutableRect2i getTopBarControlsArea() {
+		return topBarArea.cropLeft(NAVIGATION_WIDTH);
 	}
 
 	private void updateLayout() {

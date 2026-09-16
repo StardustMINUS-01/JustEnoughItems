@@ -19,6 +19,7 @@ import mezz.jei.gui.input.IDragHandler;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IPaged;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.IRecipeFocusSource;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
@@ -39,7 +40,7 @@ import java.util.stream.Stream;
 /**
  * Displays a list of ingredients with navigation at the top.
  */
-public class IngredientGridWithNavigation implements IIngredientListOverlayContents {
+public class IngredientGridWithNavigation implements IRecipeFocusSource {
 	private final IngredientGridWithNavigationController controller;
 	private final PageNavigation navigation;
 	private final IngredientGridScrollbar scrollbar;
@@ -131,13 +132,11 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		}
 	}
 
-	@Override
 	public boolean hasRoom() {
 		updateLayoutIfDirty();
 		return this.active;
 	}
 
-	@Override
 	public void updateLayoutToFirstPage() {
 		this.controller.updateLayoutToFirstPage();
 	}
@@ -150,17 +149,14 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		}
 	}
 
-	@Override
 	public void updateLayoutKeepingPageAnchorVisible(@Nullable IElement<?> pageAnchorElement) {
 		this.controller.updateLayoutKeepingPageAnchorVisible(pageAnchorElement);
 	}
 
-	@Override
 	public @Nullable IElement<?> getPageAnchorElement() {
 		return this.controller.getPageAnchorElement();
 	}
 
-	@Override
 	public void updateBounds(final ImmutableRect2i availableArea, Set<ImmutableRect2i> guiExclusionAreas, @Nullable ImmutablePoint2i mouseExclusionPoint) {
 		this.availableArea = availableArea;
 		this.guiExclusionAreas = guiExclusionAreas;
@@ -247,13 +243,11 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		this.active = false;
 	}
 
-	@Override
 	public ImmutableRect2i getBackgroundArea() {
 		updateLayoutIfDirty();
 		return this.backgroundArea;
 	}
 
-	@Override
 	public ImmutableRect2i getIngredientGridArea() {
 		updateLayoutIfDirty();
 		return this.ingredientGrid.getArea();
@@ -285,7 +279,11 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return this.controller.getFirstItemIndex();
 	}
 
-	@Override
+	public void draw(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		drawBackground(guiGraphics);
+		drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+	}
+
 	public void drawBackground(GuiGraphics guiGraphics) {
 		updateLayoutIfDirty();
 		if (!this.active) {
@@ -298,7 +296,6 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		}
 	}
 
-	@Override
 	public void drawForeground(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		updateLayoutIfDirty();
 		if (!this.active) {
@@ -309,7 +306,6 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		this.navigation.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 	}
 
-	@Override
 	public void drawTooltips(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		updateLayoutIfDirty();
 		if (!this.active) {
@@ -319,7 +315,6 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		this.ingredientGrid.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 	}
 
-	@Override
 	public void tick() {
 		if (!this.active) {
 			return;
@@ -335,7 +330,6 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 				.noneMatch(area -> area.contains(mouseX, mouseY));
 	}
 
-	@Override
 	public IUserInputHandler createInputHandler() {
 		return this.inputHandler;
 	}
@@ -359,7 +353,6 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return this.ingredientGrid.getDraggableIngredientUnderMouse(mouseX, mouseY);
 	}
 
-	@Override
 	public <T> Stream<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
 		updateLayoutIfDirty();
 		if (!this.active) {
@@ -368,18 +361,15 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		return this.ingredientGrid.getVisibleIngredients(ingredientType);
 	}
 
-	@Override
 	public boolean isEmpty() {
 		return this.ingredientSource.getElements().isEmpty();
 	}
 
-	@Override
 	public void close() {
 		clearLayout();
 		this.ghostIngredientDragManager.stopDrag();
 	}
 
-	@Override
 	public void drawOnForeground(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		updateLayoutIfDirty();
 		if (!this.active) {
@@ -388,7 +378,6 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		this.ghostIngredientDragManager.drawOnForeground(guiGraphics, mouseX, mouseY);
 	}
 
-	@Override
 	public IDragHandler createDragHandler() {
 		return this.ghostIngredientDragManager.createDragHandler();
 	}

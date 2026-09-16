@@ -9,6 +9,13 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.util.StackHelper;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
+import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
+import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
+import com.google.gson.JsonParser;
 import mezz.jei.library.ingredients.subtypes.SubtypeManager;
 import mezz.jei.library.load.registration.IngredientManagerBuilder;
 import mezz.jei.library.load.registration.SubtypeRegistration;
@@ -32,6 +39,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 public class BookmarkConfigTest {
 	@BeforeAll
@@ -95,6 +105,85 @@ public class BookmarkConfigTest {
 		Tag value = tag.get(key);
 		Assertions.assertNotNull(value, "Expected custom data to contain key: " + key);
 		Assertions.assertEquals((byte) expectedId, value.getId(), "Unexpected NBT tag type for key: " + key);
+	}
+
+	@Test
+	public void sharedGroupRoundTrip() {
+		ItemStack stack = new ItemStack(Items.CHEST, 12);
+		stack.getOrCreateTag().putString("owner", "test");
+		IIngredientManager manager = createManager(stack);
+		var ingredient = manager.createTypedIngredient(VanillaTypes.ITEM_STACK, stack, false).orElseThrow();
+		BookmarkList bookmarks = new BookmarkList(null, null, manager, null, null, null, null);
+		IBookmark original = IngredientBookmark.createPreservingAmount(ingredient, manager);
+		bookmarks.addToListWithoutNotifying(original, false);
+		int group = bookmarks.createGroupForBookmarks("Materials", List.of());
+		bookmarks.addGroupFromConfig(new BookmarkGroup(group, "Materials", BookmarkViewMode.TODO_LIST, true, true, Set.of()));
+		IBookmark scoped = IngredientBookmark.createPreservingAmount(ingredient, manager).withEqualityScope(group);
+		bookmarks.addToListWithoutNotifying(scoped, false);
+		bookmarks.moveBookmarkMetadataFromConfig(scoped, BookmarkItemMetadata.defaultForGroup(group).withMultiplier(7));
+		String snapshot = BookmarkJsonSerializer.serializeGroupSnapshot(bookmarks, group, manager).orElseThrow();
+
+		Assertions.assertTrue(BookmarkJsonSerializer.deserializeGroupSnapshot(snapshot, bookmarks, null, manager));
+		Assertions.assertEquals(3, bookmarks.getBookmarks().size());
+		Assertions.assertEquals(0, bookmarks.getBookmarkGroupId(original));
+		int importedId = bookmarks.getBookmarkGroupId(bookmarks.getBookmarks().get(2));
+		Assertions.assertNotEquals(group, importedId);
+		BookmarkGroup imported = bookmarks.getBookmarkGroups().stream().filter(value -> value.id() == importedId).findFirst().orElseThrow();
+		Assertions.assertTrue(imported.collapsed());
+		Assertions.assertTrue(imported.craftingMode());
+		Assertions.assertEquals(BookmarkViewMode.TODO_LIST, imported.viewMode());
+		Assertions.assertEquals(7, bookmarks.getBookmarkMetadata(bookmarks.getBookmarks().get(2)).multiplier());
+		Assertions.assertTrue(ItemStack.matches(stack, bookmarks.getBookmarks().get(2).getElement().getTypedIngredient().getItemStack().orElseThrow()));
+
+		BookmarkList reloaded = new BookmarkList(null, null, manager, null, null, null, null);
+		BookmarkJsonSerializer.deserialize(BookmarkJsonSerializer.serialize(bookmarks, manager), reloaded, null, manager);
+		Assertions.assertEquals(3, reloaded.getBookmarks().size());
+		Assertions.assertEquals(3, reloaded.getBookmarks().stream().map(reloaded::getBookmarkGroupId).distinct().count());
+		Assertions.assertTrue(ItemStack.matches(stack, reloaded.getBookmarks().get(2).getElement().getTypedIngredient().getItemStack().orElseThrow()));
+
+		var corrupt = JsonParser.parseString(new String(Base64.getUrlDecoder().decode(snapshot), StandardCharsets.UTF_8)).getAsJsonObject();
+		var brokenEntry = corrupt.getAsJsonArray("bookmarks").get(0).deepCopy().getAsJsonObject();
+		brokenEntry.addProperty("type", "unknown");
+		corrupt.getAsJsonArray("bookmarks").add(brokenEntry);
+		String invalid = Base64.getUrlEncoder().withoutPadding().encodeToString(corrupt.toString().getBytes(StandardCharsets.UTF_8));
+		Assertions.assertFalse(BookmarkJsonSerializer.deserializeGroupSnapshot(invalid, bookmarks, null, manager));
+		Assertions.assertEquals(3, bookmarks.getBookmarks().size());
+		Assertions.assertEquals(3, bookmarks.getBookmarkGroups().size());
+	}
+
+	@Test
+	public void missingGroupKeepsOriginal() {
+		ItemStack stack = new ItemStack(Items.IRON_INGOT, 32);
+		IIngredientManager manager = createManager(stack);
+		var ingredient = manager.createTypedIngredient(VanillaTypes.ITEM_STACK, stack, false).orElseThrow();
+		BookmarkList bookmarks = new BookmarkList(null, null, manager, null, null, null, null);
+		IBookmark original = IngredientBookmark.createPreservingAmount(ingredient, manager);
+		bookmarks.addToListWithoutNotifying(original, false);
+		var key = BookmarkItemMetadataFactory.createPermutationKey(ingredient, manager);
+		bookmarks.addMissingRecipeChainGroup(0, List.of(new RecipeChainTooltipModel.Item(key, BookmarkItemMetadata.defaultForGroup(0), 73, 0)));
+		Assertions.assertEquals(2, bookmarks.getBookmarks().size());
+		Assertions.assertEquals(0, bookmarks.getBookmarkGroupId(original));
+		IBookmark missing = bookmarks.getBookmarks().get(1);
+		Assertions.assertEquals(73, bookmarks.getBookmarkMetadata(missing).amount());
+		Assertions.assertEquals(1, missing.getElement().getTypedIngredient().getItemStack().orElseThrow().getCount());
+		Assertions.assertTrue(bookmarks.isGroupCraftingMode(bookmarks.getBookmarkGroupId(missing)));
+		BookmarkList reloaded = new BookmarkList(null, null, manager, null, null, null, null);
+		BookmarkJsonSerializer.deserialize(BookmarkJsonSerializer.serialize(bookmarks, manager), reloaded, null, manager);
+		Assertions.assertEquals(2, reloaded.getBookmarks().size());
+		Assertions.assertEquals(73, reloaded.getBookmarkMetadata(reloaded.getBookmarks().get(1)).amount());
+		bookmarks.moveBookmarkToGroup(missing, 0);
+		Assertions.assertEquals(0, bookmarks.getBookmarkGroupId(bookmarks.getBookmarks().get(1)));
+	}
+
+	private static IIngredientManager createManager(ItemStack stack) {
+		IColorHelper colors = new TestColorHelper();
+		SubtypeRegistration registration = new SubtypeRegistration();
+		new VanillaPlugin().registerItemSubtypes(registration);
+		SubtypeManager subtypes = new SubtypeManager(registration.getInterpreters());
+		IngredientManagerBuilder builder = new IngredientManagerBuilder(subtypes, colors);
+		builder.register(VanillaTypes.ITEM_STACK, List.of(stack),
+			new ItemStackHelper(subtypes, new StackHelper(subtypes), colors), new NoOpItemStackRenderer());
+		return builder.build();
 	}
 
 	private static class NoOpItemStackRenderer implements IIngredientRenderer<ItemStack> {

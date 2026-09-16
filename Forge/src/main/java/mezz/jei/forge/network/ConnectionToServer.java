@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import mezz.jei.common.network.ClientConnectionHelper;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketJei;
+import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.FriendlyByteBuf;
@@ -58,13 +59,28 @@ public final class ConnectionToServer implements IConnectionToServer {
 
 	@Override
 	public void sendPacketToServer(PacketJei packet) {
+		boolean groupShare = packet instanceof PacketShareBookmarkGroup;
+		if (groupShare && !canShareBookmarkGroup()) {
+			return;
+		}
 		Minecraft minecraft = Minecraft.getInstance();
 		ClientPacketListener netHandler = minecraft.getConnection();
 		if (netHandler != null && isJeiOnServer()) {
 			Pair<FriendlyByteBuf, Integer> packetData = packet.getPacketData();
-			ICustomPacket<Packet<?>> payload = NetworkDirection.PLAY_TO_SERVER.buildPacket(packetData, networkHandler.getChannelId());
+			ICustomPacket<Packet<?>> payload = NetworkDirection.PLAY_TO_SERVER.buildPacket(packetData, groupShare ? NetworkHandler.BOOKMARK_GROUP_CHANNEL : networkHandler.getChannelId());
 			netHandler.send(payload.getThis());
 		}
+	}
+
+	@Override
+	public boolean canShareBookmarkGroup() {
+		return Optional.ofNullable(Minecraft.getInstance().getConnection())
+			.map(ClientPacketListener::getConnection)
+			.filter(connection -> connection.isConnected())
+			.map(NetworkHooks::getConnectionData)
+			.map(ConnectionData::getChannels)
+			.map(channels -> channels.containsKey(NetworkHandler.BOOKMARK_GROUP_CHANNEL))
+			.orElse(false);
 	}
 
 	@Override

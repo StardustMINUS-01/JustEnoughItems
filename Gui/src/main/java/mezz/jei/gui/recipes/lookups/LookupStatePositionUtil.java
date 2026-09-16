@@ -14,6 +14,8 @@ public final class LookupStatePositionUtil {
 			ingredientLookupState.setRecipeIndex(restoredIndex);
 		} else if (state instanceof SingleCategoryLookupState singleCategoryLookupState) {
 			singleCategoryLookupState.setRecipeIndex(restoredIndex);
+		} else if (state instanceof ProjectedLookupState projectedLookupState) {
+			projectedLookupState.setRecipeIndex(restoredIndex);
 		} else {
 			restoreWithPageNavigation(state, restoredIndex / recipesPerPage);
 		}

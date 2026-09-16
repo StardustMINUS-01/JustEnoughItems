@@ -5,4 +5,8 @@ import net.minecraft.server.level.ServerPlayer;
 
 public interface IConnectionToClient {
 	void sendPacketToClient(PacketJei packet, ServerPlayer player);
+
+	default boolean canShareBookmarkGroup(ServerPlayer player) {
+		return false;
+	}
 }

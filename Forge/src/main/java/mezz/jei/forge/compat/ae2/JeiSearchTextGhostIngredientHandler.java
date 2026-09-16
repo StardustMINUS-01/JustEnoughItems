@@ -6,7 +6,8 @@ import mezz.jei.api.gui.handlers.IGhostIngredientHandler.Target;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
-import net.minecraft.world.item.ItemStack;
+import mezz.jei.gui.input.handlers.IngredientClipboardText;
+import mezz.jei.common.Internal;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,16 +15,28 @@ import java.util.Optional;
 public class JeiSearchTextGhostIngredientHandler<T extends Screen> implements IGhostIngredientHandler<T> {
 	@Override
 	public <I> List<Target<I>> getTargetsTyped(T gui, ITypedIngredient<I> ingredient, boolean doStart) {
-		Optional<String> searchText = toSearchText(ingredient);
-		if (searchText.isEmpty()) {
-			return List.of();
+		return createTarget(gui, ingredient)
+			.map(target -> List.<Target<I>>of(target))
+			.orElseGet(List::of);
+	}
+
+	public static <I> boolean search(Screen gui, ITypedIngredient<I> ingredient, boolean simulate) {
+		Optional<SearchTextTarget<I>> target = createTarget(gui, ingredient);
+		if (target.isEmpty()) {
+			return false;
 		}
+		if (!simulate) {
+			target.get().accept(ingredient.getIngredient());
+		}
+		return true;
+	}
+
+	private static <I> Optional<SearchTextTarget<I>> createTarget(Screen gui, ITypedIngredient<I> ingredient) {
 		Optional<AETextField> searchField = findSearchField(gui);
 		if (searchField.isEmpty() || !searchField.get().isTooltipAreaVisible()) {
-			return List.of();
+			return Optional.empty();
 		}
-		Rect2i area = searchField.get().getTooltipArea();
-		return List.of(new SearchTextTarget<>(area, searchField.get(), gui, searchText.get()));
+		return toSearchText(ingredient).map(text -> new SearchTextTarget<>(searchField.get().getTooltipArea(), searchField.get(), gui, text));
 	}
 
 	@Override
@@ -38,10 +51,7 @@ public class JeiSearchTextGhostIngredientHandler<T extends Screen> implements IG
 	}
 
 	private static Optional<String> toSearchText(ITypedIngredient<?> ingredient) {
-		return ingredient.getItemStack()
-			.filter(stack -> !stack.isEmpty())
-			.map(ItemStack::getHoverName)
-			.map(name -> name.getString().trim())
+		return Optional.of(IngredientClipboardText.getIngredientName(ingredient, Internal.getJeiRuntime().getIngredientManager()).trim())
 			.filter(text -> !text.isEmpty());
 	}
 

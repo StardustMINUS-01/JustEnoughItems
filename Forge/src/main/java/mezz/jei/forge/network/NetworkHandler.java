@@ -19,6 +19,8 @@ public class NetworkHandler {
 
 	private final ResourceLocation channelId;
 	private final EventNetworkChannel channel;
+	private final EventNetworkChannel bookmarkGroupChannel;
+	public static final ResourceLocation BOOKMARK_GROUP_CHANNEL = new ResourceLocation("jei", "bookmark_group");
 
 	public NetworkHandler(ResourceLocation channelId, String protocolVersion) {
 		this.channelId = channelId;
@@ -28,6 +30,7 @@ public class NetworkHandler {
 			NetworkHandler::isClientAcceptedVersion,
 			NetworkHandler::isServerAcceptedVersion
 		);
+		this.bookmarkGroupChannel = NetworkRegistry.newEventChannel(BOOKMARK_GROUP_CHANNEL, () -> "1", version -> true, version -> true);
 	}
 
 	public ResourceLocation getChannelId() {
@@ -43,6 +46,11 @@ public class NetworkHandler {
 	}
 
 	public void registerServerPacketHandler(ServerPacketRouter packetRouter) {
+		registerServerPacketHandler(channel, packetRouter);
+		registerServerPacketHandler(bookmarkGroupChannel, packetRouter);
+	}
+
+	private void registerServerPacketHandler(EventNetworkChannel channel, ServerPacketRouter packetRouter) {
 		channel.addListener((NetworkEvent.ClientCustomPayloadEvent event) -> {
 			NetworkEvent.Context context = event.getSource().get();
 			ServerPlayer player = context.getSender();

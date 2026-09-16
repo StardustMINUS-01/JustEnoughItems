@@ -1,6 +1,7 @@
 package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -10,28 +11,48 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IJeiClientConfigs;
 import mezz.jei.common.config.RecipeSorterStage;
+import mezz.jei.common.search.BakedSubstringIndexBuilder;
 import mezz.jei.common.util.MathUtil;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
+import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
+import mezz.jei.gui.recipes.filtering.IRecipeSearchTextMatcher;
+import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
+import mezz.jei.gui.recipes.filtering.RecipeLookupSnapshot;
+import mezz.jei.gui.recipes.filtering.RecipeLookupSnapshotFactory;
+import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
+import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.layouts.IRecipeLayoutList;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import mezz.jei.gui.recipes.lookups.ILookupState;
 import mezz.jei.gui.recipes.lookups.IngredientLookupState;
+import mezz.jei.gui.recipes.lookups.LookupStatePositionUtil;
+import mezz.jei.gui.recipes.lookups.ProjectedLookupState;
 import mezz.jei.gui.recipes.lookups.SingleCategoryLookupState;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationEntry;
 import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class RecipeGuiLogic implements IRecipeGuiLogic {
@@ -39,6 +60,18 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	private final IRecipeTransferManager recipeTransferManager;
 	private final IIngredientManager ingredientManager;
 	private final IRecipeLogicStateListener stateListener;
+
+	private final Supplier<RecipePreferenceRules> preferenceRulesSupplier;
+	private final RecipeLookupSnapshotFactory snapshotFactory;
+	private ILookupState unfilteredState;
+	private final Stack<ILookupState> forwardHistory = new Stack<>();
+	private final Map<ILookupState, RecipeNavigationEntry> navigationEntries = new IdentityHashMap<>();
+	private RecipeFilterMode filterMode = RecipeFilterMode.ALL;
+	private String searchQueryText = "";
+	private RecipeSearchQuery searchQuery = RecipeSearchQuery.parse("");
+	private IRecipeSearchTextMatcher searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+	private @Nullable RecipeLookupSnapshot snapshot;
+	private @Nullable RecipePreferenceRules snapshotPreferenceRules;
 
 	private boolean initialState = true;
 	private ILookupState state;
@@ -62,6 +95,23 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		BookmarkList bookmarks,
 		IRecipeLayoutWithButtonsFactory recipeLayoutFactory
 	) {
+		this(recipeManager, ingredientManager, lookupHistory, recipeTransferManager, stateListener, focusFactory, bookmarks, recipeLayoutFactory, () -> RecipePreferenceRules.EMPTY, BakedSubstringIndexBuilder::new);
+	}
+
+	public RecipeGuiLogic(
+		IRecipeManager recipeManager,
+		IIngredientManager ingredientManager,
+		LookupHistory lookupHistory,
+		IRecipeTransferManager recipeTransferManager,
+		IRecipeLogicStateListener stateListener,
+		IFocusFactory focusFactory,
+		BookmarkList bookmarks,
+		IRecipeLayoutWithButtonsFactory recipeLayoutFactory,
+		Supplier<RecipePreferenceRules> preferenceRulesSupplier,
+		ISearchStorageBuilderFactory searchStorageBuilderFactory
+	) {
+		this.preferenceRulesSupplier = preferenceRulesSupplier;
+		this.snapshotFactory = new RecipeLookupSnapshotFactory(recipeManager, ingredientManager, focusFactory, searchStorageBuilderFactory);
 		this.recipeManager = recipeManager;
 		this.ingredientManager = ingredientManager;
 		this.lookupHistory = lookupHistory;
@@ -78,6 +128,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			recipeCategories,
 			recipeTransferManager
 		);
+		this.unfilteredState = this.state;
 		this.focusFactory = focusFactory;
 	}
 
@@ -85,6 +136,11 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	public void tick(@Nullable AbstractContainerMenu container) {
 		if (cachedRecipeLayoutsWithButtons != null) {
 			cachedRecipeLayoutsWithButtons.tick(container);
+		}
+		if (snapshotPreferenceRules != null && snapshotPreferenceRules != preferenceRulesSupplier.get()) {
+			rebuildDisplayedState();
+			clearLayoutCache();
+			stateListener.onStateChange();
 		}
 	}
 
@@ -143,37 +199,202 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public boolean back() {
-		if (stateHistory.empty()) {
+		return navigate(RecipeNavigationDirection.BACK, false);
+	}
+
+	public boolean navigate(RecipeNavigationDirection direction, boolean jumpToEnd) {
+		Stack<ILookupState> source = direction == RecipeNavigationDirection.BACK ? stateHistory : forwardHistory;
+		Stack<ILookupState> destination = direction == RecipeNavigationDirection.BACK ? forwardHistory : stateHistory;
+		if (source.empty()) {
 			return false;
 		}
-		final ILookupState state = stateHistory.pop();
-		setState(state, false);
-		return true;
+		updateCurrentNavigationEntry();
+		do {
+			destination.push(unfilteredState);
+			unfilteredState = source.pop();
+		} while (jumpToEnd && !source.empty());
+		return restoreNavigationEntry(navigationEntries.get(unfilteredState));
+	}
+
+	public boolean canNavigate(RecipeNavigationDirection direction) {
+		return !(direction == RecipeNavigationDirection.BACK ? stateHistory : forwardHistory).empty();
+	}
+
+	public Optional<Component> getNavigationTargetTitle(RecipeNavigationDirection direction) {
+		Stack<ILookupState> history = direction == RecipeNavigationDirection.BACK ? stateHistory : forwardHistory;
+		return history.empty() ? Optional.empty() : Optional.of(navigationEntries.get(history.peek()).getTitle());
+	}
+
+	public void updateCurrentInputSelections(Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> inputSelections) {
+		Optional.ofNullable(navigationEntries.get(unfilteredState)).ifPresent(entry -> entry.updateInputSelections(inputSelections));
+	}
+
+	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> getCurrentInputSelections() {
+		return Optional.ofNullable(navigationEntries.get(unfilteredState))
+			.map(RecipeNavigationEntry::getInputSelections).orElseGet(Map::of);
+	}
+
+	public RecipeFilterMode getFilterMode() {
+		return filterMode;
+	}
+
+	public String getSearchQueryText() {
+		return searchQueryText;
+	}
+
+	boolean hasInputSearchTerms() {
+		return searchQuery.hasInputTerms();
+	}
+
+	boolean matchesInputCandidate(RecipeSearchIngredient ingredient) {
+		return searchQuery.matchesInputCandidate(ingredient, searchTextMatcher);
 	}
 
 	@Override
 	public void clearHistory() {
-		while (!stateHistory.empty()) {
-			stateHistory.pop();
-		}
+		stateHistory.clear();
+		forwardHistory.clear();
+		navigationEntries.clear();
+		initialState = true;
 	}
 
 	private boolean setState(ILookupState state, boolean saveHistory) {
-		List<IRecipeCategory<?>> recipeCategories = state.getRecipeCategories();
-		if (recipeCategories.isEmpty()) {
+		if (state.getRecipeCategories().isEmpty()) {
 			return false;
 		}
-
-		if (saveHistory && !initialState) {
-			stateHistory.push(this.state);
+		if (saveHistory) {
+			updateCurrentNavigationEntry();
+			if (!initialState) {
+				stateHistory.push(unfilteredState);
+				if (stateHistory.size() >= 128) {
+					navigationEntries.remove(stateHistory.remove(0));
+				}
+			}
+			forwardHistory.forEach(navigationEntries::remove);
+			forwardHistory.clear();
 		}
+		this.unfilteredState = state;
 		this.state = state;
 		this.initialState = false;
+		this.snapshot = null;
+		this.snapshotPreferenceRules = null;
+		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		rebuildDisplayedState();
+		clearLayoutCache();
+		if (saveHistory) {
+			navigationEntries.put(state, createNavigationEntry());
+		}
+		stateListener.onStateChange();
+		updateCurrentNavigationEntry();
+		return true;
+	}
+
+	private RecipeNavigationEntry createNavigationEntry() {
+		return new RecipeNavigationEntry(
+			unfilteredState,
+			createNavigationTitle(unfilteredState),
+			filterMode,
+			searchQueryText,
+			state
+		);
+	}
+
+	private void updateCurrentNavigationEntry() {
+		Optional.ofNullable(navigationEntries.get(unfilteredState))
+			.ifPresent(entry -> entry.updateView(filterMode, searchQueryText, state));
+	}
+
+	private boolean restoreNavigationEntry(RecipeNavigationEntry entry) {
+		this.filterMode = entry.getFilterMode();
+		this.searchQueryText = entry.getSearchQuery();
+		this.searchQuery = RecipeSearchQuery.parse(searchQueryText);
+		this.unfilteredState = entry.getLookupState();
+		this.state = unfilteredState;
+		this.snapshot = null;
+		this.snapshotPreferenceRules = null;
+		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		rebuildDisplayedState();
+		restorePosition(entry);
+		clearLayoutCache();
+		stateListener.onStateChange();
+		return true;
+	}
+
+	private void restorePosition(RecipeNavigationEntry entry) {
+		int recipesPerPage = Math.max(1, entry.getRecipesPerPage());
+		state.setRecipesPerPage(recipesPerPage);
+		state.moveToRecipeCategory(entry.getRecipeCategory());
+		LookupStatePositionUtil.restoreRecipeIndex(state, entry.getRecipeIndex());
+	}
+
+	private Component createNavigationTitle(ILookupState lookupState) {
+		return lookupState.getFocuses().getAllFocuses().stream()
+			.findFirst()
+			.map(this::createNavigationTitle)
+			.orElseGet(() -> lookupState.getFocusedRecipes().getRecipeCategory().getTitle());
+	}
+
+	private <T> Component createNavigationTitle(IFocus<T> focus) {
+		ITypedIngredient<T> typedIngredient = focus.getTypedValue();
+		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		Component ingredientName = Component.literal(ingredientHelper.getDisplayName(typedIngredient.getIngredient()));
+		String translationKey = focus.getRole() == mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT ? "gui.jei.recipe_navigation.target.recipes" : "gui.jei.recipe_navigation.target.uses";
+		return Component.translatable(translationKey, ingredientName);
+	}
+
+	private void rebuildDisplayedState() {
+		IRecipeCategory<?> selectedCategory = this.state.getFocusedRecipes().getRecipeCategory();
+		if (filterMode == RecipeFilterMode.ALL && searchQuery.isEmpty()) {
+			this.snapshot = null;
+			this.snapshotPreferenceRules = null;
+			this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+			this.state = unfilteredState;
+			this.state.moveToRecipeCategory(selectedCategory);
+			return;
+		}
+
+		RecipePreferenceRules preferenceRules = filterMode != RecipeFilterMode.ALL || snapshotPreferenceRules != null ? preferenceRulesSupplier.get() : null;
+		if (snapshot == null || snapshotPreferenceRules != preferenceRules) {
+			this.snapshot = preferenceRules == null ? snapshotFactory.create(unfilteredState) : snapshotFactory.create(unfilteredState, preferenceRules);
+			this.snapshotPreferenceRules = preferenceRules;
+		}
+		this.searchTextMatcher = searchQuery.isEmpty() ? IRecipeSearchTextMatcher.DEFAULT : snapshot.createSearchTextMatcher();
+		this.state = new ProjectedLookupState(
+			unfilteredState,
+			snapshot.project(filterMode, searchQuery, searchTextMatcher)
+		);
+		this.state.moveToRecipeCategory(selectedCategory);
+	}
+
+	private void clearLayoutCache() {
 		this.cachedRecipeCategory = null;
 		this.cachedRecipeLayoutsWithButtons = null;
 		this.cachedContainerId = -1;
+	}
+
+	@Override
+	public void applyRecipeResultFilter(RecipeFilterMode mode, String query) {
+		this.filterMode = mode;
+		this.searchQueryText = query;
+		this.searchQuery = RecipeSearchQuery.parse(query);
+		rebuildDisplayedState();
+		clearLayoutCache();
 		stateListener.onStateChange();
-		return true;
+		updateCurrentNavigationEntry();
+	}
+
+	@Override
+	public void clearRecipeResultSnapshot() {
+		this.snapshot = null;
+		this.snapshotPreferenceRules = null;
+		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.state = unfilteredState;
+		clearLayoutCache();
+	}
+
+	@Override
+	public boolean hasRecipeResults() {
+		return !state.getFocusedRecipes().getRecipes().isEmpty();
 	}
 
 	@Override
@@ -219,6 +440,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public Stream<ITypedIngredient<?>> getRecipeCatalysts() {
+		if (!hasRecipeResults()) {
+			return Stream.empty();
+		}
 		IRecipeCategory<?> category = getSelectedRecipeCategory();
 		return getRecipeCatalysts(category);
 	}
@@ -337,6 +561,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public String getPageString() {
+		if (!hasRecipeResults()) {
+			return "0/0";
+		}
 		int pageIndex = MathUtil.divideCeil(state.getRecipeIndex() + 1, state.getRecipesPerPage());
 		return pageIndex + "/" + state.pageCount();
 	}

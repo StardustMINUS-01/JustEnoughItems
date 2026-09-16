@@ -8,7 +8,6 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.TextHistory;
 import mezz.jei.gui.input.focus.ScreenFocusHandler;
 import mezz.jei.gui.input.handlers.TextFieldInputHandler;
-import mezz.jei.gui.overlay.ISearchField;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -19,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
-public class GuiTextFieldFilter extends EditBox implements ISearchField {
+public class GuiTextFieldFilter extends EditBox {
 	private static final int maxSearchLength = 128;
 	private static final TextHistory history = new TextHistory();
 	private final BooleanSupplier filterEmpty;
@@ -46,7 +45,6 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 		setBordered(false);
 	}
 
-	@Override
 	public void updateBounds(ImmutableRect2i area) {
 		this.backgroundBounds = area;
 		setX(area.getX() + 4);
@@ -57,7 +55,7 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 	}
 
 	@Override
-	public void setSearchText(String filterText) {
+	public void setValue(String filterText) {
 		if (!filterText.equals(getValue())) {
 			super.setValue(filterText);
 		}
@@ -80,7 +78,7 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 	}
 
 	@Override
-	public void setSearchFieldFocused(boolean keyboardFocus) {
+	public void setFocused(boolean keyboardFocus) {
 		final boolean previousFocus = isFocused();
 		super.setFocused(keyboardFocus);
 

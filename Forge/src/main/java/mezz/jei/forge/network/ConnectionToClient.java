@@ -7,6 +7,7 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.ICustomPacket;
 import net.minecraftforge.network.NetworkDirection;
+import net.minecraftforge.network.NetworkHooks;
 import org.apache.commons.lang3.tuple.Pair;
 
 public class ConnectionToClient implements IConnectionToClient {
@@ -14,6 +15,12 @@ public class ConnectionToClient implements IConnectionToClient {
 
 	public ConnectionToClient(NetworkHandler networkHandler) {
 		this.networkHandler = networkHandler;
+	}
+
+	@Override
+	public boolean canShareBookmarkGroup(ServerPlayer player) {
+		var data = NetworkHooks.getConnectionData(player.connection.connection);
+		return data != null && data.getChannels().containsKey(NetworkHandler.BOOKMARK_GROUP_CHANNEL);
 	}
 
 	@Override

@@ -11,7 +11,8 @@ public enum PacketIdServer implements IPacketId {
 	CRAFTING_GRID_CRAFT,
 	FILL_CRAFTING_GRID,
 	FAST_PICKUP_ITEM,
-	ENCODE_RECIPE_CHAIN_PATTERNS;
+	ENCODE_RECIPE_CHAIN_PATTERNS,
+	SHARE_BOOKMARK_GROUP;
 
 	public static final PacketIdServer[] VALUES = values();
 }

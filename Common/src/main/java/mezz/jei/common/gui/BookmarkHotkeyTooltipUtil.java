@@ -34,6 +34,18 @@ public final class BookmarkHotkeyTooltipUtil {
 		boolean canEncodeAe2Pattern,
 		boolean showToggleInputCatalyst
 	) {
+		addIngredientHotkeys(tooltip, keyBindings, altDown, canAutoCraft, canEncodeAe2Pattern, showToggleInputCatalyst, false);
+	}
+
+	public static void addIngredientHotkeys(
+		ITooltipBuilder tooltip,
+		IInternalKeyMappings keyBindings,
+		boolean altDown,
+		boolean canAutoCraft,
+		boolean canEncodeAe2Pattern,
+		boolean showToggleInputCatalyst,
+		boolean canSearchIngredientInTerminal
+	) {
 		if (!addSeparatedAltHotkeySection(tooltip, altDown)) {
 			return;
 		}
@@ -55,6 +67,9 @@ public final class BookmarkHotkeyTooltipUtil {
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientTags().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_tags");
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyIngredientId().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_id");
 		HotkeyTooltipLine.add(tooltip, keyBindings.getCopyRecipeId().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.copy_recipe_id");
+		if (canSearchIngredientInTerminal) {
+			HotkeyTooltipLine.add(tooltip, keyBindings.getSearchIngredientInTerminal().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.search_terminal");
+		}
 		if (canEncodeAe2Pattern) {
 			HotkeyTooltipLine.add(tooltip, keyBindings.getEncodeRecipeChainPatterns().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.hotkeys.encode_ae2_pattern");
 		}
@@ -83,7 +98,9 @@ public final class BookmarkHotkeyTooltipUtil {
 		}
 
 		addPullHotkeys(tooltip, keyBindings);
+		HotkeyTooltipLine.add(tooltip, keyBindings.getShareToChat().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.group.hotkeys.share");
 		if (craftingMode) {
+			HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("ALT + ", keyBindings.getBookmarkPullItems().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.group.hotkeys.save_missing");
 			addCraftItemsHotkeys(tooltip, keyBindings, "jei.tooltip.bookmarks.group.hotkeys");
 		}
 		if (canEncodeAe2Patterns) {
@@ -130,6 +147,10 @@ public final class BookmarkHotkeyTooltipUtil {
 
 		if (canPullItems) {
 			addPullHotkeys(tooltip, keyBindings);
+		}
+		HotkeyTooltipLine.add(tooltip, keyBindings.getShareToChat().getTranslatedKeyMessage(), "jei.tooltip.bookmarks.group.hotkeys.share");
+		if (craftingMode) {
+			HotkeyTooltipLine.add(tooltip, HotkeyTooltipLine.prefixed("ALT + ", keyBindings.getBookmarkPullItems().getTranslatedKeyMessage()), "jei.tooltip.bookmarks.group.hotkeys.save_missing");
 		}
 		String rightClickAction = craftingMode ?
 			"jei.tooltip.bookmarks.group.hotkeys.to_group" :
