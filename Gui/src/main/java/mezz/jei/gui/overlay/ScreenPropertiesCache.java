@@ -74,6 +74,10 @@ public class ScreenPropertiesCache {
 			return this;
 		}
 
+		public void forceUpdate() {
+			onChange.run();
+		}
+
 		public void update() {
 			if (changed) {
 				onChange.run();

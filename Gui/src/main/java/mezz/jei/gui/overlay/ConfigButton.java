@@ -1,18 +1,17 @@
 package mezz.jei.gui.overlay;
 
-import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
-import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientToggleState;
+import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.platform.IPlatformConfigHelper;
 import mezz.jei.common.platform.Services;
-import mezz.jei.api.gui.buttons.IButtonState;
-import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.gui.elements.GuiIconToggleButton;
+import mezz.jei.gui.input.UserInput;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -23,33 +22,26 @@ import net.minecraft.network.chat.Style;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
-public class ConfigButtonController implements IIconButtonController {
-	private final IDrawable normalIcon;
-	private final IDrawable cheatIcon;
-	private final BooleanSupplier isListDisplayed;
-	private final IClientToggleState toggleState;
+public class ConfigButton extends GuiIconToggleButton {
 	private final IInternalKeyMappings keyBindings;
 
-	public ConfigButtonController(BooleanSupplier isListDisplayed, IClientToggleState toggleState, IInternalKeyMappings keyBindings) {
+	public static ConfigButton create(BooleanSupplier isListDisplayed, IClientToggleState toggleState, IInternalKeyMappings keyBindings) {
 		Textures textures = Internal.getTextures();
-		this.normalIcon = textures.getConfigButtonIcon();
-		this.cheatIcon = textures.getConfigButtonCheatIcon();
+		return new ConfigButton(textures.getConfigButtonIcon(), textures.getConfigButtonCheatIcon(), isListDisplayed, toggleState, keyBindings);
+	}
+
+	private final BooleanSupplier isListDisplayed;
+	private final IClientToggleState toggleState;
+
+	private ConfigButton(IDrawable disabledIcon, IDrawable enabledIcon, BooleanSupplier isListDisplayed, IClientToggleState toggleState, IInternalKeyMappings keyBindings) {
+		super(disabledIcon, enabledIcon);
 		this.isListDisplayed = isListDisplayed;
 		this.toggleState = toggleState;
 		this.keyBindings = keyBindings;
 	}
 
 	@Override
-	public void updateState(IButtonState state) {
-		if (toggleState.isCheatItemsEnabled()) {
-			state.setIcon(cheatIcon);
-		} else {
-			state.setIcon(normalIcon);
-		}
-	}
-
-	@Override
-	public void getTooltips(ITooltipBuilder tooltip) {
+	protected void getTooltips(JeiTooltip tooltip) {
 		tooltip.add(Component.translatable("jei.tooltip.config"));
 		if (!toggleState.isOverlayEnabled()) {
 			tooltip.add(
@@ -87,7 +79,12 @@ public class ConfigButtonController implements IIconButtonController {
 	}
 
 	@Override
-	public boolean onPress(IJeiUserInput input) {
+	protected boolean isIconToggledOn() {
+		return toggleState.isCheatItemsEnabled();
+	}
+
+	@Override
+	protected boolean onMouseClicked(UserInput input) {
 		if (toggleState.isOverlayEnabled()) {
 			if (!input.isSimulate()) {
 				if (input.is(keyBindings.getToggleCheatModeConfigButton())) {

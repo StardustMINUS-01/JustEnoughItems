@@ -8,7 +8,9 @@ import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.ClickableIngredientInternal;
+import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
@@ -19,6 +21,7 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.apache.logging.log4j.LogManager;
@@ -26,7 +29,9 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -109,6 +114,40 @@ public class RecipeGuiLayouts {
 		this.recipeLayoutsWithButtons.clear();
 		this.recipeLayoutsWithButtons.addAll(recipeLayoutsWithButtons);
 		this.cachedInputHandler = null;
+	}
+
+	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> captureInputSelections() {
+		Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> selections = new LinkedHashMap<>();
+		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
+			if (layout instanceof RecipeLayoutWithButtons<?> layoutWithButtons) {
+				Map<Integer, BookmarkIngredientKey> selectedInputs = layoutWithButtons.getInputSelections();
+				if (!selectedInputs.isEmpty()) {
+					getFocusedRecipe(layout.getRecipeLayout())
+						.ifPresent(recipe -> selections.put(recipe, selectedInputs));
+				}
+			}
+		}
+		return Map.copyOf(selections);
+	}
+
+	public void restoreInputSelections(Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> selections) {
+		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
+			if (layout instanceof RecipeLayoutWithButtons<?> layoutWithButtons) {
+				getFocusedRecipe(layout.getRecipeLayout())
+					.map(selections::get)
+					.ifPresent(layoutWithButtons::restoreInputSelections);
+			}
+		}
+	}
+
+	private static <R> Optional<FocusedRecipe> getFocusedRecipe(IRecipeLayoutDrawable<R> recipeLayout) {
+		R recipe = recipeLayout.getRecipe();
+		ResourceLocation recipeUid = recipeLayout.getRecipeCategory().getRegistryName(recipe);
+		if (recipeUid == null) {
+			return Optional.empty();
+		}
+		ResourceLocation recipeTypeUid = recipeLayout.getRecipeCategory().getRecipeType().getUid();
+		return Optional.of(new FocusedRecipe(recipeTypeUid, recipeUid));
 	}
 
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {

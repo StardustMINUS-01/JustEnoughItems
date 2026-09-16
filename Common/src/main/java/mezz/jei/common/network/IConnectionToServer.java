@@ -12,6 +12,10 @@ public interface IConnectionToServer {
 
 	void sendPacketToServer(PacketJei packet);
 
+	default boolean canShareBookmarkGroup() {
+		return false;
+	}
+
 	default void onRuntimeStopped() {
 
 	}

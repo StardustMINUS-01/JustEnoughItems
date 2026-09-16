@@ -10,6 +10,7 @@ import mezz.jei.common.network.packets.PacketRecipeTransfer;
 import mezz.jei.common.network.packets.PacketRecipeTransferCounted;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
+import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
 import mezz.jei.common.config.IServerConfig;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -41,6 +42,7 @@ public class ServerPacketRouter {
 		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT, PacketCraftingGridCraft::readPacketData);
 		handlers.put(PacketIdServer.FILL_CRAFTING_GRID, PacketFillCraftingGrid::readPacketData);
 		registerEncodeRecipeChainPatternsHandler(handlers);
+		handlers.put(PacketIdServer.SHARE_BOOKMARK_GROUP, PacketShareBookmarkGroup::readPacketData);
 	}
 
 	private static void registerEncodeRecipeChainPatternsHandler(EnumMap<PacketIdServer, IServerPacketHandler> handlers) {

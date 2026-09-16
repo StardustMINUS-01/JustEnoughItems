@@ -12,6 +12,8 @@ import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.search.SearchMode;
+import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
+import net.minecraft.client.Minecraft;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
@@ -84,13 +86,17 @@ public final class IngredientGridTooltipHelper {
 		}
 
 		if (includeHotkeys) {
+			Screen screen = Minecraft.getInstance().screen;
+			boolean altDown = Screen.hasAltDown();
+			boolean canSearch = altDown && screen != null && ExternalIngredientSearchHandlerRegistry.search(screen, typedIngredient, true);
 			BookmarkHotkeyTooltipUtil.addIngredientHotkeys(
 				tooltip,
 				keyBindings,
-				Screen.hasAltDown(),
+				altDown,
 				false,
 				false,
-				showToggleInputCatalyst
+				showToggleInputCatalyst,
+				canSearch
 			);
 		}
 	}

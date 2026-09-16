@@ -184,6 +184,10 @@ public final class JeiChatItemLinks {
 		return parseBookmarkGroupSnapshot(snapshot).isPresent();
 	}
 
+	public static Optional<MutableComponent> createBookmarkGroupLink(String snapshot) {
+		return parseBookmarkGroupSnapshot(snapshot).map(json -> createBookmarkGroupLinkComponent(snapshot, json));
+	}
+
 	private static String createLinkMarker(IngredientLink link) {
 		String linkText = createCommandArgument(link);
 		return LINK_MARKER_PREFIX + linkText + LINK_MARKER_SUFFIX + " ";

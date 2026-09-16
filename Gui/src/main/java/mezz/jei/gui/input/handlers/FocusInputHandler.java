@@ -1,6 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -129,6 +130,13 @@ public class FocusInputHandler implements IUserInputHandler {
 			return handleShowRecipe(input, keyBindings);
 		}
 
+		if (!input.is(keyBindings.getShareToChat()) && input.is(keyBindings.getSearchIngredientInTerminal())) {
+			return focusSource.getIngredientUnderMouse(input, keyBindings)
+				.filter(clicked -> clicked.getElement().isVisible())
+				.findFirst()
+				.filter(clicked -> ExternalIngredientSearchHandlerRegistry.search(screen, clicked.getTypedIngredient(), input.isSimulate()))
+				.map(clicked -> new SameElementInputHandler(this, clicked::isMouseOver));
+		}
 		if (input.is(keyBindings.getShareToChat())) {
 			return handleShareToChat(input, keyBindings);
 		}
