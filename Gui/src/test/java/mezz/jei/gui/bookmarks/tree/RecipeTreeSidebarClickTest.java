@@ -19,7 +19,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void leftClickLooksUpRecipeOnlyOnRelease() {
+	void leftReleaseShowsRecipe() {
 		assertTrue(clicks.press(slot, "item", 10, 20, 0, false));
 		assertTrue(lookups.isEmpty());
 		assertTrue(release(slot, 10, 20, 0));
@@ -28,14 +28,14 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void rightClickLooksUpUsesAndPreservesIngredient() {
+	void rightReleaseShowsUses() {
 		assertTrue(clicks.press(slot, "fluid", 10, 20, 1, false));
 		assertTrue(release(slot, 10, 20, 1));
 		assertEquals(List.of("fluid:SHOW_USES"), lookups);
 	}
 
 	@Test
-	void ignoresUnsupportedButtonsAndModifiedClicks() {
+	void ignoresUnsupportedClicks() {
 		for (int button : new int[]{-1, 2, 3}) {
 			assertFalse(clicks.press(slot, "item", 10, 20, button, false));
 			assertFalse(release(slot, 10, 20, button));
@@ -48,14 +48,14 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void emptyAreaCannotStartLookup() {
+	void ignoresEmptyArea() {
 		assertFalse(clicks.press(null, "item", 10, 20, 0, false));
 		assertFalse(release(slot, 10, 20, 0));
 		assertTrue(lookups.isEmpty());
 	}
 
 	@Test
-	void allowsSmallPointerJitter() {
+	void allowsPointerJitter() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		clicks.move(12, 22);
 		assertTrue(release(slot, 12, 22, 0));
@@ -63,7 +63,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void dragStaysCancelledEvenWhenPointerReturns() {
+	void returningDragStaysCancelled() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		clicks.move(20, 20);
 		clicks.move(10, 20);
@@ -72,14 +72,14 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void checksDistanceOnReleaseEvenWithoutDragEvent() {
+	void releaseChecksDistance() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		assertTrue(release(slot, 15, 20, 0));
 		assertTrue(lookups.isEmpty());
 	}
 
 	@Test
-	void releaseOutsideOrOnAnotherSlotIsConsumedWithoutLookup() {
+	void consumesOffTargetRelease() {
 		for (Object target : new Object[]{null, new Object()}) {
 			clicks.press(slot, "item", 10, 20, 0, false);
 			assertTrue(release(target, 10, 20, 0));
@@ -88,7 +88,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void equalIngredientsInDifferentCellsDoNotCountAsTheSameTarget() {
+	void matchesTargetByIdentity() {
 		Object first = new String("same ingredient"), second = new String("same ingredient");
 		clicks.press(first, "item", 10, 20, 0, false);
 		assertTrue(release(second, 10, 20, 0));
@@ -96,7 +96,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void scrollOrModifierCancellationConsumesReleaseAndNextClickWorks() {
+	void cancelAllowsNextClick() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		clicks.cancel();
 		assertTrue(release(slot, 10, 20, 0));
@@ -107,7 +107,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void unrelatedButtonReleaseCannotActivatePendingLookup() {
+	void ignoresOtherButtonRelease() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		assertFalse(release(slot, 10, 20, 1));
 		assertTrue(lookups.isEmpty());
@@ -116,7 +116,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void screenChangeDropsPendingGesture() {
+	void resetDropsPendingClick() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		clicks.reset();
 		assertFalse(release(slot, 10, 20, 0));
@@ -124,7 +124,7 @@ class RecipeTreeSidebarClickTest {
 	}
 
 	@Test
-	void clearsPendingStateBeforeOpeningAnotherScreen() {
+	void clearsStateBeforeCallback() {
 		clicks.press(slot, "item", 10, 20, 0, false);
 		assertTrue(clicks.release(slot, 10, 20, 0, (ingredient, action) -> {
 			assertFalse(release(slot, 10, 20, 0));
