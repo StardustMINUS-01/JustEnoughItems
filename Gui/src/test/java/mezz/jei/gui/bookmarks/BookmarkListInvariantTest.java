@@ -388,28 +388,50 @@ public class BookmarkListInvariantTest {
 		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id() == groupId));
 	}
 
-	@Test
-	public void removingResultFromCollapsedChainRemovesWholeBlock() {
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void bookmarkKeyRemovesOnlyHoveredCollapsedBlock(boolean hoverInput) {
 		BookmarkList bookmarks = bookmarkList();
 		RecipeBookmark<Object, ItemStack> result = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		RecipeBookmark<Object, ItemStack> input = recipeBookmark(Items.GOLD_INGOT, RecipeIngredientRole.INPUT);
+		RecipeBookmark<Object, ItemStack> childResult = recipeBookmark(RECIPE_B, Items.DIAMOND, RecipeIngredientRole.OUTPUT);
+		RecipeBookmark<Object, ItemStack> childInput = recipeBookmark(RECIPE_B, Items.STONE, RecipeIngredientRole.INPUT);
 		bookmarks.addToListWithoutNotifying(result, false);
 		bookmarks.addToListWithoutNotifying(input, false);
+		bookmarks.addToListWithoutNotifying(childResult, false);
+		bookmarks.addToListWithoutNotifying(childInput, false);
 		bookmarks.moveBookmarkMetadataFromConfig(result, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
 		bookmarks.moveBookmarkMetadataFromConfig(input, metadata(BookmarkItemType.INGREDIENT, RECIPE, "gold"));
-		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input));
+		bookmarks.moveBookmarkMetadataFromConfig(childResult, metadata(BookmarkItemType.RESULT, RECIPE_B, "gold"));
+		bookmarks.moveBookmarkMetadataFromConfig(childInput, metadata(BookmarkItemType.INGREDIENT, RECIPE_B, "ore"));
+		int groupId = bookmarks.createGroupForBookmarks("Machines", List.of(result, input, childResult, childInput));
 		bookmarks.setGroupCraftingMode(groupId, true);
-		IBookmark currentResult = bookmarks.getBookmarks().stream()
+		bookmarks.setGroupCollapsedRecipeIds(groupId, Set.of(RECIPE));
+		TestBookmark loose = bookmark("loose");
+		TestBookmark outside = bookmark("outside");
+		bookmarks.addToListWithoutNotifying(loose, false);
+		bookmarks.addToListWithoutNotifying(outside, false);
+		bookmarks.moveBookmarkMetadataFromConfig(loose, BookmarkItemMetadata.defaultForGroup(groupId));
+		bookmarks.addGroupFromConfig(new BookmarkGroup(2, "Other"));
+		bookmarks.moveBookmarkMetadataFromConfig(outside, metadata(2, BookmarkItemType.RESULT, RECIPE, "iron"));
+		bookmarks.notifyListenersOfChange();
+		IBookmark target = bookmarks.getBookmarks().stream()
 			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
-			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == BookmarkItemType.RESULT)
+			.filter(b -> bookmarks.getBookmarkMetadata(b).type() == (hoverInput ? BookmarkItemType.INGREDIENT : BookmarkItemType.RESULT))
+			.filter(b -> (hoverInput ? RECIPE_B : RECIPE).equals(bookmarks.getBookmarkMetadata(b).recipeUid()))
 			.findFirst()
 			.orElseThrow();
-		Assertions.assertTrue(bookmarks.isGroupCraftingMode(groupId));
+		var action = mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter.resolveBookmarkKeyAction(
+				mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext.builder(mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject.RECIPE_BOOKMARK)
+					.hasIngredient(true).hasRecipe(true).isBookmarkSlot(true).build(),
+				false,
+				false
+			)
+			.orElseThrow();
 
-		Assertions.assertTrue(bookmarks.removeRecipeBookmark(currentResult, false));
-
-		Assertions.assertTrue(bookmarks.getBookmarks().isEmpty());
-		Assertions.assertTrue(bookmarks.getBookmarkGroups().stream().noneMatch(group -> group.id() == groupId));
+		Assertions.assertTrue(bookmarks.onElementBookmarked(target.getElement(), action));
+		Assertions.assertEquals(List.of(loose, outside), bookmarks.getBookmarks());
+		Assertions.assertTrue(bookmarks.getCollapsedRecipeIds(groupId).isEmpty());
 	}
 
 	@Test

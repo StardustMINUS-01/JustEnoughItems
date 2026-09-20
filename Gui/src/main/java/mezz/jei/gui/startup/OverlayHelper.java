@@ -149,7 +149,7 @@ public final class OverlayHelper {
 					IElement<?> anchor = activeCollapsibleGridSource.getAnchorElementForGroup(groupId);
 					ingredientListGridNavigation.updateLayoutKeepingPageAnchorVisible(anchor);
 				} else {
-					ingredientListGridNavigation.updateLayoutToFirstPage();
+					ingredientListGridNavigation.updateLayout(false);
 				}
 			});
 		}

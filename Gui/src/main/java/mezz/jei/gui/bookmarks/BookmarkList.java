@@ -436,9 +436,6 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		if (respectCollapsedClosure && group.filter(BookmarkGroup::craftingMode).isPresent()) {
 			Set<ResourceLocation> relatedRecipes = getRelatedRecipeIds(groupId, recipeUid);
 			if (!relatedRecipes.isEmpty()) {
-				if (!removeFullRecipe) {
-					return true;
-				}
 				return removeRecipes(groupId, relatedRecipes);
 			}
 		}
