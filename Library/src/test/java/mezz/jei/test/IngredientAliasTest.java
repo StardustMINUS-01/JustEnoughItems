@@ -1,5 +1,6 @@
 package mezz.jei.test;
 
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
@@ -8,13 +9,15 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.library.ingredients.IngredientInfo;
-import mezz.jei.library.ingredients.TypedIngredient;
+import mezz.jei.common.ingredients.TypedIngredient;
+import mezz.jei.library.ingredients.DisplayIngredientAcceptor;
 import mezz.jei.library.ingredients.subtypes.SubtypeInterpreters;
 import mezz.jei.library.ingredients.subtypes.SubtypeManager;
 import mezz.jei.library.load.registration.IngredientManagerBuilder;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.TooltipFlag;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -22,6 +25,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class IngredientAliasTest {
 	private static final IIngredientTypeWithSubtypes<TestBase, TestIngredient> TEST_TYPE = new IIngredientTypeWithSubtypes<>() {
@@ -211,6 +216,30 @@ public class IngredientAliasTest {
 		);
 	}
 
+	@Test
+	public void displayIngredientMutationsNotifyDynamicRecipeLayouts() {
+		// Setup: a display acceptor represents the authoritative contents of a dynamic recipe slot.
+		TestIngredient ingredient = new TestIngredient(new TestBase("dynamic"), null);
+		IngredientManagerBuilder builder = createIngredientManagerBuilder();
+		builder.register(
+			TEST_TYPE,
+			List.of(ingredient),
+			TEST_HELPER,
+			createTestRenderer()
+		);
+		IIngredientManager ingredientManager = builder.build();
+		AtomicInteger changes = new AtomicInteger();
+		DisplayIngredientAcceptor acceptor = new DisplayIngredientAcceptor(ingredientManager, changes::incrementAndGet);
+
+		// Operation: add two entries through different public mutation paths.
+		acceptor.addTypedIngredient(createTypedIngredient(ingredient));
+		acceptor.addOptionalTypedIngredients(List.of(Optional.empty()));
+
+		// Assertions: each mutation schedules a refresh, including a blank rotation entry.
+		Assertions.assertEquals(2, changes.get());
+		Assertions.assertEquals(2, acceptor.getAllIngredients().size());
+	}
+
 	@SafeVarargs
 	private static IngredientInfo<TestIngredient> createIngredientInfo(ITypedIngredient<TestIngredient>... typedIngredients) {
 		return new IngredientInfo<>(
@@ -243,7 +272,21 @@ public class IngredientAliasTest {
 			}
 
 			@Override
+			@Deprecated(since = "15.54.0", forRemoval = true)
+			@SuppressWarnings("removal")
 			public List<Component> getTooltip(T ingredient, TooltipFlag tooltipFlag) {
+				return getTooltip(ingredient, null, tooltipFlag);
+			}
+
+			@Override
+			@Deprecated(since = "15.54.0", forRemoval = true)
+			@SuppressWarnings("removal")
+			public void getTooltip(ITooltipBuilder tooltip, T ingredient, TooltipFlag tooltipFlag) {
+				getTooltip(tooltip, ingredient, null, tooltipFlag);
+			}
+
+			@Override
+			public List<Component> getTooltip(T ingredient, @Nullable Player player, TooltipFlag tooltipFlag) {
 				return List.of();
 			}
 		};

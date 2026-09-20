@@ -38,7 +38,8 @@ public final class BookmarkRecipeSelection {
 		Map<Integer, List<ITypedIngredient<?>>> candidates = new LinkedHashMap<>();
 		List<IRecipeSlotView> slots = layout.getRecipeSlotsView().getSlotViews();
 		List<List<BookmarkIngredientKey>> slotKeys = slots.stream().map(slot -> slot.getAllIngredients()
-			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, manager)).toList()).toList();
+			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, manager)).toList())
+			.toList();
 		int inputIndex = 0;
 		for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
 			IRecipeSlotView slot = slots.get(slotIndex);
@@ -47,18 +48,15 @@ public final class BookmarkRecipeSelection {
 			}
 			var keys = slotKeys.get(slotIndex);
 			var preferred = slot.getRole() == RecipeIngredientRole.INPUT ? previousChoices.get(inputIndex) : null;
-			var matches = saved.stream().filter(input -> remaining.getOrDefault(input.index(), 0L) > 0 &&
+			var matches = saved.stream().filter(input -> remaining.get(input.index()) > 0 &&
 				input.metadata().type().recipeRole() == slot.getRole() && matches(input, keys))
 				.toList();
-			RecipeChainInput source = matches.stream().filter(input -> input.selectedKey() != null && input.selectedKey().equals(preferred)).findFirst()
+			RecipeChainInput source = matches.stream().filter(input -> input.selectedKey().equals(preferred)).findFirst()
 				.or(() -> matches.stream().findFirst()).orElse(null);
 			Binding binding = null;
 			if (source != null) {
-				long unit = keys.stream().filter(key -> source.selectedKey() != null && source.selectedKey().equals(key)).findFirst()
-					.or(() -> keys.stream().findFirst())
-					.map(BookmarkIngredientKey::typedIngredient)
-					.map(value -> value == null ? 1L : BookmarkIngredientAmountResolver.getAmount(value, manager))
-					.orElse(1L);
+				long unit = keys.stream().filter(source.selectedKey()::equals).findFirst().or(() -> keys.stream().findFirst())
+					.map(BookmarkIngredientKey::typedIngredient).map(value -> BookmarkIngredientAmountResolver.getAmount(value, manager)).orElse(1L);
 				boolean hasLaterSlot = false;
 				for (int later = slotIndex + 1; later < slots.size(); later++) {
 					if (slots.get(later).getRole() == slot.getRole() && matches(source, slotKeys.get(later))) {
@@ -66,16 +64,15 @@ public final class BookmarkRecipeSelection {
 						break;
 					}
 				}
+				// Geometry distributes merged inputs; the last matching slot retains any edited quantity.
 				long amount = hasLaterSlot ? Math.min(remaining.get(source.index()), Math.max(1, unit)) : remaining.get(source.index());
-				remaining.compute(source.index(), (index, value) -> value == null ? 0 : value - amount);
+				remaining.compute(source.index(), (index, value) -> value - amount);
 				List<ITypedIngredient<?>> savedCandidates = new ArrayList<>();
 				var savedKeys = new java.util.LinkedHashSet<>(source.metadata().permutations());
-				if (source.selectedKey() != null) {
-					savedKeys.add(source.selectedKey());
-				}
+				savedKeys.add(source.selectedKey());
 				for (var key : savedKeys) {
 					ITypedIngredient<?> value = key.typedIngredient();
-					if (value == null && source.selectedKey() != null && key.equals(source.selectedKey())) {
+					if (value == null && key.equals(source.selectedKey())) {
 						value = source.selectedIngredient();
 					}
 					if (value == null) {
@@ -90,25 +87,28 @@ public final class BookmarkRecipeSelection {
 			}
 			if (slot.getRole() == RecipeIngredientRole.INPUT) {
 				candidates.put(inputIndex, binding == null ? List.of() : binding.candidates());
-				if (binding != null && binding.source().selectedKey() != null) {
+				if (binding != null) {
 					inputs.put(inputIndex, binding);
 					selected.put(inputIndex, binding.source().selectedKey());
 				}
 				inputIndex++;
 			}
-			if (slot instanceof IRecipeSlotDrawable drawable) {
+			if (slot instanceof IRecipeSlotCandidateView view) {
+				view.setDisplayedCandidates(binding == null ? List.of() : binding.candidates());
+				if (slot.getRole() == RecipeIngredientRole.OUTPUT && binding != null) {
+					view.setSelectedCandidate(binding.candidates().stream()
+						.filter(value -> source.selectedKey().equals(BookmarkItemMetadataFactory.createPermutationKey(value, manager)))
+						.findFirst().orElse(null));
+				}
+			} else if (slot instanceof IRecipeSlotDrawable drawable) {
+				// Selected inputs are applied together below; missing slots need explicit empty overrides.
 				if (slot.getRole() == RecipeIngredientRole.OUTPUT || binding == null) {
 					drawable.clearDisplayOverrides();
 					var overrides = drawable.createDisplayOverrides();
-					if (binding != null && source != null && source.selectedKey() != null) {
-						BookmarkIngredientKey selectedKey = source.selectedKey();
-						binding.candidates().stream()
-							.filter(value -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(value, manager)))
+					if (binding != null) {
+						binding.candidates().stream().filter(value -> source.selectedKey().equals(BookmarkItemMetadataFactory.createPermutationKey(value, manager)))
 							.findFirst().ifPresent(overrides::addTypedIngredient);
 					}
-				}
-				if (slot instanceof IRecipeSlotCandidateView view) {
-					view.setDisplayedCandidates(binding == null ? List.of() : binding.candidates());
 				}
 			}
 		}
@@ -118,16 +118,14 @@ public final class BookmarkRecipeSelection {
 	}
 
 	public List<ITypedIngredient<?>> getCandidates(IRecipeSlotView slot) {
-		return Optional.ofNullable(bindings.get(slot)).map(Binding::candidates).orElseGet(() -> slot.getAllIngredients().toList());
+		return Optional.ofNullable(bindings.get(slot)).map(Binding::candidates).orElse(List.of());
 	}
 
 	public Optional<RecipeChainInput> source(IRecipeSlotView slot) {
 		return Optional.ofNullable(bindings.get(slot)).map(Binding::source);
 	}
 
-	public Map<Integer, BookmarkIngredientKey> selectedKeys() {
-		return selections.selectedKeys();
-	}
+	public Map<Integer, BookmarkIngredientKey> selectedKeys() { return selections.selectedKeys(); }
 
 	private static boolean matches(RecipeChainInput input, List<BookmarkIngredientKey> keys) {
 		return input.selectedKey() != null && (keys.contains(input.selectedKey()) || input.metadata().permutations().stream().anyMatch(keys::contains));
@@ -149,9 +147,10 @@ public final class BookmarkRecipeSelection {
 	private boolean applySelectedInputs(Map<Integer, BookmarkIngredientKey> before, BookmarkList bookmarks) {
 		var after = selections.selectedKeys();
 		List<Choice> choices = inputs.entrySet().stream().map(entry -> {
-			Binding binding = entry.getValue();
-			return new Choice(binding.source().index(), binding.source().selectedKey(), after.get(entry.getKey()), binding.amount());
-		}).toList();
+				Binding binding = entry.getValue();
+				return new Choice(binding.source().index(), binding.source().selectedKey(), after.get(entry.getKey()), binding.amount());
+			})
+			.toList();
 		if (!bookmarks.applyRecipeInputChoices(choices)) {
 			selections.setSelectedKeys(before);
 			selections.apply(layout);
@@ -164,6 +163,6 @@ public final class BookmarkRecipeSelection {
 		return manager.createTypedIngredient(ingredient.getType(), value, false).orElse(ingredient);
 	}
 
-	public record Choice(int sourceIndex, BookmarkIngredientKey before, BookmarkIngredientKey after, long amount) { }
-	private record Binding(RecipeChainInput source, long amount, List<ITypedIngredient<?>> candidates) { }
+	public record Choice(int sourceIndex, BookmarkIngredientKey before, BookmarkIngredientKey after, long amount) {}
+	private record Binding(RecipeChainInput source, long amount, List<ITypedIngredient<?>> candidates) {}
 }

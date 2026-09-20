@@ -21,6 +21,7 @@ import mezz.jei.library.load.registration.IngredientManagerBuilder;
 import mezz.jei.library.load.registration.SubtypeRegistration;
 import mezz.jei.library.plugins.vanilla.VanillaPlugin;
 import mezz.jei.library.plugins.vanilla.ingredients.ItemStackHelper;
+import mezz.jei.test.lib.ForgeTestBootstrap;
 import mezz.jei.test.lib.TestColorHelper;
 
 import net.minecraft.DetectedVersion;
@@ -29,7 +30,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
@@ -47,7 +47,7 @@ public class BookmarkConfigTest {
 	@BeforeAll
 	public static void setup() {
 		SharedConstants.setVersion(DetectedVersion.BUILT_IN);
-		Bootstrap.bootStrap();
+		ForgeTestBootstrap.bootStrap();
 	}
 
 	@Test
@@ -99,12 +99,73 @@ public class BookmarkConfigTest {
 		assertTagId(decodedCustomData, "long", Tag.TAG_LONG);
 		assertTagId(decodedCustomData, "float", Tag.TAG_FLOAT);
 		assertTagId(decodedCustomData, "double", Tag.TAG_DOUBLE);
+		stack.setCount(64);
+		stack.getOrCreateTag().putString("literal", "a*b$;=c");
+		var typed = ingredientManager.createTypedIngredient(VanillaTypes.ITEM_STACK, stack, false).orElseThrow();
+		var favoriteStore = new mezz.jei.gui.favorites.FavoriteRecipeStore();
+		var target = new mezz.jei.gui.bookmarks.BookmarkIngredientKey(VanillaTypes.ITEM_STACK.getUid(), "test:unindexed_variant", stack.save(new CompoundTag()).toString(), typed);
+		var favorite = new mezz.jei.gui.input.FocusedRecipe(new net.minecraft.resources.ResourceLocation("test", "type"), new net.minecraft.resources.ResourceLocation("test", "recipe"));
+		favoriteStore.setFavorite(target, favorite, java.util.Map.of());
+		var panel = new mezz.jei.gui.favorites.FavoriteRecipePanelState();
+		var grid = new mezz.jei.gui.favorites.FavoriteRecipeGridSource(favoriteStore, panel, ingredientManager, null, null,
+			(recipe, ingredient, choices) -> new mezz.jei.gui.favorites.FavoriteRecipeGridSource.ResolvedRecipeIngredients(ingredient, List.of()));
+		Assertions.assertSame(typed, grid.getElements().get(0).getTypedIngredient());
+		panel.cycleDisplayMode();
+		Assertions.assertSame(typed, grid.getElements(4).get(0).getTypedIngredient());
+		var loadedFavorite = FavoriteRecipeJsonSerializer.deserializeEntry(FavoriteRecipeJsonSerializer.serializeEntry(favoriteStore.entries().get(0))).orElseThrow();
+		favoriteStore.setFavorites(List.of(loadedFavorite));
+		var loadedGrid = new mezz.jei.gui.favorites.FavoriteRecipeGridSource(favoriteStore, panel, ingredientManager, null, null,
+			(recipe, ingredient, choices) -> new mezz.jei.gui.favorites.FavoriteRecipeGridSource.ResolvedRecipeIngredients(ingredient, List.of()));
+		Assertions.assertTrue(ItemStack.matches(stack, loadedGrid.getElements().get(0).getTypedIngredient().getItemStack().orElseThrow()));
+		Assertions.assertTrue(ItemStack.matches(stack, loadedGrid.getElements(4).get(0).getTypedIngredient().getItemStack().orElseThrow()));
+		stack.setCount(192);
+		typed = ingredientManager.createTypedIngredient(VanillaTypes.ITEM_STACK, stack, false).orElseThrow();
+		var shared = mezz.jei.common.chat.SharedChatIngredient.from(typed).orElseThrow();
+		var restored = mezz.jei.common.chat.SharedChatIngredient.decode(shared.encode().orElseThrow()).orElseThrow()
+			.resolve(ingredientManager).orElseThrow().getItemStack().orElseThrow();
+		Assertions.assertTrue(ItemStack.matches(stack, restored));
+		String rule = mezz.jei.gui.input.handlers.IngredientClipboardText.getNbtRule(stack);
+		var entry = ConfigLineReader.read(List.of(rule.split("\n"))).get(0);
+		var expression = mezz.jei.gui.match.IngredientExpression.parseIngredient(entry.value()).orElseThrow();
+		Assertions.assertTrue(expression.matches(mezz.jei.gui.match.IngredientMatchInfo.fromIngredient(typed, false).orElseThrow()));
+		stack.getOrCreateTag().putString("literal", "axxb$;=c");
+		var changed = ingredientManager.createTypedIngredient(VanillaTypes.ITEM_STACK, stack, false).orElseThrow();
+		Assertions.assertFalse(expression.matches(mezz.jei.gui.match.IngredientMatchInfo.fromIngredient(changed, false).orElseThrow()));
 	}
 
 	private static void assertTagId(CompoundTag tag, String key, int expectedId) {
 		Tag value = tag.get(key);
 		Assertions.assertNotNull(value, "Expected custom data to contain key: " + key);
 		Assertions.assertEquals((byte) expectedId, value.getId(), "Unexpected NBT tag type for key: " + key);
+	}
+
+	@Test
+	public void savedCandidatesUseTheSameSelectionForScrollAndPopup() {
+		ItemStack first = new ItemStack(Items.CHEST);
+		first.getOrCreateTag().putString("variant", "first");
+		ItemStack second = new ItemStack(Items.DIAMOND);
+		second.getOrCreateTag().putString("variant", "not_in_ingredient_list");
+		var manager = createManager(first);
+		var firstTyped = manager.createTypedIngredient(VanillaTypes.ITEM_STACK, first, false).orElseThrow();
+		var secondTyped = manager.createTypedIngredient(VanillaTypes.ITEM_STACK, second, false).orElseThrow();
+		var firstKey = mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer.deserialize(mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer.serialize(BookmarkItemMetadataFactory.createPermutationKey(firstTyped, manager)));
+		var secondKey = mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer.deserialize(mezz.jei.gui.config.file.serializers.BookmarkIngredientKeySerializer.serialize(BookmarkItemMetadataFactory.createPermutationKey(secondTyped, manager)));
+		var recipe = new net.minecraft.resources.ResourceLocation("test", "recipe");
+		for (boolean scroll : List.of(false, true)) {
+			var bookmarks = new BookmarkList(null, null, manager, null, null, null, null);
+			var original = IngredientBookmark.create(firstTyped, manager);
+			bookmarks.addToListWithoutNotifying(original, false);
+			bookmarks.moveBookmarkMetadataFromConfig(original, new BookmarkItemMetadata(0, mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT,
+				4, 3, BookmarkItemMetadata.CHANCE_FULL, recipe, recipe, Set.of(firstKey, secondKey)));
+			Assertions.assertTrue(scroll ? bookmarks.cycleBookmarkPermutation(original, 1) : bookmarks.selectBookmarkPermutation(original, secondKey, false).isPresent());
+			Assertions.assertEquals(1, bookmarks.getBookmarks().size());
+			var replacement = bookmarks.getBookmarks().get(0);
+			ItemStack chosen = replacement.getElement().getTypedIngredient().getItemStack().orElseThrow();
+			Assertions.assertTrue(chosen.is(Items.DIAMOND));
+			Assertions.assertEquals(second.getTag(), chosen.getTag());
+			Assertions.assertEquals(3, bookmarks.getBookmarkMetadata(replacement).factor());
+			Assertions.assertEquals(4, bookmarks.getBookmarkMetadata(replacement).multiplier());
+		}
 	}
 
 	@Test

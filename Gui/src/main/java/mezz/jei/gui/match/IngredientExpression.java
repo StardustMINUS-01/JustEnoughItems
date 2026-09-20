@@ -1,5 +1,7 @@
 package mezz.jei.gui.match;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.StringReader;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
@@ -11,15 +13,21 @@ import java.util.regex.Pattern;
 public final class IngredientExpression {
 	private final List<Expr> tiers;
 	private final Kind kind;
+	private final boolean nbt;
 
 	private enum Kind {
 		INGREDIENT,
 		UID
 	}
 
-	private IngredientExpression(List<Expr> tiers, Kind kind) {
+	private IngredientExpression(List<Expr> tiers, Kind kind, boolean nbt) {
+		this.nbt = nbt;
 		this.tiers = tiers;
 		this.kind = kind;
+	}
+
+	public boolean hasNbt() {
+		return nbt;
 	}
 
 	public static Optional<IngredientExpression> parseIngredient(String text) {
@@ -79,35 +87,32 @@ public final class IngredientExpression {
 			return Optional.empty();
 		}
 		List<Expr> tiers = new ArrayList<>(tierTexts.size());
+		boolean nbt = false;
 		for (String tierText : tierTexts) {
-			Optional<Expr> expr = new Parser(tierText, kind).parse();
+			Parser parser = new Parser(tierText, kind);
+			Optional<Expr> expr = parser.parse();
 			if (expr.isEmpty()) {
 				return Optional.empty();
 			}
 			tiers.add(expr.get());
+			nbt |= parser.nbt;
 		}
-		return Optional.of(new IngredientExpression(List.copyOf(tiers), kind));
+		return Optional.of(new IngredientExpression(List.copyOf(tiers), kind, nbt));
 	}
 
 	private static List<String> splitTiers(String text) {
 		List<String> tiers = new ArrayList<>();
-		int depth = 0;
+		ExpressionSyntax syntax = new ExpressionSyntax();
 		int start = 0;
 		for (int i = 0; i < text.length(); i++) {
 			char c = text.charAt(i);
-			if (c == '(') {
-				depth++;
-			} else if (c == ')') {
-				depth--;
-				if (depth < 0) {
-					return List.of();
-				}
-			} else if (c == ';' && depth == 0) {
+			if (c == ';' && syntax.isTopLevel()) {
 				tiers.add(text.substring(start, i));
 				start = i + 1;
 			}
+			syntax.accept(c);
 		}
-		if (depth != 0) {
+		if (!syntax.isTopLevel()) {
 			return List.of();
 		}
 		tiers.add(text.substring(start));
@@ -118,6 +123,9 @@ public final class IngredientExpression {
 	}
 
 	private boolean eval(Expr expr, List<IngredientMatchInfo> ingredients) {
+		if (expr instanceof NbtAtom) {
+			return ingredients.stream().anyMatch(info -> eval(expr, info));
+		}
 		if (expr instanceof IngredientAtom atom) {
 			return ingredients.stream().anyMatch(atom.target()::matches);
 		}
@@ -134,6 +142,9 @@ public final class IngredientExpression {
 	}
 
 	private boolean eval(Expr expr, IngredientMatchInfo info) {
+		if (expr instanceof NbtAtom atom) {
+			return atom.pattern().matches(info.nbt());
+		}
 		if (expr instanceof IngredientAtom atom) {
 			return atom.target().matches(info);
 		}
@@ -165,8 +176,10 @@ public final class IngredientExpression {
 		throw new IllegalStateException("Unexpected expression node: " + expr);
 	}
 
-	private sealed interface Expr permits IngredientAtom, UidAtom, Not, And, Or {
+	private sealed interface Expr permits NbtAtom, IngredientAtom, UidAtom, Not, And, Or {
 	}
+
+	private record NbtAtom(NbtPattern pattern) implements Expr {}
 
 	private record IngredientAtom(IngredientSelector target) implements Expr {
 	}
@@ -187,6 +200,7 @@ public final class IngredientExpression {
 		private final String text;
 		private final Kind kind;
 		private int index = 0;
+		private boolean nbt;
 
 		private Parser(String text, Kind kind) {
 			this.text = text;
@@ -240,6 +254,18 @@ public final class IngredientExpression {
 
 		private Expr parsePrimary() {
 			skipWhitespace();
+			if (kind == Kind.INGREDIENT && text.startsWith("nbt:", index)) {
+				var reader = new StringReader(text);
+				reader.setCursor(index + 4);
+				try {
+					NbtPattern pattern = NbtPattern.parse(reader);
+					index = reader.getCursor();
+					nbt = true;
+					return new NbtAtom(pattern);
+				} catch (CommandSyntaxException e) {
+					throw new IllegalArgumentException(e.getMessage(), e);
+				}
+			}
 			if (consume('(')) {
 				Expr inner = parseOr();
 				skipWhitespace();

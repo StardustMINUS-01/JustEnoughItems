@@ -313,6 +313,11 @@ public class BookmarkListPatternEncodeLookupTest {
 		public T getIngredient() {
 			return ingredient;
 		}
+
+		@Override
+		public ITypedIngredient<T> normalize(mezz.jei.api.ingredients.IIngredientHelper<T> helper) {
+			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+		}
 	}
 
 	private record TestFocus<T>(RecipeIngredientRole role, ITypedIngredient<T> typedIngredient) implements IFocus<T> {
@@ -460,6 +465,12 @@ public class BookmarkListPatternEncodeLookupTest {
 		@Override
 		public void drawHighlight(net.minecraft.client.gui.GuiGraphics guiGraphics, int color) {
 		}
+
+		@Override
+		public Optional<net.minecraft.tags.TagKey<?>> getTagKey() { return Optional.empty(); }
+
+		@Override
+		public java.util.stream.Stream<ITypedIngredient<?>> getDisplayedIngredients() { return getAllIngredients(); }
 
 		@Override
 		public Optional<String> getSlotName() {

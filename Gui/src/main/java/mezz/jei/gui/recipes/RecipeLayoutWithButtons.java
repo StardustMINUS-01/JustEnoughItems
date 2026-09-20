@@ -8,6 +8,8 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.Internal;
+import mezz.jei.common.chat.JeiChatRecipeLinks;
+import mezz.jei.common.network.packets.PacketShareRecipe;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.common.util.ImmutableRect2i;
@@ -46,7 +48,8 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		RecipesGui recipesGui,
 		List<IRecipeButtonControllerFactory> extraButtonControllerFactories
 	) {
-		RecipeTransferButtonController transferButton = new RecipeTransferButtonController(recipeLayoutDrawable, recipesGui);
+		RecipesGui.RecipeLayoutForkExtras forkExtras = recipesGui.createRecipeLayoutForkExtras(recipeLayoutDrawable);
+		RecipeTransferButtonController transferButton = new RecipeTransferButtonController(recipeLayoutDrawable, recipesGui, forkExtras.inputSlotSelectionState());
 		RecipeBookmarkButtonController bookmarkButton = new RecipeBookmarkButtonController(bookmarks, recipeLayoutDrawable, recipeBookmark);
 
 		List<IconButton> buttons = new ArrayList<>();
@@ -59,7 +62,6 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 			}
 		}
 
-		RecipesGui.RecipeLayoutForkExtras forkExtras = recipesGui.createRecipeLayoutForkExtras(recipeLayoutDrawable);
 		return new RecipeLayoutWithButtons<>(
 			recipeLayoutDrawable,
 			transferButton,
@@ -175,17 +177,14 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		int leftBorderWidth = area.getX() - areaWithBorder.getX();
 		int rightAreaWidth = areaWithBorder.getWidth() - leftBorderWidth;
 
-		int i = 0;
+		int buttonCount = favoriteButton != null && favoriteButton.isVisible() ? 1 : 0;
 		for (IconButton button : buttons) {
 			if (button.isVisible()) {
-				Rect2i buttonArea = recipeLayout.getSideButtonArea(i);
-				int buttonRight = buttonArea.getX() + buttonArea.getWidth();
-				rightAreaWidth = Math.max(buttonRight, rightAreaWidth);
-				i++;
+				buttonCount++;
 			}
 		}
-		if (favoriteButton != null && favoriteButton.isVisible()) {
-			Rect2i buttonArea = recipeLayout.getRecipeBookmarkButtonArea();
+		for (int i = 0; i < buttonCount; i++) {
+			Rect2i buttonArea = recipeLayout.getSideButtonArea(i);
 			int buttonRight = buttonArea.getX() + buttonArea.getWidth();
 			rightAreaWidth = Math.max(buttonRight, rightAreaWidth);
 		}
@@ -196,6 +195,18 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 	@Override
 	public IUserInputHandler createUserInputHandler() {
 		List<IUserInputHandler> inputHandlers = new ArrayList<>();
+		if (recipeBookmark != null) {
+			inputHandlers.add(new IUserInputHandler() {
+				@Override
+				public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+					if (input.is(keys.getRightClick()) && buttons.get(1).isMouseOver(input.getMouseX(), input.getMouseY())) {
+						shareRecipe(input);
+						return Optional.of(this);
+					}
+					return Optional.empty();
+				}
+			});
+		}
 		for (IconButton button : buttons) {
 			inputHandlers.add(button.createInputHandler());
 		}
@@ -257,17 +268,36 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 		return recipeBookmark != null;
 	}
 
+	private void shareRecipe(UserInput input) {
+		if (input.isSimulate() || recipeBookmark == null || !Internal.getServerConnection().canShareChat()) {
+			return;
+		}
+		var recipe = new JeiChatRecipeLinks.RecipeLink(recipeLayout.getRecipeCategory().getRecipeType().getUid(), recipeBookmark.getRecipeUid());
+		if (recipe.recipeType().toString().length() > JeiChatRecipeLinks.MAX_ID_LENGTH || recipe.recipeId().toString().length() > JeiChatRecipeLinks.MAX_ID_LENGTH) {
+			return;
+		}
+		String title = getShareTitle(recipeBookmark.getRecipeOutput());
+		title = title.substring(0, Math.min(title.length(), JeiChatRecipeLinks.MAX_TITLE_LENGTH));
+		Internal.getServerConnection().sendPacketToServer(new PacketShareRecipe(recipe, title));
+		JeiClientSoundUtil.playClickSound();
+	}
+
+	private static <T> String getShareTitle(ITypedIngredient<T> ingredient) {
+		return Internal.getJeiRuntime().getIngredientManager().getIngredientHelper(ingredient.getType())
+			.getDisplayName(ingredient.getIngredient());
+	}
+
 	boolean addRecipeBookmarkGroup(UserInput input, boolean preserveAmount) {
 		if (inputSlotSelectionState == null) {
 			return false;
 		}
 		if (!input.isSimulate()) {
 			boolean added = bookmarks.addRecipeBookmarks(
-			recipeLayout,
-			preserveAmount,
-			inputSlotSelectionState.selectedKeys(),
-			inputSlotSelectionState.filteredCandidates()
-		);
+				recipeLayout,
+				preserveAmount,
+				inputSlotSelectionState.selectedKeys(),
+				inputSlotSelectionState.filteredCandidates()
+			);
 			if (added) {
 				showBookmarkPanel.run();
 			}
@@ -283,7 +313,7 @@ public final class RecipeLayoutWithButtons<R> implements IRecipeLayoutWithButton
 
 	boolean selectInputCandidate(IRecipeSlotView slot, ITypedIngredient<?> ingredient, boolean synchronizeFamily) {
 		return inputSlotSelectionState != null &&
-			// 1.21.1 parity: clicking the selected candidate again clears the selection.
+		// 1.21.1 parity: clicking the selected candidate again clears the selection.
 			inputSlotSelectionState.select(recipeLayout, slot, ingredient, synchronizeFamily, true);
 	}
 

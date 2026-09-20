@@ -4,12 +4,6 @@ import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/**
- * 1.20.1 平台适配回归: 与 1.21.1 相比, 实时类型 uid 是短形式 "item_stack",
- * 且序列化快照是包含 Count 的 SNBT(1.21.1 为不含 Count 的 DataComponentPatch)。
- * matchesCraftingAvailable 必须: 忽略 Count 差异、区分原版 subtype、
- * 允许 legacy/unknown round-trip 键按物品身份匹配、并在受信命名空间内放宽 NBT。
- */
 public class BookmarkIngredientKeyTest {
 
 	@Test
@@ -18,6 +12,9 @@ public class BookmarkIngredientKeyTest {
 		BookmarkIngredientKey inventory = new BookmarkIngredientKey("item_stack", "minecraft:stick", "{Count:1b,id:\"minecraft:stick\"}");
 
 		Assertions.assertTrue(output.matchesCraftingAvailable(inventory));
+		Assertions.assertEquals(output, inventory);
+		Assertions.assertEquals(output.hashCode(), inventory.hashCode());
+		Assertions.assertEquals(0, output.compareTo(inventory));
 	}
 
 	@Test
@@ -27,6 +24,7 @@ public class BookmarkIngredientKeyTest {
 
 		Assertions.assertFalse(empty.matchesCraftingAvailable(charged));
 		Assertions.assertFalse(charged.matchesCraftingAvailable(empty));
+		Assertions.assertNotEquals(empty.getCraftingAvailabilityKey(), charged.getCraftingAvailabilityKey());
 	}
 
 	@Test
@@ -35,15 +33,16 @@ public class BookmarkIngredientKeyTest {
 		BookmarkIngredientKey charged = new BookmarkIngredientKey("item_stack", "mekanism:ultimate_injecting_factory:charged", "{Count:1b,id:\"mekanism:ultimate_injecting_factory\"}");
 
 		Assertions.assertTrue(empty.matchesCraftingAvailable(charged));
+		Assertions.assertEquals(empty.getCraftingAvailabilityKey(), charged.getCraftingAvailabilityKey());
 	}
 
 	@Test
-	public void legacyRoundTripKeyMatchesLiveItemStackByItemIdentity() {
+	public void unknownTypesDoNotMatchLiveItemStacks() {
 		BookmarkIngredientKey legacy = new BookmarkIngredientKey("legacy", "gtceu:wetware_processor", null);
 		BookmarkIngredientKey live = new BookmarkIngredientKey("item_stack", "gtceu:wetware_processor", "{Count:1b,id:\"gtceu:wetware_processor\"}");
 
-		Assertions.assertTrue(legacy.matchesCraftingAvailable(live));
-		Assertions.assertTrue(live.matchesCraftingAvailable(legacy));
+		Assertions.assertFalse(legacy.matchesCraftingAvailable(live));
+		Assertions.assertFalse(live.matchesCraftingAvailable(legacy));
 	}
 
 	@Test
@@ -59,9 +58,8 @@ public class BookmarkIngredientKeyTest {
 		BookmarkIngredientKey canonical = new BookmarkIngredientKey("minecraft:item_stack", "gtceu:wetware_processor", null);
 		BookmarkIngredientKey shortForm = new BookmarkIngredientKey("item_stack", "gtceu:wetware_processor", null);
 
-		Assertions.assertEquals("gtceu:wetware_processor", canonical.itemBaseId());
-		Assertions.assertEquals(canonical.itemBaseId(), shortForm.itemBaseId());
-		Assertions.assertTrue(BookmarkIngredientKey.isItemKey(canonical));
-		Assertions.assertTrue(BookmarkIngredientKey.isItemKey(shortForm));
+		Assertions.assertEquals(canonical, shortForm);
+		Assertions.assertEquals(canonical.hashCode(), shortForm.hashCode());
+		Assertions.assertEquals(0, canonical.compareTo(shortForm));
 	}
 }

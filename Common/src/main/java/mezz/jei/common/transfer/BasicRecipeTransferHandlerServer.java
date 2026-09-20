@@ -35,13 +35,30 @@ public final class BasicRecipeTransferHandlerServer {
 		boolean maxTransfer,
 		boolean requireCompleteSets
 	) {
+		setItemsWithResult(player, transferOperations, craftingSlots, inventorySlots, maxTransfer, requireCompleteSets);
+	}
+
+	/**
+	 * Called server-side to put the items in place and report whether the transfer was applied.
+	 */
+	public static boolean setItemsWithResult(
+		Player player,
+		List<TransferOperation> transferOperations,
+		List<Slot> craftingSlots,
+		List<Slot> inventorySlots,
+		boolean maxTransfer,
+		boolean requireCompleteSets
+	) {
 		if (!RecipeTransferUtil.validateSlots(player, transferOperations, craftingSlots, inventorySlots)) {
-			return;
+			return false;
+		}
+		if (!canClearCraftingSlots(player, craftingSlots)) {
+			return false;
 		}
 
 		List<RequiredTransfer> requiredTransfers = calculateRequiredTransfers(transferOperations, player);
 		if (requiredTransfers == null) {
-			return;
+			return false;
 		}
 
 		// Transfer as many items as possible only if it has been explicitly requested by the implementation
@@ -59,14 +76,14 @@ public final class BasicRecipeTransferHandlerServer {
 
 		if (recipeSlotToTakenStacks.isEmpty()) {
 			LOGGER.error("Tried to transfer recipe but was unable to remove any items from the inventory.");
-			return;
+			return false;
 		}
 
 		// clear the crafting grid
 		List<ItemStack> clearedCraftingItems = clearCraftingGrid(craftingSlots, player);
 
 		// put items into the crafting grid
-		List<ItemStack> remainderItems = putItemsIntoCraftingGrid(recipeSlotToTakenStacks, requireCompleteSets, player);
+		List<ItemStack> remainderItems = putItemsIntoCraftingGrid(recipeSlotToTakenStacks, requireCompleteSets);
 
 		// put leftover items back into the inventory
 		stowItems(player, inventorySlots, clearedCraftingItems);
@@ -74,6 +91,22 @@ public final class BasicRecipeTransferHandlerServer {
 
 		AbstractContainerMenu container = player.containerMenu;
 		container.broadcastChanges();
+		return true;
+	}
+
+	private static boolean canClearCraftingSlots(Player player, List<Slot> craftingSlots) {
+		for (Slot craftingSlot : craftingSlots) {
+			ItemStack stack = craftingSlot.getItem();
+			if (!stack.isEmpty() && (!craftingSlot.mayPickup(player) || !craftingSlot.mayPlace(stack))) {
+				LOGGER.error(
+					"Tried to transfer recipe but crafting slot {} contains an item that cannot be moved: {}",
+					craftingSlot.index,
+					stack
+				);
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static int getSlotStackLimit(
@@ -100,7 +133,7 @@ public final class BasicRecipeTransferHandlerServer {
 	private static List<ItemStack> clearCraftingGrid(List<Slot> craftingSlots, Player player) {
 		List<ItemStack> clearedCraftingItems = new ArrayList<>();
 		for (Slot craftingSlot : craftingSlots) {
-			if (!craftingSlot.allowModification(player)) {
+			if (!craftingSlot.mayPickup(player)) {
 				continue;
 			}
 
@@ -115,20 +148,15 @@ public final class BasicRecipeTransferHandlerServer {
 
 	private static List<ItemStack> putItemsIntoCraftingGrid(
 		Map<Slot, ItemStack> recipeSlotToTakenStacks,
-		boolean requireCompleteSets,
-		Player player
+		boolean requireCompleteSets
 	) {
 		final int slotStackLimit = getSlotStackLimit(recipeSlotToTakenStacks, requireCompleteSets);
 		List<ItemStack> remainderItems = new ArrayList<>();
 
 		recipeSlotToTakenStacks.forEach((slot, stack) -> {
-			if (slot.getItem().isEmpty() && slot.allowModification(player) && slot.mayPlace(stack)) {
-				ItemStack remainder = slot.safeInsert(stack, slotStackLimit);
-				if (!remainder.isEmpty()) {
-					remainderItems.add(remainder);
-				}
-			} else {
-				remainderItems.add(stack);
+			ItemStack remainder = slot.safeInsert(stack, slotStackLimit);
+			if (!remainder.isEmpty()) {
+				remainderItems.add(remainder);
 			}
 		});
 
@@ -138,13 +166,14 @@ public final class BasicRecipeTransferHandlerServer {
 	@Nullable
 	private static List<RequiredTransfer> calculateRequiredTransfers(List<TransferOperation> transferOperations, Player player) {
 		List<RequiredTransfer> requiredTransfers = new ArrayList<>(transferOperations.size());
+		Map<Slot, ItemStack> targetSlotStacks = new HashMap<>();
 		for (TransferOperation transferOperation : transferOperations) {
 			Slot recipeSlot = transferOperation.craftingSlot(player.containerMenu);
 			Slot inventorySlot = transferOperation.inventorySlot(player.containerMenu);
 			if (!inventorySlot.allowModification(player)) {
 				LOGGER.error(
 					"Tried to transfer recipe but was given an" +
-					" inventory slot that the player can't pickup from: {}" ,
+						" inventory slot that the player can't pickup from: {}",
 					inventorySlot.index
 				);
 				return null;
@@ -153,13 +182,31 @@ public final class BasicRecipeTransferHandlerServer {
 			if (slotStack.isEmpty()) {
 				LOGGER.error(
 					"Tried to transfer recipe but was given an" +
-					" empty inventory slot as an ingredient source: {}",
+						" empty inventory slot as an ingredient source: {}",
 					inventorySlot.index
 				);
 				return null;
 			}
 			ItemStack stack = slotStack.copy();
 			stack.setCount(transferOperation.count());
+			if (!recipeSlot.mayPlace(stack)) {
+				LOGGER.error(
+					"Tried to transfer recipe but crafting slot {} does not accept ingredient: {}",
+					recipeSlot.index,
+					stack
+				);
+				return null;
+			}
+			ItemStack targetSlotStack = targetSlotStacks.putIfAbsent(recipeSlot, stack);
+			if (targetSlotStack != null && !ItemStack.isSameItemSameTags(targetSlotStack, stack)) {
+				LOGGER.error(
+					"Tried to transfer different ingredients into the same crafting slot {}: {} and {}",
+					recipeSlot.index,
+					targetSlotStack,
+					stack
+				);
+				return null;
+			}
 			requiredTransfers.add(new RequiredTransfer(recipeSlot, inventorySlot, stack));
 		}
 		return requiredTransfers;
@@ -220,9 +267,10 @@ public final class BasicRecipeTransferHandlerServer {
 				continue;
 			}
 			int requiredCount = getRequiredCount(requiredTransfers, recipeSlot);
-			int maxStackSize = recipeSlot.mayPlace(resultStack) ?
-				recipeSlot.getMaxStackSize(resultStack) :
-				Integer.MAX_VALUE;
+			int maxStackSize = Integer.MAX_VALUE;
+			if (recipeSlot.mayPlace(resultStack)) {
+				maxStackSize = recipeSlot.getMaxStackSize(resultStack);
+			}
 			if (resultStack.getCount() + requiredCount > maxStackSize) {
 				fullRecipeSlots.add(recipeSlot);
 			}

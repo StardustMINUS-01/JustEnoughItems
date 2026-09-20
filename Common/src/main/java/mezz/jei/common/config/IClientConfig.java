@@ -1,11 +1,13 @@
 package mezz.jei.common.config;
 
+import mezz.jei.api.runtime.config.IJeiConfigValue;
 import mezz.jei.common.config.file.IConfigListener;
 
 import java.util.List;
 import java.util.Set;
 
 public interface IClientConfig {
+	int getConfigScreenTransparency();
 	int minRecipeGuiHeight = 175;
 	int defaultRecipeGuiHeight = 350;
 	int maximumRecipeGuiHeight = 7680;
@@ -26,6 +28,8 @@ public interface IClientConfig {
 	void addLowMemorySlowSearchEnabledListener(IConfigListener<Boolean> listener);
 
 	boolean isCatchRenderErrorsEnabled();
+
+	boolean isRecipeSyncWarningEnabled();
 
 	boolean isCheatToHotbarUsingHotkeysEnabled();
 
@@ -70,6 +74,8 @@ public interface IClientConfig {
 	void addMaxLookupHistoryRowsListener(IConfigListener<Integer> listener);
 
 	void addMaxLookupHistoryIngredientsListener(IConfigListener<Integer> listener);
+
+	IJeiConfigValue<Boolean> recipeSlotCyclingEnabled();
 
 	boolean isIngredientsSummaryEnabled();
 

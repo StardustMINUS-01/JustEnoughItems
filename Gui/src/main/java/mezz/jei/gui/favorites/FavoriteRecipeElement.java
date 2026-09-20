@@ -18,17 +18,23 @@ import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipHelper;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipState;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import mezz.jei.gui.recipes.IIngredientCandidateSource;
 import mezz.jei.gui.recipes.InputSlotSelectionState;
 import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,6 +58,7 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	private final boolean visible;
 	private final FocusedRecipeLayoutResolver recipeLayoutResolver;
 	private final FavoriteRecipePreviewState recipePreviewState;
+	private final BookmarkCandidateTooltipState permutationTooltipState;
 
 	public FavoriteRecipeElement(
 		ITypedIngredient<T> ingredient,
@@ -65,7 +72,8 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		Optional<FavoriteRecipePanelState.RecipeInputKey> recipeInputKey,
 		Optional<FavoriteRecipeStore.FavoriteSlotInput> favoriteSlotInput,
 		Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> entryInputs,
-		boolean visible
+		boolean visible,
+		BookmarkCandidateTooltipState permutationTooltipState
 	) {
 		this.ingredient = ingredient;
 		this.tooltipIngredient = tooltipIngredient;
@@ -81,6 +89,7 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		this.visible = visible;
 		this.recipeLayoutResolver = new FocusedRecipeLayoutResolver(recipeManager);
 		this.recipePreviewState = new FavoriteRecipePreviewState(this::createRecipeLayoutDrawable);
+		this.permutationTooltipState = permutationTooltipState;
 	}
 
 	@Override
@@ -143,59 +152,45 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 		tooltip.add(Component.translatable("jei.tooltip.favoriteRecipes.recipe").withStyle(ChatFormatting.GREEN));
 		tooltip.add(Component.translatable("jei.tooltip.favoriteRecipes.clickRecipe").withStyle(ChatFormatting.GRAY));
 		tooltipHelper.getIngredientTooltip(tooltip, tooltipIngredient, ingredientRenderer, ingredientHelper, favoriteRecipes == null);
+		addPermutationTooltip(tooltip);
 		addRecipePreviewTooltip(tooltip);
 		if (favoriteRecipes != null) {
 			BookmarkHotkeyTooltipUtil.addFavoriteRecipeHotkeys(tooltip, Internal.getKeyMappings());
 		}
 	}
 
-	@Override
-	public boolean isVisible() {
-		return visible;
-	}
-
-	@Override
-	public boolean reservesInvisibleSpace() {
-		return true;
-	}
-
-	public FocusedRecipe getFocusedRecipe() {
-		return recipe;
-	}
-
-	public int getRecipeRowGroupId() {
-		return (recipe.recipeTypeUid() + "|" + recipe.recipeUid()).hashCode();
-	}
-
-	public boolean isFavoriteTarget() {
-		return favoriteTarget;
-	}
-
-	public Optional<String> getAmountText() {
-		return amountText;
-	}
-
-	public Optional<FavoriteRecipePanelState.RecipeInputKey> getRecipeInputKey() {
-		return recipeInputKey;
-	}
-
-	public Optional<FavoriteRecipeStore.FavoriteSlotInput> getFavoriteSlotInput() {
-		return favoriteSlotInput;
-	}
-
-	public Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> getEntryInputs() {
-		return entryInputs;
-	}
-
-	@Override
-	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
-		if (favoriteRecipes == null || !BookmarkKeyInputs.isPlainBookmarkKey(input, keyBindings)) {
-			return false;
+	private void addPermutationTooltip(JeiTooltip tooltip) {
+		if (favoriteSlotInput.isEmpty()) {
+			return;
 		}
-		if (!input.isSimulate()) {
-			favoriteRecipes.removeFavorite(recipe);
-		}
-		return true;
+		FavoriteRecipeStore.FavoriteSlotInput slotInput = favoriteSlotInput.get();
+		BookmarkCandidateTooltipHelper.addTo(tooltip, permutationTooltipState, slotInput.permutations(), () -> new IIngredientCandidateSource() {
+			private FavoriteRecipeStore.FavoriteSlotInput current = slotInput;
+			private final boolean editable = favoriteRecipes != null && favoriteRecipes.getManualEntry(recipe).isPresent();
+			private final Screen screen = Minecraft.getInstance().screen;
+
+			@Override
+			public Optional<ITypedIngredient<?>> getSelectedIngredient() {
+				return Optional.<ITypedIngredient<?>>ofNullable(current.selected().typedIngredient()).or(() -> Optional.of(tooltipIngredient));
+			}
+			@Override
+			public boolean isValid() {
+				return Minecraft.getInstance().screen == screen && (!editable || favoriteRecipes.getManualEntry(recipe).map(entry -> entry.inputs().containsValue(current)).orElse(false));
+			}
+			@Override
+			public boolean canSelect() {
+				return editable;
+			}
+			@Override
+			public boolean select(ITypedIngredient<?> ingredient, boolean synchronize) {
+				var key = BookmarkItemMetadataFactory.createPermutationKey(ingredient, Internal.getJeiRuntime().getIngredientManager());
+				if (!isValid() || !favoriteRecipes.selectFavoriteInputs(recipe, current, key, synchronize)) {
+					return false;
+				}
+				current = new FavoriteRecipeStore.FavoriteSlotInput(key, current.permutations());
+				return true;
+			}
+		});
 	}
 
 	private void addRecipePreviewTooltip(JeiTooltip tooltip) {
@@ -223,8 +218,57 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	}
 
 	@Override
+	public boolean isVisible() {
+		return visible;
+	}
+
+	@Override
+	public boolean reservesInvisibleSpace() {
+		return true;
+	}
+
+	public FocusedRecipe getFocusedRecipe() {
+		return recipe;
+	}
+
+	public boolean isFavoriteTarget() {
+		return favoriteTarget;
+	}
+
+	public Optional<String> getAmountText() {
+		return amountText;
+	}
+
+	public Optional<FavoriteRecipePanelState.RecipeInputKey> getRecipeInputKey() {
+		return recipeInputKey;
+	}
+
+	public Optional<FavoriteRecipeStore.FavoriteSlotInput> getFavoriteSlotInput() {
+		return favoriteSlotInput;
+	}
+
+	@Override
+	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
+		if (favoriteRecipes == null || !BookmarkKeyInputs.isPlainBookmarkKey(input, keyBindings)) {
+			return false;
+		}
+		if (!input.isSimulate()) {
+			favoriteRecipes.removeFavorite(recipe);
+		}
+		return true;
+	}
+
+	@Override
 	public void tick() {
 		recipePreviewState.tick();
+	}
+
+	public int getRecipeRowGroupId() {
+		return (recipe.recipeTypeUid() + "|" + recipe.recipeUid()).hashCode();
+	}
+
+	public Map<Integer, FavoriteRecipeStore.FavoriteSlotInput> getEntryInputs() {
+		return entryInputs;
 	}
 
 }

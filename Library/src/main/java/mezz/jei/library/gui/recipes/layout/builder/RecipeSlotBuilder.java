@@ -8,6 +8,8 @@ import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.api.gui.drawable.TilingDirection;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotRichTooltipCallback;
+import mezz.jei.api.gui.placement.HorizontalAlignment;
+import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
@@ -20,6 +22,7 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.Pair;
+import mezz.jei.common.util.PlaceableUtil;
 import mezz.jei.library.gui.ingredients.ICycler;
 import mezz.jei.library.gui.ingredients.RecipeSlot;
 import mezz.jei.library.gui.ingredients.RendererOverrides;
@@ -218,6 +221,26 @@ public class RecipeSlotBuilder implements IRecipeSlotBuilder {
 		return this;
 	}
 
+	@Override
+	public IRecipeSlotBuilder setPosition(
+		int areaX,
+		int areaY,
+		int areaWidth,
+		int areaHeight,
+		HorizontalAlignment horizontalAlignment,
+		VerticalAlignment verticalAlignment
+	) {
+		return PlaceableUtil.setPosition(
+			this,
+			areaX,
+			areaY,
+			areaWidth,
+			areaHeight,
+			horizontalAlignment,
+			verticalAlignment
+		);
+	}
+
 	@SuppressWarnings("removal")
 	public RecipeSlotBuilder assignToWidgetFactory(mezz.jei.api.gui.widgets.ISlottedWidgetFactory<?> widgetFactory) {
 		ErrorUtil.checkNotNull(widgetFactory, "widgetFactory");
@@ -244,9 +267,10 @@ public class RecipeSlotBuilder implements IRecipeSlotBuilder {
 
 		if (!focusMatches.isEmpty()) {
 			focusedIngredients = new ArrayList<>();
-			for (Integer i : focusMatches) {
-				if (i < allIngredients.size()) {
-					@Nullable ITypedIngredient<?> ingredient = allIngredients.get(i);
+			for (int i = 0; i < allIngredients.size(); i++) {
+				if (focusMatches.contains(i)) {
+					@Nullable
+					ITypedIngredient<?> ingredient = allIngredients.get(i);
 					focusedIngredients.add(ingredient);
 				}
 			}

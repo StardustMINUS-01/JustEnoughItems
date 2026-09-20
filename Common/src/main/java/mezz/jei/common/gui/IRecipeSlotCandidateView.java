@@ -9,5 +9,11 @@ import java.util.List;
 public interface IRecipeSlotCandidateView {
 	List<ITypedIngredient<?>> getCandidates();
 
+	default java.util.stream.Stream<ITypedIngredient<?>> getCandidateIngredients() {
+		return getCandidates().stream();
+	}
+
+	void setSelectedCandidate(@org.jetbrains.annotations.Nullable ITypedIngredient<?> candidate);
+
 	void setDisplayedCandidates(List<ITypedIngredient<?>> candidates);
 }

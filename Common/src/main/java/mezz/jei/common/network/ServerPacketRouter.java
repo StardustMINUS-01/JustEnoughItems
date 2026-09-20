@@ -1,13 +1,17 @@
 package mezz.jei.common.network;
 
+import mezz.jei.common.network.packets.PacketShareIngredient;
+import mezz.jei.common.network.packets.PacketShareRecipe;
 import mezz.jei.common.network.packets.IServerPacketHandler;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
 import mezz.jei.common.network.packets.PacketFillCraftingGrid;
 import mezz.jei.common.network.packets.PacketGiveItemStack;
+import mezz.jei.common.network.packets.PacketRecipeTransferCountedWithResult;
+import mezz.jei.common.network.packets.PacketRecipeTransferWithResult;
+import mezz.jei.common.network.packets.legacy.PacketRecipeTransfer;
+import mezz.jei.common.network.packets.legacy.PacketRecipeTransferCounted;
 import mezz.jei.common.network.packets.PacketPullBookmarkItems;
-import mezz.jei.common.network.packets.PacketRecipeTransfer;
-import mezz.jei.common.network.packets.PacketRecipeTransferCounted;
 import mezz.jei.common.network.packets.PacketRequestCheatPermission;
 import mezz.jei.common.network.packets.PacketSetHotbarItemStack;
 import mezz.jei.common.network.packets.PacketShareBookmarkGroup;
@@ -38,11 +42,15 @@ public class ServerPacketRouter {
 		handlers.put(PacketIdServer.SET_HOTBAR_ITEM, PacketSetHotbarItemStack::readPacketData);
 		handlers.put(PacketIdServer.CHEAT_PERMISSION_REQUEST, PacketRequestCheatPermission::readPacketData);
 		handlers.put(PacketIdServer.RECIPE_TRANSFER_COUNTED, PacketRecipeTransferCounted::readPacketData);
+		handlers.put(PacketIdServer.RECIPE_TRANSFER_WITH_RESULT, PacketRecipeTransferWithResult::readPacketData);
+		handlers.put(PacketIdServer.RECIPE_TRANSFER_COUNTED_WITH_RESULT, PacketRecipeTransferCountedWithResult::readPacketData);
 		handlers.put(PacketIdServer.PULL_BOOKMARK_ITEMS, PacketPullBookmarkItems::readPacketData);
-		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT, PacketCraftingGridCraft::readPacketData);
+		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT_WITH_RECIPE, PacketCraftingGridCraft::readPacketData);
 		handlers.put(PacketIdServer.FILL_CRAFTING_GRID, PacketFillCraftingGrid::readPacketData);
 		registerEncodeRecipeChainPatternsHandler(handlers);
 		handlers.put(PacketIdServer.SHARE_BOOKMARK_GROUP, PacketShareBookmarkGroup::readPacketData);
+		handlers.put(PacketIdServer.SHARE_RECIPE, PacketShareRecipe::readPacketData);
+		handlers.put(PacketIdServer.SHARE_INGREDIENT, PacketShareIngredient::readPacketData);
 	}
 
 	private static void registerEncodeRecipeChainPatternsHandler(EnumMap<PacketIdServer, IServerPacketHandler> handlers) {
@@ -72,6 +80,10 @@ public class ServerPacketRouter {
 		getPacketId(packetBuffer)
 			.ifPresent(packetId -> {
 				IServerPacketHandler packetHandler = handlers.get(packetId);
+				// Retired packet ordinals stay reserved, but their old payloads are not decoded.
+				if (packetHandler == null) {
+					return;
+				}
 				ServerPacketContext context = new ServerPacketContext(player, serverConfig, connection);
 				ServerPacketData data = new ServerPacketData(packetBuffer, context);
 				try {

@@ -4,9 +4,12 @@ import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.advanced.IRecipeManagerPlugin;
 import mezz.jei.api.registration.IRecipeRegistration;
+import mezz.jei.api.registration.IVanillaCategoryExtensionRegistration;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.SmeltingRecipe;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
@@ -61,8 +64,57 @@ public interface IVanillaRecipeFactory {
 	IJeiGrindstoneRecipe createGrindstoneRecipe(List<ItemStack> topInputs, List<ItemStack> bottomInputs, List<ItemStack> outputs, int minXp, int maxXp, ResourceLocation uid);
 
 	/**
+	 * Create a smelting recipe that accepts any normal furnace fuel.
+	 *
+	 * @param input       The ingredient placed in the furnace input slot.
+	 * @param output      The resulting item stack placed in the furnace result slot.
+	 * @param cookingTime The cooking time in ticks. Must be greater than 0.
+	 * @param experience  The experience granted by the recipe. Must be greater than or equal to 0.
+	 * @param uid         The unique ID for this recipe.
+	 *
+	 * @since 15.51.0
+	 */
+	default SmeltingRecipe createSmeltingRecipe(
+		Ingredient input,
+		ItemStack output,
+		int cookingTime,
+		float experience,
+		ResourceLocation uid
+	) {
+		return createSmeltingRecipe(input, Ingredient.EMPTY, ItemStack.EMPTY, output, cookingTime, experience, uid);
+	}
+
+	/**
+	 * Create a smelting recipe with a custom fuel and optional fuel output.
+	 * <p>
+	 * Use {@link Ingredient#EMPTY} for the fuel and {@link ItemStack#EMPTY} for the fuel output
+	 * to accept all normal furnace fuels without a fuel transformation.
+	 *
+	 * @param input       The ingredient placed in the furnace input slot.
+	 * @param fuel        The ingredient placed in the furnace fuel slot, or empty to accept any normal furnace fuel.
+	 * @param fuelOutput  The item left by the fuel when cooking completes, or empty for no fuel output.
+	 * @param output      The resulting item stack placed in the furnace result slot.
+	 * @param cookingTime The cooking time in ticks. Must be greater than 0.
+	 * @param experience  The experience granted by the recipe. Must be greater than or equal to 0.
+	 * @param uid         The unique ID for this recipe.
+	 *
+	 * @since 15.51.0
+	 */
+	SmeltingRecipe createSmeltingRecipe(
+		Ingredient input,
+		Ingredient fuel,
+		ItemStack fuelOutput,
+		ItemStack output,
+		int cookingTime,
+		float experience,
+		ResourceLocation uid
+	);
+
+	/**
 	 * Create a new brewing recipe.
-	 * By default, all brewing recipes are already detected and added by JEI.
+	 * JEI automatically detects supported brewing mixtures.
+	 * Custom platform brewing recipe types must register an extension with
+	 * {@link IVanillaCategoryExtensionRegistration#getBrewingCategory()}.
 	 *
 	 * @param ingredients  the ingredients added to a potion to create a new one.
 	 *                     Normally one ingredient, but a list will display several in rotation.
@@ -76,7 +128,9 @@ public interface IVanillaRecipeFactory {
 
 	/**
 	 * Create a new brewing recipe.
-	 * By default, all brewing recipes are already detected and added by JEI.
+	 * JEI automatically detects supported brewing mixtures.
+	 * Custom platform brewing recipe types must register an extension with
+	 * {@link IVanillaCategoryExtensionRegistration#getBrewingCategory()}.
 	 *
 	 * @param ingredients  the ingredients added to a potion to create a new one.
 	 *                     Normally one ingredient, but a list will display several in rotation.

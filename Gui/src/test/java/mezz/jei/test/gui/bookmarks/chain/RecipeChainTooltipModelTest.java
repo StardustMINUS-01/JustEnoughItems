@@ -12,11 +12,38 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
 import java.util.Set;
 
 public class RecipeChainTooltipModelTest {
+	@ParameterizedTest
+	@CsvSource({"0, 0", "0, 20", "0, 64", "0, 80", "2, 0", "2, 1", "2, 20", "2, 66", "2, 80"})
+	public void allocatesOrdinaryTargetsAfterRecipeInputs(long recipeDemand, long stock) {
+		ResourceLocation recipeUid = new ResourceLocation("test", "machine");
+		List<RecipeChainInput> inputs = recipeDemand == 0 ? List.of(input(0, item(key("gear"), 64))) : List.of(
+			input(0, item(key("gear"), 64)),
+			input(1, recipe(recipeUid, BookmarkItemType.RESULT, key("machine"), 1)),
+			input(2, recipe(recipeUid, BookmarkItemType.INGREDIENT, key("gear"), recipeDemand))
+		);
+		List<RecipeChainInput> inventory = stock == 0 ? List.of() : List.of(input(-1, item(key("gear"), stock)));
+		RecipeChainTooltipModel model = RecipeChainTooltipModel.create(inputs, Set.of(), inventory, true, true);
+		long available = model.sections().stream()
+			.filter(section -> section.type() == RecipeChainTooltipSectionType.AVAILABLE)
+			.flatMap(section -> section.items().stream())
+			.filter(item -> item.key().equals(key("gear")))
+			.mapToLong(RecipeChainTooltipModel.Item::amount).sum();
+		long missing = model.sections().stream()
+			.filter(section -> section.type() == RecipeChainTooltipSectionType.MISSING)
+			.flatMap(section -> section.items().stream())
+			.filter(item -> item.key().equals(key("gear")))
+			.mapToLong(RecipeChainTooltipModel.Item::amount).sum();
+		Assertions.assertEquals(Math.min(64 + recipeDemand, stock), available);
+		Assertions.assertEquals(Math.max(0, 64 + recipeDemand - stock), missing);
+	}
+
 	@Test
 	public void createsDefaultTooltipFromPrecalculatedChainDetails() {
 		ResourceLocation recipeUid = new ResourceLocation("test", "machine");

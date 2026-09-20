@@ -22,6 +22,7 @@ class InternalIconButton extends Button implements IButtonState {
 	private IDrawable icon = DrawableBlank.EMPTY;
 	private boolean pressed = false;
 	private boolean forcePressed = false;
+	private boolean rightClickEnabled;
 
 	public InternalIconButton() {
 		super(0, 0, 0, 0, CommonComponents.EMPTY, b -> {}, Button.DEFAULT_NARRATION);
@@ -41,11 +42,10 @@ class InternalIconButton extends Button implements IButtonState {
 	@Override
 	public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-		boolean hovered =
-			mouseX >= this.getX() &&
-				mouseY >= this.getY() &&
-				mouseX < this.getX() + this.width &&
-				mouseY < this.getY() + this.height;
+		boolean hovered = mouseX >= this.getX() &&
+			mouseY >= this.getY() &&
+			mouseX < this.getX() + this.width &&
+			mouseY < this.getY() + this.height;
 		RenderSystem.enableBlend();
 		RenderSystem.blendFuncSeparate(
 			GlStateManager.SourceFactor.SRC_ALPHA,
@@ -104,7 +104,11 @@ class InternalIconButton extends Button implements IButtonState {
 
 	@Override
 	public boolean isValidClickButton(int mouseButton) {
-		return super.isValidClickButton(mouseButton);
+		return super.isValidClickButton(mouseButton) || rightClickEnabled && mouseButton == 1;
+	}
+
+	public void setRightClickEnabled(boolean enabled) {
+		rightClickEnabled = enabled;
 	}
 
 	@Override

@@ -1,5 +1,9 @@
 package mezz.jei.gui.input.handlers;
 
+import net.minecraft.client.gui.components.EditBox;
+import mezz.jei.common.network.packets.PacketShareIngredient;
+import mezz.jei.common.chat.SharedChatIngredient;
+import mezz.jei.common.Internal;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
@@ -8,12 +12,7 @@ import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.chat.JeiChatItemLinks;
-import mezz.jei.common.config.GiveMode;
-import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
@@ -26,24 +25,18 @@ import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
 import mezz.jei.gui.recipes.RecipesGui;
-import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.FocusUtil;
-import mezz.jei.gui.util.GiveAmount;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 import java.util.Optional;
@@ -55,22 +48,19 @@ public class FocusInputHandler implements IUserInputHandler {
 	private final IIngredientManager ingredientManager;
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
-	private final IClientToggleState toggleState;
-	private final IClientConfig clientConfig;
-	private final ScrollStep scrollStep;
-	private final CommandUtil commandUtil;
+	private final IngredientTagSelectionTooltip tagTooltip = new IngredientTagSelectionTooltip();
+
+	public IngredientTagSelectionTooltip getTagTooltip() {
+		return tagTooltip;
+	}
 
 	public FocusInputHandler(
 		CombinedRecipeFocusSource focusSource,
 		RecipesGui recipesGui,
 		FocusUtil focusUtil,
-		IClientConfig clientConfig,
 		IIngredientManager ingredientManager,
 		IRecipeManager recipeManager,
-		IFocusFactory focusFactory,
-		IClientToggleState toggleState,
-		IConnectionToServer serverConnection,
-		ScrollStep scrollStep
+		IFocusFactory focusFactory
 	) {
 		this.focusSource = focusSource;
 		this.recipesGui = recipesGui;
@@ -78,14 +68,15 @@ public class FocusInputHandler implements IUserInputHandler {
 		this.ingredientManager = ingredientManager;
 		this.recipeManager = recipeManager;
 		this.focusFactory = focusFactory;
-		this.toggleState = toggleState;
-		this.clientConfig = clientConfig;
-		this.scrollStep = scrollStep;
-		this.commandUtil = new CommandUtil(clientConfig, serverConnection);
 	}
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getCopyIngredientNbt()) && (screen.getFocused() instanceof EditBox ||
+			Internal.getJeiRuntime().getIngredientListOverlay().hasKeyboardFocus())
+		) {
+			return Optional.empty();
+		}
 		Optional<IUserInputHandler> handledClick = handleClick(input, keyBindings);
 		if (handledClick.isPresent()) {
 			return handledClick;
@@ -104,24 +95,6 @@ public class FocusInputHandler implements IUserInputHandler {
 		Optional<IUserInputHandler> handledIngredientShortcut = handleIngredientShortcut(input, keyBindings);
 		if (handledIngredientShortcut.isPresent()) {
 			return handledIngredientShortcut;
-		}
-
-		if (toggleState.isCheatItemsEnabled()) {
-			if (screen instanceof AbstractContainerScreen) {
-				if (input.is(keyBindings.getCheatItemStack())) {
-					Optional<IUserInputHandler> handler = handleGive(input, keyBindings, GiveAmount.MAX);
-					if (handler.isPresent()) {
-						return handler;
-					}
-				}
-
-				if (input.is(keyBindings.getCheatOneItem())) {
-					Optional<IUserInputHandler> handler = handleGive(input, keyBindings, GiveAmount.ONE);
-					if (handler.isPresent()) {
-						return handler;
-					}
-				}
-			}
 		}
 
 		// 1.21.1 parity: while a tooltip is pinned by the pin key, the show-recipe and
@@ -224,7 +197,7 @@ public class FocusInputHandler implements IUserInputHandler {
 			.flatMap(clicked -> {
 				if (!input.isSimulate()) {
 					if (action.get() == BookmarkHotkeyAction.COPY_OREDICT) {
-						IngredientTagSelectionScreen.open(clicked.getTypedIngredient(), ingredientManager);
+						tagTooltip.show(clicked.getTypedIngredient(), ingredientManager, input.getMouseX(), input.getMouseY());
 					} else {
 						executeIngredientKeyboardShortcut(clicked.getTypedIngredient(), action.get());
 					}
@@ -234,7 +207,25 @@ public class FocusInputHandler implements IUserInputHandler {
 			});
 	}
 
+	public boolean handlePreviewCopy(ITypedIngredient<?> ingredient, UserInput input, IInternalKeyMappings keys) {
+		Optional<BookmarkHotkeyAction> action = getIngredientKeyboardAction(input, keys);
+		if (action.isEmpty()) {
+			return false;
+		}
+		if (!input.isSimulate()) {
+			if (action.get() == BookmarkHotkeyAction.COPY_OREDICT) {
+				tagTooltip.show(ingredient, ingredientManager, input.getMouseX(), input.getMouseY());
+			} else {
+				executeIngredientKeyboardShortcut(ingredient, action.get());
+			}
+		}
+		return true;
+	}
+
 	private static Optional<BookmarkHotkeyAction> getIngredientKeyboardAction(UserInput input, IInternalKeyMappings keyBindings) {
+		if (input.is(keyBindings.getCopyIngredientNbt())) {
+			return Optional.of(BookmarkHotkeyAction.COPY_NBT);
+		}
 		BookmarkHotkeyContext context = BookmarkHotkeyContext.builder(BookmarkHotkeySubject.INGREDIENT)
 			.hasIngredient(true)
 			.build();
@@ -253,10 +244,15 @@ public class FocusInputHandler implements IUserInputHandler {
 	private <T> void executeIngredientKeyboardShortcut(ITypedIngredient<T> typedIngredient, BookmarkHotkeyAction action) {
 		Minecraft minecraft = Minecraft.getInstance();
 		String text = switch (action) {
+			case COPY_NBT -> typedIngredient.getItemStack().map(IngredientClipboardText::getNbtRule).orElse("");
 			case COPY_NAME -> IngredientClipboardText.getIngredientName(typedIngredient, ingredientManager);
 			case COPY_ID -> IngredientClipboardText.getIngredientId(typedIngredient, ingredientManager);
 			default -> "";
 		};
+		if (action == BookmarkHotkeyAction.COPY_NBT && text.isEmpty()) {
+			displayClientMessage(Component.translatable("jei.message.copy.nbt.failure"));
+			return;
+		}
 		minecraft.keyboardHandler.setClipboard(text);
 		JeiClientSoundUtil.playClickSound();
 	}
@@ -334,46 +330,29 @@ public class FocusInputHandler implements IUserInputHandler {
 			.findFirst()
 			.map(clicked -> {
 				if (!input.isSimulate()) {
-					ITypedIngredient<?> typedIngredient = clicked.getTypedIngredient();
-					String chatText = JeiChatItemLinks.createLinkMarker(typedIngredient, ingredientManager);
-					Minecraft minecraft = Minecraft.getInstance();
-					ChatScreen chatScreen = new ChatScreen(chatText);
-					minecraft.setScreen(chatScreen);
+					shareIngredient(clicked.getTypedIngredient());
 				}
 				return new SameElementInputHandler(this, clicked::isMouseOver);
 			});
 	}
 
-	private Optional<IUserInputHandler> handleGive(UserInput input, IInternalKeyMappings keyBindings, GiveAmount giveAmount) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
-			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
-				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
-				if (!itemStack.isEmpty()) {
-					if (!input.isSimulate()) {
-						int amount = resolveGiveAmount(
-							clientConfig.getGiveMode(),
-							giveAmount,
-							itemStack,
-							clicked.getElement().getCheatGiveAmount(),
-							scrollStep.getValue()
-						);
-						commandUtil.giveStack(itemStack, amount);
-					}
-					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-					consumer.accept(handler);
-				}
-			})
-			.findFirst();
+	private static void shareIngredient(ITypedIngredient<?> ingredient) {
+		var minecraft = Minecraft.getInstance();
+		if (minecraft.player == null) {
+			return;
+		}
+		if (!Internal.getServerConnection().canShareChat()) {
+			minecraft.player.displayClientMessage(Component.translatable("jei.chat.share.unsupported"), false);
+			return;
+		}
+		Optional<String> snapshot = SharedChatIngredient.from(ingredient)
+			.flatMap(shared -> shared.encode());
+		if (snapshot.isEmpty()) {
+			minecraft.player.displayClientMessage(Component.translatable("jei.chat.share.too_large"), false);
+			return;
+		}
+		Internal.getServerConnection().sendPacketToServer(new PacketShareIngredient(snapshot.get()));
+		JeiClientSoundUtil.playClickSound();
 	}
 
-	static int resolveGiveAmount(GiveMode mode, GiveAmount giveAmount, ItemStack stack, Optional<Long> bookmarkAmount, long configuredAmount) {
-		if (mode == GiveMode.MOUSE_PICKUP) {
-			return giveAmount.getAmountForStack(stack);
-		}
-		long amount = bookmarkAmount.orElse(configuredAmount == 0 ? stack.getMaxStackSize() : configuredAmount);
-		if (amount < 1) {
-			amount = 1;
-		}
-		return (int) Math.min(amount, Integer.MAX_VALUE);
-	}
 }

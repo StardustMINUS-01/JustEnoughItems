@@ -68,10 +68,10 @@ public final class RecipeChainIterator implements Iterator<Map<ResourceLocation,
 					continue;
 				}
 
-				if (preferredItems.entrySet().stream().anyMatch(pref ->
-					!this.processedRecipes.contains(pref.getKey().metadata().recipeUid()) &&
-						item.equals(pref.getValue())
-				)) {
+				if (preferredItems.entrySet().stream().anyMatch(pref -> !this.processedRecipes.contains(pref.getKey().metadata().recipeUid()) &&
+					item.equals(pref.getValue())
+					)
+				) {
 					skipRecipes.add(itemRecipe);
 				} else {
 					long multiplier = details.calculatedItems()

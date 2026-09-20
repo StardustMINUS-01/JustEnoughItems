@@ -83,7 +83,8 @@ public final class BookmarkDisplayGenerator {
 				}
 				addCraftingDisplaySlot(displaySlots, item, sourceIndex, metadata, group, details, rowLayout);
 			} else if (group == null || !group.collapsed() ||
-				BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
+				BookmarkGroupManager.DEFAULT_GROUP_ID == groupId
+			) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
 			} else if (isResultOnlyGroupOutput(metadata)) {
 				addDisplaySlot(displaySlots, createDisplayEntry(item, sourceIndex, metadata, group), false, rowLayout);
@@ -149,9 +150,7 @@ public final class BookmarkDisplayGenerator {
 	private static <T> int getBorderColor(BookmarkDisplayEntry<T> entry, Map<Integer, BookmarkGroup> groups) {
 		BookmarkGroup group = groups.get(entry.metadata().groupId());
 		if (group != null && group.collapsed()) {
-			return group.craftingMode() ?
-				BookmarkSlotBorder.GROUP_CHAIN_COLOR :
-				BookmarkSlotBorder.GROUP_NONE_COLOR;
+			return group.craftingMode() ? BookmarkSlotBorder.GROUP_CHAIN_COLOR : BookmarkSlotBorder.GROUP_NONE_COLOR;
 		}
 		return BookmarkSlotBorder.RECIPE_COLOR;
 	}
@@ -291,24 +290,13 @@ public final class BookmarkDisplayGenerator {
 		if (entry.collapsed() || entry.viewMode() != BookmarkViewMode.TODO_LIST) {
 			return slotIndex;
 		}
-		// Bounded loop guard: when the bookmark area is too narrow to fit more than
-		// one column, every position is a "first column" (isRowStart=true) and the
-		// startsRecipeRow/continuesRecipe checks below can both keep returning false
-		// indefinitely if the previous and entry share the same collapsed block,
-		// group, recipeUid and graph-input type. The hard cap is the number of slots
-		// already in displaySlots plus a safety margin; once we walk past every
-		// occupied row, return whatever slot we reached so the layout stays finite.
-		// See SKILL.md 7.7 (WCWT terminal freeze).
-		int maxIterations = displaySlots.size() + 1024;
-		while (maxIterations-- > 0) {
-			boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, rowLayout);
-			if (firstColumn && startsRecipeRow(previous, entry)) {
-				return slotIndex;
-			}
-			if (!firstColumn && continuesRecipe(previous, entry)) {
-				return slotIndex;
-			}
-			slotIndex++;
+		boolean firstColumn = BookmarkRowLayout.isRowStart(slotIndex, rowLayout);
+		if (!continuesRecipe(previous, entry)) {
+			return firstColumn ? slotIndex : BookmarkRowLayout.nextRowStart(slotIndex, rowLayout);
+		}
+		// Indent continued inputs only when this row actually has a second column.
+		if (firstColumn && !startsRecipeRow(previous, entry) && !BookmarkRowLayout.isRowEnd(slotIndex, rowLayout)) {
+			return slotIndex + 1;
 		}
 		return slotIndex;
 	}

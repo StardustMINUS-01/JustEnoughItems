@@ -87,8 +87,8 @@ public class RecipeChainPreviewTooltipComponent implements ClientTooltipComponen
 			BookmarkIngredientKey key = item.key();
 			Optional<ITypedIngredient<?>> resolved = Optional.ofNullable(resolvedIngredients.get(key));
 			return resolved.or(() -> ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
-				.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
-			)
+					.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
+				)
 				.map(typedIngredient -> create(item, (ITypedIngredient) typedIngredient, ingredientManager));
 		}
 

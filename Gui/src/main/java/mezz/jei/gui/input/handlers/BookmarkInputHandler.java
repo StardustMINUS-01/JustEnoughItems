@@ -7,7 +7,6 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiKeyMapping;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
@@ -49,10 +48,12 @@ import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPreviewTooltipController;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
@@ -82,6 +83,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
 	private final Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
+	private final BookmarkPreviewTooltipController bookmarkPreviewTooltipController;
 	private final IClientConfig clientConfig;
 	private final RecipesGui recipesGui;
 
@@ -94,6 +96,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		BookmarkAutoCraftingRunner autoCraftingRunner,
 		Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
+		BookmarkPreviewTooltipController bookmarkPreviewTooltipController,
 		IClientConfig clientConfig,
 		RecipesGui recipesGui
 	) {
@@ -105,6 +108,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.autoCraftingRunner = autoCraftingRunner;
 		this.favoriteTreeSaver = favoriteTreeSaver;
 		this.favoriteRecipeLookup = favoriteRecipeLookup;
+		this.bookmarkPreviewTooltipController = bookmarkPreviewTooltipController;
 		this.clientConfig = clientConfig;
 		this.recipesGui = recipesGui;
 	}
@@ -132,7 +136,8 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		// 1.21.1 parity: with no modifier held, the bookmark key bookmarks the recipe under the
 		// mouse. It falls through to the ingredient path below when not hovering a recipe.
 		if (!InputModifiers.hasShift(input) && !InputModifiers.hasControl(input) &&
-			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())) {
+			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())
+		) {
 			Optional<IUserInputHandler> recipeHandler = handleRecipeBookmark(input);
 			if (recipeHandler.isPresent()) {
 				return recipeHandler;
@@ -189,11 +194,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		int hoveredGroupId = groupId.get();
 		AbstractContainerMenu menu = containerScreen.getMenu();
 		boolean craftAll = isCraftAllModifier(input.getModifiers());
-		if (DebugConfig.isDebugModeEnabled()) {
-			LOGGER.info("[Bug6] INPUT-CRAFT groupId={} targetSlotCount={} craftAll={} containerId={} menu={} chainInputs={}",
-				hoveredGroupId, targetSlotCount, craftAll, menu.containerId, menu.getClass().getSimpleName(),
-				bookmarkList.getRecipeChainInputs(hoveredGroupId).size());
-		}
 		boolean handled;
 		if (input.isSimulate()) {
 			handled = BookmarkAutoCraftingBridge.activate(
@@ -208,27 +208,27 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				true,
 				craftAll
 			);
-		} else if (!serverConnection.isJeiOnServer()) {
+		} else if (!serverConnection.canCraftBookmarks()) {
 			if (minecraft.player != null) {
 				minecraft.player.displayClientMessage(net.minecraft.network.chat.Component.translatable("jei.message.server.feature_unavailable"), false);
 			}
 			handled = false;
 		} else {
 			handled = BookmarkAutoCraftingBridge.createTask(
-				bookmarkList.getRecipeChainInputs(hoveredGroupId),
-				bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
-				targetSlotCount,
-				menu.containerId,
-				() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
-				inventoryProvider::getAvailableStacks,
-				recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
-				serverConnection::sendPacketToServer,
-				() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
-					activeScreen.getMenu() == menu,
-				craftAll
-			)
-			.map(autoCraftingRunner::start)
-			.orElse(false);
+					bookmarkList.getRecipeChainInputs(hoveredGroupId),
+					bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
+					targetSlotCount,
+					menu.containerId,
+					() -> getAutoCraftingInventoryInputs(hoveredGroupId, inventoryProvider),
+					inventoryProvider::getAvailableStacks,
+					recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
+					serverConnection::sendPacketToServer,
+					() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
+						activeScreen.getMenu() == menu,
+					craftAll
+				)
+				.map(autoCraftingRunner::start)
+				.orElse(false);
 		}
 		if (!handled) {
 			BookmarkAutoCraftingActivator.releaseAutoCraftingInput(input.getKey());
@@ -277,7 +277,6 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		int modifiers = input.getModifiers();
 		return hasShift(modifiers) && !hasControlOrAlt(modifiers) && bookmarkPullKey.matchesIgnoringModifiers(input.getKey());
 	}
-
 
 	private Optional<IUserInputHandler> handleRecipeChainPatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
 		Minecraft minecraft = Minecraft.getInstance();
@@ -497,12 +496,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				}
 
 				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
-					clicked.getElement(),
-					input,
-					keyBindings,
-					ingredient -> Optional.of(createKey(ingredient)),
-					favoriteRecipeLookup
-				)
+						clicked.getElement(),
+						input,
+						keyBindings,
+						ingredient -> Optional.of(createKey(ingredient)),
+						favoriteRecipeLookup
+					)
 					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
 				return favoriteIngredientHandled
 					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
@@ -589,6 +588,9 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private Optional<IUserInputHandler> handleRecipeBookmark(UserInput input) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
+		if (bookmarkPreviewTooltipController.isMouseOver(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		Optional<IRecipeLayoutWithButtons<?>> layoutWithButtons = recipesGui.getRecipeLayoutUnderMouse(mouseX, mouseY);
 		if (layoutWithButtons.isEmpty()) {
 			return Optional.empty();
@@ -633,12 +635,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 				}
 
 				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
-					clicked.getElement(),
-					input,
-					keyBindings,
-					ingredient -> Optional.of(createKey(ingredient)),
-					favoriteRecipeLookup
-				)
+						clicked.getElement(),
+						input,
+						keyBindings,
+						ingredient -> Optional.of(createKey(ingredient)),
+						favoriteRecipeLookup
+					)
 					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
 				return favoriteIngredientHandled
 					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
@@ -748,9 +750,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
 			Optional<IBookmark> bookmark = element.getBookmark();
 			if (bookmark.isPresent()) {
-				BookmarkHotkeySubject subject = bookmark.get() instanceof RecipeBookmark<?, ?> ?
-					BookmarkHotkeySubject.RECIPE_BOOKMARK :
-					BookmarkHotkeySubject.ITEM_BOOKMARK;
+				BookmarkHotkeySubject subject = bookmark.get() instanceof RecipeBookmark<?, ?> ? BookmarkHotkeySubject.RECIPE_BOOKMARK : BookmarkHotkeySubject.ITEM_BOOKMARK;
 				return BookmarkHotkeyContext.builder(subject)
 					.hasIngredient(true)
 					.hasRecipe(subject == BookmarkHotkeySubject.RECIPE_BOOKMARK)

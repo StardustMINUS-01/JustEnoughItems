@@ -2,7 +2,9 @@ package mezz.jei.library.recipes;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -15,6 +17,7 @@ import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.library.config.RecipeCategorySortingConfig;
 import mezz.jei.library.ingredients.IIngredientSupplier;
+import mezz.jei.library.ingredients.SimpleIngredientAcceptor;
 import mezz.jei.library.recipes.collect.RecipeMap;
 import mezz.jei.library.recipes.collect.RecipeTypeData;
 import mezz.jei.library.recipes.collect.RecipeTypeDataMap;
@@ -34,9 +37,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public class RecipeManagerInternal {
+public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	@Unmodifiable
@@ -56,7 +60,7 @@ public class RecipeManagerInternal {
 
 	public RecipeManagerInternal(
 		List<IRecipeCategory<?>> recipeCategories,
-		ImmutableListMultimap<RecipeType<?>, ITypedIngredient<?>> recipeCatalysts,
+		ImmutableListMultimap<RecipeType<?>, Consumer<IIngredientAcceptor<?>>> recipeCatalysts,
 		IIngredientManager ingredientManager,
 		RecipeCategorySortingConfig recipeCategorySortingConfig,
 		IIngredientVisibility ingredientVisibility
@@ -66,6 +70,7 @@ public class RecipeManagerInternal {
 		this.recipeCategoryDecorators = ImmutableListMultimap.of();
 		this.ingredientManager = ingredientManager;
 		this.ingredientVisibility = ingredientVisibility;
+		this.ingredientVisibility.registerListener(this);
 
 		Collection<RecipeType<?>> recipeTypes = recipeCategories.stream()
 			.<RecipeType<?>>map(IRecipeCategory::getRecipeType)
@@ -86,12 +91,14 @@ public class RecipeManagerInternal {
 		RecipeCatalystBuilder recipeCatalystBuilder = new RecipeCatalystBuilder(this.recipeMaps.get(RecipeIngredientRole.CATALYST));
 		for (IRecipeCategory<?> recipeCategory : recipeCategories) {
 			RecipeType<?> recipeType = recipeCategory.getRecipeType();
-			if (recipeCatalysts.containsKey(recipeType)) {
-				List<ITypedIngredient<?>> catalysts = recipeCatalysts.get(recipeType);
-				recipeCatalystBuilder.addCategoryCatalysts(recipeCategory, catalysts);
-			}
+			List<Consumer<IIngredientAcceptor<?>>> categoryCatalysts = recipeCatalysts.get(recipeType);
+			recipeCatalystBuilder.addCategoryCatalysts(
+				recipeCategory,
+				categoryCatalysts,
+				this::resolveRecipeCatalyst
+			);
 		}
-		ImmutableListMultimap<IRecipeCategory<?>, ITypedIngredient<?>> recipeCategoryCatalystsMap = recipeCatalystBuilder.buildRecipeCategoryCatalysts();
+		ImmutableListMultimap<IRecipeCategory<?>, Consumer<IIngredientAcceptor<?>>> recipeCategoryCatalystsMap = recipeCatalystBuilder.buildRecipeCategoryCatalysts();
 		this.recipeTypeDataMap = new RecipeTypeDataMap(recipeCategories, recipeCategoryCatalystsMap);
 
 		IRecipeManagerPlugin internalRecipeManagerPlugin = new InternalRecipeManagerPlugin(
@@ -170,15 +177,19 @@ public class RecipeManagerInternal {
 		}
 
 		// hide the category if it has catalysts, but they have all been hidden
-		if (getRecipeCatalystStream(recipeType, true).findAny().isPresent() &&
-			getRecipeCatalystStream(recipeType, false).findAny().isEmpty())
-		{
+		if (hasRecipeCatalysts(recipeType, true) &&
+			!hasRecipeCatalysts(recipeType, false)
+		) {
 			return true;
 		}
 
 		// hide the category if it has no recipes, or if the recipes have all been hidden
 		Stream<?> visibleRecipes = getRecipesStream(recipeType, focuses, false);
 		return visibleRecipes.findAny().isEmpty();
+	}
+
+	private boolean hasRecipeCatalysts(RecipeType<?> recipeType, boolean includeHidden) {
+		return getRecipeCatalystGroups(recipeType, includeHidden).findAny().isPresent();
 	}
 
 	public Stream<IRecipeCategory<?>> getRecipeCategoriesForTypes(Collection<RecipeType<?>> recipeTypes, IFocusGroup focuses, boolean includeHidden) {
@@ -242,14 +253,52 @@ public class RecipeManagerInternal {
 		return this.pluginManager.getRecipes(recipeTypeData, focuses, includeHidden);
 	}
 
-	public <T> Stream<ITypedIngredient<?>> getRecipeCatalystStream(RecipeType<T> recipeType, boolean includeHidden) {
-		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
-		List<ITypedIngredient<?>> catalysts = recipeTypeData.getRecipeCategoryCatalysts();
-		if (includeHidden) {
-			return catalysts.stream();
+	public <T> Stream<Consumer<IIngredientAcceptor<?>>> getRecipeCatalystGroups(RecipeType<T> recipeType, boolean includeHidden) {
+		Stream<Consumer<IIngredientAcceptor<?>>> catalysts = recipeTypeDataMap.get(recipeType)
+			.getRecipeCategoryCatalysts()
+			.stream();
+		if (!includeHidden) {
+			catalysts = catalysts.filter(catalyst -> getRecipeCatalystIngredients(catalyst, false).findAny().isPresent());
 		}
-		return catalysts.stream()
-			.filter(ingredientVisibility::isIngredientVisible);
+		return catalysts;
+	}
+
+	public Stream<ITypedIngredient<?>> getRecipeCatalystIngredients(
+		Consumer<IIngredientAcceptor<?>> catalyst,
+		boolean includeHidden
+	) {
+		Stream<ITypedIngredient<?>> ingredients = resolveRecipeCatalyst(catalyst);
+		if (!includeHidden) {
+			ingredients = ingredients.filter(this::isRecipeCatalystVisible);
+		}
+		return ingredients;
+	}
+
+	private Stream<ITypedIngredient<?>> resolveRecipeCatalyst(Consumer<IIngredientAcceptor<?>> catalyst) {
+		SimpleIngredientAcceptor acceptor = new SimpleIngredientAcceptor(ingredientManager);
+		catalyst.accept(acceptor);
+		return acceptor.getAllIngredients().stream()
+			.<ITypedIngredient<?>>map(ingredientManager::normalizeTypedIngredient);
+	}
+
+	private boolean isRecipeCatalystVisible(ITypedIngredient<?> catalyst) {
+		return ingredientVisibility.isIngredientVisible(catalyst, UidContext.Recipe);
+	}
+
+	@Override
+	public <V> void onIngredientVisibilityChanged(ITypedIngredient<V> ingredient, boolean visible) {
+		recipeCategoriesVisibleCache = null;
+	}
+
+	@Override
+	public <V> void onIngredientsVisibilityChanged(
+		Collection<ITypedIngredient<V>> ingredients,
+		Collection<UidContext> contexts,
+		boolean visible
+	) {
+		if (contexts.contains(UidContext.Recipe)) {
+			recipeCategoriesVisibleCache = null;
+		}
 	}
 
 	public <T> void hideRecipes(RecipeType<T> recipeType, Collection<T> recipes) {

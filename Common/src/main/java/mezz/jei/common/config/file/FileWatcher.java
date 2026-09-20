@@ -6,12 +6,15 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class FileWatcher {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	private final @Nullable FileWatcherThread thread;
+	private final Set<Runnable> runtimeCallbacks = new HashSet<>();
 
 	public FileWatcher(String threadName) {
 		this.thread = createThread(threadName);
@@ -54,5 +57,22 @@ public class FileWatcher {
 		if (thread != null) {
 			thread.start();
 		}
+	}
+
+	public synchronized void addRuntimeCallback(Path path, Runnable callback) {
+		runtimeCallbacks.add(callback);
+		addCallback(path, callback);
+	}
+
+	public synchronized void addRuntimeDirectoryCallback(Path directory, Predicate<Path> filenameFilter, Runnable callback) {
+		runtimeCallbacks.add(callback);
+		addDirectoryCallback(directory, filenameFilter, callback);
+	}
+
+	public synchronized void clearRuntimeCallbacks() {
+		if (thread != null) {
+			thread.removeCallbacks(runtimeCallbacks);
+		}
+		runtimeCallbacks.clear();
 	}
 }

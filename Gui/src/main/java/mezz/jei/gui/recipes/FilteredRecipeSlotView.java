@@ -37,6 +37,28 @@ public record FilteredRecipeSlotView(
 	}
 
 	@Override
+	public Stream<ITypedIngredient<?>> getDisplayedIngredients() {
+		return candidates.stream();
+	}
+
+	@Override
+	public Optional<net.minecraft.tags.TagKey<?>> getTagKey() {
+		return candidates.stream().findFirst().flatMap(this::getTagKey);
+	}
+
+	private <T> Optional<net.minecraft.tags.TagKey<?>> getTagKey(ITypedIngredient<T> first) {
+		List<T> values = candidates.stream()
+			.map(candidate -> candidate.getIngredient(first.getType()))
+			.flatMap(Optional::stream)
+			.toList();
+		if (values.size() != candidates.size()) {
+			return Optional.empty();
+		}
+		return mezz.jei.common.Internal.getJeiRuntime().getIngredientManager()
+			.getIngredientHelper(first.getType()).getTagKeyEquivalent(values);
+	}
+
+	@Override
 	public RecipeIngredientRole getRole() {
 		return delegate.getRole();
 	}

@@ -54,6 +54,10 @@ public final class IconButton {
 		return new UserInputHandler(button, controller);
 	}
 
+	public void setRightClickEnabled(boolean enabled) {
+		this.button.setRightClickEnabled(enabled);
+	}
+
 	public void tick() {
 		this.controller.updateState(this.button);
 	}

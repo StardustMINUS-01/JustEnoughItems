@@ -6,13 +6,17 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.helpers.IStackHelper;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.transfer.IRecipeTransferContext;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
 import mezz.jei.api.recipe.transfer.IRecipeTransferInfo;
 import mezz.jei.common.network.IConnectionToServer;
-import mezz.jei.common.network.packets.PacketRecipeTransfer;
-import mezz.jei.common.network.packets.PacketRecipeTransferCounted;
+import mezz.jei.common.network.packets.PacketRecipeTransferCountedWithResult;
+import mezz.jei.common.network.packets.PacketRecipeTransferResult;
+import mezz.jei.common.network.packets.PacketRecipeTransferWithResult;
+import mezz.jei.common.network.packets.legacy.PacketRecipeTransfer;
+import mezz.jei.common.network.packets.legacy.PacketRecipeTransferCounted;
 import mezz.jei.common.transfer.RecipeTransferOperationsResult;
 import mezz.jei.common.transfer.RecipeTransferUtil;
 import mezz.jei.common.transfer.TransferOperation;
@@ -70,9 +74,37 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		return transferInfo.getRecipeType();
 	}
 
+	@SuppressWarnings("removal")
 	@Nullable
 	@Override
 	public IRecipeTransferError transferRecipe(C container, R recipe, IRecipeSlotsView recipeSlotsView, Player player, boolean maxTransfer, boolean doTransfer) {
+		return transferRecipeInternal(container, recipe, recipeSlotsView, player, maxTransfer, doTransfer, null);
+	}
+
+	@Nullable
+	@Override
+	public IRecipeTransferError transferRecipe(IRecipeTransferContext<R, C> context, boolean doTransfer) {
+		return transferRecipeInternal(
+			context.getContainer(),
+			context.getRecipe(),
+			context.getRecipeSlots(),
+			context.getPlayer(),
+			context.isMaxTransfer(),
+			doTransfer,
+			context
+		);
+	}
+
+	@Nullable
+	private IRecipeTransferError transferRecipeInternal(
+		C container,
+		R recipe,
+		IRecipeSlotsView recipeSlotsView,
+		Player player,
+		boolean maxTransfer,
+		boolean doTransfer,
+		@Nullable IRecipeTransferContext<R, C> context
+	) {
 		if (!serverConnection.isJeiOnServer()) {
 			Component tooltipMessage = Component.translatable("jei.tooltip.error.recipe.transfer.no.server");
 			return handlerHelper.createUserErrorWithTooltip(tooltipMessage);
@@ -132,7 +164,18 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 
 		if (doTransfer) {
 			boolean requireCompleteSets = transferInfo.requireCompleteSets(container, recipe);
-			if (useCountedTransferPacket) {
+			boolean supportsTransferResults = serverConnection.supportsRecipeTransferResults();
+			if (context != null && supportsTransferResults) {
+				sendTransferWithResult(
+					transferOperations.results,
+					craftingSlots,
+					inventorySlots,
+					maxTransfer,
+					requireCompleteSets,
+					useCountedTransferPacket,
+					context
+				);
+			} else if (useCountedTransferPacket) {
 				PacketRecipeTransferCounted packet = new PacketRecipeTransferCounted(
 					transferOperations.results,
 					craftingSlots,
@@ -166,6 +209,39 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 			.toList();
 	}
 
+	private void sendTransferWithResult(
+		List<TransferOperation> transferOperations,
+		List<Slot> craftingSlots,
+		List<Slot> inventorySlots,
+		boolean maxTransfer,
+		boolean requireCompleteSets,
+		boolean useCountedTransferPacket,
+		IRecipeTransferContext<R, C> context
+	) {
+		PacketRecipeTransferResult.registerPendingRecipeTransfer(context);
+		int transferId = context.getTransferId();
+		if (useCountedTransferPacket) {
+			PacketRecipeTransferCountedWithResult packet = PacketRecipeTransferCountedWithResult.fromSlots(
+				transferOperations,
+				craftingSlots,
+				inventorySlots,
+				maxTransfer,
+				requireCompleteSets,
+				transferId
+			);
+			serverConnection.sendPacketToServer(packet);
+		} else {
+			PacketRecipeTransferWithResult packet = PacketRecipeTransferWithResult.fromSlots(
+				transferOperations,
+				craftingSlots,
+				inventorySlots,
+				maxTransfer,
+				requireCompleteSets,
+				transferId
+			);
+			serverConnection.sendPacketToServer(packet);
+		}
+	}
 	private static boolean requiresCountedTransferPacket(List<TransferOperation> transferOperations) {
 		Set<Integer> craftingSlotIds = new IntOpenHashSet();
 		for (TransferOperation transferOperation : transferOperations) {
@@ -183,35 +259,13 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		List<Slot> inventorySlots,
 		Player player
 	) {
-		for (Slot slot : craftingSlots) {
-			if (!slot.getItem().isEmpty()) {
-				if (!slot.mayPickup(player)) {
-					LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
-							"The Recipe Transfer Helper references crafting slot index [{}] but the player cannot pickup from it.",
-						transferInfo.getClass(), container.getClass(), slot.index
-					);
-					return false;
-				}
-			}
-		}
-		for (Slot slot : inventorySlots) {
-			if (!slot.getItem().isEmpty()) {
-				if (!slot.mayPickup(player)) {
-					LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
-							"The Recipe Transfer Helper references inventory slot index [{}] but the player cannot pickup from it.",
-						transferInfo.getClass(), container.getClass(), slot.index
-					);
-					return false;
-				}
-			}
-		}
 		Collection<Integer> craftingSlotIndexes = slotIndexes(craftingSlots);
 		Collection<Integer> inventorySlotIndexes = slotIndexes(inventorySlots);
 		Collection<Integer> containerSlotIndexes = slotIndexes(container.slots);
 
 		if (!containerSlotIndexes.containsAll(craftingSlotIndexes)) {
 			LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
-					"The Recipes Transfer Helper references crafting slot indexes [{}] that are not found in the inventory container slots [{}]",
+				"The Recipes Transfer Helper references crafting slot indexes [{}] that are not found in the inventory container slots [{}]",
 				transferInfo.getClass(), container.getClass(), StringUtil.intsToString(craftingSlotIndexes), StringUtil.intsToString(containerSlotIndexes)
 			);
 			return false;
@@ -219,7 +273,7 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 
 		if (!containerSlotIndexes.containsAll(inventorySlotIndexes)) {
 			LOGGER.error("Recipe Transfer helper {} does not work for container {}. " +
-					"The Recipes Transfer Helper references inventory slot indexes [{}] that are not found in the inventory container slots [{}]",
+				"The Recipes Transfer Helper references inventory slot indexes [{}] that are not found in the inventory container slots [{}]",
 				transferInfo.getClass(), container.getClass(), StringUtil.intsToString(inventorySlotIndexes), StringUtil.intsToString(containerSlotIndexes)
 			);
 			return false;
@@ -236,7 +290,7 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 	) {
 		if (inputSlots.size() > craftingSlots.size()) {
 			LOGGER.error("Recipe View {} does not work for container {}. " +
-					"The Recipe View has more input slots ({}) than the number of inventory crafting slots ({})",
+				"The Recipe View has more input slots ({}) than the number of inventory crafting slots ({})",
 				transferInfo.getClass(), container.getClass(), inputSlots.size(), craftingSlots.size()
 			);
 			return false;
@@ -284,16 +338,10 @@ public class BasicRecipeTransferHandler<C extends AbstractContainerMenu, R> impl
 		for (Slot slot : inventorySlots) {
 			final ItemStack stack = slot.getItem();
 			if (!stack.isEmpty()) {
-				if (!slot.allowModification(player)) {
-					LOGGER.error(
-						"Recipe Transfer helper {} does not work for container {}. " +
-							"The Player is not able to move items out of Inventory Slot number {}",
-						transferInfo.getClass(), container.getClass(), slot.index
-					);
-					return null;
+				if (slot.allowModification(player)) {
+					availableItemStacks.put(slot, stack.copy());
 				}
-				availableItemStacks.put(slot, stack.copy());
-			} else {
+			} else if (slot.allowModification(player)) {
 				emptySlotCount++;
 			}
 		}

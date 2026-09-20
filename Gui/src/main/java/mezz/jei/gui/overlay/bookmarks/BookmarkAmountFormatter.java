@@ -1,6 +1,8 @@
 package mezz.jei.gui.overlay.bookmarks;
 
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.common.platform.Services;
+import mezz.jei.common.util.FluidAmountFormatter;
 
 import java.util.Set;
 
@@ -30,28 +32,33 @@ public final class BookmarkAmountFormatter {
 	}
 
 	public static String formatFluidAmount(long amount) {
-		if (amount < 1_000) {
-			return Long.toString(amount);
+		return formatFluidAmount(amount, Services.PLATFORM.getFluidHelper().bucketVolume());
+	}
+
+	private static String formatFluidAmount(long amount, long bucketVolume) {
+		if (amount < bucketVolume) {
+			return FluidAmountFormatter.format(amount, bucketVolume);
 		}
-		if (amount < 100_000) {
-			return formatCompact(amount, 1_000, "B");
+		if (amount < bucketVolume * 100) {
+			return FluidAmountFormatter.format(amount, bucketVolume) + "B";
 		}
-		if (amount < 100_000_000) {
-			return formatCompact(amount, 1_000_000, "kB");
+		if (amount < bucketVolume * 100_000) {
+			return formatCompact(amount, bucketVolume * 1_000, "kB");
 		}
-		return formatCompact(amount, 1_000_000_000, "MB");
+		return formatCompact(amount, bucketVolume * 1_000_000, "MB");
 	}
 
 	public static String formatTypedAmount(long amount, Set<BookmarkIngredientKey> permutations) {
-		if (permutations.stream().map(BookmarkIngredientKey::ingredientTypeUid).anyMatch(BookmarkAmountFormatter::usesFluidAmountUnits)) {
-			return formatFluidAmount(amount);
-		}
-		return formatItemAmount(amount);
+		return permutations.stream().map(BookmarkIngredientKey::ingredientTypeUid)
+			.filter(BookmarkAmountFormatter::usesFluidAmountUnits)
+			.findFirst()
+			.map(type -> formatTypedAmount(amount, type))
+			.orElseGet(() -> formatItemAmount(amount));
 	}
 
 	public static String formatTypedAmount(long amount, String ingredientTypeUid) {
 		if (usesFluidAmountUnits(ingredientTypeUid)) {
-			return formatFluidAmount(amount);
+			return ingredientTypeUid.equals("fluid_stack") ? formatFluidAmount(amount) : formatFluidAmount(amount, 1_000);
 		}
 		return formatItemAmount(amount);
 	}

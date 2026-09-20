@@ -13,17 +13,20 @@ import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import org.joml.Matrix4f;
+import org.jetbrains.annotations.Nullable;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -66,11 +69,18 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 		this(
 			fluidHelper,
 			capacity,
-			showCapacity ? TooltipMode.SHOW_AMOUNT_AND_CAPACITY : TooltipMode.SHOW_AMOUNT,
+			getTooltipMode(showCapacity),
 			width,
 			height,
 			tilingDirection
 		);
+	}
+
+	private static TooltipMode getTooltipMode(boolean showCapacity) {
+		if (showCapacity) {
+			return TooltipMode.SHOW_AMOUNT_AND_CAPACITY;
+		}
+		return TooltipMode.SHOW_AMOUNT;
 	}
 
 	private FluidTankRenderer(
@@ -147,6 +157,8 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 		int posX,
 		int posY
 	) {
+		// Flush buffered tooltip text before drawing the fluid immediately with Tesselator.
+		guiGraphics.flush();
 		RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
 		Matrix4f matrix = guiGraphics.pose().last().pose();
 
@@ -233,9 +245,16 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 	}
 
 	@Override
+	@Deprecated(since = "15.54.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public List<Component> getTooltip(T fluidStack, TooltipFlag tooltipFlag) {
-		List<Component> tooltip = new ArrayList<>();
+		Minecraft minecraft = Minecraft.getInstance();
+		return getTooltip(fluidStack, minecraft.player, tooltipFlag);
+	}
 
+	@Override
+	public List<Component> getTooltip(T fluidStack, @Nullable Player player, TooltipFlag tooltipFlag) {
+		List<Component> tooltip = new ArrayList<>();
 		IIngredientTypeWithSubtypes<Fluid, T> type = fluidHelper.getFluidIngredientType();
 		Fluid fluidType = type.getBase(fluidStack);
 		if (fluidType.isSame(Fluids.EMPTY)) {

@@ -8,8 +8,11 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.gui.builder.IClickableIngredientFactory;
 import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.ingredients.ITypedIngredientFactory;
 import mezz.jei.common.input.ClickableIngredient;
 import mezz.jei.common.input.ClickableIngredientFactory;
+import mezz.jei.common.ingredients.TypedIngredientUtil;
+import mezz.jei.common.ingredients.TypedIngredient;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.Translator;
@@ -26,7 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class IngredientManager implements IIngredientManager {
+public class IngredientManager implements IIngredientManager, ITypedIngredientFactory {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	private final RegisteredIngredients registeredIngredients;
@@ -219,21 +222,27 @@ public class IngredientManager implements IIngredientManager {
 
 	@Override
 	public <V> Optional<ITypedIngredient<V>> createTypedIngredient(IIngredientType<V> ingredientType, V ingredient, boolean normalize) {
-		@Nullable ITypedIngredient<V> result = TypedIngredient.createAndFilterInvalid(this, ingredientType, ingredient, normalize);
+		@Nullable
+		ITypedIngredient<V> result = TypedIngredient.createAndFilterInvalid(this, ingredientType, ingredient, normalize);
 		return Optional.ofNullable(result);
 	}
 
 	@Override
+	public <V> ITypedIngredient<V> checkTypedIngredientFromApi(ITypedIngredient<V> typedIngredient) {
+		return TypedIngredientUtil.checkTypedIngredientFromApi(this, typedIngredient);
+	}
+
+	@Override
 	public <V> ITypedIngredient<V> normalizeTypedIngredient(ITypedIngredient<V> typedIngredient) {
-		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
-		IIngredientType<V> type = typedIngredient.getType();
+		ITypedIngredient<V> checkedIngredient = checkTypedIngredientFromApi(typedIngredient);
+		IIngredientType<V> type = checkedIngredient.getType();
 		IIngredientHelper<V> ingredientHelper = getIngredientHelper(type);
-		return TypedIngredient.normalize(typedIngredient, ingredientHelper);
+		return checkedIngredient.normalize(ingredientHelper);
 	}
 
 	@Override
 	public IClickableIngredientFactory getClickableIngredientFactory() {
-		return new ClickableIngredientFactory(this::createTypedIngredient);
+		return new ClickableIngredientFactory(this);
 	}
 
 	@Override
@@ -241,7 +250,8 @@ public class IngredientManager implements IIngredientManager {
 		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
 		ErrorUtil.checkNotNull(area, "area");
-		@Nullable ITypedIngredient<V> typedIngredient = TypedIngredient.createAndFilterInvalid(this, ingredientType, ingredient, normalize);
+		@Nullable
+		ITypedIngredient<V> typedIngredient = TypedIngredient.createAndFilterInvalid(this, ingredientType, ingredient, normalize);
 		if (typedIngredient == null) {
 			return Optional.empty();
 		}
@@ -264,14 +274,20 @@ public class IngredientManager implements IIngredientManager {
 			.getIngredientInfo(ingredientType)
 			.getIngredientByUid(ingredientUuid)
 			.flatMap(i -> {
-				@Nullable ITypedIngredient<V> typedIngredient = TypedIngredient.createAndFilterInvalid(this, ingredientType, i, true);
+				@Nullable
+				ITypedIngredient<V> typedIngredient = TypedIngredient.createAndFilterInvalid(this, ingredientType, i, true);
 				return Optional.ofNullable(typedIngredient);
 			});
 	}
 
 	@Override
 	public Collection<String> getIngredientAliases(ITypedIngredient<?> ingredient) {
-		return getIngredientAliasesInternal(ingredient);
+		return getIngredientAliasesChecked(ingredient);
+	}
+
+	private <T> Collection<String> getIngredientAliasesChecked(ITypedIngredient<T> typedIngredient) {
+		ITypedIngredient<T> checkedIngredient = checkTypedIngredientFromApi(typedIngredient);
+		return getIngredientAliasesInternal(checkedIngredient);
 	}
 
 	private <T> Collection<String> getIngredientAliasesInternal(ITypedIngredient<T> typedIngredient) {

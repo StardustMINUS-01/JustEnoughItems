@@ -31,9 +31,7 @@ public final class BookmarkPullPlanner {
 		}
 		long maxPullAmount = SaturatedMath.multiply(freeSlots, maxStackSize);
 		RecipeChainDetails details = RecipeChainMath.refresh(inputs, collapsedRecipes);
-		Map<BookmarkIngredientKey, Long> amounts = details.outputRecipes().isEmpty() ?
-			planInitialOnlyPull(inputs, playerInventory, shift, maxPullAmount) :
-			planRecipePull(inputs, collapsedRecipes, playerInventory, containerStorage, shift, maxPullAmount);
+		Map<BookmarkIngredientKey, Long> amounts = details.outputRecipes().isEmpty() ? planInitialOnlyPull(inputs, playerInventory, shift, maxPullAmount) : planRecipePull(inputs, collapsedRecipes, playerInventory, containerStorage, shift, maxPullAmount);
 		return new BookmarkPullPlan(amounts);
 	}
 
@@ -146,7 +144,6 @@ public final class BookmarkPullPlanner {
 		}
 		amounts.merge(key, Math.min(amount, maxPullAmount), (first, second) -> Math.min(SaturatedMath.add(first, second), maxPullAmount));
 	}
-
 
 	private interface KeyConsumer {
 		void accept(BookmarkIngredientKey key);

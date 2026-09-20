@@ -179,8 +179,7 @@ public class LookupHistoryOverlay implements IRecipeFocusSource, ILookupHistoryO
 				y,
 				(int) Mth.clamp(x, x1, x2),
 				y + height,
-				argbColor)
-			;
+				argbColor);
 		}
 	}
 

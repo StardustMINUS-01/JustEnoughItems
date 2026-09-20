@@ -1,5 +1,7 @@
 package mezz.jei.gui.match;
 
+import org.jetbrains.annotations.Nullable;
+import net.minecraft.nbt.CompoundTag;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.Internal;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
@@ -18,8 +20,13 @@ import java.util.stream.Stream;
 public record IngredientMatchInfo(
 	Kind kind,
 	ResourceLocation id,
-	Set<ResourceLocation> tagIds
+	Set<ResourceLocation> tagIds,
+	@Nullable CompoundTag nbt
 ) {
+	public IngredientMatchInfo(Kind kind, ResourceLocation id, Set<ResourceLocation> tagIds) {
+		this(kind, id, tagIds, null);
+	}
+
 	public IngredientMatchInfo {
 		tagIds = tagIds == null ? Set.of() : Set.copyOf(tagIds);
 	}
@@ -40,13 +47,17 @@ public record IngredientMatchInfo(
 		ITypedIngredient<?> ingredient,
 		boolean includeBlockTags
 	) {
-		return ingredient.getItemStack()
-			.filter(stack -> !stack.isEmpty())
-			.map(stack -> fromItemStack(stack, includeBlockTags))
-			.or(() -> fromFluidIngredient(ingredient, Services.PLATFORM.getFluidHelper()));
+		return fromIngredient(ingredient, includeBlockTags, true);
 	}
 
-	private static IngredientMatchInfo fromItemStack(ItemStack stack, boolean includeBlockTags) {
+	public static Optional<IngredientMatchInfo> fromIngredient(ITypedIngredient<?> ingredient, boolean includeBlockTags, boolean includeNbt) {
+		return ingredient.getItemStack()
+			.filter(stack -> !stack.isEmpty())
+			.map(stack -> fromItemStack(stack, includeBlockTags, includeNbt))
+			.or(() -> fromFluidIngredient(ingredient, Services.PLATFORM.getFluidHelper(), includeNbt));
+	}
+
+	private static IngredientMatchInfo fromItemStack(ItemStack stack, boolean includeBlockTags, boolean includeNbt) {
 		Stream<ResourceLocation> tagLocations = stack.getTags().map(TagKey::location);
 		if (stack.getItem() instanceof BlockItem blockItem && includeBlockTags) {
 			tagLocations = Stream.concat(
@@ -56,7 +67,8 @@ public record IngredientMatchInfo(
 		}
 		Set<ResourceLocation> tagIds = tagLocations
 			.collect(Collectors.toUnmodifiableSet());
-		return item(BuiltInRegistries.ITEM.getKey(stack.getItem()), tagIds);
+		return new IngredientMatchInfo(Kind.ITEM, BuiltInRegistries.ITEM.getKey(stack.getItem()), tagIds,
+			includeNbt && stack.hasTag() ? stack.getTag().copy() : null);
 	}
 
 	private static boolean includeBlockTags() {
@@ -65,14 +77,15 @@ public record IngredientMatchInfo(
 
 	private static <T> Optional<IngredientMatchInfo> fromFluidIngredient(
 		ITypedIngredient<?> ingredient,
-		IPlatformFluidHelperInternal<T> fluidHelper
+		IPlatformFluidHelperInternal<T> fluidHelper, boolean includeNbt
 	) {
 		ITypedIngredient<T> fluidIngredient = ingredient.cast(fluidHelper.getFluidIngredientType());
 		if (fluidIngredient == null || fluidHelper.getAmount(fluidIngredient.getIngredient()) <= 0) {
 			return Optional.empty();
 		}
 		T fluid = fluidIngredient.getIngredient();
-		return Optional.of(fluid(fluidHelper.getFluidId(fluid), fluidHelper.getFluidTags(fluid)));
+		return Optional.of(new IngredientMatchInfo(Kind.FLUID, fluidHelper.getFluidId(fluid), fluidHelper.getFluidTags(fluid),
+			includeNbt ? fluidHelper.getTag(fluid).map(CompoundTag::copy).orElse(null) : null));
 	}
 
 	public enum Kind {

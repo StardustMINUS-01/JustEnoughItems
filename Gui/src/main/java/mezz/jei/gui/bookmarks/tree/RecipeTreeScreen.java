@@ -4,7 +4,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.gui.input.handlers.UserInputRouter;
 import mezz.jei.gui.recipes.RecipesGui;
 
-
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
@@ -68,6 +67,7 @@ public final class RecipeTreeScreen extends Screen {
 	private @Nullable RecipeTreeSidebarLayout<SummaryEntry> sidebarLayout;
 	private final BookmarkCandidateTooltipState candidateTooltips = new BookmarkCandidateTooltipState();
 	private final UserInputRouter candidateInputs;
+	private final RecipeTreeSidebarClick<ITypedIngredient<?>> sidebarClicks = new RecipeTreeSidebarClick<>();
 	private @Nullable RecipeTreeLayout.Node selected;
 	private @Nullable RecipeTreePreview preview;
 	private @Nullable RecipeTreeBookmarkPanel bookmarkPanel;
@@ -117,6 +117,7 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	protected void init() {
+		sidebarClicks.reset();
 		prepareBookmarkPanel();
 		var back = addRenderableWidget(new Button(5, 6, 20, 20, Component.literal("<"), button -> onClose(), narration -> narration.get()) {
 			private boolean pressed;
@@ -144,25 +145,34 @@ public final class RecipeTreeScreen extends Screen {
 		addRenderableWidget(Button.builder(Component.literal(showBookmarks ? "<|" : "|>"), this::toggleBookmarks)
 			.bounds(101, 6, 20, 20).tooltip(Tooltip.create(Component.translatable(showBookmarks ? "jei.tree.hide_bookmarks" : "jei.tree.show_bookmarks"))).build());
 		addTool("=", "jei.tree.totals", 125, () -> { showSummary = !showSummary; sidebarScroll = 0; sidebarLayout = null; });
-		addRenderableWidget(Button.builder(modeIcon("#", showDemand), button -> {
-			showDemand = !showDemand;
-			button.setMessage(modeIcon("#", showDemand));
-			if (!showDemand) {
-				remainingView = false;
-			}
-			inventoryViewButton.active = showDemand;
-			inventoryViewButton.setMessage(modeIcon("I", remainingView));
-			updateDemands();
-		}).bounds(149, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.demand_view"))).build());
-		inventoryViewButton = addRenderableWidget(Button.builder(modeIcon("I", remainingView), button -> {
-			remainingView = !remainingView;
-			button.setMessage(modeIcon("I", remainingView));
-			updateDemands();
-		}).bounds(173, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.remaining_view"))).build());
+		addRenderableWidget(Button.builder(
+				modeIcon("#", showDemand),
+				button -> {
+					showDemand = !showDemand;
+					button.setMessage(modeIcon("#", showDemand));
+					if (!showDemand) {
+						remainingView = false;
+					}
+					inventoryViewButton.active = showDemand;
+					inventoryViewButton.setMessage(modeIcon("I", remainingView));
+					updateDemands();
+				}
+			)
+			.bounds(149, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.demand_view"))).build());
+		inventoryViewButton = addRenderableWidget(Button.builder(
+				modeIcon("I", remainingView),
+				button -> {
+					remainingView = !remainingView;
+					button.setMessage(modeIcon("I", remainingView));
+					updateDemands();
+				}
+			)
+			.bounds(173, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.remaining_view"))).build());
 		inventoryViewButton.active = showDemand;
 		int searchWidth = Math.min(150, Math.max(40, width - 208));
 		searchBox = addRenderableWidget(new EditBox(font, width - searchWidth - 6, 7, searchWidth, 18, Component.translatable("jei.tree.search")));
 		searchBox.setMaxLength(128);
+		searchBox.setHint(Component.translatable("jei.tree.search"));
 		searchBox.setValue(searchText);
 		searchBox.setResponder(value -> { searchText = value; updateSearch(); });
 		refreshInventory = addRenderableWidget(new Button(width - 48, TOP + 2, 20, 20, Component.literal("\u21bb"), button -> {
@@ -180,12 +190,16 @@ public final class RecipeTreeScreen extends Screen {
 		});
 		refreshInventory.setTooltip(Tooltip.create(Component.translatable("jei.tree.refresh_inventory")));
 		refreshInventory.visible = sidebarOpen();
-		closeSidebar = addRenderableWidget(Button.builder(Component.literal("x"), button -> {
-			selected = null;
-			preview = null;
-			showSummary = false;
-			recipeDetails.clear();
-		}).bounds(width - 24, TOP + 2, 20, 20).tooltip(Tooltip.create(Component.translatable("gui.close"))).build());
+		closeSidebar = addRenderableWidget(Button.builder(
+				Component.literal("x"),
+				button -> {
+					selected = null;
+					preview = null;
+					showSummary = false;
+					recipeDetails.clear();
+				}
+			)
+			.bounds(width - 24, TOP + 2, 20, 20).tooltip(Tooltip.create(Component.translatable("gui.close"))).build());
 		closeSidebar.visible = sidebarOpen();
 		if (version < 0) {
 			updateInventory();
@@ -301,6 +315,7 @@ public final class RecipeTreeScreen extends Screen {
 	}
 
 	private void refresh() {
+		sidebarClicks.cancel();
 		var expansion = tree != null ? tree.captureExpansion(selected) : pendingViewState == null ? null : pendingViewState.expansion();
 		// The left panel can select a recipe outside the instantiated tree branches.
 		var detachedRecipe = selected != null && expansion != null && expansion.selected() < 0 ? selected.target().metadata().recipeUid() : null;
@@ -416,6 +431,18 @@ public final class RecipeTreeScreen extends Screen {
 		return sidebarLayout().entryAt(x - viewportRight() - 6, y - (TOP + 26 + previewHeight() - sidebarScroll)).orElse(null);
 	}
 
+	private @Nullable SidebarLookup sidebarLookupAt(double x, double y) {
+		var slot = previewSlotAt(x, y);
+		if (slot.isPresent()) {
+			return slot.get().slot().getDisplayedIngredient()
+				.map(ingredient -> new SidebarLookup(slot.get().slot(), ingredient)).orElse(null);
+		}
+		var entry = sidebarEntryAt(x, y);
+		return entry == null || entry.stack() == null ? null : new SidebarLookup(entry, entry.stack().typed);
+	}
+
+	private record SidebarLookup(Object identity, ITypedIngredient<?> ingredient) {}
+
 	private RecipeTreeSidebarLayout<SummaryEntry> sidebarLayout() {
 		int availableWidth = Math.max(1, width - viewportRight() - 12);
 		if (sidebarLayout == null || sidebarLayout.width() != availableWidth) {
@@ -457,7 +484,9 @@ public final class RecipeTreeScreen extends Screen {
 		graphics.pose().translate(panX, panY, 0);
 		graphics.pose().scale((float) zoom, (float) zoom, 1);
 		if (tree != null) {
-			for (var node : tree.nodes()) { drawConnection(graphics, node); }
+			for (var node : tree.nodes()) {
+				drawConnection(graphics, node);
+			}
 			for (var node : tree.nodes()) {
 				if (visible(node)) {
 					drawNode(graphics, node);
@@ -501,9 +530,12 @@ public final class RecipeTreeScreen extends Screen {
 		} else if (sidebarHovered != null) {
 			if (sidebarHovered.stack() != null) {
 				sidebarHovered.stack().tooltip(graphics, mouseX, mouseY);
+			} else {
+				graphics.renderTooltip(font, sidebarHovered.title(), mouseX, mouseY);
 			}
-			else { graphics.renderTooltip(font, sidebarHovered.title(), mouseX, mouseY); }
-		} else if (mouseY >= TOP && mouseX < viewportRight()) { drawHoveredTooltip(graphics, mouseX, mouseY); }
+		} else if (mouseY >= TOP && mouseX < viewportRight()) {
+			drawHoveredTooltip(graphics, mouseX, mouseY);
+		}
 	}
 
 	private boolean visible(RecipeTreeLayout.Node node) {
@@ -521,7 +553,10 @@ public final class RecipeTreeScreen extends Screen {
 		int x2 = (int) node.x() + RecipeTreeLayout.WIDTH / 2;
 		int y2 = (int) node.y();
 		if (Math.min(x1, x2) * zoom + panX >= viewportRight() || Math.max(x1, x2) * zoom + panX < viewportLeft() ||
-			y1 * zoom + panY >= height || y2 * zoom + panY < TOP) { return; }
+			y1 * zoom + panY >= height || y2 * zoom + panY < TOP
+		) {
+			return;
+		}
 		int middle = (y1 + y2) / 2;
 		graphics.vLine(x1, y1, middle, 0xFF78998B);
 		graphics.hLine(x1, x2, middle, 0xFF78998B);
@@ -544,8 +579,9 @@ public final class RecipeTreeScreen extends Screen {
 		StackView<?> stack = nodeStack(node);
 		if (stack != null) {
 			stack.draw(graphics, x + 8, y + 11);
+		} else {
+			graphics.drawString(font, "?", x + 12, y + 13, 0xFFAAAAAA);
 		}
-		else { graphics.drawString(font, "?", x + 12, y + 13, 0xFFAAAAAA); }
 		if (node.expandable()) {
 			graphics.drawString(font, node.expanded() ? "-" : "+", x + RecipeTreeLayout.WIDTH - 8, y + 1, 0xFFE4C86C, false);
 		}
@@ -609,8 +645,7 @@ public final class RecipeTreeScreen extends Screen {
 		}
 		String previousSection = "";
 		for (RecipeChainInput input : node.slots()) {
-			String section = input.metadata().type().isGraphOutput() ? "jei.tooltip.bookmarks.group.recipe_chain.output" :
-				input.metadata().type().isNonConsumable() ? "jei.tree.non_consumable" : "jei.tooltip.bookmarks.group.recipe_chain.input";
+			String section = input.metadata().type().isGraphOutput() ? "jei.tooltip.bookmarks.group.recipe_chain.output" : input.metadata().type().isNonConsumable() ? "jei.tree.non_consumable" : "jei.tooltip.bookmarks.group.recipe_chain.input";
 			if (!section.equals(previousSection)) {
 				recipeDetails.add(new SummaryEntry(Component.translatable(section), null));
 				previousSection = section;
@@ -662,6 +697,7 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double x, double y, int button) {
+		sidebarClicks.reset();
 		if (handleCandidateClick(x, y, button, InputType.SIMULATE)) {
 			return true;
 		}
@@ -669,6 +705,12 @@ public final class RecipeTreeScreen extends Screen {
 			searchBox.setFocused(false);
 		}
 		if (super.mouseClicked(x, y, button)) {
+			return true;
+		}
+		var sidebarTarget = sidebarLookupAt(x, y);
+		if (sidebarTarget != null && sidebarClicks.press(sidebarTarget.identity(), sidebarTarget.ingredient(), x, y, button,
+			hasShiftDown() || hasControlDown() || hasAltDown())
+		) {
 			return true;
 		}
 		if (x < viewportLeft() && y >= TOP && bookmarkPanel != null) {
@@ -709,12 +751,15 @@ public final class RecipeTreeScreen extends Screen {
 			panX += (oldX - node.get().x()) * zoom;
 			panY += (oldY - node.get().y()) * zoom;
 			notice = changed ? null : Component.translatable("jei.tree.limit");
-		} else { dragging = true; }
+		} else {
+			dragging = true;
+		}
 		return true;
 	}
 
 	@Override
 	public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+		sidebarClicks.move(x, y);
 		if (candidateInputs.handleMouseDragged(x, y, InputConstants.Type.MOUSE.getOrCreate(button), dx, dy)) {
 			return true;
 		}
@@ -722,7 +767,9 @@ public final class RecipeTreeScreen extends Screen {
 			return true;
 		}
 		if (button == 0 && dragging) {
-			panX += dx; panY += dy; return true;
+			panX += dx;
+			panY += dy;
+			return true;
 		}
 		return super.mouseDragged(x, y, button, dx, dy);
 	}
@@ -730,6 +777,14 @@ public final class RecipeTreeScreen extends Screen {
 	@Override
 	public boolean mouseReleased(double x, double y, int button) {
 		if (handleCandidateClick(x, y, button, InputType.EXECUTE)) {
+			sidebarClicks.reset();
+			return true;
+		}
+		if (hasShiftDown() || hasControlDown() || hasAltDown()) {
+			sidebarClicks.cancel();
+		}
+		var sidebarTarget = sidebarLookupAt(x, y);
+		if (sidebarClicks.release(sidebarTarget == null ? null : sidebarTarget.identity(), x, y, button, this::showIngredient)) {
 			return true;
 		}
 		if (bookmarkPanel != null) {
@@ -741,6 +796,7 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double x, double y, double vertical) {
+		sidebarClicks.cancel();
 		if (candidateInputs.handleMouseScrolled(x, y, vertical)) {
 			return true;
 		}
@@ -764,7 +820,9 @@ public final class RecipeTreeScreen extends Screen {
 		}
 		if (x >= viewportRight() && sidebarOpen()) {
 			sidebarScroll = RecipeTreeMath.clamp(sidebarScroll - (int) (vertical * 24), 0, sidebarMaxScroll());
-		} else { zoomAt(Math.pow(1.15, vertical), x, y); }
+		} else {
+			zoomAt(Math.pow(1.15, vertical), x, y);
+		}
 		return true;
 	}
 
@@ -797,21 +855,26 @@ public final class RecipeTreeScreen extends Screen {
 				var bookmark = element.get().getBookmark().orElseThrow();
 				bookmarks.removeExpandedRecipeBookmark(bookmark);
 				refresh();
-			} else { bookmarks.addIngredientBookmark(ingredient.get()); }
-		} else {
-			var runtime = Internal.getJeiRuntime();
-			var recipesGui = runtime.getRecipesGui();
-			Screen previousParent = recipesGui.getParentScreen().orElse(null);
-			var roles = action.get() == RecipeTreeInput.SHOW_RECIPE ? List.of(RecipeIngredientRole.OUTPUT) :
-				List.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.CATALYST);
-			var focusUtil = new FocusUtil(runtime.getJeiHelpers().getFocusFactory(), Internal.getJeiClientConfigs().getClientConfig(), ingredients);
-			recipesGui.show(focusUtil.createFocuses(ingredient.get(), roles));
-			// RecipesGui is a singleton: do not make it both our parent and our child after an R/U lookup.
-			if (minecraft.screen == recipesGui && parent == recipesGui) {
-				parent = previousParent;
+			} else {
+				bookmarks.addIngredientBookmark(ingredient.get());
 			}
+		} else {
+			showIngredient(ingredient.get(), action.get());
 		}
 		return true;
+	}
+
+	private void showIngredient(ITypedIngredient<?> ingredient, RecipeTreeInput action) {
+		var runtime = Internal.getJeiRuntime();
+		var recipesGui = runtime.getRecipesGui();
+		Screen previousParent = recipesGui.getParentScreen().orElse(null);
+		var roles = action == RecipeTreeInput.SHOW_RECIPE ? List.of(RecipeIngredientRole.OUTPUT) : List.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.CATALYST);
+		var focusUtil = new FocusUtil(runtime.getJeiHelpers().getFocusFactory(), Internal.getJeiClientConfigs().getClientConfig(), ingredients);
+		recipesGui.show(focusUtil.createFocuses(ingredient, roles));
+		// RecipesGui is a singleton: do not make it both our parent and our child after an R/U lookup.
+		if (minecraft.screen == recipesGui && parent == recipesGui) {
+			parent = previousParent;
+		}
 	}
 
 	private Optional<ITypedIngredient<?>> hoveredIngredient(double x, double y) {
@@ -834,6 +897,7 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public void removed() {
+		sidebarClicks.reset();
 		candidateInputs.handleGuiChange();
 		cacheViewState();
 		super.removed();
@@ -854,7 +918,7 @@ public final class RecipeTreeScreen extends Screen {
 		return new StackView<>(ingredient, ingredients.getIngredientRenderer(ingredient.getType()), amount, nonConsumable);
 	}
 
-	private record Machine(Component title, @Nullable IDrawable icon) { }
+	private record Machine(Component title, @Nullable IDrawable icon) {}
 	private record SummaryEntry(Component title, @Nullable StackView<?> stack, @Nullable IDrawable icon) {
 		private SummaryEntry(Component title, @Nullable StackView<?> stack) { this(title, stack, null); }
 	}
@@ -928,11 +992,9 @@ public final class RecipeTreeScreen extends Screen {
 				BookmarkCandidateTooltipHelper.addTo(tooltip, candidateTooltips, List.copyOf(source.metadata().permutations()),
 					() -> bookmarks.getCandidateSource(bookmarks.getBookmarks().get(source.index())));
 			}
-
 			tooltip.draw(graphics, x, y);
 		}
 	}
-
 	private static void drawOutline(GuiGraphics graphics, int x, int y, int w, int h, int color) {
 		graphics.fill(x, y, x + w, y + 1, color);
 		graphics.fill(x, y + h - 1, x + w, y + h, color);

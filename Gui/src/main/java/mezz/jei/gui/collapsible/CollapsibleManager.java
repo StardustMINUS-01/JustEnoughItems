@@ -31,17 +31,24 @@ public final class CollapsibleManager {
 		return settings;
 	}
 
+	public void setSettings(CollapsibleSettings settings) {
+		this.settings = settings;
+	}
+
 	public CollapsibleState state() {
 		return state;
 	}
 
 	public void reload(CollapsibleRules newRules) {
-		reload(newRules, settings);
-	}
-
-	public void reload(CollapsibleRules newRules, CollapsibleSettings newSettings) {
+		// Rule order defines first-match priority; colors must not discard the classification cache.
+		var current = rules.groups();
+		var incoming = newRules.groups();
+		if (current.size() == incoming.size() && java.util.stream.IntStream.range(0, current.size())
+			.allMatch(i -> current.get(i).expressionText().equals(incoming.get(i).expressionText()))
+		) {
+			return;
+		}
 		this.rules = newRules;
-		this.settings = newSettings;
 		this.state.prune(newRules.groups());
 		for (Runnable listener : List.copyOf(rulesChangedListeners)) {
 			listener.run();

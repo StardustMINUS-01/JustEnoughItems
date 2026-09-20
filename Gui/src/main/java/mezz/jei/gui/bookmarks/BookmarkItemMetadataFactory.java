@@ -8,6 +8,8 @@
  */
 package mezz.jei.gui.bookmarks;
 
+import mezz.jei.common.platform.IPlatformFluidHelperInternal;
+import mezz.jei.common.platform.Services;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -95,24 +97,29 @@ public final class BookmarkItemMetadataFactory {
 		}
 	}
 
-	/**
-	 * Serializes the full ItemStack (item + count + NBT) so bookmarks of NBT-bearing
-	 * items (e.g. TConstruct tools with material NBT, whose bare registry-name uid
-	 * cannot be resolved back from JEI's ingredient list) survive the favorites.json
-	 * round-trip. Returns null for non-ItemStack ingredients.
-	 */
 	private static <T> @Nullable String serializeIngredientSnapshot(ITypedIngredient<T> ingredient) {
-		Object value = ingredient.getIngredient();
-		if (value instanceof ItemStack stack && !stack.isEmpty()) {
-			try {
-				// CompoundTag.toString() yields SNBT ({...}) which NbtUtils.snbtToStructure
-				// can parse back; NbtUtils.writeSnbt does not exist in 1.20.1.
+		try {
+			if (ingredient.getIngredient() instanceof ItemStack stack && !stack.isEmpty()) {
 				return stack.save(new CompoundTag()).toString();
-			} catch (RuntimeException e) {
-				return null;
 			}
+			if ("fluid_stack".equals(ingredient.getType().getUid())) {
+				return serializeFluidSnapshot(ingredient, Services.PLATFORM.getFluidHelper());
+			}
+		} catch (RuntimeException e) {
+			// Third-party stack/capability serializers may reject their current data.
 		}
 		return null;
+	}
+
+	private static <T> @Nullable String serializeFluidSnapshot(ITypedIngredient<?> ingredient, IPlatformFluidHelperInternal<T> helper) {
+		return ingredient.getIngredient(helper.getFluidIngredientType()).filter(value -> !helper.isEmpty(value)).map(value -> {
+				CompoundTag snapshot = new CompoundTag();
+				snapshot.putString("FluidName", helper.getFluidId(value).toString());
+				snapshot.putLong("Amount", helper.getAmount(value));
+				helper.getTag(value).ifPresent(tag -> snapshot.put("Tag", tag));
+				return snapshot.toString();
+			})
+			.orElse(null);
 	}
 
 	public static <T> BookmarkItemMetadata createForSyntheticRecipeInput(
@@ -217,17 +224,7 @@ public final class BookmarkItemMetadataFactory {
 	}
 
 	private static <T> ITypedIngredient<T> typedIngredient(ITypedIngredient<T> source, T ingredient) {
-		return new ITypedIngredient<>() {
-			@Override
-			public mezz.jei.api.ingredients.IIngredientType<T> getType() {
-				return source.getType();
-			}
-
-			@Override
-			public T getIngredient() {
-				return ingredient;
-			}
-		};
+		return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(source.getType(), ingredient);
 	}
 
 	private static long createContainerItemCraftingUses(
@@ -292,8 +289,7 @@ public final class BookmarkItemMetadataFactory {
 			if (value instanceof Number number) {
 				return Math.max(1, number.longValue());
 			}
-		} catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {}
 		return 100;
 	}
 
@@ -405,8 +401,7 @@ public final class BookmarkItemMetadataFactory {
 			if (value instanceof Number number) {
 				return number.longValue();
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return 0;
 	}
 
@@ -426,8 +421,7 @@ public final class BookmarkItemMetadataFactory {
 					return number.longValue();
 				}
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return 0;
 	}
 
@@ -449,8 +443,7 @@ public final class BookmarkItemMetadataFactory {
 			if (value instanceof Number number) {
 				return number.longValue();
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return 0;
 	}
 

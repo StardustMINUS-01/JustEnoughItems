@@ -34,6 +34,37 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 public class RecipesGuiTest {
 	@Test
+	public void matchesStrictNbtWithWildcards() throws Exception {
+		var id = new ResourceLocation("minecraft", "enchanted_book");
+		var tag = net.minecraft.nbt.TagParser.parseTag("{StoredEnchantments:[{id:\"minecraft:sharpness\",lvl:3s}]}");
+		var info = new IngredientMatchInfo(IngredientMatchInfo.Kind.ITEM, id, Set.of(), tag);
+		var rule = IngredientExpression.parseIngredient("minecraft:enchanted_book & nbt:{StoredEnchantments:[{id:\"minecraft:*\",lvl:*}]}").orElseThrow();
+		assertTrue(rule.matches(info));
+		var groups = mezz.jei.gui.collapsible.CollapsibleRulesSerializer.deserialize(List.of(
+			"item = minecraft:enchanted_book & nbt:{StoredEnchantments:[{id:\"minecraft:*\",lvl:*}]}",
+			"item = minecraft:enchanted_book"
+		));
+		assertEquals(0, groups.resolve(info));
+		assertTrue(IngredientExpression.parseIngredient("nbt:{StoredEnchantments:[{lvl:3s,id:\"minecraft:sharpness\"}]}").orElseThrow().matches(info));
+		assertFalse(IngredientExpression.parseIngredient("nbt:{StoredEnchantments:[{lvl:3,id:\"minecraft:sharpness\"}]}").orElseThrow().matches(info));
+		tag.getList("StoredEnchantments", net.minecraft.nbt.Tag.TAG_COMPOUND).add(net.minecraft.nbt.TagParser.parseTag("{id:\"minecraft:unbreaking\",lvl:1s}"));
+		assertFalse(rule.matches(info));
+		assertEquals(1, groups.resolve(info));
+		assertFalse(IngredientExpression.parseIngredient("nbt:{}").orElseThrow().matches(info));
+		assertTrue(IngredientExpression.parseIngredient("nbt:{Stored*: *}").orElseThrow().matches(info));
+		tag.putInt("extra", 1);
+		assertFalse(IngredientExpression.parseIngredient("nbt:{Stored*: *}").orElseThrow().matches(info));
+		assertTrue(IngredientExpression.parseIngredient("nbt:{*: *}").orElseThrow().matches(info));
+		assertTrue(IngredientExpression.parseIngredient("nbt:{}").orElseThrow().matches(IngredientMatchInfo.item(id, Set.of())));
+		for (String invalid : List.of("nbt:{", "nbt:{x:", "nbt:{x:[I;1,2}", "nbt:{x:1}garbage")) {
+			assertTrue(IngredientExpression.parseIngredient(invalid).isEmpty(), invalid);
+		}
+		var entries = mezz.jei.gui.config.ConfigLineReader.read(List.of("item = minecraft:enchanted_book &", "nbt:{text:\"$;=|x\", values:[I;1,2]}", "item = minecraft:stone"));
+		assertEquals(2, entries.size());
+		assertTrue(IngredientExpression.parseIngredient(entries.get(0).value()).isPresent());
+	}
+
+	@Test
 	public void filtersRecipesAndCandidates() {
 		IRecipeCategory<String> category = category("macerating");
 		RecipeLookupSnapshot.RecipeEntry<String> ingot = entry(category, "ingot");

@@ -102,8 +102,7 @@ public final class FavoriteRecipeJsonSerializer {
 				if (slotInput != null) {
 					inputs.put(index, slotInput);
 				}
-			} catch (NumberFormatException ignored) {
-			}
+			} catch (NumberFormatException ignored) {}
 		}
 		return Map.copyOf(inputs);
 	}
@@ -113,11 +112,9 @@ public final class FavoriteRecipeJsonSerializer {
 			return null;
 		}
 		JsonObject json = element.getAsJsonObject();
-		List<BookmarkIngredientKey> permutations = json.has("permutations") ?
-			json.getAsJsonArray("permutations").asList().stream()
-				.map(BookmarkIngredientKeySerializer::deserialize)
-				.toList() :
-			List.of();
+		List<BookmarkIngredientKey> permutations = json.has("permutations") ? json.getAsJsonArray("permutations").asList().stream()
+			.map(BookmarkIngredientKeySerializer::deserialize)
+			.toList() : List.of();
 		BookmarkIngredientKey selected;
 		if (json.has("selected")) {
 			selected = BookmarkIngredientKeySerializer.deserialize(json.get("selected"));

@@ -36,8 +36,7 @@ public final class BookmarkIngredientAmountResolver {
 			if (amount > 0) {
 				return OptionalLong.of(amount);
 			}
-		} catch (RuntimeException ignored) {
-		}
+		} catch (RuntimeException ignored) {}
 		long reflectedAmount = getReflectedAmount(ingredient.getIngredient());
 		if (reflectedAmount > 0) {
 			return OptionalLong.of(reflectedAmount);
@@ -55,8 +54,7 @@ public final class BookmarkIngredientAmountResolver {
 			if (amount instanceof Number number) {
 				return number.longValue();
 			}
-		} catch (ReflectiveOperationException | RuntimeException ignored) {
-		}
+		} catch (ReflectiveOperationException | RuntimeException ignored) {}
 		return -1;
 	}
 

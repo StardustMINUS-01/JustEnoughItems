@@ -1,6 +1,5 @@
 package com.gregtechceu.gtceu.common.item.behavior;
 
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 

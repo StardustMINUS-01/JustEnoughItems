@@ -170,6 +170,11 @@ public class BookmarkItemMetadataFactoryTest {
 			public TestToolIngredient getIngredient() {
 				return ingredient;
 			}
+
+			@Override
+			public ITypedIngredient<TestToolIngredient> normalize(mezz.jei.api.ingredients.IIngredientHelper<TestToolIngredient> helper) {
+				return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+			}
 		};
 	}
 

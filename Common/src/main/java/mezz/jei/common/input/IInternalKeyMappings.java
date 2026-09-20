@@ -3,6 +3,7 @@ package mezz.jei.common.input;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.api.runtime.IJeiKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 
 public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getToggleOverlay();
@@ -13,19 +14,22 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getToggleCheatModeConfigButton();
 
 	IJeiKeyMapping getRecipeBack();
+	IJeiKeyMapping getRecipeForward();
 	IJeiKeyMapping getPreviousCategory();
 	IJeiKeyMapping getNextCategory();
 	IJeiKeyMapping getPreviousRecipePage();
 	IJeiKeyMapping getNextRecipePage();
 	IJeiKeyMappingInternal getPauseRecipeCycling();
-	IJeiKeyMapping getSelectRecipeInput();
+	IJeiKeyMappingInternal getShowBookmarkTooltipFeatures();
+	IJeiKeyMappingWithExtraModifiers getSelectRecipeInput();
 
 	IJeiKeyMapping getPreviousPage();
 	IJeiKeyMapping getNextPage();
 
 	IJeiKeyMapping getCloseRecipeGui();
 
-	IJeiKeyMapping getBookmark();
+	@Override
+	IJeiKeyMappingWithExtraModifiers getBookmark();
 	IJeiKeyMapping getFavoriteRecipe();
 	IJeiKeyMapping getBookmarkPullItems();
 	IJeiKeyMapping getOverlayRecipe();
@@ -35,18 +39,18 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getToggleBookmarkOverlay();
 
 	@Override
-	IJeiKeyMapping getShowRecipe();
+	IJeiKeyMappingWithExtraModifiers getShowRecipe();
 
 	@Override
-	IJeiKeyMapping getShowUses();
+	IJeiKeyMappingWithExtraModifiers getShowUses();
 
 	IJeiKeyMapping getCopyIngredientName();
 	IJeiKeyMapping getCopyIngredientTags();
+	IJeiKeyMapping getCopyIngredientNbt();
 	IJeiKeyMapping getCopyIngredientId();
 
 	IJeiKeyMapping getTransferRecipeBookmark();
 	IJeiKeyMapping getMaxTransferRecipeBookmark();
-	IJeiKeyMappingInternal getShowBookmarkTooltipFeatures();
 	IJeiKeyMapping getQuickMove();
 	IJeiKeyMapping getSearchIngredientInTerminal();
 	IJeiKeyMapping getShareToChat();

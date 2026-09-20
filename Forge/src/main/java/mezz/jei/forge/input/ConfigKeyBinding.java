@@ -18,8 +18,8 @@ import java.util.Map;
 public final class ConfigKeyBinding implements IConfigKeyBinding {
 	private final KeyMapping mapping;
 	private final Map<KeyMapping, ConfigKeyBinding> drafts;
-	private final InputConstants.Key originalKey;
-	private final KeyModifier originalModifier;
+	private InputConstants.Key originalKey;
+	private KeyModifier originalModifier;
 	private InputConstants.Key key;
 	private KeyModifier modifier;
 
@@ -40,12 +40,18 @@ public final class ConfigKeyBinding implements IConfigKeyBinding {
 		return List.copyOf(drafts.values());
 	}
 
-	@Override public String getName() { return mapping.getName(); }
-	@Override public String getCategory() { return mapping.getCategory(); }
-	@Override public Component getBindingName() { return modifier.getCombinedName(key, () -> KeyNameUtil.getKeyDisplayName(key)); }
-	@Override public boolean isChanged() { return !key.equals(originalKey) || modifier != originalModifier; }
-	@Override public boolean isDefault() { return key.equals(mapping.getDefaultKey()) && modifier == mapping.getDefaultKeyModifier(); }
-	@Override public void reset() { key = mapping.getDefaultKey(); modifier = mapping.getDefaultKeyModifier(); }
+	@Override
+	public String getName() { return mapping.getName(); }
+	@Override
+	public String getCategory() { return mapping.getCategory(); }
+	@Override
+	public Component getBindingName() { return modifier.getCombinedName(key, () -> KeyNameUtil.getKeyDisplayName(key)); }
+	@Override
+	public boolean isChanged() { return !key.equals(originalKey) || modifier != originalModifier; }
+	@Override
+	public boolean isDefault() { return key.equals(mapping.getDefaultKey()) && modifier == mapping.getDefaultKeyModifier(); }
+	@Override
+	public void reset() { key = mapping.getDefaultKey(); modifier = mapping.getDefaultKeyModifier(); }
 
 	@Override
 	public boolean setKey(InputConstants.Key key, int modifiers) {
@@ -55,18 +61,19 @@ public final class ConfigKeyBinding implements IConfigKeyBinding {
 			return false;
 		}
 		this.key = key;
-		modifier = key.equals(InputConstants.UNKNOWN) ? KeyModifier.NONE :
-			(held & control) != 0 ? KeyModifier.CONTROL : (held & GLFW.GLFW_MOD_SHIFT) != 0 ? KeyModifier.SHIFT :
-			(held & GLFW.GLFW_MOD_ALT) != 0 ? KeyModifier.ALT : KeyModifier.NONE;
+		modifier = key.equals(InputConstants.UNKNOWN) ? KeyModifier.NONE : (held & control) != 0 ? KeyModifier.CONTROL : (held & GLFW.GLFW_MOD_SHIFT) != 0 ? KeyModifier.SHIFT : (held & GLFW.GLFW_MOD_ALT) != 0 ? KeyModifier.ALT : KeyModifier.NONE;
 		if (modifier.matches(key)) {
 			modifier = KeyModifier.NONE;
 		}
 		return true;
 	}
 
-	@Override public void apply() {
+	@Override
+	public void apply() {
 		if (isChanged()) {
 			mapping.setKeyModifierAndCode(modifier, key);
+			originalKey = key;
+			originalModifier = modifier;
 		}
 	}
 
@@ -88,7 +95,8 @@ public final class ConfigKeyBinding implements IConfigKeyBinding {
 				continue;
 			}
 			if (modifier.matches(otherKey) || otherModifier.matches(key) || key.equals(otherKey) &&
-				(modifier == otherModifier || context.conflicts(KeyConflictContext.IN_GAME) && (modifier == KeyModifier.NONE || otherModifier == KeyModifier.NONE))) {
+				(modifier == otherModifier || context.conflicts(KeyConflictContext.IN_GAME) && (modifier == KeyModifier.NONE || otherModifier == KeyModifier.NONE))
+			) {
 				conflicts.add(Component.translatable(other.getName()));
 			}
 		}

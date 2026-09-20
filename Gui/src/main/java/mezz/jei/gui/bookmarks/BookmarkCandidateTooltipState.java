@@ -1,6 +1,5 @@
 package mezz.jei.gui.bookmarks;
 
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
@@ -40,8 +39,6 @@ public final class BookmarkCandidateTooltipState {
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static Optional<ITypedIngredient<?>> resolve(IIngredientManager ingredientManager, BookmarkIngredientKey key) {
-		return ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid())
-			.flatMap(type -> ingredientManager.getTypedIngredientByUid((IIngredientType) type, key.ingredientUid()))
-			.map(typedIngredient -> (ITypedIngredient<?>) typedIngredient);
+		return key.resolveIngredient(ingredientManager);
 	}
 }

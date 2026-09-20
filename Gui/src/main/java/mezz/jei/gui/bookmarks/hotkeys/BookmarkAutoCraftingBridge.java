@@ -9,24 +9,25 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
 import mezz.jei.api.constants.RecipeTypes;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketJei;
 import mezz.jei.gui.bookmarks.chain.AutoCraftingManager;
+import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
+import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -43,41 +44,10 @@ import java.util.function.Supplier;
  * server execution and client inventory sync happen asynchronously.
  */
 public final class BookmarkAutoCraftingBridge {
-	private static final Logger LOGGER = LogManager.getLogger();
-	// How long a task may wait (per stage) for the server ack / inventory sync before giving up.
-	// 10 ticks (0.5s) was too short: the server can take >1s per craft round (e.g. modded
-	// containers / AE2 terminals), so the ack + inventory sync arrived after the task had
-	// already timed out and died, silently aborting the whole chain after 1 batch.
-	// Raised to 60 ticks (3s) to give the server + client inventory sync enough time.
-	private static final int MAX_WAIT_TICKS = 60;
+	private static final int MAX_WAIT_TICKS = 40;
 	private static final AtomicInteger NEXT_TASK_ID = new AtomicInteger(1);
 
 	private BookmarkAutoCraftingBridge() {
-	}
-
-	public static Optional<Task> createTask(
-		List<RecipeChainInput> chainInputs,
-		Set<ResourceLocation> collapsedRecipeIds,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<RecipeChainInput>> inventorySupplier,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PacketJei> packetSender,
-		BooleanSupplier stillValid
-	) {
-		return createTask(
-			chainInputs,
-			collapsedRecipeIds,
-			targetSlotCount,
-			containerId,
-			inventorySupplier,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			stillValid,
-			false
-		);
 	}
 
 	public static Optional<Task> createTask(
@@ -107,31 +77,6 @@ public final class BookmarkAutoCraftingBridge {
 			stillValid,
 			craftAll
 		));
-	}
-
-	public static boolean activate(
-		List<RecipeChainInput> chainInputs,
-		Set<ResourceLocation> collapsedRecipeIds,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<RecipeChainInput>> inventorySupplier,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PacketJei> packetSender,
-		boolean simulate
-	) {
-		return activate(
-			chainInputs,
-			collapsedRecipeIds,
-			targetSlotCount,
-			containerId,
-			inventorySupplier,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			simulate,
-			false
-		);
 	}
 
 	public static boolean activate(
@@ -200,14 +145,6 @@ public final class BookmarkAutoCraftingBridge {
 		private int waitTicks;
 		private int expectedRequestId;
 		private int nextRequestId = 1;
-		/**
-		 * Recipes whose craft was acknowledged by the server (craftedCount > 0) but whose
-		 * client-side inventory increase could never be confirmed (multi-output recipes
-		 * hit the 61-tick timeout because count>1 result items never match). Re-dispatching
-		 * such a recipe only loops forever, so dispatchNext() skips them.
-		 */
-		private final Set<ResourceLocation> confirmedUnsyncedRecipeUids = new HashSet<>();
-		private boolean matchDebugLogged;
 
 		private Task(
 			List<RecipeChainInput> chainInputs,
@@ -238,22 +175,13 @@ public final class BookmarkAutoCraftingBridge {
 		}
 
 		public boolean start() {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] TASK-START taskId={} craftAll={} chainInputs={} targetSlotCount={} containerId={}",
-					taskId, craftAll, chainInputs.size(), targetSlotCount, containerId);
-			}
 			if (!active || !stillValid.getAsBoolean()) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-START-FAIL taskId={} active={}", taskId, active);
-				}
-				active = false;
+				deactivate();
 				return false;
 			}
+			BookmarkCraftingScope.setInterests(buildInterestStacks());
 			if (!dispatchNext()) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-START-NO-DISPATCH taskId={}", taskId);
-				}
-				active = false;
+				deactivate();
 				return false;
 			}
 			return true;
@@ -261,88 +189,77 @@ public final class BookmarkAutoCraftingBridge {
 
 		public boolean tick() {
 			if (!active || !stillValid.getAsBoolean()) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-TICK-DEAD taskId={} active={} waitingForAck={} waitingForInventorySync={}",
-						taskId, active, waitingForAck, waitingForInventorySync);
-				}
-				active = false;
+				deactivate();
 				return false;
 			}
 			if (waitingForAck) {
 				waitTicks++;
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-TICK-AWAIT-ACK taskId={} requestId={} waitTicks={} max={}", taskId, expectedRequestId, waitTicks, MAX_WAIT_TICKS);
-				}
 				if (waitTicks > MAX_WAIT_TICKS) {
-					if (DebugConfig.isDebugModeEnabled()) {
-						LOGGER.info("[Bug6] TASK-DEAD-AWAIT-ACK taskId={} requestId={} waitTicks={} exceededMax={}", taskId, expectedRequestId, waitTicks, MAX_WAIT_TICKS);
-					}
-					active = false;
+					deactivate();
 					return false;
 				}
 				return true;
 			}
 			if (waitingForInventorySync) {
 				waitTicks++;
-				boolean increase = inventoryHasExpectedResultIncreaseSinceDispatch();
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-TICK-INV-SYNC taskId={} requestId={} waitTicks={} increase={} max={}", taskId, expectedRequestId, waitTicks, increase, MAX_WAIT_TICKS);
-				}
-				if (!increase) {
+				if (!inventoryHasExpectedResultIncreaseSinceDispatch()) {
 					if (waitTicks > MAX_WAIT_TICKS) {
-						if (DebugConfig.isDebugModeEnabled()) {
-							LOGGER.info("[Bug6] TASK-INV-SYNC-TIMEOUT taskId={} requestId={} waitTicks={} exceededMax={}", taskId, expectedRequestId, waitTicks, MAX_WAIT_TICKS);
-						}
-						// The server already confirmed the craft (craftedCount > 0); the client
-						// inventory may still be stale (result item already present, slow slot
-						// sync, or a snapshot mismatch). Stop waiting and let dispatchNext()
-						// decide: chain-tail recipes will finish normally instead of dying.
-						// Mark the recipe as server-confirmed so dispatchNext() never re-dispatches
-						// it (that caused the infinite ~1s-per-craft retry loop for multi-output
-						// recipes like iron_plate / certus_quartz_dust, which never confirm).
-						if (dispatchedRecipeUid != null) {
-							confirmedUnsyncedRecipeUids.add(dispatchedRecipeUid);
-							if (DebugConfig.isDebugModeEnabled()) {
-								LOGGER.info("[Bug6] CONFIRM-UNSYNCED-ADD taskId={} recipeUid={} confirmedSize={}",
-									taskId, dispatchedRecipeUid, confirmedUnsyncedRecipeUids.size());
-							}
-						}
-						waitingForInventorySync = false;
-						waitTicks = 0;
-					} else {
-						return true;
+						deactivate();
+						return false;
 					}
-				} else {
-					waitingForInventorySync = false;
-					waitTicks = 0;
+					return true;
 				}
+				waitingForInventorySync = false;
+				waitTicks = 0;
 			}
 			if (!dispatchNext()) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-DONE-NO-NEXT taskId={} requestId={}", taskId, expectedRequestId);
-				}
-				active = false;
+				deactivate();
 				return false;
 			}
 			return true;
 		}
 
+		private void deactivate() {
+			active = false;
+			BookmarkCraftingScope.clear();
+		}
+
+		private List<ItemStack> buildInterestStacks() {
+			Set<ResourceLocation> recipeUids = new LinkedHashSet<>();
+			for (RecipeChainInput chainInput : chainInputs) {
+				ResourceLocation recipeUid = chainInput.metadata().recipeUid();
+				if (recipeUid != null) {
+					recipeUids.add(recipeUid);
+				}
+			}
+			Set<Item> items = new LinkedHashSet<>();
+			for (ResourceLocation recipeUid : recipeUids) {
+				recipeLayoutResolver.apply(recipeUid).ifPresent(layout -> {
+					IRecipeSlotsView slotsView = layout.getRecipeSlotsView();
+					addSlotInterests(items, slotsView.getSlotViews(RecipeIngredientRole.INPUT));
+					addSlotInterests(items, slotsView.getSlotViews(RecipeIngredientRole.OUTPUT));
+				});
+			}
+			return items.stream()
+				.map(ItemStack::new)
+				.toList();
+		}
+
+		private static void addSlotInterests(Set<Item> items, List<IRecipeSlotView> slots) {
+			for (IRecipeSlotView slot : slots) {
+				slot.getItemStacks()
+					.filter(stack -> !stack.isEmpty())
+					.map(ItemStack::getItem)
+					.forEach(items::add);
+			}
+		}
+
 		public void handleAck(int requestId, int craftedCount) {
 			if (!active || !waitingForAck || requestId != expectedRequestId) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-ACK-IGNORED taskId={} ackRequestId={} craftedCount={} expectedRequestId={} active={} waitingForAck={}",
-						taskId, requestId, craftedCount, expectedRequestId, active, waitingForAck);
-				}
 				return;
 			}
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] TASK-ACK taskId={} requestId={} craftedCount={}", taskId, requestId, craftedCount);
-			}
 			if (craftedCount <= 0) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-DEAD-ACK-ZERO taskId={} requestId={} craftedCount={}", taskId, requestId, craftedCount);
-				}
-				active = false;
+				deactivate();
 				waitingForAck = false;
 				return;
 			}
@@ -353,9 +270,6 @@ public final class BookmarkAutoCraftingBridge {
 		}
 
 		private boolean dispatchNext() {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] TASK-DISPATCH-START taskId={} craftAll={}", taskId, craftAll);
-			}
 			RecipeChainMath math = RecipeChainMath.of(chainInputs, collapsedRecipeIds);
 			AtomicBoolean craftedOnePacket = new AtomicBoolean(false);
 			int requestId = nextRequestId++;
@@ -377,13 +291,6 @@ public final class BookmarkAutoCraftingBridge {
 					if (craftedOnePacket.get()) {
 						return false;
 					}
-					if (confirmedUnsyncedRecipeUids.contains(recipeUid)) {
-						if (DebugConfig.isDebugModeEnabled()) {
-							LOGGER.info("[Bug6] CRAFT-SKIP-CONFIRMED-UNSYNCED taskId={} requestId={} recipeUid={}",
-								taskId, requestId, recipeUid);
-						}
-						return false;
-					}
 					return craft(
 						recipeUid,
 						multiplier,
@@ -401,15 +308,7 @@ public final class BookmarkAutoCraftingBridge {
 				},
 				craftedOnePacket::get
 			);
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] TASK-DISPATCH-RUN taskId={} requestId={} processed={} completed={} craftedRecipes={} craftedOnePacket={}",
-					taskId, requestId, result.processed(), result.completed(), result.craftedRecipes(), craftedOnePacket.get());
-			}
 			if (!result.processed() || !craftedOnePacket.get()) {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] TASK-DISPATCH-NO-CRAFT taskId={} requestId={} processed={} craftedOnePacket={}",
-						taskId, requestId, result.processed(), craftedOnePacket.get());
-				}
 				return false;
 			}
 			waitingForAck = true;
@@ -425,58 +324,10 @@ public final class BookmarkAutoCraftingBridge {
 			long before = inventoryAmountForRecipeResults(dispatchedInventorySnapshot, dispatchedRecipeUid);
 			long after = inventoryAmountForRecipeResults(inventorySupplier.get(), dispatchedRecipeUid);
 			long expectedIncrease = expectedResultAmount(dispatchedRecipeUid, acknowledgedCraftedCount);
-			boolean increase;
 			if (expectedIncrease <= 0) {
-				increase = after > before;
-			} else {
-				increase = after >= SaturatedMath.add(before, expectedIncrease);
+				return after > before;
 			}
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] MATCH-SUMMARY taskId={} requestId={} recipeUid={} craftedCount={} before={} after={} expectedIncrease={} increase={}",
-					taskId, expectedRequestId, dispatchedRecipeUid, acknowledgedCraftedCount, before, after, expectedIncrease, increase);
-			}
-			if (!increase && !matchDebugLogged) {
-				matchDebugLogged = true;
-				logMatchDebug(dispatchedInventorySnapshot, inventorySupplier.get(), dispatchedRecipeUid);
-			}
-			return increase;
-		}
-
-		private void logMatchDebug(List<RecipeChainInput> snapshot, List<RecipeChainInput> current, ResourceLocation recipeUid) {
-			if (!DebugConfig.isDebugModeEnabled()) {
-				return;
-			}
-			List<BookmarkItemMetadata> results = resultMetadataForRecipe(recipeUid);
-			for (BookmarkItemMetadata result : results) {
-				for (BookmarkIngredientKey requiredKey : result.permutations()) {
-					LOGGER.info("[Bug6] MATCH-DETAIL required typeUid={} uid={} serialized={}",
-						requiredKey.ingredientTypeUid(), requiredKey.ingredientUid(), truncate(requiredKey.serializedIngredient()));
-				}
-			}
-			LOGGER.info("[Bug6] MATCH-DETAIL snapshot inputs={}", snapshot.size());
-			for (int i = 0; i < snapshot.size(); i++) {
-				BookmarkItemMetadata available = snapshot.get(i).metadata();
-				for (BookmarkIngredientKey key : available.permutations()) {
-					LOGGER.info("[Bug6] MATCH-DETAIL snapshot[{}] typeUid={} uid={} amount={} serialized={}",
-						i, key.ingredientTypeUid(), key.ingredientUid(), available.amount(), truncate(key.serializedIngredient()));
-				}
-			}
-			LOGGER.info("[Bug6] MATCH-DETAIL current inputs={}", current.size());
-			for (int i = 0; i < current.size(); i++) {
-				BookmarkItemMetadata available = current.get(i).metadata();
-				boolean satisfied = results.stream().anyMatch(result -> result.isSatisfiedBy(available));
-				for (BookmarkIngredientKey key : available.permutations()) {
-					LOGGER.info("[Bug6] MATCH-DETAIL current[{}] typeUid={} uid={} amount={} serialized={} satisfied={}",
-						i, key.ingredientTypeUid(), key.ingredientUid(), available.amount(), truncate(key.serializedIngredient()), satisfied);
-				}
-			}
-		}
-
-		private static String truncate(String value) {
-			if (value == null) {
-				return "null";
-			}
-			return value.length() <= 160 ? value : value.substring(0, 160) + "...";
+			return after >= SaturatedMath.add(before, expectedIncrease);
 		}
 
 		private long expectedResultAmount(ResourceLocation recipeUid, int craftedCount) {
@@ -556,36 +407,6 @@ public final class BookmarkAutoCraftingBridge {
 		boolean simulate,
 		int taskId,
 		int requestId,
-		AtomicBoolean craftedOnePacket
-	) {
-		return craft(
-			recipeUid,
-			multiplier,
-			targetSlotCount,
-			containerId,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			simulate,
-			taskId,
-			requestId,
-			craftedOnePacket,
-			() -> {
-			}
-		);
-	}
-
-	private static boolean craft(
-		ResourceLocation recipeUid,
-		int multiplier,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PacketJei> packetSender,
-		boolean simulate,
-		int taskId,
-		int requestId,
 		AtomicBoolean craftedOnePacket,
 		Runnable afterCraftAccepted
 	) {
@@ -601,25 +422,14 @@ public final class BookmarkAutoCraftingBridge {
 			multiplier,
 			availableStacks
 		);
-		if (fill.isEmpty()) {
-			if (DebugConfig.isDebugModeEnabled() && taskId > 0) {
-				LOGGER.info("[Bug6] CRAFT-SKIP-EMPTY taskId={} requestId={} recipeUid={} multiplier={}",
-					taskId, requestId, recipeUid, multiplier);
-			}
-			return false;
-		}
-		if (!canCraft(fill.get().targetStacks(), fill.get().multiplier(), availableStacks)) {
-			if (DebugConfig.isDebugModeEnabled() && taskId > 0) {
-				LOGGER.info("[Bug6] CRAFT-SKIP-CANTCRAFT taskId={} requestId={} recipeUid={} multiplier={} fillMultiplier={} targetStacks={}",
-					taskId, requestId, recipeUid, multiplier, fill.get().multiplier(), fill.get().targetStacks());
-			}
+		if (fill.isEmpty() || !canCraft(fill.get().targetStacks(), fill.get().multiplier(), availableStacks)) {
 			return false;
 		}
 
 		craftedOnePacket.set(true);
 		afterCraftAccepted.run();
 		if (!simulate) {
-			packetSender.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, fill.get().multiplier(), fill.get().targetStacks()));
+			packetSender.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, recipeUid, fill.get().multiplier(), fill.get().targetStacks()));
 		}
 		return true;
 	}

@@ -274,7 +274,8 @@ class GroupPanelDrag {
 			mouseY,
 			elapsedMillis,
 			GROUP_PANEL_DRAG_THRESHOLD_MS
-		)) {
+			)
+		) {
 			if (endSlot == null || !end.equals(globalEnd)) {
 				plan = BookmarkGroupingPlan.create(slots, start, end, exclude);
 				selected = new HashSet<>(plan.bookmarks());

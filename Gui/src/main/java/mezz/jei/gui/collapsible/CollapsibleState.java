@@ -36,9 +36,7 @@ public final class CollapsibleState {
 	}
 
 	public void toggleAll(List<CollapsibleGroup> groups, @Nullable Boolean force) {
-		boolean target = force != null ?
-			force :
-			!groups.stream().anyMatch(g -> isExpanded(g.id()));
+		boolean target = force != null ? force : !groups.stream().anyMatch(g -> isExpanded(g.id()));
 		boolean changed = false;
 		for (CollapsibleGroup group : groups) {
 			if (isExpanded(group.id()) != target) {

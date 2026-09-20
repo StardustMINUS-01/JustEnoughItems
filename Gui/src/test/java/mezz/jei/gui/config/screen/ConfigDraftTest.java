@@ -61,6 +61,15 @@ class ConfigDraftTest {
 		draft.apply();
 		assertEquals(3, config.getValue());
 		assertEquals(1, notifications.get());
+		assertFalse(draft.isChanged());
+		assertEquals(0, changed.get());
+		draft.apply();
+		assertEquals(1, notifications.get());
+		draft.setText("8");
+		assertEquals(1, changed.get());
+		assertEquals(3, config.getValue());
+		draft.setText("3");
+		assertFalse(draft.isChanged());
 	}
 
 	@Test

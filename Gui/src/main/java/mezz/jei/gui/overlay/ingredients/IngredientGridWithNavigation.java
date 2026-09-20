@@ -53,6 +53,10 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 	private final CommandUtil commandUtil;
 	private final GhostIngredientDragManager ghostIngredientDragManager;
 
+	public void setNavigationButton(mezz.jei.gui.elements.IconButton button) {
+		this.navigation.setExtraButton(button);
+	}
+
 	public void setExtraHoveredIngredientSource(Supplier<Optional<ITypedIngredient<?>>> source) {
 		this.ghostIngredientDragManager.setExtraHoveredIngredientSource(source);
 	}
@@ -103,7 +107,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 			ghostIngredientQuickMoveManager
 		);
 		this.navigation = new PageNavigation(this.controller, false);
-		this.scrollbar = new IngredientGridScrollbar(this.controller);
+		this.scrollbar = new IngredientGridScrollbar(this.controller.getScrollController(), this.controller::updateLayoutKeepingPageNumber);
 		this.controller.setOnLayoutChanged(this.navigation::updatePageNumber);
 		this.inputHandler = new CombinedInputHandler(
 			debugName,
@@ -313,6 +317,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		}
 		this.ghostIngredientDragManager.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 		this.ingredientGrid.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
+		this.navigation.drawTooltips(guiGraphics, mouseX, mouseY);
 	}
 
 	public void tick() {
@@ -328,6 +333,10 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 			this.backgroundArea.contains(mouseX, mouseY) &&
 			this.guiExclusionAreas.stream()
 				.noneMatch(area -> area.contains(mouseX, mouseY));
+	}
+
+	public IUserInputHandler createDeleteItemInputHandler() {
+		return this.ingredientGrid.getInputHandler();
 	}
 
 	public IUserInputHandler createInputHandler() {

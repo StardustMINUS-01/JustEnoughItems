@@ -14,7 +14,7 @@ public final class GridScrollMath {
 		if (getHiddenRows(itemCount, columns, visibleRows, visibleItemCount) == 0) {
 			return 0;
 		}
-		return mezz.jei.common.gui.GridScrollMath.clamp(scrollOffsetY, 0, 1);
+		return clamp(scrollOffsetY, 0, 1);
 	}
 
 	public static float getScrollOffsetYForFirstRow(int firstRow, int itemCount, int columns, int visibleRows, int visibleItemCount) {
@@ -22,7 +22,7 @@ public final class GridScrollMath {
 		if (hiddenRows == 0) {
 			return 0;
 		}
-		return mezz.jei.common.gui.GridScrollMath.clamp(firstRow / (float) hiddenRows, 0, 1);
+		return clamp(firstRow / (float) hiddenRows, 0, 1);
 	}
 
 	public static float getScrollOffsetYKeepingAnchorVisible(
@@ -63,7 +63,7 @@ public final class GridScrollMath {
 		}
 
 		int anchorRow = anchorIndex / columns;
-		float validAnchorPositionY = mezz.jei.common.gui.GridScrollMath.clamp(anchorPositionY, 0, 1);
+		float validAnchorPositionY = clamp(anchorPositionY, 0, 1);
 		if (smoothScrolling) {
 			return getSmoothScrollOffsetYKeepingAnchorVisible(
 				anchorRow,
@@ -75,11 +75,11 @@ public final class GridScrollMath {
 		}
 
 		int targetVisibleRow = Math.round(validAnchorPositionY * visibleRows);
-		targetVisibleRow = mezz.jei.common.gui.GridScrollMath.clamp(targetVisibleRow, 0, visibleRows - 1);
+		targetVisibleRow = clamp(targetVisibleRow, 0, visibleRows - 1);
 		int desiredFirstRow = anchorRow - targetVisibleRow;
 		int minFirstRow = Math.max(0, anchorRow - visibleRows + 1);
 		int maxFirstRow = Math.min(hiddenRows, anchorRow);
-		int validFirstRow = mezz.jei.common.gui.GridScrollMath.clamp(desiredFirstRow, minFirstRow, maxFirstRow);
+		int validFirstRow = clamp(desiredFirstRow, minFirstRow, maxFirstRow);
 		return validFirstRow / (float) hiddenRows;
 	}
 
@@ -101,7 +101,7 @@ public final class GridScrollMath {
 		int desiredScrollPixelOffset = anchorTopPixel - targetAnchorTopPixel;
 		int minScrollPixelOffset = Math.max(0, anchorTopPixel - ((visibleRows - 1) * rowHeight));
 		int maxScrollPixelOffset = Math.min(hiddenPixels, anchorTopPixel);
-		int validScrollPixelOffset = mezz.jei.common.gui.GridScrollMath.clamp(desiredScrollPixelOffset, minScrollPixelOffset, maxScrollPixelOffset);
+		int validScrollPixelOffset = clamp(desiredScrollPixelOffset, minScrollPixelOffset, maxScrollPixelOffset);
 		return validScrollPixelOffset / (float) hiddenPixels;
 	}
 
@@ -135,7 +135,7 @@ public final class GridScrollMath {
 
 	public static int getSmoothScrollPixelOffset(int hiddenRows, int rowHeight, float scrollOffsetY) {
 		int hiddenPixels = hiddenRows * rowHeight;
-		return mezz.jei.common.gui.GridScrollMath.clamp(Math.round(hiddenPixels * scrollOffsetY), 0, hiddenPixels);
+		return clamp(Math.round(hiddenPixels * scrollOffsetY), 0, hiddenPixels);
 	}
 
 	public static int getFirstRowForSmoothScrollPixelOffset(int scrollPixelOffset, int rowHeight) {
@@ -180,11 +180,12 @@ public final class GridScrollMath {
 		}
 		return MathUtil.divideCeil(itemCount, columns);
 	}
-	static int clamp(int value, int min, int max) {
-		return Math.max(min, Math.min(max, value));
+
+	private static float clamp(float value, float min, float max) {
+		return Math.max(min, Math.min(value, max));
 	}
 
-	static float clamp(float value, float min, float max) {
-		return Math.max(min, Math.min(max, value));
+	private static int clamp(int value, int min, int max) {
+		return Math.max(min, Math.min(value, max));
 	}
 }

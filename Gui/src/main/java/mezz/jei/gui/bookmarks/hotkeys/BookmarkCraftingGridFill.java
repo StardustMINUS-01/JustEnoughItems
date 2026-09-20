@@ -101,7 +101,8 @@ public record BookmarkCraftingGridFill(
 		// edges. Map them onto the actual target grid (2x2 or 3x3) by row/column so a
 		// right-edge crafting-table recipe still aligns to a 2x2 inventory.
 		if (recipeLayout.getRecipeCategory().getRecipeType().equals(RecipeTypes.CRAFTING) && inputSlots.size() == 9 &&
-			(targetSlotCount == 4 || targetSlotCount == 9)) {
+			(targetSlotCount == 4 || targetSlotCount == 9)
+		) {
 			int columns = targetSlotCount == 4 ? 2 : 3;
 			for (int i = 0; i < inputSlots.size(); i++) {
 				IRecipeSlotView slot = inputSlots.get(i);
@@ -267,9 +268,7 @@ public record BookmarkCraftingGridFill(
 		}
 		bestCandidate.group.distributed += bestCandidate.stack.getCount();
 		bestCandidate.group.distributedSlots++;
-		ItemStack stack = bestCandidate.group.representative.isEmpty() ?
-			bestCandidate.stack.copy() :
-			bestCandidate.group.representative.copy();
+		ItemStack stack = bestCandidate.group.representative.isEmpty() ? bestCandidate.stack.copy() : bestCandidate.group.representative.copy();
 		stack.setCount(bestCandidate.stack.getCount());
 		return stack;
 	}

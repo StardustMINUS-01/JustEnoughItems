@@ -3,7 +3,6 @@ package mezz.jei.gui.recipes;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 
 import mezz.jei.common.Internal;
-
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;

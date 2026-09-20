@@ -15,6 +15,7 @@ import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.collapsible.CollapsibleGridSource;
 import mezz.jei.gui.collapsible.CollapsibleManager;
@@ -131,12 +132,14 @@ public final class OverlayHelper {
 			true
 		);
 		if (collapsibleManager != null && collapsibleGridSource != null) {
+			var groupButton = new mezz.jei.gui.elements.IconButton(new mezz.jei.gui.collapsible.CollapsibleGroupButtonController(collapsibleManager));
+			groupButton.setRightClickEnabled(true);
+			ingredientListGridNavigation.setNavigationButton(groupButton);
 			CollapsibleGridSource activeCollapsibleGridSource = collapsibleGridSource;
-			CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider =
-				new CollapsibleSlotVisualsProvider(
-					ingredientListGridNavigation::getAllSlots,
-					collapsibleManager::settings
-				);
+			CollapsibleSlotVisualsProvider collapsibleSlotVisualsProvider = new CollapsibleSlotVisualsProvider(
+				ingredientListGridNavigation::getAllSlots,
+				collapsibleManager::settings
+			);
 			ingredientListGridNavigation.setSlotVisualsResolver(collapsibleSlotVisualsProvider::apply);
 			activeCollapsibleGridSource.addSourceListChangedListener(collapsibleSlotVisualsProvider::invalidate);
 			collapsibleManager.state().addListener(() -> {
@@ -145,6 +148,8 @@ public final class OverlayHelper {
 				if (groupId != null) {
 					IElement<?> anchor = activeCollapsibleGridSource.getAnchorElementForGroup(groupId);
 					ingredientListGridNavigation.updateLayoutKeepingPageAnchorVisible(anchor);
+				} else {
+					ingredientListGridNavigation.updateLayout(false);
 				}
 			});
 		}
@@ -186,6 +191,7 @@ public final class OverlayHelper {
 		IScreenHelper screenHelper,
 		BookmarkList bookmarkList,
 		FavoriteRecipeStore favoriteRecipes,
+		RecipeTransferService recipeTransferService,
 		IIngredientGridSource lookupHistory,
 		IInternalKeyMappings keyMappings,
 		IIngredientGridConfig bookmarkListConfig,
@@ -214,17 +220,16 @@ public final class OverlayHelper {
 			screenHelper,
 			false
 		);
-		bookmarkListGridNavigation.setSlotVisualsResolver(element ->
-			element.element()
-				.getBookmark()
-				.flatMap(bookmarkList::getDisplayEntry)
-				.flatMap(entry -> BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
-					getBookmarkSlotDisplayMode(),
-					getHoveredBookmarkDisplayEntry(bookmarkList, element),
-					element.rowIndex(),
-					element.hoveredRowIndex(),
-					clientConfig.getBookmarkRecipeMarkerMode()
-				)))
+		bookmarkListGridNavigation.setSlotVisualsResolver(element -> element.element()
+			.getBookmark()
+			.flatMap(bookmarkList::getDisplayEntry)
+			.flatMap(entry -> BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
+				getBookmarkSlotDisplayMode(),
+				getHoveredBookmarkDisplayEntry(bookmarkList, element),
+				element.rowIndex(),
+				element.hoveredRowIndex(),
+				clientConfig.getBookmarkRecipeMarkerMode()
+			)))
 		);
 
 		FavoriteRecipePanelState favoritePanelState = new FavoriteRecipePanelState();
@@ -252,11 +257,10 @@ public final class OverlayHelper {
 			screenHelper,
 			false
 		);
-		favoriteRecipeGridNavigation.setSlotVisualsResolver(context ->
-			Optional.of(context.element())
-				.filter(FavoriteRecipeElement.class::isInstance)
-				.map(FavoriteRecipeElement.class::cast)
-				.flatMap(FavoriteRecipeSlotVisuals::create)
+		favoriteRecipeGridNavigation.setSlotVisualsResolver(context -> Optional.of(context.element())
+			.filter(FavoriteRecipeElement.class::isInstance)
+			.map(FavoriteRecipeElement.class::cast)
+			.flatMap(FavoriteRecipeSlotVisuals::create)
 		);
 
 		LookupHistoryOverlay lookupHistoryOverlay = new LookupHistoryOverlay(
@@ -278,6 +282,7 @@ public final class OverlayHelper {
 
 		return new BookmarkOverlay(
 			bookmarkList,
+			recipeTransferService,
 			bookmarkListGridNavigation,
 			favoriteRecipes,
 			favoritePanelState,

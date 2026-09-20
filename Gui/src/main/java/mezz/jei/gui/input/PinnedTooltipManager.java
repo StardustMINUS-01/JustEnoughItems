@@ -1,8 +1,8 @@
 package mezz.jei.gui.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 import org.jetbrains.annotations.Nullable;
 
 public final class PinnedTooltipManager {
@@ -44,15 +44,9 @@ public final class PinnedTooltipManager {
 		return active instanceof ICharTypedHandler handler && handler.hasKeyboardFocus();
 	}
 
-	/**
-	 * 1.21.1 parity ({@code isActiveAndMatchesAllowingExtraModifiers}): while a tooltip is
-	 * pinned by the pin key, an action key must still match even though the pin key is an
-	 * extra modifier. Forge 1.20.1 rejects that in {@code isActiveAndMatches}, so compare
-	 * only the bound key. Mouse bindings keep strict modifier matching.
-	 */
 	public static boolean matchesInput(
 		InputConstants.Key inputKey,
-		IJeiKeyMapping keyMapping,
+		IJeiKeyMappingWithExtraModifiers keyMapping,
 		IJeiKeyMappingInternal pinKeyMapping
 	) {
 		if (keyMapping.isActiveAndMatches(inputKey)) {
@@ -61,7 +55,7 @@ public final class PinnedTooltipManager {
 		return active != null &&
 			pinKeyMapping.isDown() &&
 			inputKey.getType() != InputConstants.Type.MOUSE &&
-			keyMapping.matchesIgnoringModifiers(inputKey);
+			keyMapping.isActiveAndMatchesAllowingExtraModifiers(inputKey);
 	}
 
 	private PinnedTooltipManager() {

@@ -14,6 +14,7 @@ import mezz.jei.api.gui.inputs.IJeiGuiEventListener;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.gui.placement.IPlaceable;
+import mezz.jei.api.gui.widgets.IDrawableWidget;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.gui.widgets.IDrawableWidget;
@@ -41,6 +42,7 @@ import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
 import mezz.jei.common.util.LimitedLogger;
 import mezz.jei.library.gui.ingredients.CycleTicker;
+import mezz.jei.library.gui.ingredients.RecipeSlot;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeLayoutBuilder;
 import mezz.jei.library.gui.widgets.ScrollBoxRecipeWidget;
 import mezz.jei.library.gui.widgets.ScrollGridRecipeWidget;
@@ -89,6 +91,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	private final @Nullable ShapelessIcon shapelessIcon;
 	private final RecipeLayoutInputHandler<R> inputHandler;
 	private boolean extrasCreated = false;
+	private boolean displayedIngredientsUpdatePending;
 
 	private ImmutableRect2i area;
 
@@ -140,7 +143,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		this.focuses = focuses;
 		this.inputHandler = new RecipeLayoutInputHandler<>(this);
 
-		this.recipeCategorySlots = recipeCategorySlots;
+		this.recipeCategorySlots = new ArrayList<>(recipeCategorySlots);
 		this.recipeSlotsView = new RecipeSlotsView(Collections.unmodifiableList(allSlots));
 		this.recipeBorderPadding = recipeBorderPadding;
 		this.area = new ImmutableRect2i(
@@ -161,7 +164,12 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		this.recipeBackground = recipeBackground;
 		this.shapelessIcon = shapelessIcon;
 
-		recipeCategory.onDisplayedIngredientsUpdate(recipe, Collections.unmodifiableList(recipeCategorySlots), focuses);
+		for (IRecipeSlotDrawable slot : allSlots) {
+			if (slot instanceof RecipeSlot recipeSlot) {
+				recipeSlot.setDisplayOverridesChangedListener(this::onDisplayOverridesChanged);
+			}
+		}
+		updateDisplayedIngredients(false);
 	}
 
 	public void ensureRecipeExtrasAreCreated() {
@@ -207,15 +215,15 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 					boolean hovered = hoveredSlotResult != null && hoveredSlotResult.slot() == slot;
 					slot.draw(guiGraphics, hovered);
 				}
-				for (IRecipeWidget widget : allWidgets) {
-					ScreenPosition position = widget.getPosition();
+				RecipeWidgetRenderer.forEachWidget(allWidgets, recipeMouseX, recipeMouseY, (widget, position, relativeMouseX, relativeMouseY) -> {
 					poseStack.pushPose();
-					{
+					try {
 						poseStack.translate(position.x(), position.y(), 0);
-						widget.drawWidget(guiGraphics, recipeMouseX - position.x(), recipeMouseY - position.y());
+						widget.drawWidget(guiGraphics, relativeMouseX, relativeMouseY);
+					} finally {
+						poseStack.popPose();
 					}
-					poseStack.popPose();
-				}
+				});
 
 				// drawExtras and drawInfo often render text which messes with the color, this clears it
 				RenderSystem.setShaderColor(1, 1, 1, 1);
@@ -300,10 +308,14 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 				);
 			}
 
-			for (IRecipeWidget widget : allWidgets) {
-				ScreenPosition position = widget.getPosition();
-				widget.getTooltip(tooltip, recipeMouseX - position.x(), recipeMouseY - position.y());
-			}
+			RecipeWidgetTooltipDispatcher.addWidgetTooltips(
+				tooltip,
+				allWidgets,
+				recipeMouseX,
+				recipeMouseY,
+				area.width(),
+				area.height()
+			);
 
 			if (tooltip.isEmpty() && shapelessIcon != null) {
 				if (shapelessIcon.isMouseOver(recipeMouseX, recipeMouseY)) {
@@ -425,20 +437,44 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		for (IRecipeWidget widget : allWidgets) {
 			widget.tick();
 		}
-		if (cycleTicker.tick()) {
-			for (IRecipeSlotDrawable slot : recipeCategorySlots) {
-				slot.clearDisplayOverrides();
+		boolean ingredientsCycled = cycleTicker.tick();
+		if (ingredientsCycled || displayedIngredientsUpdatePending) {
+			updateDisplayedIngredients(ingredientsCycled);
+		}
+	}
+
+	private void onDisplayOverridesChanged() {
+		displayedIngredientsUpdatePending = true;
+	}
+
+	private void updateDisplayedIngredients(boolean clearDisplayOverrides) {
+		try {
+			if (clearDisplayOverrides) {
+				for (IRecipeSlotDrawable slot : recipeCategorySlots) {
+					slot.clearDisplayOverrides();
+				}
 			}
-			recipeCategory.onDisplayedIngredientsUpdate(recipe, recipeCategorySlots, focuses);
+			recipeCategory.onDisplayedIngredientsUpdate(
+				recipe,
+				Collections.unmodifiableList(recipeCategorySlots),
+				focuses
+			);
+		} finally {
+			// Ignore notifications caused by the category's own update to avoid a reentrant update loop.
+			displayedIngredientsUpdatePending = false;
 		}
 	}
 
 	@Override
+	@Deprecated(since = "15.56.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public void addDrawable(IDrawable drawable, int xPos, int yPos) {
 		this.drawables.add(OffsetDrawable.create(drawable, xPos, yPos));
 	}
 
 	@Override
+	@Deprecated(since = "15.56.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public IPlaceable<?> addDrawable(IDrawable drawable) {
 		OffsetDrawable offsetDrawable = new OffsetDrawable(drawable, 0, 0);
 		this.drawables.add(offsetDrawable);
@@ -509,6 +545,8 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
+	@Deprecated(since = "15.56.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public IPlaceable<?> addRecipeArrow() {
 		Textures textures = Internal.getTextures();
 		IDrawable drawable = textures.getRecipeArrow();
@@ -516,6 +554,14 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
+	public IDrawableWidget addRecipeArrowWidget() {
+		Textures textures = Internal.getTextures();
+		return addDrawableWidget(textures.getRecipeArrow());
+	}
+
+	@Override
+	@Deprecated(since = "15.56.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public IPlaceable<?> addRecipePlusSign() {
 		Textures textures = Internal.getTextures();
 		IDrawable drawable = textures.getRecipePlusSign();
@@ -523,6 +569,14 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
+	public IDrawableWidget addRecipePlusSignWidget() {
+		Textures textures = Internal.getTextures();
+		return addDrawableWidget(textures.getRecipePlusSign());
+	}
+
+	@Override
+	@Deprecated(since = "15.56.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public IPlaceable<?> addAnimatedRecipeArrow(int ticksPerCycle) {
 		Textures textures = Internal.getTextures();
 
@@ -534,6 +588,17 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
+	public IDrawableWidget addAnimatedRecipeArrowWidget(int ticksPerCycle) {
+		Textures textures = Internal.getTextures();
+		IDrawableStatic recipeArrowFilled = textures.getRecipeArrowFilled();
+		IDrawable animatedFill = new DrawableAnimated(recipeArrowFilled, ticksPerCycle, IDrawableAnimated.StartDirection.LEFT, false);
+		IDrawable drawable = new DrawableCombined(textures.getRecipeArrow(), animatedFill);
+		return addDrawableWidget(drawable);
+	}
+
+	@Override
+	@Deprecated(since = "15.56.0", forRemoval = true)
+	@SuppressWarnings("removal")
 	public IPlaceable<?> addAnimatedRecipeFlame(int cookTime) {
 		Textures textures = Internal.getTextures();
 
@@ -543,6 +608,15 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		IDrawable drawableCombined = new DrawableCombined(textures.getFlameEmptyIcon(), animatedFill);
 		OffsetDrawable offsetDrawable = new OffsetDrawable(drawableCombined, 0, 0);
 		return addDrawable(offsetDrawable);
+	}
+
+	@Override
+	public IDrawableWidget addAnimatedRecipeFlameWidget(int cookTime) {
+		Textures textures = Internal.getTextures();
+		IDrawableStatic flameIcon = textures.getFlameIcon();
+		IDrawableAnimated animatedFill = new DrawableAnimated(flameIcon, cookTime, IDrawableAnimated.StartDirection.TOP, true);
+		IDrawable drawable = new DrawableCombined(textures.getFlameEmptyIcon(), animatedFill);
+		return addDrawableWidget(drawable);
 	}
 
 	@Override

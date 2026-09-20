@@ -20,6 +20,7 @@ public class JeiClientConfigs implements IJeiClientConfigs {
 		IConfigSchemaBuilder builder = new ConfigSchemaBuilder(configFile, "jei.config.client");
 
 		clientConfig = new ClientConfig(builder);
+		CollapsibleColorConfig.register((mezz.jei.common.config.file.ConfigCategoryBuilder) builder.addCategory("collapsible"));
 		ingredientFilterConfig = new IngredientFilterConfig(builder);
 		ingredientListConfig = new IngredientGridConfig("ingredientList", builder, HorizontalAlignment.RIGHT);
 		bookmarkListConfig = new IngredientGridConfig("bookmarkList", builder, HorizontalAlignment.LEFT);

@@ -9,7 +9,6 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import mezz.jei.gui.input.ClickableIngredientInternal;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IUserInputHandler;
@@ -17,8 +16,6 @@ import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.CombinedInputHandler;
 import mezz.jei.gui.input.handlers.NullInputHandler;
 import mezz.jei.gui.input.handlers.ProxyInputHandler;
-import mezz.jei.gui.overlay.elements.IElement;
-import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
@@ -44,11 +41,7 @@ public class RecipeGuiLayouts {
 	@Nullable
 	private IUserInputHandler cachedInputHandler;
 
-	public RecipeGuiLayouts() {
-		this(new RecipeSlotClickTargetFactory());
-	}
-
-	public RecipeGuiLayouts(RecipeSlotClickTargetFactory clickTargetFactory) {
+	RecipeGuiLayouts(RecipeSlotClickTargetFactory clickTargetFactory) {
 		this.clickTargetFactory = clickTargetFactory;
 		this.cachedInputHandler = NullInputHandler.INSTANCE;
 	}
@@ -80,7 +73,7 @@ public class RecipeGuiLayouts {
 		}
 
 		final int recipeWidth = layoutRect.getWidth();
-		final int recipeWidthWithButtons = recipeLayoutsWithButtons.get(0).totalWidth();
+		final int recipeWidthWithButtons = getWidth();
 		final int buttonSpace = recipeWidthWithButtons - recipeWidth;
 
 		final int availableArea = layoutsArea.getWidth();
@@ -164,14 +157,6 @@ public class RecipeGuiLayouts {
 			}
 		}
 		return Optional.empty();
-	}
-
-	private static Optional<IClickableIngredientInternal<?>> getClickedIngredient(RecipeSlotUnderMouse slotUnderMouse) {
-		return slotUnderMouse.slot().getDisplayedIngredient()
-			.map(displayedIngredient -> {
-				IElement<?> element = new IngredientElement<>(displayedIngredient);
-				return new ClickableIngredientInternal<>(element, slotUnderMouse::isMouseOver, false, true);
-			});
 	}
 
 	public boolean mouseDragged(double mouseX, double mouseY, InputConstants.Key input, double dragX, double dragY) {
@@ -263,10 +248,9 @@ public class RecipeGuiLayouts {
 	}
 
 	public int getWidth() {
-		if (recipeLayoutsWithButtons.isEmpty()) {
-			return 0;
-		}
-		IRecipeLayoutWithButtons<?> first = this.recipeLayoutsWithButtons.get(0);
-		return first.totalWidth();
+		return recipeLayoutsWithButtons.stream()
+			.mapToInt(IRecipeLayoutWithButtons::totalWidth)
+			.max()
+			.orElse(0);
 	}
 }

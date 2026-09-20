@@ -106,9 +106,7 @@ public final class JeiChatItemLinks {
 
 	public static Optional<ITypedIngredient<?>> resolveTypedIngredient(IngredientLink link, IIngredientManager ingredientManager) {
 		return ingredientManager.getIngredientTypeForUid(link.ingredientTypeUid())
-			.flatMap(ingredientType ->
-				resolveTypedIngredient(ingredientType, link.ingredientUid(), ingredientManager)
-			);
+			.flatMap(ingredientType -> resolveTypedIngredient(ingredientType, link.ingredientUid(), ingredientManager));
 	}
 
 	public static String createCommandArgument(IngredientLink link) {
@@ -232,14 +230,12 @@ public final class JeiChatItemLinks {
 			}
 			boolean groupMarker = groupStart >= 0 && (ingredientStart < 0 || groupStart < ingredientStart);
 			int markerStart = groupMarker ? groupStart : ingredientStart;
-			Optional<ParsedLinkMarker> marker = groupMarker ?
-				parseBookmarkGroupMarker(rawText, markerStart) :
-				parseLinkMarker(rawText, markerStart)
-					.map(linkMarker -> new ParsedLinkMarker(
-						linkMarker.start(),
-						linkMarker.end(),
-						createLinkComponent(linkMarker.link(), ingredientNameLookup)
-					));
+			Optional<ParsedLinkMarker> marker = groupMarker ? parseBookmarkGroupMarker(rawText, markerStart) : parseLinkMarker(rawText, markerStart)
+				.map(linkMarker -> new ParsedLinkMarker(
+					linkMarker.start(),
+					linkMarker.end(),
+					createLinkComponent(linkMarker.link(), ingredientNameLookup)
+				));
 			if (marker.isPresent()) {
 				return marker;
 			}
@@ -295,7 +291,8 @@ public final class JeiChatItemLinks {
 			if (json.get("version").getAsInt() != 1 ||
 				group.get("title").getAsString().length() > MAX_BOOKMARK_GROUP_TITLE_LENGTH ||
 				entries <= 0 ||
-				entries > MAX_BOOKMARK_GROUP_ENTRIES) {
+				entries > MAX_BOOKMARK_GROUP_ENTRIES
+			) {
 				return Optional.empty();
 			}
 			return Optional.of(json);

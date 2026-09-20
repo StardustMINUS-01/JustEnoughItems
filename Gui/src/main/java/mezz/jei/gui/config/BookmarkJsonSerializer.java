@@ -254,22 +254,14 @@ public final class BookmarkJsonSerializer {
 		long multiplier = json.has("multiplier") ? json.get("multiplier").getAsLong() : 1;
 		long factor = json.has("factor") ? json.get("factor").getAsLong() : 1;
 		long chance = json.has("chance") ? json.get("chance").getAsLong() : BookmarkItemMetadata.CHANCE_FULL;
-		Set<BookmarkIngredientKey> permutations = json.has("permutations") ?
-			json.getAsJsonArray("permutations")
-				.asList()
-				.stream()
-				.map(BookmarkIngredientKeySerializer::deserialize)
-				.collect(Collectors.toUnmodifiableSet()) :
-			Set.of();
-		BookmarkIngredientKey containerItem = json.has("containerItem") ?
-			BookmarkIngredientKeySerializer.deserialize(json.get("containerItem")) :
-			null;
-		long containerItemCraftingUses = json.has("containerItemCraftingUses") ?
-			json.get("containerItemCraftingUses").getAsLong() :
-			1;
-		BookmarkIngredientKey brokenContainerItem = json.has("brokenContainerItem") ?
-			BookmarkIngredientKeySerializer.deserialize(json.get("brokenContainerItem")) :
-			null;
+		Set<BookmarkIngredientKey> permutations = json.has("permutations") ? json.getAsJsonArray("permutations")
+			.asList()
+			.stream()
+			.map(BookmarkIngredientKeySerializer::deserialize)
+			.collect(Collectors.toUnmodifiableSet()) : Set.of();
+		BookmarkIngredientKey containerItem = json.has("containerItem") ? BookmarkIngredientKeySerializer.deserialize(json.get("containerItem")) : null;
+		long containerItemCraftingUses = json.has("containerItemCraftingUses") ? json.get("containerItemCraftingUses").getAsLong() : 1;
+		BookmarkIngredientKey brokenContainerItem = json.has("brokenContainerItem") ? BookmarkIngredientKeySerializer.deserialize(json.get("brokenContainerItem")) : null;
 		return new BookmarkItemMetadata(
 			groupId,
 			type,
@@ -351,7 +343,8 @@ public final class BookmarkJsonSerializer {
 				for (ITypedIngredient<?> candidate : ingredientManager.getAllTypedIngredients(VanillaTypes.ITEM_STACK)) {
 					if (candidate.getIngredient() instanceof ItemStack stack &&
 						!stack.isEmpty() &&
-						stack.getItem().builtInRegistryHolder().is(itemId)) {
+						stack.getItem().builtInRegistryHolder().is(itemId)
+					) {
 						return Optional.of(candidate);
 					}
 				}

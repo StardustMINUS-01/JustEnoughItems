@@ -1,11 +1,14 @@
 package mezz.jei.fabric.test;
 
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
 import net.minecraft.world.level.WorldDataConfiguration;
+import net.minecraft.world.level.levelgen.WorldDimensions;
 import net.minecraft.world.level.levelgen.WorldOptions;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import net.minecraft.world.level.storage.LevelStorageSource;
@@ -25,26 +28,45 @@ final class FabricClientTestWorld implements AutoCloseable {
 	}
 
 	public static FabricClientTestWorld create() {
+		return create(GameType.SURVIVAL);
+	}
+
+	public static FabricClientTestWorld create(GameType gameType) {
 		String levelId = "jei-fabric-client-test-" + UUID.randomUUID();
 		ClientTestUtil.runOnClient(client -> {
 			LevelSettings levelSettings = new LevelSettings(
 				"JEI Fabric Client Test",
-				GameType.CREATIVE,
+				gameType,
 				false,
-				Difficulty.NORMAL,
+				Difficulty.PEACEFUL,
 				true,
 				new GameRules(),
 				WorldDataConfiguration.DEFAULT
 			);
 			client.createWorldOpenFlows()
-				.createFreshLevel(levelId, levelSettings, WorldOptions.defaultWithRandomSeed(), WorldPresets::createNormalWorldDimensions);
+				.createFreshLevel(
+					levelId,
+					levelSettings,
+					new WorldOptions(0L, false, false),
+					FabricClientTestWorld::createFastWorldDimensions
+				);
 		}, WORLD_LOAD_TIMEOUT);
 		ClientTestUtil.waitUntil(
-			() -> ClientTestUtil.computeOnClient(client -> client.level != null && client.hasSingleplayerServer()),
+			() -> ClientTestUtil.computeOnClient(client -> client.level != null &&
+				client.player != null &&
+				client.hasSingleplayerServer() &&
+				client.levelRenderer.isChunkCompiled(client.player.blockPosition())
+			),
 			ASSERTION_TIMEOUT,
-			() -> "Timed out creating integrated Fabric test world: " + levelId
+			() -> "Timed out rendering the integrated Fabric test world: " + levelId
 		);
 		return new FabricClientTestWorld(levelId);
+	}
+
+	private static WorldDimensions createFastWorldDimensions(RegistryAccess registryAccess) {
+		return registryAccess.registryOrThrow(Registries.WORLD_PRESET)
+			.getOrThrow(WorldPresets.FLAT)
+			.createWorldDimensions();
 	}
 
 	@Override

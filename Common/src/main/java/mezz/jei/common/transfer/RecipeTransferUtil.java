@@ -1,16 +1,13 @@
 package mezz.jei.common.transfer;
 
-import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
-import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.helpers.IStackHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
-import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
-import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
 import mezz.jei.common.util.StringUtil;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -27,7 +24,6 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,90 +34,11 @@ public final class RecipeTransferUtil {
 	private RecipeTransferUtil() {
 	}
 
-	public static Optional<IRecipeTransferError> getTransferRecipeError(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player) {
-		return transferRecipe(recipeTransferManager, container, recipeLayout, player, false, false);
-	}
-
-	public static Optional<IRecipeTransferError> getTransferRecipeErrorWithSlotsView(
-		IRecipeTransferManager recipeTransferManager,
-		AbstractContainerMenu container,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player
-	) {
-		return transferRecipeWithSlotsView(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, false, false);
-	}
-
-	public static boolean transferRecipe(IRecipeTransferManager recipeTransferManager, AbstractContainerMenu container, IRecipeLayoutDrawable<?> recipeLayout, Player player, boolean maxTransfer) {
-		return transferRecipe(recipeTransferManager, container, recipeLayout, player, maxTransfer, true)
-			.map(error -> error.getType().allowsTransfer)
-			.orElse(true);
-	}
-
-	public static boolean transferRecipeWithSlotsView(
-		IRecipeTransferManager recipeTransferManager,
-		AbstractContainerMenu container,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player,
-		boolean maxTransfer
-	) {
-		return transferRecipeWithSlotsView(recipeTransferManager, container, recipeLayout, recipeSlotsView, player, maxTransfer, true)
-			.map(error -> error.getType().allowsTransfer)
-			.orElse(true);
-	}
-
-	private static <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipe(
-		IRecipeTransferManager recipeTransferManager,
-		C container,
-		IRecipeLayoutDrawable<R> recipeLayout,
-		Player player,
-		boolean maxTransfer,
-		boolean doTransfer
-	) {
-		return transferRecipeWithSlotsView(
-			recipeTransferManager,
-			container,
-			recipeLayout,
-			recipeLayout.getRecipeSlotsView(),
-			player,
-			maxTransfer,
-			doTransfer
-		);
-	}
-
-	// This exact signature (6 parameters, Optional return) is a mixin contract for third-party mods
-	// (e.g. DataEnergistics wraps it with @WrapMethod by its erased descriptor). Do not change it.
-	private static <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipeWithSlotsView(
-		IRecipeTransferManager recipeTransferManager,
-		C container,
-		IRecipeLayoutDrawable<R> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player,
-		boolean maxTransfer,
-		boolean doTransfer
-	) {
-		IRecipeCategory<R> recipeCategory = recipeLayout.getRecipeCategory();
-
-		Optional<IRecipeTransferHandler<C, R>> recipeTransferHandler = recipeTransferManager.getRecipeTransferHandler(container, recipeCategory);
-		if (recipeTransferHandler.isEmpty()) {
-			if (doTransfer) {
-				LOGGER.error("No Recipe Transfer handler for container {}", container.getClass());
-			}
-			return Optional.of(RecipeTransferErrorInternal.INSTANCE);
-		}
-
-		IRecipeTransferHandler<C, R> transferHandler = recipeTransferHandler.get();
-
-		try {
-			IRecipeTransferError transferError = transferHandler.transferRecipe(container, recipeLayout.getRecipe(), recipeSlotsView, player, maxTransfer, doTransfer);
-			return Optional.ofNullable(transferError);
-		} catch (RuntimeException e) {
-			LOGGER.error(
-				"Recipe transfer handler '{}' for container '{}' and recipe type '{}' threw an error: ",
-				transferHandler.getClass(), transferHandler.getContainerClass(), recipeCategory.getRecipeType(), e
-			);
-			return Optional.of(RecipeTransferErrorInternal.INSTANCE);
+	public static void addTransferRecipeTooltip(@Nullable IRecipeTransferError recipeTransferError, ITooltipBuilder tooltip) {
+		if (recipeTransferError == null) {
+			tooltip.add(Component.translatable("jei.tooltip.transfer"));
+		} else {
+			recipeTransferError.getTooltip(tooltip);
 		}
 	}
 
@@ -162,7 +79,7 @@ public final class RecipeTransferUtil {
 			if (!invalidRecipeIndexes.isEmpty()) {
 				LOGGER.error(
 					"Transfer request has invalid slots for the destination of the recipe, " +
-					"the slots are not included in the list of crafting slots. {}",
+						"the slots are not included in the list of crafting slots. {}",
 					StringUtil.intsToString(invalidRecipeIndexes)
 				);
 				return false;
@@ -196,24 +113,6 @@ public final class RecipeTransferUtil {
 				LOGGER.error(
 					"Transfer request has invalid slots, inventorySlots and craftingSlots should not share any slot, but both have: {}",
 					StringUtil.intsToString(overlappingSlots)
-				);
-				return false;
-			}
-		}
-
-		// check that all slots are interactable (can be picked up, and not output slots)
-		{
-			List<Integer> invalidModificationSlots = Stream.concat(
-					craftingSlots.stream(),
-					inventorySlots.stream()
-				)
-				.filter(s -> !s.allowModification(player))
-				.map(slot -> slot.index)
-				.toList();
-			if (!invalidModificationSlots.isEmpty()) {
-				LOGGER.error(
-					"Transfer request has invalid slots, they do not allow modification: {}",
-					StringUtil.intsToString(invalidModificationSlots)
 				);
 				return false;
 			}
@@ -463,7 +362,9 @@ public final class RecipeTransferUtil {
 	private static Map<Object, Integer> calculateRequiredCountsByUid(IRecipeSlotView recipeSlotView, IStackHelper stackhelper) {
 		List<@Nullable ITypedIngredient<?>> allIngredientsList = recipeSlotView.getAllIngredientsList();
 		Map<Object, Integer> requiredCountsByUid = new HashMap<>(allIngredientsList.size());
-		for (@Nullable ITypedIngredient<?> typedIngredient : allIngredientsList) {
+		for (@Nullable
+			ITypedIngredient<?> typedIngredient : allIngredientsList
+		) {
 			if (typedIngredient == null) {
 				continue;
 			}

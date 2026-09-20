@@ -50,16 +50,14 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardKeyPressedPre(Screen screen, UserInput input) {
-		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
 			return true;
 		}
 
-		// 1.21.1 parity: the focus-search key must still reach JEI while a container text field has
-		// focus. (PinnedTooltipManager.hasKeyboardFocus() is always false in 1.20.1 because the
-		// pinned tooltip is not an ICharTypedHandler; the clause is kept to mirror 1.21.1.)
+		// Pinned selectors and the focus-search shortcut take priority over container text fields.
 		if (PinnedTooltipManager.hasKeyboardFocus() || input.is(keybindings.getFocusSearch()) || !isContainerTextFieldFocused(screen)) {
 			if (screenHelper.getGuiProperties(screen).isPresent()) {
 				return this.inputRouter.handleUserInput(screen, input, keybindings);
@@ -72,6 +70,9 @@ public class ClientInputHandler {
 	 * Without keyboard focus, use Post
 	 */
 	public boolean onKeyboardKeyPressedPost(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (isContainerTextFieldFocused(screen)) {
 			if (screenHelper.getGuiProperties(screen).isPresent()) {
 				return this.inputRouter.handleUserInput(screen, input, keybindings);
@@ -90,10 +91,10 @@ public class ClientInputHandler {
 	 * When we have keyboard focus, use Pre
 	 */
 	public boolean onKeyboardCharTypedPre(Screen screen, char codePoint, int modifiers) {
-		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen config && config.isRecordingKey()) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
 			return false;
 		}
-		if (!isContainerTextFieldFocused(screen)) {
+		if (PinnedTooltipManager.hasKeyboardFocus() || !isContainerTextFieldFocused(screen)) {
 			return handleCharTyped(codePoint, modifiers);
 		}
 		return false;
@@ -103,12 +104,18 @@ public class ClientInputHandler {
 	 * Without keyboard focus, use Post
 	 */
 	public void onKeyboardCharTypedPost(Screen screen, char codePoint, int modifiers) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return;
+		}
 		if (isContainerTextFieldFocused(screen)) {
 			handleCharTyped(codePoint, modifiers);
 		}
 	}
 
 	public boolean onGuiMouseClicked(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
 			return true;
 		}
@@ -126,6 +133,9 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseReleased(Screen screen, UserInput input) {
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		if (this.chatLinkInputHandler.handleUserInput(screen, input, keybindings)) {
 			return true;
 		}
@@ -152,10 +162,24 @@ public class ClientInputHandler {
 	}
 
 	public boolean onGuiMouseScroll(double mouseX, double mouseY, double scrollDelta) {
+		if (Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen &&
+			mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.scroll(mouseX, mouseY, scrollDelta)
+		) {
+			return true;
+		}
+		if (Minecraft.getInstance().screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		return this.inputRouter.handleMouseScrolled(mouseX, mouseY, scrollDelta);
 	}
 
 	public boolean onGuiMouseDragged(Screen screen, double mouseX, double mouseY, int button, double dragX, double dragY) {
+		if (screen instanceof net.minecraft.client.gui.screens.ChatScreen && (mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.isPinned() || mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.hasTags())) {
+			return true;
+		}
+		if (screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return false;
+		}
 		InputConstants.Key input = InputConstants.Type.MOUSE.getOrCreate(button);
 		return this.inputRouter.handleMouseDragged(mouseX, mouseY, input, dragX, dragY);
 	}

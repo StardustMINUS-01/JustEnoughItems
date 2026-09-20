@@ -64,7 +64,8 @@ public final class RecipeTreeBookmarkPanel {
 		int nextRows = Math.max(1, (height - top - 8) / CELL);
 		var next = new ImmutableRect2i(4, top + 4, nextColumns * CELL, nextRows * CELL);
 		if (next.equals(area)) {
-			refresh(); return;
+			refresh();
+			return;
 		}
 		area = next;
 		columns = nextColumns;
@@ -87,7 +88,9 @@ public final class RecipeTreeBookmarkPanel {
 		entries.clear();
 		List<IElement<?>> next = new ArrayList<>();
 		for (var slot : bookmarks.getGroupEditorSlots(groupId, columns)) {
-			while (next.size() < slot.slotIndex()) { next.add(LayoutPlaceholderElement.INSTANCE); }
+			while (next.size() < slot.slotIndex()) {
+				next.add(LayoutPlaceholderElement.INSTANCE);
+			}
 			var element = bookmarks.createDisplayElement(slot.entry());
 			next.add(element);
 			entries.put(element, slot.entry());

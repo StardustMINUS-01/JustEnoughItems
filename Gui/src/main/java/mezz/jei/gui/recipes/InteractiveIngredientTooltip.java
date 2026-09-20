@@ -2,6 +2,7 @@ package mezz.jei.gui.recipes;
 
 import org.jetbrains.annotations.Nullable;
 
+import mezz.jei.common.gui.IRecipeSlotCandidateView;
 import mezz.jei.common.Internal;
 import net.minecraft.network.chat.Component;
 import net.minecraft.ChatFormatting;
@@ -10,10 +11,10 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.datafixers.util.Either;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
+import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.gui.IngredientGridTooltipComponent;
@@ -56,7 +57,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		InteractiveIngredientTooltipController controller,
 		RecipesGui recipesGui,
 		FocusUtil focusUtil,
-		IRecipeManager recipeManager,
+		IGuiHelper guiHelper,
 		IIngredientManager ingredientManager,
 		RecipeSlotClickTargetFactory clickTargetFactory,
 		RecipeSlotUnderMouse sourceSlot,
@@ -64,9 +65,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		double mouseX,
 		double mouseY
 	) {
-		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot() instanceof mezz.jei.common.gui.IRecipeSlotCandidateView candidates
-			? candidates.getCandidates()
-			: sourceSlot.slot().getAllIngredients().filter(java.util.Objects::nonNull).toList();
+		List<ITypedIngredient<?>> displayedIngredients = sourceSlot.slot() instanceof IRecipeSlotCandidateView candidates ? candidates.getCandidates() : sourceSlot.slot().getDisplayedIngredients().toList();
 		if (displayedIngredients.isEmpty() || (displayedIngredients.size() == 1 && sourceSlot.slot().getAllIngredients().limit(2).count() <= 1)) {
 			return Optional.empty();
 		}
@@ -78,7 +77,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 			clickTargetFactory,
 			sourceSlot,
 			sourceMouseOverable,
-			new InteractiveIngredientGridTooltipComponent(recipeManager, displayedIngredients),
+			new InteractiveIngredientGridTooltipComponent(mezz.jei.common.Internal.getJeiRuntime().getRecipeManager(), displayedIngredients),
 			(int) mouseX,
 			(int) mouseY
 		));
@@ -105,12 +104,13 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		var owner = recipesGui.getRecipeLayoutUnderMouse(anchorX, anchorY)
 			.filter(RecipeLayoutWithButtons.class::isInstance).map(value -> (RecipeLayoutWithButtons<?>) value);
 		this.source = new IIngredientCandidateSource() {
+
 			@Override
 			public Optional<ITypedIngredient<?>> getSelectedIngredient() {
 				return sourceSlot.slot().getDisplayedIngredient();
 			}
 			@Override
-			public void addTooltip(mezz.jei.common.gui.JeiTooltip tooltip) {
+			public void addTooltip(JeiTooltip tooltip) {
 				sourceSlot.slot().getTooltip(tooltip);
 			}
 			@Override
@@ -188,6 +188,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		this.ingredientGrid.stopScrollbarDrag();
 	}
 
+	@SuppressWarnings("removal")
 	@Override
 	public void draw(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (!this.source.isValid()) {
@@ -198,7 +199,8 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		replaceIngredientGrid(tooltip, this.ingredientGrid);
 		if (source.canSelect()) {
 			tooltip.add(Component.translatable(sourceSlot == null ? "jei.tooltip.bookmark.select.input" : "jei.tooltip.recipe.select.input",
-				Internal.getKeyMappings().getSelectRecipeInput().getTranslatedKeyMessage()).withStyle(ChatFormatting.GRAY));
+				Internal.getKeyMappings().getSelectRecipeInput().getTranslatedKeyMessage())
+				.withStyle(ChatFormatting.GRAY));
 		}
 		this.ingredientGrid.setSelectedIngredient(this.source.getSelectedIngredient());
 		this.ingredientGrid.setMousePosition(mouseX, mouseY);
@@ -221,12 +223,11 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 
 		var poseStack = guiGraphics.pose();
 		poseStack.pushPose();
-		try {
+		{
 			poseStack.translate(0, 0, PinnedTooltipRenderer.NESTED_TOOLTIP_FOREGROUND_Z);
 			tooltip.draw(guiGraphics, mouseX, mouseY, ingredient, ingredientRenderer, this.ingredientManager);
-		} finally {
-			poseStack.popPose();
 		}
+		poseStack.popPose();
 	}
 
 	private static void replaceIngredientGrid(ITooltipBuilder tooltip, TooltipComponent candidateComponent) {
@@ -272,16 +273,14 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		}
 
 		if (source.canSelect() &&
-			// 1.21.1 parity (isActiveAndMatchesAllowingExtraModifiers): the pin key is held while
-			// this tooltip is open, and Ctrl selects only the source slot (see the next line).
-			keyBindings.getSelectRecipeInput().matchesIgnoringModifiers(input.getKey())) {
+			keyBindings.getSelectRecipeInput().isActiveAndMatchesAllowingExtraModifiers(input.getKey())
+		) {
 			Optional<ITypedIngredient<?>> selected = this.ingredientGrid.getTypedIngredientUnderMouse(input.getMouseX(), input.getMouseY());
 			if (selected.isPresent()) {
 				if (!input.isSimulate()) {
 					source.select(selected.get(), !Screen.hasControlDown());
 				}
-				return Optional.of(new SameElementInputHandler(this, (x, y) ->
-					this.ingredientGrid.getTypedIngredientUnderMouse(x, y).filter(selected.get()::equals).isPresent()));
+				return Optional.of(new SameElementInputHandler(this, (x, y) -> this.ingredientGrid.getTypedIngredientUnderMouse(x, y).filter(selected.get()::equals).isPresent()));
 			}
 		}
 
@@ -325,9 +324,10 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 	public Optional<IUserInputHandler> handleMouseScrolled(
 		double mouseX,
 		double mouseY,
-		double scrollDelta
+		double scrollDeltaY
 	) {
 		if (this.controller.isActive(this) && this.source.isValid() && this.ingredientGrid.isMouseOver(mouseX, mouseY)) {
+			double scrollDelta = scrollDeltaY;
 			this.ingredientGrid.mouseScrolled(scrollDelta);
 			return Optional.of(this);
 		}
@@ -352,4 +352,5 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 	public void unfocus() {
 		stopScrollbarDrag();
 	}
+
 }

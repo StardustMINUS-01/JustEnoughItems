@@ -36,6 +36,10 @@ public class AnvilHelper {
 		return ANVIL_MENU;
 	}
 
+	public static void clearCache() {
+		ANVIL_MENU = null;
+	}
+
 	@Nullable
 	public static AnvilMenu setAnvilMenu(AnvilMenu anvilMenu, ItemStack leftStack, ItemStack rightStack) {
 		try {
@@ -50,7 +54,7 @@ public class AnvilHelper {
 				rightSlot.set(rightStack);
 			}
 			return anvilMenu;
-		} catch (RuntimeException e) {
+		} catch (RuntimeException | LinkageError e) {
 			String left = ErrorUtil.getItemStackInfo(leftStack);
 			String right = ErrorUtil.getItemStackInfo(rightStack);
 			LOGGER.error("Could not set anvil recipe for: ({} and {}).", left, right, e);

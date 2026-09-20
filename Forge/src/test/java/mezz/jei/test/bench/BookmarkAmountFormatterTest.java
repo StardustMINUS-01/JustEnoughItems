@@ -1,6 +1,7 @@
 package mezz.jei.test.bench;
 
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
+import mezz.jei.common.util.FluidAmountFormatter;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,18 +45,25 @@ public class BookmarkAmountFormatterTest {
 
 	@Test
 	public void formatFluidAmount() {
-		assertEquals("1", BookmarkAmountFormatter.formatFluidAmount(1));
-		assertEquals("999", BookmarkAmountFormatter.formatFluidAmount(999));
+		assertEquals("0", BookmarkAmountFormatter.formatFluidAmount(0));
+		assertEquals(".001", BookmarkAmountFormatter.formatFluidAmount(1));
+		assertEquals(".125", BookmarkAmountFormatter.formatFluidAmount(125));
+		assertEquals(".999", BookmarkAmountFormatter.formatFluidAmount(999));
 		assertEquals("1B", BookmarkAmountFormatter.formatFluidAmount(1_000));
+		assertEquals("1.125B", BookmarkAmountFormatter.formatFluidAmount(1_125));
 		assertEquals("1.5B", BookmarkAmountFormatter.formatFluidAmount(1_500));
 		assertEquals("1kB", BookmarkAmountFormatter.formatFluidAmount(1_000_000));
 		assertEquals("1.2kB", BookmarkAmountFormatter.formatFluidAmount(1_200_000));
 		assertEquals("1MB", BookmarkAmountFormatter.formatFluidAmount(1_000_000_000L));
 		assertEquals("2.5MB", BookmarkAmountFormatter.formatFluidAmount(2_500_000_000L));
+		assertEquals(".125", FluidAmountFormatter.format(10_125, 81_000));
+		assertEquals(".000012", FluidAmountFormatter.format(1, 81_000));
 	}
 
 	@Test
 	public void formatTypedAmountUsesFluidUnits() {
+		assertEquals(".125", BookmarkAmountFormatter.formatTypedAmount(125, "fluid_stack"));
+		assertEquals(".125", BookmarkAmountFormatter.formatTypedAmount(125, "mekanism.api.chemical.gas.GasStack"));
 		assertEquals("1B", BookmarkAmountFormatter.formatTypedAmount(1_000, "fluid_stack"));
 		assertEquals("1.5B", BookmarkAmountFormatter.formatTypedAmount(1_500, "mekanism.api.chemical.gas.GasStack"));
 		assertEquals("1kB", BookmarkAmountFormatter.formatTypedAmount(1_000_000, "mekanism.api.chemical.infuse.InfusionStack"));

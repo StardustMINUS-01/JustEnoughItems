@@ -121,7 +121,7 @@ public class LazyRecipeLayoutList<T> implements IRecipeLayoutList {
 		while (unsortedIterator.hasNext()) {
 			T recipe = unsortedIterator.next();
 			IRecipeLayoutDrawable<T> recipeLayout = recipeManager.createRecipeLayoutDrawableOrShowError(recipeCategory, recipe, focusGroup);
-			RecipeBookmark<?, ?> recipeBookmark = RecipeBookmark.create(recipeLayout, ingredientManager);
+			RecipeBookmark<?, ?> recipeBookmark = RecipeBookmark.create(recipeLayout, ingredientManager, ((mezz.jei.gui.recipes.RecipesGui) Internal.getJeiRuntime().getRecipesGui()).getRecipeTransferService());
 			IRecipeLayoutWithButtons<T> next = recipeLayoutFactory.create(recipeLayout, recipeBookmark);
 
 			if (matchingCraftable) {

@@ -2,7 +2,6 @@ package mezz.jei.gui.favorites;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IFocus;
@@ -12,6 +11,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipState;
 import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
@@ -57,6 +57,7 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final RecipeInputsResolver recipeInputsResolver;
+	private final BookmarkCandidateTooltipState permutationTooltipState = new BookmarkCandidateTooltipState();
 	private List<IElement<?>> cachedGridElements;
 	private final Map<RecipeRowsKey, List<IElement<?>>> cachedRecipeRows = new HashMap<>();
 
@@ -160,17 +161,9 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private Optional<IElement<?>> createElement(FavoriteRecipeStore.Entry entry) {
-		return ingredientManager.getIngredientTypeForUid(entry.target().ingredientTypeUid())
-			.flatMap(type -> createElement((IIngredientType) type, entry));
-	}
-
-	private <T> Optional<IElement<?>> createElement(IIngredientType<T> ingredientType, FavoriteRecipeStore.Entry entry) {
-		Optional<ITypedIngredient<T>> resolved = resolveIngredient(ingredientType, entry.target().ingredientUid());
-		if (resolved.isEmpty()) {
-			return Optional.empty();
-		}
-		IElement<?> element = createRecipeTargetElement(resolved.get(), entry.recipe(), entry.inputs());
-		return Optional.of(element);
+		return resolveIngredient(entry.target())
+			.map(ingredient -> createRecipeTargetElement((ITypedIngredient) ingredient, entry.recipe(), entry.inputs()))
+			.map(element -> (IElement<?>) element);
 	}
 
 	private <T> FavoriteRecipeElement<T> createRecipeTargetElement(
@@ -190,7 +183,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			Optional.empty(),
 			Optional.empty(),
 			entryInputs,
-			!panelState.isSortDragHidden(recipe, true, Optional.empty())
+			!panelState.isSortDragHidden(recipe, true, Optional.empty()),
+			permutationTooltipState
 		);
 	}
 
@@ -212,12 +206,9 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			Optional.empty(),
 			Optional.empty(),
 			entryInputs,
-			!panelState.isSortDragHidden(recipe, true, Optional.empty())
+			!panelState.isSortDragHidden(recipe, true, Optional.empty()),
+			permutationTooltipState
 		);
-	}
-
-	private <T> Optional<ITypedIngredient<T>> resolveIngredient(IIngredientType<T> ingredientType, String ingredientUid) {
-		return ingredientManager.getTypedIngredientByUid(ingredientType, ingredientUid);
 	}
 
 	private int createRecipeRow(
@@ -263,19 +254,20 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private Optional<ResolvedRecipeRowTarget> createRecipeRowTarget(FavoriteRecipeStore.Entry entry) {
-		return ingredientManager.getIngredientTypeForUid(entry.target().ingredientTypeUid())
-			.flatMap(type -> createRecipeRowTarget((IIngredientType) type, entry));
-	}
-
-	private <T> Optional<ResolvedRecipeRowTarget> createRecipeRowTarget(IIngredientType<T> ingredientType, FavoriteRecipeStore.Entry entry) {
-		return resolveIngredient(ingredientType, entry.target().ingredientUid())
+		return resolveIngredient(entry.target())
+			.map(ingredient -> (ITypedIngredient) ingredient)
 			.map(displayIngredient -> {
 				ResolvedRecipeIngredients resolvedIngredients = recipeInputsResolver.resolveIngredients(entry.recipe(), displayIngredient, entry.inputs());
 				ITypedIngredient<?> targetIngredient = resolvedIngredients.target()
 					.orElse(displayIngredient);
-				FavoriteRecipeElement<T> targetElement = createRecipeTargetElement(displayIngredient, targetIngredient, entry.recipe(), entry.inputs());
+				FavoriteRecipeElement<?> targetElement = createRecipeTargetElement(displayIngredient, targetIngredient, entry.recipe(), entry.inputs());
 				return new ResolvedRecipeRowTarget(targetElement, resolvedIngredients);
 			});
+	}
+
+	@SuppressWarnings({"removal", "rawtypes", "unchecked"})
+	private Optional<ITypedIngredient<?>> resolveIngredient(BookmarkIngredientKey key) {
+		return key.resolveIngredient(ingredientManager);
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -315,7 +307,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 			Optional.of(inputKey),
 			Optional.ofNullable(slotInput),
 			entryInputs,
-			!panelState.isSortDragHidden(recipe, false, Optional.of(inputKey))
+			!panelState.isSortDragHidden(recipe, false, Optional.of(inputKey)),
+			permutationTooltipState
 		);
 	}
 
@@ -327,7 +320,8 @@ public class FavoriteRecipeGridSource implements IIngredientGridSource {
 		for (FavoriteRecipeStore.FavoriteSlotInput slotInput : slotInputs.values()) {
 			BookmarkIngredientKey selected = slotInput.selected();
 			if (selected.ingredientTypeUid().equals(inputKey.ingredientTypeUid()) &&
-				selected.ingredientUid().equals(inputKey.ingredientUid())) {
+				selected.ingredientUid().equals(inputKey.ingredientUid())
+			) {
 				return slotInput;
 			}
 		}

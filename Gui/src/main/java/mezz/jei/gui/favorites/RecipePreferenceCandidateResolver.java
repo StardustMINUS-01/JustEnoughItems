@@ -3,7 +3,6 @@ package mezz.jei.gui.favorites;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -198,13 +197,7 @@ public final class RecipePreferenceCandidateResolver {
 		BookmarkIngredientKey key,
 		IIngredientManager ingredientManager
 	) {
-		Optional<IIngredientType<?>> type = ingredientManager.getIngredientTypeForUid(key.ingredientTypeUid());
-		if (type.isEmpty()) {
-			return Optional.empty();
-		}
-		IIngredientType rawType = type.get();
-		return ingredientManager.getTypedIngredientByUid(rawType, key.ingredientUid())
-			.map(ingredient -> (ITypedIngredient<?>) ingredient);
+		return key.resolveIngredient(ingredientManager);
 	}
 
 	private static final class JeiRecipeCandidateSource implements IRecipeCandidateFinder, IRecipeCandidateFactory {
@@ -307,11 +300,11 @@ public final class RecipePreferenceCandidateResolver {
 		) {
 			try {
 				return recipeManager.createRecipeLayoutDrawable(
-					recipeCategory,
-					recipe,
-					focusFactory.getEmptyFocusGroup()
-				)
-				.map(layout -> (IRecipeLayoutDrawable<?>) layout);
+						recipeCategory,
+						recipe,
+						focusFactory.getEmptyFocusGroup()
+					)
+					.map(layout -> (IRecipeLayoutDrawable<?>) layout);
 			} catch (RuntimeException | LinkageError e) {
 				LOGGER.warn(
 					"Skipping recipe preference scan for recipe {} in category {}.",

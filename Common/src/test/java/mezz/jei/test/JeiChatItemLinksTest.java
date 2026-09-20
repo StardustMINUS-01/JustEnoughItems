@@ -21,6 +21,36 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class JeiChatItemLinksTest {
+	@Test
+	public void sharedSnapshotsRejectInvalidPayloads() {
+		var data = new net.minecraft.nbt.CompoundTag();
+		data.putString("name", "test");
+		var id = new net.minecraft.resources.ResourceLocation("minecraft", "diamond");
+		var shared = new mezz.jei.common.chat.SharedChatIngredient(false, id, 192, data);
+		String snapshot = shared.encode().orElseThrow();
+		assertEquals(shared, mezz.jei.common.chat.SharedChatIngredient.decode(snapshot).orElseThrow());
+		assertTrue(mezz.jei.common.chat.SharedChatIngredient.decode("not base64!").isEmpty());
+		assertTrue(mezz.jei.common.chat.SharedChatIngredient.decode("x".repeat(mezz.jei.common.chat.SharedChatIngredient.MAX_LENGTH + 1)).isEmpty());
+		byte[] bytes = java.util.Base64.getDecoder().decode(snapshot);
+		assertTrue(mezz.jei.common.chat.SharedChatIngredient.decode(java.util.Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(bytes, bytes.length + 1))).isEmpty());
+		assertTrue(mezz.jei.common.chat.SharedChatIngredient.decode(new mezz.jei.common.chat.SharedChatIngredient(false, id, 0, data).encode().orElseThrow()).isEmpty());
+		assertTrue(mezz.jei.common.chat.SharedChatIngredient.decode(new mezz.jei.common.chat.SharedChatIngredient(false, new net.minecraft.resources.ResourceLocation("test", "missing"), 1, data).encode().orElseThrow()).isEmpty());
+		data.putString("large", "x".repeat(20_000));
+		assertTrue(shared.encode().isEmpty());
+	}
+
+	@Test
+	public void recipeLinksKeepReadableTitlesAndExactIds() {
+		var recipe = new mezz.jei.common.chat.JeiChatRecipeLinks.RecipeLink(new net.minecraft.resources.ResourceLocation("minecraft", "crafting"), new net.minecraft.resources.ResourceLocation("minecraft", "chest"));
+		Component link = mezz.jei.common.chat.JeiChatRecipeLinks.create(recipe, "Chest");
+		assertEquals("[Chest]", link.getString());
+		assertEquals(recipe, mezz.jei.common.chat.JeiChatRecipeLinks.parse(link.getStyle()).orElseThrow());
+		Component plain = Component.literal(link.getString());
+		assertTrue(mezz.jei.common.chat.JeiChatRecipeLinks.parse(plain.getStyle()).isEmpty());
+		assertFalse(Component.Serializer.toJson(plain).contains("jei_internal"));
+		assertTrue(mezz.jei.common.chat.JeiChatRecipeLinks.parse(link.getStyle().withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "jei_internal_recipe minecraft:crafting invalid:id extra"))).isEmpty());
+	}
+
 	@BeforeAll
 	public static void setup() {
 		SharedConstants.setVersion(DetectedVersion.BUILT_IN);

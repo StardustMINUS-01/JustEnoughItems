@@ -32,7 +32,6 @@ public interface ILookupState {
 		throw new IllegalArgumentException("Recipe category is not part of this lookup state: " + recipeCategory.getRecipeType());
 	}
 
-
 	void nextRecipeCategory();
 
 	void previousRecipeCategory();

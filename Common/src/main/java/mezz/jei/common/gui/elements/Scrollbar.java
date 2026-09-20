@@ -129,12 +129,12 @@ public final class Scrollbar {
 		return clamp(scrollOffsetY, 0, 1);
 	}
 
-	private static int clamp(int value, int min, int max) {
-		return Math.max(min, Math.min(max, value));
+	private static float clamp(float value, float min, float max) {
+		return Math.max(min, Math.min(value, max));
 	}
 
-	private static float clamp(float value, float min, float max) {
-		return Math.max(min, Math.min(max, value));
+	private static int clamp(int value, int min, int max) {
+		return Math.max(min, Math.min(value, max));
 	}
 
 	public record ScrollResult(boolean handled, float scrollOffsetY) {

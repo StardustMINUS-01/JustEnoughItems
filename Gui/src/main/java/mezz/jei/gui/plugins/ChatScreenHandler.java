@@ -1,5 +1,7 @@
 package mezz.jei.gui.plugins;
 
+import mezz.jei.gui.chat.ChatIngredientTooltip;
+import mezz.jei.gui.chat.ChatRecipeTooltip;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.builder.IClickableIngredientFactory;
 import mezz.jei.api.gui.handlers.IGuiProperties;
@@ -37,16 +39,19 @@ public class ChatScreenHandler implements IScreenHandler<ChatScreen> {
 		double mouseX,
 		double mouseY
 	) {
+		if (ChatRecipeTooltip.INSTANCE.isPinned()) {
+			return ChatRecipeTooltip.INSTANCE.getIngredient(factory, mouseX, mouseY);
+		}
 		return JeiChatItemLinkHover.getHoveredText(chatScreen, mouseX, mouseY)
-			.flatMap(hoveredText ->
-				getIngredient(hoveredText.style())
-					.flatMap(typedIngredient -> factory.createBuilder(typedIngredient)
-						.buildWithArea(hoveredText.area()))
+			.flatMap(hoveredText -> getIngredient(hoveredText.style())
+				.flatMap(typedIngredient -> factory.createBuilder(typedIngredient)
+					.buildWithArea(hoveredText.area()))
 			);
 	}
 
 	private Optional<ITypedIngredient<?>> getIngredient(Style style) {
-		return getJeiChatLinkIngredient(style)
+		return ChatIngredientTooltip.getSharedIngredient(style)
+			.or(() -> getJeiChatLinkIngredient(style))
 			.or(() -> getVanillaChatItemIngredient(style));
 	}
 

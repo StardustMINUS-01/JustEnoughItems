@@ -1,9 +1,12 @@
 package mezz.jei.gui.overlay.ingredients;
 
+import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.config.IIngredientGridConfig;
+import mezz.jei.common.config.IngredientGridLayoutMode;
 import mezz.jei.common.config.IngredientGridNavigationMode;
+import mezz.jei.common.gui.GridScrollMath;
 import mezz.jei.api.gui.placement.HorizontalAlignment;
 import mezz.jei.common.util.NavigationVisibility;
 import mezz.jei.api.gui.placement.VerticalAlignment;
@@ -37,7 +40,7 @@ public class IngredientGridScrollControllerTest {
 			null
 		);
 		controller.updateLayoutStartingAt(0);
-		int hiddenRows = IngredientGridScrollState.getHiddenRows(elements.size(), grid.getColumnCount(), grid.getRowCount());
+		int hiddenRows = GridScrollMath.getHiddenRows(elements.size(), grid.getColumnCount(), grid.getRowCount());
 		assertTrue(controller.setScrollOffsetY(3 / (float) hiddenRows));
 		grid.clearVisibleElements();
 
@@ -61,6 +64,11 @@ public class IngredientGridScrollControllerTest {
 	}
 
 	private record TestTypedIngredient(Integer ingredient) implements ITypedIngredient<Integer> {
+		@Override
+		public ITypedIngredient<Integer> normalize(IIngredientHelper<Integer> ingredientHelper) {
+			return this;
+		}
+
 		@Override
 		public IIngredientType<Integer> getType() {
 			return INTEGER_TYPE;
@@ -118,6 +126,11 @@ public class IngredientGridScrollControllerTest {
 		@Override
 		public boolean drawBackground() {
 			return false;
+		}
+
+		@Override
+		public IngredientGridLayoutMode getLayoutMode() {
+			return IngredientGridLayoutMode.MAXIMIZE_AVAILABLE_SPACE;
 		}
 
 		@Override

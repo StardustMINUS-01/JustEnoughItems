@@ -177,9 +177,10 @@ public final class BookmarkGhostOverlayActivator {
 		}
 
 		BookmarkRecipeOverlayPlan plan = BookmarkRecipeOverlayPlan.fromHotkeyAction(
-			BookmarkHotkeyAction.OVERLAY_RECIPE,
-			OptionalInt.empty()
-		).orElseThrow();
+				BookmarkHotkeyAction.OVERLAY_RECIPE,
+				OptionalInt.empty()
+			)
+			.orElseThrow();
 		Optional<BookmarkGhostOverlay> overlay = BookmarkGhostOverlay.create(plan, recipeLayout, targetSlots);
 		if (overlay.isEmpty()) {
 			return false;
@@ -209,9 +210,7 @@ public final class BookmarkGhostOverlayActivator {
 			return false;
 		}
 
-		BookmarkHotkeyAction action = hasControl && bookmarkQuantity.isPresent() ?
-			BookmarkHotkeyAction.FILL_CRAFTING_GRID_QUANTITY :
-			BookmarkHotkeyAction.FILL_CRAFTING_GRID;
+		BookmarkHotkeyAction action = hasControl && bookmarkQuantity.isPresent() ? BookmarkHotkeyAction.FILL_CRAFTING_GRID_QUANTITY : BookmarkHotkeyAction.FILL_CRAFTING_GRID;
 		BookmarkRecipeOverlayPlan plan = BookmarkRecipeOverlayPlan.fromHotkeyAction(action, bookmarkQuantity)
 			.orElseThrow();
 		Optional<BookmarkCraftingGridFill> fill = BookmarkCraftingGridFill.create(

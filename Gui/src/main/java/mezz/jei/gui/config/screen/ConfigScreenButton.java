@@ -59,8 +59,7 @@ final class ConfigScreenButton extends Button {
 			}
 		} else {
 			DrawableNineSliceTexture sprite = textures.getConfigScreenNineSlice(
-				depressed ? "button_pressed" :
-					style.equals("button") && hovered ? "button_hover" : style
+				depressed ? "button_pressed" : style.equals("button") && hovered ? "button_hover" : style
 			);
 			sprite.draw(graphics, getX(), getY(), width, height);
 		}

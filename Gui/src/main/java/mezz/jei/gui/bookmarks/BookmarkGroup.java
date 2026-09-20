@@ -26,9 +26,7 @@ public record BookmarkGroup(
 	}
 
 	public BookmarkGroup toggleViewMode() {
-		BookmarkViewMode next = viewMode == BookmarkViewMode.DEFAULT ?
-			BookmarkViewMode.TODO_LIST :
-			BookmarkViewMode.DEFAULT;
+		BookmarkViewMode next = viewMode == BookmarkViewMode.DEFAULT ? BookmarkViewMode.TODO_LIST : BookmarkViewMode.DEFAULT;
 		return new BookmarkGroup(id, title, next, collapsed, craftingMode, collapsedRecipeIds);
 	}
 

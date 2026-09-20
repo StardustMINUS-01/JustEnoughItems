@@ -64,20 +64,14 @@ public final class BookmarkGroupConfigSerializer {
 		try {
 			int id = json.get("id").getAsInt();
 			String title = json.get("title").getAsString();
-			BookmarkViewMode viewMode = json.has("viewMode") ?
-				BookmarkViewMode.valueOf(json.get("viewMode").getAsString()) :
-				BookmarkViewMode.DEFAULT;
-			BookmarkViewMode expandedViewMode = json.has("expandedViewMode") ?
-				BookmarkViewMode.valueOf(json.get("expandedViewMode").getAsString()) :
-				(viewMode == BookmarkViewMode.COLLAPSED ? BookmarkViewMode.DEFAULT : viewMode);
+			BookmarkViewMode viewMode = json.has("viewMode") ? BookmarkViewMode.valueOf(json.get("viewMode").getAsString()) : BookmarkViewMode.DEFAULT;
+			BookmarkViewMode expandedViewMode = json.has("expandedViewMode") ? BookmarkViewMode.valueOf(json.get("expandedViewMode").getAsString()) : (viewMode == BookmarkViewMode.COLLAPSED ? BookmarkViewMode.DEFAULT : viewMode);
 			boolean crafting = json.has("crafting") && json.get("crafting").getAsBoolean();
-			Set<ResourceLocation> collapsedRecipeIds = json.has("collapsedRecipes") ?
-				json.getAsJsonArray("collapsedRecipes")
-					.asList()
-					.stream()
-					.map(element -> new ResourceLocation(element.getAsString()))
-					.collect(Collectors.toUnmodifiableSet()) :
-				Set.of();
+			Set<ResourceLocation> collapsedRecipeIds = json.has("collapsedRecipes") ? json.getAsJsonArray("collapsedRecipes")
+				.asList()
+				.stream()
+				.map(element -> new ResourceLocation(element.getAsString()))
+				.collect(Collectors.toUnmodifiableSet()) : Set.of();
 			// 1.21.1 parity: a legacy COLLAPSED view mode becomes the separate collapsed flag,
 			// and the boolean arguments must line up with the record order
 			// (id, title, viewMode, collapsed, craftingMode, collapsedRecipeIds).
@@ -112,30 +106,20 @@ public final class BookmarkGroupConfigSerializer {
 		try {
 			JsonObject json = JsonParser.parseString(line.substring(MARKER_BOOKMARK_METADATA.length())).getAsJsonObject();
 			int groupId = json.has("groupId") ? json.get("groupId").getAsInt() : BookmarkGroupManager.DEFAULT_GROUP_ID;
-			BookmarkItemType type = json.has("type") ?
-				BookmarkItemType.valueOf(json.get("type").getAsString()) :
-				BookmarkItemType.ITEM;
+			BookmarkItemType type = json.has("type") ? BookmarkItemType.valueOf(json.get("type").getAsString()) : BookmarkItemType.ITEM;
 			long multiplier = json.has("multiplier") ? json.get("multiplier").getAsLong() : 1;
 			long factor = json.has("factor") ? json.get("factor").getAsLong() : 1;
 			long chance = json.has("chance") ? json.get("chance").getAsLong() : BookmarkItemMetadata.CHANCE_FULL;
 			ResourceLocation recipeTypeUid = json.has("recipeTypeUid") ? new ResourceLocation(json.get("recipeTypeUid").getAsString()) : null;
 			ResourceLocation recipeUid = json.has("recipeUid") ? new ResourceLocation(json.get("recipeUid").getAsString()) : null;
-			Set<BookmarkIngredientKey> permutations = json.has("permutations") ?
-				json.getAsJsonArray("permutations")
-					.asList()
-					.stream()
-					.map(BookmarkIngredientKeySerializer::deserialize)
-					.collect(Collectors.toUnmodifiableSet()) :
-				Set.of();
-			BookmarkIngredientKey containerItem = json.has("containerItem") ?
-				BookmarkIngredientKeySerializer.deserialize(json.get("containerItem")) :
-				null;
-			long containerItemCraftingUses = json.has("containerItemCraftingUses") ?
-				json.get("containerItemCraftingUses").getAsLong() :
-				1;
-			BookmarkIngredientKey brokenContainerItem = json.has("brokenContainerItem") ?
-				BookmarkIngredientKeySerializer.deserialize(json.get("brokenContainerItem")) :
-				null;
+			Set<BookmarkIngredientKey> permutations = json.has("permutations") ? json.getAsJsonArray("permutations")
+				.asList()
+				.stream()
+				.map(BookmarkIngredientKeySerializer::deserialize)
+				.collect(Collectors.toUnmodifiableSet()) : Set.of();
+			BookmarkIngredientKey containerItem = json.has("containerItem") ? BookmarkIngredientKeySerializer.deserialize(json.get("containerItem")) : null;
+			long containerItemCraftingUses = json.has("containerItemCraftingUses") ? json.get("containerItemCraftingUses").getAsLong() : 1;
+			BookmarkIngredientKey brokenContainerItem = json.has("brokenContainerItem") ? BookmarkIngredientKeySerializer.deserialize(json.get("brokenContainerItem")) : null;
 			return Optional.of(new BookmarkItemMetadata(
 				groupId,
 				type,

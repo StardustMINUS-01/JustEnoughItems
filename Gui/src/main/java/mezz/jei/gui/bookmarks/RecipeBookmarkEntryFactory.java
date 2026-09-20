@@ -204,7 +204,7 @@ final class RecipeBookmarkEntryFactory {
 			.filter(ingredient -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
 			.findFirst()
 			.or(() -> candidates.stream()
-				.filter(ingredient -> selectedKey.matches(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
+				.filter(ingredient -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
 				.findFirst());
 	}
 

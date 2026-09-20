@@ -116,9 +116,10 @@ public class BookmarkChainSlotVisualsTest {
 		);
 
 		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(
-			entry(metadata),
-			BookmarkSlotDisplayMode.REAL
-		).orElseThrow();
+				entry(metadata),
+				BookmarkSlotDisplayMode.REAL
+			)
+			.orElseThrow();
 
 		Assertions.assertEquals(OptionalInt.of(0x66E8C135), visuals.backgroundColor());
 		Assertions.assertEquals(Optional.of("C"), visuals.recipeMarkerText());
@@ -138,9 +139,10 @@ public class BookmarkChainSlotVisualsTest {
 		);
 
 		BookmarkSlotVisuals visuals = BookmarkChainSlotVisuals.create(
-			entry(metadata),
-			BookmarkSlotDisplayMode.REAL
-		).orElseThrow();
+				entry(metadata),
+				BookmarkSlotDisplayMode.REAL
+			)
+			.orElseThrow();
 
 		Assertions.assertEquals(OptionalInt.of(0x6645DA75), visuals.backgroundColor());
 	}

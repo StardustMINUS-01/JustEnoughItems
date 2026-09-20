@@ -33,6 +33,9 @@ public class RecipeBookmarkButtonController implements IIconButtonController {
 
 	@Override
 	public void getTooltips(ITooltipBuilder tooltip) {
+		if (recipeBookmark != null && Internal.getServerConnection().canShareChat()) {
+			tooltip.addKeyUsageComponent("jei.tooltip.recipe.share", Internal.getKeyMappings().getRightClick());
+		}
 		if (recipeBookmark != null) {
 			if (bookmarks.contains(recipeBookmark)) {
 				tooltip.add(Component.translatable("jei.tooltip.bookmarks.recipe.remove"));

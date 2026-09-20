@@ -13,8 +13,11 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import mezz.jei.api.recipe.vanilla.IJeiBrewingRecipe;
 import mezz.jei.common.Internal;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.textures.Textures;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.inventory.BrewingStandScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -40,7 +43,7 @@ public class BrewingRecipeCategory extends AbstractRecipeCategory<IJeiBrewingRec
 		Textures textures = Internal.getTextures();
 		background = textures.getBrewingStandBackground();
 
-		arrow = guiHelper.createAnimatedDrawable(textures.getBrewingStandArrow(),400, IDrawableAnimated.StartDirection.TOP, false);
+		arrow = guiHelper.createAnimatedDrawable(textures.getBrewingStandArrow(), 400, IDrawableAnimated.StartDirection.TOP, false);
 
 		ITickTimer bubblesTickTimer = new BrewingBubblesTickTimer(guiHelper);
 		bubbles = guiHelper.createAnimatedDrawable(textures.getBrewingStandBubbles(), bubblesTickTimer, IDrawableAnimated.StartDirection.BOTTOM);
@@ -59,12 +62,15 @@ public class BrewingRecipeCategory extends AbstractRecipeCategory<IJeiBrewingRec
 	@Override
 	public void createRecipeExtras(IRecipeExtrasBuilder builder, IJeiBrewingRecipe recipe, IFocusGroup focuses) {
 		int brewingSteps = recipe.getBrewingSteps();
-		String brewingStepsString = brewingSteps < Integer.MAX_VALUE ? Integer.toString(brewingSteps) : "?";
+		String brewingStepsString = "?";
+		if (brewingSteps < Integer.MAX_VALUE) {
+			brewingStepsString = Integer.toString(brewingSteps);
+		}
 		Component steps = Component.translatable("gui.jei.category.brewing.steps", brewingStepsString);
 
 		builder.addText(steps, 42, 12)
 			.setPosition(70, 28)
-			.setColor(0xFF808080);
+			.setColor(JeiGuiColors.getColor(GuiColor.RECIPE_BREWING_STEPS_TEXT));
 	}
 
 	@Override

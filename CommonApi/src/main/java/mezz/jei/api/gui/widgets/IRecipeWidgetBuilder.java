@@ -17,14 +17,14 @@ import java.util.Collection;
  *
  * @param <THIS> the concrete builder interface, for chaining configuration methods
  *
- * @since 15.58.1
+ * @since 15.56.0
  */
 @ApiStatus.NonExtendable
 public interface IRecipeWidgetBuilder<THIS extends IRecipeWidgetBuilder<THIS>> extends IPlaceable<THIS> {
 	/**
 	 * Set one line of text as this widget's tooltip.
 	 *
-	 * @since 15.58.1
+	 * @since 15.56.0
 	 */
 	THIS setTooltip(FormattedText tooltip);
 
@@ -32,14 +32,14 @@ public interface IRecipeWidgetBuilder<THIS extends IRecipeWidgetBuilder<THIS>> e
 	 * Set text lines as this widget's tooltip.
 	 * The collection is copied when this method is called.
 	 *
-	 * @since 15.58.1
+	 * @since 15.56.0
 	 */
 	THIS setTooltip(Collection<? extends FormattedText> tooltip);
 
 	/**
 	 * Set a rich component as this widget's tooltip.
 	 *
-	 * @since 15.58.1
+	 * @since 15.56.0
 	 */
 	THIS setTooltip(TooltipComponent tooltip);
 
@@ -48,7 +48,7 @@ public interface IRecipeWidgetBuilder<THIS extends IRecipeWidgetBuilder<THIS>> e
 	 * The callback is invoked only while the mouse is within this widget's exclusive bounds and
 	 * within the recipe category.
 	 *
-	 * @since 15.58.1
+	 * @since 15.56.0
 	 */
 	THIS setTooltip(IRecipeWidgetTooltipCallback tooltipCallback);
 

@@ -72,9 +72,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 		ResourceLocation recipeTypeUid = layout.getRecipeCategory().getRecipeType().getUid();
 		Optional<JeiPatternEncodeRequest> request = getCanonicalMode(recipeTypeUid)
 			.flatMap(mode -> createCanonicalRequest(recipeTypeUid, recipeUid, mode, layout.getRecipeSlotsView(), bookmarkInputs))
-			.or(() -> bookmarkInputs.isEmpty() ?
-				createProcessingRequestFromLayout(hoveredSlot, recipeTypeUid, recipeUid, layout.getRecipe(), layout.getRecipeSlotsView()) :
-				createProcessingRequestFromBookmarks(getHoveredOutputKeys(hoveredSlot), recipeTypeUid, recipeUid, bookmarkInputs));
+			.or(() -> bookmarkInputs.isEmpty() ? createProcessingRequestFromLayout(hoveredSlot, recipeTypeUid, recipeUid, layout.getRecipe(), layout.getRecipeSlotsView()) : createProcessingRequestFromBookmarks(getHoveredOutputKeys(hoveredSlot), recipeTypeUid, recipeUid, bookmarkInputs));
 		return request
 			.map(r -> new Result(Status.OK, List.of(r)))
 			.orElseGet(() -> new Result(Status.EMPTY, List.of()));
@@ -199,13 +197,11 @@ public class RecipeChainPatternEncodeRequestFactory {
 		if (inputSlots.size() != expectedSlots) {
 			return Optional.empty();
 		}
-		java.util.Map<Set<BookmarkIngredientKey>, List<BookmarkedCanonicalGuide>> guidesByFamily =
-			bookmarkInputs.isEmpty() ? java.util.Map.of() : new java.util.LinkedHashMap<>();
+		java.util.Map<Set<BookmarkIngredientKey>, List<BookmarkedCanonicalGuide>> guidesByFamily = bookmarkInputs.isEmpty() ? java.util.Map.of() : new java.util.LinkedHashMap<>();
 		for (RecipeChainInput input : bookmarkInputs) {
 			BookmarkItemMetadata metadata = input.metadata();
 			BookmarkIngredientKey selectedKey = input.selectedKey();
-			if (
-				!metadata.type().isGraphInput() ||
+			if (!metadata.type().isGraphInput() ||
 				selectedKey == null ||
 				metadata.permutations().isEmpty() ||
 				metadata.factor() <= 0
@@ -218,8 +214,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 
 		List<@Nullable JeiPatternStack> guides = new ArrayList<>(inputSlots.size());
 		for (IRecipeSlotView slot : inputSlots) {
-			Optional<ITypedIngredient<?>> selected = bookmarkInputs.isEmpty() ? Optional.empty() :
-				takeBookmarkedCanonicalGuide(slot, guidesByFamily.get(getPermutationKeys(slot)));
+			Optional<ITypedIngredient<?>> selected = bookmarkInputs.isEmpty() ? Optional.empty() : takeBookmarkedCanonicalGuide(slot, guidesByFamily.get(getPermutationKeys(slot)));
 			selected = selected.or(() -> slot.getDisplayedIngredient().or(() -> slot.getAllIngredients().findFirst()));
 			if (selected.isEmpty()) {
 				guides.add(null);
@@ -335,8 +330,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 					catalysts.add(new JeiPatternCatalyst(sourceSlot, stack.get()));
 				}
 				case RESULT -> sparseOutputs.add(stack.get());
-				case ITEM -> {
-				}
+				case ITEM -> {}
 			}
 		}
 		return createProcessingRequest(primaryOutputKeys, recipeTypeUid, recipeUid, sparseInputs, sparseOutputs, catalysts);
@@ -507,9 +501,7 @@ public class RecipeChainPatternEncodeRequestFactory {
 	}
 
 	private static Set<BookmarkIngredientKey> getTargetKeys(RecipeChainInput target) {
-		return target.selectedKey() == null ?
-			target.metadata().permutations() :
-			Set.of(target.selectedKey());
+		return target.selectedKey() == null ? target.metadata().permutations() : Set.of(target.selectedKey());
 	}
 
 	private Optional<Set<BookmarkIngredientKey>> getHoveredOutputKeys(Optional<IRecipeSlotView> hoveredSlot) {

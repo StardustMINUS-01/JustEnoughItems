@@ -79,18 +79,6 @@ public class RenderHelper implements IPlatformRenderHelper {
 		renderTooltip(guiGraphics, elements, x, y, font, stack, DefaultTooltipPositioner.INSTANCE);
 	}
 
-	@Override
-	public void renderTooltip(GuiGraphics guiGraphics, List<Either<FormattedText, TooltipComponent>> elements, int x, int y, Font font, ItemStack stack, ClientTooltipPositioner positioner) {
-		Screen screen = Minecraft.getInstance().screen;
-		if (screen == null) {
-			return;
-		}
-		guiGraphics.tooltipStack = stack;
-		List<ClientTooltipComponent> components = gatherTooltipComponents(stack, elements, x, screen.width, screen.height, font);
-		guiGraphics.renderTooltipInternal(font, components, x, y, positioner);
-		guiGraphics.tooltipStack = ItemStack.EMPTY;
-	}
-
 	@SuppressWarnings("All")
 	private static List<ClientTooltipComponent> gatherTooltipComponents(ItemStack stack, List<Either<FormattedText, TooltipComponent>> elements, int mouseX, int screenWidth, int screenHeight, Font fallbackFont) {
 		Font font = ForgeHooksClient.getTooltipFont(stack, fallbackFont);
@@ -100,11 +88,12 @@ public class RenderHelper implements IPlatformRenderHelper {
 			return List.of();
 		} else {
 			int tooltipTextWidth = event.getTooltipElements().stream().mapToInt((either) -> {
-				Objects.requireNonNull(font);
-				return (Integer)either.map(font::width, (component) -> {
-					return 0;
-				});
-			}).max().orElse(0);
+					Objects.requireNonNull(font);
+					return (Integer) either.map(font::width, (component) -> {
+						return 0;
+					});
+				})
+				.max().orElse(0);
 			boolean needsWrap = false;
 			int tooltipX = mouseX + 12;
 			if (tooltipX + tooltipTextWidth + 4 > screenWidth) {
@@ -126,17 +115,25 @@ public class RenderHelper implements IPlatformRenderHelper {
 			}
 
 			int tooltipTextWidthF = tooltipTextWidth;
-			return needsWrap ? event.getTooltipElements().stream().flatMap((either) -> {
-				return (Stream)either.map((text) -> {
-					return splitLine(text, font, tooltipTextWidthF);
-				}, (component) -> {
-					return Stream.of(ClientTooltipComponent.create(component));
-				});
-			}).toList() : event.getTooltipElements().stream().map((either) -> {
-				return (ClientTooltipComponent)either.map((text) -> {
-					return ClientTooltipComponent.create(text instanceof Component ? ((Component)text).getVisualOrderText() : Language.getInstance().getVisualOrder(text));
-				}, ClientTooltipComponent::create);
-			}).toList();
+			if (needsWrap) {
+				return event.getTooltipElements().stream().flatMap((either) -> {
+						return (Stream) either.map((text) -> {
+							return splitLine(text, font, tooltipTextWidthF);
+						}, (component) -> {
+							return Stream.of(ClientTooltipComponent.create(component));
+						});
+					})
+					.toList();
+			}
+			return event.getTooltipElements().stream().map((either) -> {
+					return (ClientTooltipComponent) either.map((text) -> {
+						if (text instanceof Component component) {
+							return ClientTooltipComponent.create(component.getVisualOrderText());
+						}
+						return ClientTooltipComponent.create(Language.getInstance().getVisualOrder(text));
+					}, ClientTooltipComponent::create);
+				})
+				.toList();
 		}
 	}
 
@@ -148,6 +145,29 @@ public class RenderHelper implements IPlatformRenderHelper {
 		}
 
 		return font.split(text, maxWidth).stream().map(ClientTooltipComponent::create);
+	}
+
+	@Override
+	public void renderTooltip(
+		GuiGraphics guiGraphics,
+		List<Either<FormattedText, TooltipComponent>> elements,
+		int x,
+		int y,
+		Font font,
+		ItemStack stack,
+		ClientTooltipPositioner positioner
+	) {
+		Screen screen = Minecraft.getInstance().screen;
+		if (screen == null) {
+			return;
+		}
+		guiGraphics.tooltipStack = stack;
+		try {
+			List<ClientTooltipComponent> components = gatherTooltipComponents(stack, elements, x, screen.width, screen.height, font);
+			guiGraphics.renderTooltipInternal(font, components, x, y, positioner);
+		} finally {
+			guiGraphics.tooltipStack = ItemStack.EMPTY;
+		}
 	}
 
 	@Override

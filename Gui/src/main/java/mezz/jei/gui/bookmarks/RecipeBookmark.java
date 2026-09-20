@@ -8,6 +8,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.RecipeBookmarkElement;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +17,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
+import java.util.Optional;
 public class RecipeBookmark<R, I> implements IBookmark {
 	private final IElement<I> element;
 	private final IRecipeCategory<R> recipeCategory;
@@ -30,7 +32,8 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	@Nullable
 	public static <T> RecipeBookmark<T, ?> create(
 		IRecipeLayoutDrawable<T> recipeLayoutDrawable,
-		IIngredientManager ingredientManager
+		IIngredientManager ingredientManager,
+		RecipeTransferService recipeTransferService
 	) {
 		T recipe = recipeLayoutDrawable.getRecipe();
 		IRecipeCategory<T> recipeCategory = recipeLayoutDrawable.getRecipeCategory();
@@ -44,14 +47,14 @@ public class RecipeBookmark<R, I> implements IBookmark {
 			ITypedIngredient<?> output = findFirst(recipeSlotsView, RecipeIngredientRole.OUTPUT);
 			if (output != null) {
 				output = ingredientManager.normalizeTypedIngredient(output);
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, RecipeIngredientRole.OUTPUT);
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, RecipeIngredientRole.OUTPUT, recipeTransferService);
 			}
 		}
 		{
 			ITypedIngredient<?> input = findFirst(recipeSlotsView, RecipeIngredientRole.INPUT);
 			if (input != null) {
 				input = ingredientManager.normalizeTypedIngredient(input);
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, RecipeIngredientRole.INPUT);
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, RecipeIngredientRole.INPUT, recipeTransferService);
 			}
 		}
 
@@ -64,10 +67,10 @@ public class RecipeBookmark<R, I> implements IBookmark {
 			if (slotView.getRole() != role) {
 				continue;
 			}
-			for (@Nullable ITypedIngredient<?> ingredient : slotView.getAllIngredientsList()) {
-				if (ingredient != null) {
-					return ingredient;
-				}
+			Optional<ITypedIngredient<?>> ingredient = slotView.getDisplayedIngredient()
+				.or(() -> slotView.getAllIngredients().findFirst());
+			if (ingredient.isPresent()) {
+				return ingredient.get();
 			}
 		}
 		return null;
@@ -78,9 +81,14 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		R recipe,
 		ResourceLocation recipeUid,
 		ITypedIngredient<I> recipeOutput,
-		RecipeIngredientRole displayRole
+		RecipeIngredientRole displayRole,
+		RecipeTransferService recipeTransferService
 	) {
-		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, null);
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, null, () -> recipeTransferService);
+	}
+
+	public RecipeBookmark(IRecipeCategory<R> category, R recipe, ResourceLocation uid, ITypedIngredient<I> output, RecipeIngredientRole role) {
+		this(category, recipe, uid, output, role, (Object) null);
 	}
 
 	public RecipeBookmark(
@@ -91,11 +99,17 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		RecipeIngredientRole displayRole,
 		@Nullable Object equalityScope
 	) {
+		this(recipeCategory, recipe, recipeUid, recipeOutput, displayRole, equalityScope,
+			() -> ((mezz.jei.gui.recipes.RecipesGui) mezz.jei.common.Internal.getJeiRuntime().getRecipesGui()).getRecipeTransferService());
+	}
+
+	private RecipeBookmark(IRecipeCategory<R> recipeCategory, R recipe, ResourceLocation recipeUid, ITypedIngredient<I> recipeOutput,
+		RecipeIngredientRole displayRole, @Nullable Object equalityScope, java.util.function.Supplier<RecipeTransferService> recipeTransferService) {
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
 		this.recipeOutput = recipeOutput;
-		this.element = new RecipeBookmarkElement<>(this);
+		this.element = new RecipeBookmarkElement<>(this, recipeTransferService);
 		this.displayRole = displayRole;
 		this.equalityScope = equalityScope;
 	}

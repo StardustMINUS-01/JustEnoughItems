@@ -21,11 +21,20 @@ public record GuiConfigData(
 	ModNameSortingConfig modNameSortingConfig,
 	IngredientTypeSortingConfig ingredientTypeSortingConfig
 ) {
+	private static final CollapsibleConfig COLLAPSIBLE_CONFIG = createCollapsibleConfig();
+
+	private static CollapsibleConfig createCollapsibleConfig() {
+		CollapsibleConfig config = new CollapsibleConfig(Services.PLATFORM.getConfigHelper().createJeiConfigDir());
+		if (!Services.PLATFORM.getModHelper().isModLoaded("collapsible_groups")) {
+			config.initialize();
+		}
+		return config;
+	}
+
 	public static GuiConfigData create() {
 		Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
 
 		IBookmarkConfig bookmarkConfig = new BookmarkJsonConfig(configDir);
-		CollapsibleConfig collapsibleConfig = new CollapsibleConfig(configDir);
 		CollapsibleStateStore collapsibleStateStore = new CollapsibleStateStore(configDir);
 		ILookupHistoryConfig lookupHistoryConfig = new LookupHistoryJsonConfig(configDir);
 		ModNameSortingConfig ingredientModNameSortingConfig = new ModNameSortingConfig(configDir.resolve("ingredient-list-mod-sort-order.ini"));
@@ -34,7 +43,7 @@ public record GuiConfigData(
 		return new GuiConfigData(
 			configDir,
 			bookmarkConfig,
-			collapsibleConfig,
+			COLLAPSIBLE_CONFIG,
 			collapsibleStateStore,
 			lookupHistoryConfig,
 			ingredientModNameSortingConfig,

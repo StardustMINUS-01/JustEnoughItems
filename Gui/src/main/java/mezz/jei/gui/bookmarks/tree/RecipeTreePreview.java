@@ -46,40 +46,27 @@ public final class RecipeTreePreview {
 			return false;
 		}
 		var saved = selection.source(hovered.get().slot());
-		List<ITypedIngredient<?>> candidates = selection.getCandidates(hovered.get().slot());
-		if (candidates.size() <= 1 && (saved.isEmpty() || saved.get().metadata().permutations().size() <= 1)) {
-			return false;
-		}
-		if (candidates.size() <= 1) {
-			candidates = hovered.get().slot().getAllIngredients().toList();
-		}
-		if (candidates.size() <= 1) {
+		if (saved.isEmpty() || saved.get().metadata().permutations().size() <= 1) {
 			return false;
 		}
 		int slotIndex = layout.getRecipeSlotsView().getSlotViews().indexOf(hovered.get().slot());
 		if (slotIndex < 0) {
 			return false;
 		}
-		var keys = candidates.stream()
-			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, Internal.getJeiRuntime().getIngredientManager()))
-			.toList();
+		var keys = selection.getCandidates(hovered.get().slot()).stream()
+			.map(value -> BookmarkItemMetadataFactory.createPermutationKey(value, Internal.getJeiRuntime().getIngredientManager())).toList();
 		var screen = Minecraft.getInstance().screen;
 		var source = new IIngredientCandidateSource() {
 			private long version = bookmarks.getChangeVersion();
 
-			private IRecipeSlotView slot() {
-				return currentPreview.get().layout.getRecipeSlotsView().getSlotViews().get(slotIndex);
-			}
+			private IRecipeSlotView slot() { return currentPreview.get().layout.getRecipeSlotsView().getSlotViews().get(slotIndex); }
 			@Override
 			public Optional<ITypedIngredient<?>> getSelectedIngredient() {
 				return slot().getDisplayedIngredient();
 			}
 			@Override
 			public boolean isValid() {
-				return Minecraft.getInstance().screen == screen &&
-					currentPreview.get() != null &&
-					bookmarks.getChangeVersion() == version &&
-					slotIndex < currentPreview.get().layout.getRecipeSlotsView().getSlotViews().size();
+				return Minecraft.getInstance().screen == screen && currentPreview.get() != null && bookmarks.getChangeVersion() == version && slotIndex < currentPreview.get().layout.getRecipeSlotsView().getSlotViews().size();
 			}
 			@Override
 			public boolean canSelect() {

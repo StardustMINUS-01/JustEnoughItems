@@ -56,6 +56,7 @@ public class FabricGuiPlugin implements IModPlugin {
 
 	@Override
 	public void onRuntimeUnavailable() {
+		mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope.clear();
 		runtime = null;
 		resourceReloadHandler = null;
 		LOGGER.info("Stopping JEI GUI");

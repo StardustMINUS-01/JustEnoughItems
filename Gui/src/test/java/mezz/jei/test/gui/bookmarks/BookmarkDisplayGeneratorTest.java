@@ -728,20 +728,8 @@ public class BookmarkDisplayGeneratorTest {
 		Assertions.assertEquals(List.of(0, 1), slots.stream().map(slot -> slot.slotIndex()).toList());
 	}
 
-
-	/**
-	 * Regression for SKILL.md 7.7 (WCWT terminal freeze): with a 1-column bookmark
-	 * layout, every slot is a row start, so {@link BookmarkDisplayGenerator#nextSlotIndex}'s
-	 * while(true) loop only exits when {@code startsRecipeRow} or {@code continuesRecipe}
-	 * returns true. On real data with consecutive TODO_LIST items that share the same
-	 * group, recipeUid, and graph-input/result types, the previous un-bounded loop
-	 * would hang. The bounded guard in nextSlotIndex makes generate return in finite
-	 * time. We don't pin a specific slot layout here (the guard is intentionally
-	 * defensive and may produce a different layout than the ideal one); we only assert
-	 * that the call terminates.
-	 */
 	@Test
-	public void nextSlotIndexBoundedWhenSingleColumn() {
+	public void singleColumnKeepsConsecutiveSlots() {
 		ResourceLocation recipeA = new ResourceLocation("test:plate");
 		ResourceLocation recipeB = new ResourceLocation("test:machine");
 		List<String> orderedItems = List.of("plate", "ingot", "screw", "machine", "machine_plate", "machine_gear", "machine_circuit");
@@ -758,20 +746,18 @@ public class BookmarkDisplayGeneratorTest {
 		RecipeChainDetails details = createDetails(orderedItems, metadata, Set.of());
 		List<Integer> usableColumnsPerRow = java.util.Collections.nCopies(64, 1);
 
-		var slots = Assertions.assertDoesNotThrow(() ->
-			BookmarkDisplayGenerator.generate(
-				orderedItems,
-				metadata::get,
-				Map.of(GROUP_ID, group),
-				Map.of(GROUP_ID, details),
-				1,
-				usableColumnsPerRow
-			)
+		var slots = Assertions.assertDoesNotThrow(() -> BookmarkDisplayGenerator.generate(
+			orderedItems,
+			metadata::get,
+			Map.of(GROUP_ID, group),
+			Map.of(GROUP_ID, details),
+			1,
+			usableColumnsPerRow
+		)
 		);
 
-		// Whatever layout the bounded loop produces, it must terminate and yield a
-		// non-null, possibly-empty list.
-		Assertions.assertNotNull(slots);
+		Assertions.assertEquals(orderedItems, slots.stream().map(slot -> slot.entry().item()).toList());
+		Assertions.assertEquals(java.util.stream.IntStream.range(0, orderedItems.size()).boxed().toList(), slots.stream().map(BookmarkDisplaySlot::slotIndex).toList());
 	}
 
 	private static RecipeChainDetails createDetails(

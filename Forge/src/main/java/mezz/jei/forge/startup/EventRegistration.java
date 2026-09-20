@@ -11,6 +11,8 @@ import mezz.jei.gui.startup.JeiEventHandlers;
 import mezz.jei.forge.events.RuntimeEventSubscriptions;
 import mezz.jei.forge.input.ForgeUserInput;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -104,23 +106,21 @@ public class EventRegistration {
 			handler.onKeyboardCharTypedPost(screen, codePoint, modifiers);
 		});
 
-		subscriptions.register(ScreenEvent.MouseButtonPressed.Pre.class, event ->
-			ForgeUserInput.fromEvent(event)
-				.ifPresent(input -> {
-					Screen screen = event.getScreen();
-					if (handler.onGuiMouseClicked(screen, input)) {
-						event.setCanceled(true);
-					}
-				})
+		subscriptions.register(ScreenEvent.MouseButtonPressed.Pre.class, event -> ForgeUserInput.fromEvent(event)
+			.ifPresent(input -> {
+				Screen screen = event.getScreen();
+				if (handler.onGuiMouseClicked(screen, input)) {
+					event.setCanceled(true);
+				}
+			})
 		);
-		subscriptions.register(ScreenEvent.MouseButtonReleased.Pre.class, event ->
-			ForgeUserInput.fromEvent(event)
-				.ifPresent(input -> {
-					Screen screen = event.getScreen();
-					if (handler.onGuiMouseReleased(screen, input)){
-						event.setCanceled(true);
-					}
-				})
+		subscriptions.register(ScreenEvent.MouseButtonReleased.Pre.class, event -> ForgeUserInput.fromEvent(event)
+			.ifPresent(input -> {
+				Screen screen = event.getScreen();
+				if (handler.onGuiMouseReleased(screen, input)) {
+					event.setCanceled(true);
+				}
+			})
 		);
 
 		subscriptions.register(ScreenEvent.MouseScrolled.Pre.class, event -> {
@@ -140,8 +140,10 @@ public class EventRegistration {
 	}
 
 	private static void registerGuiHandler(RuntimeEventSubscriptions subscriptions, GuiEventHandler guiEventHandler) {
-		// 1.21.1 parity: while a pinned tooltip is open, the tooltips drawn by the screen
-		// underneath it must not be rendered on top of it.
+		subscriptions.register(ScreenEvent.Render.Pre.class, event -> {
+			Screen screen = event.getScreen();
+			guiEventHandler.updateForScreenRender(screen, event.getMouseX(), event.getMouseY());
+		});
 		subscriptions.register(RenderTooltipEvent.Pre.class, event -> {
 			if (PinnedTooltipManager.shouldSuppressExternalTooltip()) {
 				event.setCanceled(true);
@@ -155,19 +157,23 @@ public class EventRegistration {
 			Screen screen = event.getScreen();
 			guiEventHandler.onGuiOpen(screen);
 		});
+		subscriptions.register(ScreenEvent.BackgroundRendered.class, event -> {
+			var guiGraphics = event.getGuiGraphics();
+			runWithIdentityPose(guiGraphics, () -> guiEventHandler.onDrawBackgroundPost(guiGraphics));
+		});
 		subscriptions.register(ContainerScreenEvent.Render.Foreground.class, event -> {
 			AbstractContainerScreen<?> containerScreen = event.getContainerScreen();
 			var guiGraphics = event.getGuiGraphics();
 			int mouseX = event.getMouseX();
 			int mouseY = event.getMouseY();
-			guiEventHandler.onDrawForeground(containerScreen, guiGraphics, mouseX, mouseY);
+			runWithIdentityPose(guiGraphics, () -> guiEventHandler.onDrawForegroundAtIdentity(guiGraphics, mouseX, mouseY));
 		});
 		subscriptions.register(ScreenEvent.Render.Post.class, event -> {
 			Screen screen = event.getScreen();
 			var guiGraphics = event.getGuiGraphics();
 			int mouseX = event.getMouseX();
 			int mouseY = event.getMouseY();
-			guiEventHandler.onDrawScreenPost(screen, guiGraphics, mouseX, mouseY);
+			runWithIdentityPose(guiGraphics, () -> guiEventHandler.onDrawScreenPost(screen, guiGraphics, mouseX, mouseY));
 		});
 		subscriptions.register(TickEvent.ClientTickEvent.class, event -> {
 			if (event.phase == TickEvent.Phase.START) {
@@ -181,5 +187,18 @@ public class EventRegistration {
 				event.setCompact(true);
 			}
 		});
+	}
+
+	private static void runWithIdentityPose(GuiGraphics graphics, Runnable runnable) {
+		PoseStack pose = graphics.pose();
+		float z = pose.last().pose().m32();
+		pose.pushPose();
+		pose.setIdentity();
+		pose.translate(0, 0, z);
+		try {
+			runnable.run();
+		} finally {
+			pose.popPose();
+		}
 	}
 }

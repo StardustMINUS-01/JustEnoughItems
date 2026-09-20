@@ -72,7 +72,6 @@ public class PlayerInventoryRecipeChainTooltipInventoryProvider implements Recip
 		return toInventoryInputs(groupId, firstSyntheticIndex, getAvailableStacks());
 	}
 
-
 	public List<RecipeChainInput> getTooltipInventoryInputs(int groupId) {
 		return minecraft.screen instanceof RecipesGui ? List.of() : getInventoryInputs(groupId, -1);
 	}

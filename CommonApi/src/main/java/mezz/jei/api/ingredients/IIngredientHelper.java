@@ -79,7 +79,7 @@ public interface IIngredientHelper<V> {
 	 * @since 15.6.0
 	 */
 	default boolean hasSubtypes(V ingredient) {
-		return getIngredientType() instanceof IIngredientTypeWithSubtypes<?,?>;
+		return getIngredientType() instanceof IIngredientTypeWithSubtypes<?, ?>;
 	}
 
 	/**
@@ -93,7 +93,10 @@ public interface IIngredientHelper<V> {
 
 	/**
 	 * Unique ID for use in grouping ingredients together.
-	 * This is used for hiding groups of ingredients together at once.
+	 * <p>
+	 * Ingredients with the same grouping UID are variants of the same base ingredient. JEI uses this for operations
+	 * that apply to a whole group, including hiding ingredients together and matching recipe displays that accept
+	 * all subtypes.
 	 *
 	 * @since 15.34.0
 	 */
@@ -103,7 +106,10 @@ public interface IIngredientHelper<V> {
 
 	/**
 	 * Unique ID for use in grouping ingredients together.
-	 * This is used for hiding groups of ingredients together at once.
+	 * <p>
+	 * Ingredients with the same grouping UID are variants of the same base ingredient. JEI uses this for operations
+	 * that apply to a whole group, including hiding ingredients together and matching recipe displays that accept
+	 * all subtypes.
 	 *
 	 * @since 15.34.0
 	 */
@@ -127,7 +133,7 @@ public interface IIngredientHelper<V> {
 	 *
 	 * @since 15.7.0
 	 */
-	default long getAmount(V ingredient){
+	default long getAmount(V ingredient) {
 		return -1;
 	}
 

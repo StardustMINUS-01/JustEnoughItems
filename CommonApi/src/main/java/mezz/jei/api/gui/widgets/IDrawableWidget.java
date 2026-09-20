@@ -1,6 +1,7 @@
 package mezz.jei.api.gui.widgets;
 
 import mezz.jei.api.gui.drawable.IDrawable;
+import mezz.jei.api.gui.drawable.IDrawableBuilder;
 import mezz.jei.api.gui.placement.HorizontalAlignment;
 import mezz.jei.api.gui.placement.VerticalAlignment;
 import net.minecraft.network.chat.FormattedText;
@@ -15,7 +16,7 @@ import java.util.Collection;
  * Its dimensions come from the drawable, including padding configured with
  * {@link IDrawableBuilder#addPadding(int, int, int, int)}.
  *
- * @since 15.58.1
+ * @since 15.56.0
  */
 @ApiStatus.NonExtendable
 public interface IDrawableWidget extends IRecipeWidgetBuilder<IDrawableWidget> {

@@ -10,7 +10,7 @@ import java.util.function.IntConsumer;
 /** A screen-owned edit; parsing must succeed completely before touching live configuration. */
 final class ConfigDraft<T> {
 	final IJeiConfigValue<T> config;
-	private final String original;
+	private String original;
 	private String text;
 	private IJeiConfigValueSerializer.IDeserializeResult<T> parsed;
 	IntConsumer onChange = difference -> {};
@@ -37,12 +37,12 @@ final class ConfigDraft<T> {
 	}
 	void reset() { select(config.getDefaultValue()); }
 	List<T> getChoices() {
-		return config.getDefaultValue() instanceof Number ? List.of() :
-			config.getSerializer().getAllValidValues().map(List::copyOf).orElse(List.of());
+		return config.getDefaultValue() instanceof Number ? List.of() : config.getSerializer().getAllValidValues().map(List::copyOf).orElse(List.of());
 	}
 	Optional<IJeiConfigListValueSerializer<?>> getListSerializer() {
 		if (config.getSerializer() instanceof IJeiConfigListValueSerializer<?> serializer &&
-			serializer.getListValueSerializer().getAllValidValues().isPresent()) {
+			serializer.getListValueSerializer().getAllValidValues().isPresent()
+		) {
 			return Optional.of(serializer);
 		}
 		return Optional.empty();
@@ -81,6 +81,8 @@ final class ConfigDraft<T> {
 	void apply() {
 		if (isChanged() && getErrors().isEmpty()) {
 			parsed.getResult().ifPresent(config::set);
+			original = text;
+			onChange.accept(-1);
 		}
 	}
 }

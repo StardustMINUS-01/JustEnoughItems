@@ -41,6 +41,11 @@ public final class IngredientClipboardText {
 		return formatTagLocations(ingredientHelper.getTagStream(typedIngredient.getIngredient()));
 	}
 
+	public static String getNbtRule(ItemStack stack) {
+		String tag = stack.hasTag() ? stack.getTag().toString() : "{}";
+		return "item = " + getItemStackId(stack) + " &\n  nbt:" + tag.replace("*", "\\*");
+	}
+
 	public static String getItemStackName(ItemStack stack) {
 		return stripFormatting(stack.getHoverName().getString());
 	}

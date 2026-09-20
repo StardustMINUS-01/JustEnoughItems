@@ -117,7 +117,7 @@ public abstract class IngredientGridTooltipComponent<T> implements ClientTooltip
 		if (scrollDeltaY > 0) {
 			delta = -1;
 		}
-		int newRowOffset = GridScrollMath.clamp(this.rowOffset + delta, 0, this.maxRowOffset);
+		int newRowOffset = Math.max(0, Math.min(this.rowOffset + delta, this.maxRowOffset));
 		if (newRowOffset == this.rowOffset) {
 			return false;
 		}
@@ -127,9 +127,8 @@ public abstract class IngredientGridTooltipComponent<T> implements ClientTooltip
 
 	protected void ensureIngredientVisible(int index) {
 		int row = index / this.columns;
-		this.rowOffset = GridScrollMath.clamp(this.rowOffset, Math.max(0, row - this.visibleRows + 1), Math.min(row, this.maxRowOffset));
+		this.rowOffset = Math.max(Math.max(0, row - this.visibleRows + 1), Math.min(this.rowOffset, Math.min(row, this.maxRowOffset)));
 	}
-
 	public boolean isMouseOver(double mouseX, double mouseY) {
 		return this.area.contains(mouseX, mouseY);
 	}

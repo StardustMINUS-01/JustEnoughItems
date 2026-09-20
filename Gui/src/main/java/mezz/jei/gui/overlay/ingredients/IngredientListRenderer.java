@@ -13,6 +13,8 @@ import mezz.jei.api.ingredients.rendering.BatchRenderElement;
 import mezz.jei.api.runtime.IEditModeConfig;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.SafeIngredientUtil;
@@ -47,7 +49,6 @@ public class IngredientListRenderer {
 	// 1.20.1 has no GuiRenderLayers; mirror the 1.21.1
 	// GuiRenderLayers.OVERLAY_DECORATION_Z value.
 	private static final int OVERLAY_DECORATION_Z = 300;
-
 	private final List<IngredientListSlot> slots = new ArrayList<>();
 	private final ListMultiMap<IIngredientType<?>, BatchRenderElement<?>> renderElementsByType = new ListMultiMap<>();
 	private final List<IDrawable> renderOverlays = new ArrayList<>();
@@ -453,6 +454,8 @@ public class IngredientListRenderer {
 		if (!hideModes.isEmpty()) {
 			boolean wildcard = hideModes.contains(IEditModeConfig.HideMode.WILDCARD);
 			boolean single = hideModes.contains(IEditModeConfig.HideMode.SINGLE);
+			int wildcardColor = JeiGuiColors.getColor(GuiColor.EDIT_MODE_HIDDEN_WILDCARD_OVERLAY);
+			int singleColor = JeiGuiColors.getColor(GuiColor.EDIT_MODE_HIDDEN_INGREDIENT_OVERLAY);
 			if (wildcard && single) {
 				guiGraphics.fill(
 					RenderType.guiOverlay(),
@@ -460,7 +463,7 @@ public class IngredientListRenderer {
 					area.getY() + padding,
 					area.getX() + 16 + padding,
 					area.getY() + 8 + padding,
-					WILDCARD_BLACKLIST_COLOR
+					wildcardColor
 				);
 				guiGraphics.fill(
 					RenderType.guiOverlay(),
@@ -468,7 +471,7 @@ public class IngredientListRenderer {
 					area.getY() + 8 + padding,
 					area.getX() + 16 + padding,
 					area.getY() + 16 + padding,
-					BLACKLIST_COLOR
+					singleColor
 				);
 			} else if (wildcard) {
 				guiGraphics.fill(
@@ -477,7 +480,7 @@ public class IngredientListRenderer {
 					area.getY() + padding,
 					area.getX() + 16 + padding,
 					area.getY() + 16 + padding,
-					WILDCARD_BLACKLIST_COLOR
+					wildcardColor
 				);
 			} else if (single) {
 				guiGraphics.fill(
@@ -486,7 +489,7 @@ public class IngredientListRenderer {
 					area.getY() + padding,
 					area.getX() + 16 + padding,
 					area.getY() + 16 + padding,
-					BLACKLIST_COLOR
+					singleColor
 				);
 			}
 			RenderSystem.setShaderColor(1f, 1f, 1f, 1f);

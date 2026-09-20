@@ -72,7 +72,8 @@ public class RecipeAutoCraftingInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 
-		@Nullable AbstractContainerMenu containerMenu = parentContainerMenu.apply(screen);
+		@Nullable
+		AbstractContainerMenu containerMenu = parentContainerMenu.apply(screen);
 		if (activator.activate(input, recipeLayout, containerMenu, () -> onActivated.accept(screen))) {
 			return Optional.of(this);
 		}

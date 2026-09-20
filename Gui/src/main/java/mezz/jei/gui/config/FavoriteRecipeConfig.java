@@ -47,8 +47,8 @@ public class FavoriteRecipeConfig {
 
 	private JsonArray readEntries(Path path) {
 		try {
-			List<JsonElement> elements = JsonArrayFileHelper.read(path, VERSION, (element, message) ->
-				LOGGER.error("Failed to load favorite recipes from file {}: {}", path, message)
+			List<JsonElement> elements = JsonArrayFileHelper.read(
+				path, VERSION, (element, message) -> LOGGER.error("Failed to load favorite recipes from file {}: {}", path, message)
 			);
 			JsonArray entries = new JsonArray();
 			for (JsonElement element : elements) {

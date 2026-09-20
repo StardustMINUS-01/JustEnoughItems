@@ -9,7 +9,7 @@ import mezz.jei.api.gui.builder.ITooltipBuilder;
  * within the recipe category. Bounds use an exclusive maximum, so a widget with a width of
  * {@code 16} contains x coordinates from {@code 0} (inclusive) to {@code 16} (exclusive).
  *
- * @since 15.58.1
+ * @since 15.56.0
  */
 @FunctionalInterface
 public interface IRecipeWidgetTooltipCallback {
@@ -18,7 +18,7 @@ public interface IRecipeWidgetTooltipCallback {
 	 *
 	 * @param tooltip a builder that supports text and rich tooltip components
 	 *
-	 * @since 15.58.1
+	 * @since 15.56.0
 	 */
 	void onTooltip(ITooltipBuilder tooltip);
 }

@@ -4,6 +4,7 @@ import mezz.jei.api.IModPlugin;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IServerConfig;
+import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.IngredientTooltipComponent;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.network.ClientPacketRouter;
@@ -30,12 +31,14 @@ import mezz.jei.forge.plugins.forge.ForgeGuiPlugin;
 import mezz.jei.forge.startup.ForgePluginFinder;
 import mezz.jei.forge.startup.StartEventObserver;
 import mezz.jei.gui.config.InternalKeyMappings;
+import mezz.jei.common.gui.RecipeSlotOptionsTooltipComponent;
 import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.RecipeChainPreviewTooltipComponent;
 import mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent;
 import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
+import mezz.jei.library.plugins.vanilla.cooking.JeiSmeltingRecipe;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
 import mezz.jei.library.recipes.RecipeSerializers;
 import mezz.jei.library.startup.JeiStarter;
@@ -108,7 +111,8 @@ public class JustEnoughItemsClient {
 		deferredRegister.register(modEventBus);
 
 		Supplier<RecipeSerializer<?>> jeiShaped = deferredRegister.register("jei_shaped", JeiShapedRecipe.Serializer::new);
-		RecipeSerializers.register(jeiShaped);
+		Supplier<RecipeSerializer<?>> jeiSmelting = deferredRegister.register("jei_smelting", () -> JeiSmeltingRecipe.SERIALIZER);
+		RecipeSerializers.register(jeiShaped, jeiSmelting);
 	}
 
 	private static void registerCompatProviders() {
@@ -160,12 +164,15 @@ public class JustEnoughItemsClient {
 		event.register(IngredientsTooltipComponent.class, Function.identity());
 		event.register(PreviewTooltipComponent.class, Function.identity());
 		event.register(RecipeChainPreviewTooltipComponent.class, Function.identity());
+		event.register(RecipeSlotOptionsTooltipComponent.class, Function.identity());
 		event.register(TagContentTooltipComponent.class, Function.identity());
 		event.register(InteractiveIngredientGridTooltipComponent.class, Function.identity());
+		event.register(mezz.jei.gui.input.handlers.IngredientTagSelectionTooltip.class, Function.identity());
 	}
 
 	private ResourceManagerReloadListener createReloadListener() {
 		return (ResourceManager resourceManager) -> {
+			JeiGuiColors.onResourceManagerReload(resourceManager);
 			ForgeGuiPlugin.getResourceReloadHandler()
 				.ifPresent(r -> r.onResourceManagerReload(resourceManager));
 		};

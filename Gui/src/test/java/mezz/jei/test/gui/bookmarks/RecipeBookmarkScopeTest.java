@@ -48,5 +48,10 @@ public class RecipeBookmarkScopeTest {
 		public String getIngredient() {
 			return ingredient;
 		}
+
+		@Override
+		public ITypedIngredient<String> normalize(mezz.jei.api.ingredients.IIngredientHelper<String> helper) {
+			return mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(getType(), helper.normalizeIngredient(getIngredient()));
+		}
 	}
 }

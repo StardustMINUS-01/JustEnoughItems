@@ -1,10 +1,11 @@
 package mezz.jei.gui.collapsible;
 
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
+import mezz.jei.common.config.CollapsibleColorConfig;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
-import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
+import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +25,6 @@ public final class CollapsibleSlotVisualsProvider {
 	private final Supplier<List<IngredientListSlot>> rawSlotsSupplier;
 	private final Supplier<CollapsibleSettings> settingsSupplier;
 	private Map<Integer, String> groupBySlotIndex = Map.of();
-	private CollapsibleSettings settings = CollapsibleSettings.DEFAULT;
 	private int slotCount;
 	private int columnCount = -1;
 	private int layoutVersion = -1;
@@ -62,14 +62,14 @@ public final class CollapsibleSlotVisualsProvider {
 		boolean right = slotIndex % columns == columns - 1 || !sameGroup(slotIndex + 1, groupId);
 		boolean top = slotIndex < columns || !sameGroup(slotIndex - columns, groupId);
 		boolean bottom = slotIndex + columns >= slotCount || !sameGroup(slotIndex + columns, groupId);
-		CollapsibleSettings settings = this.settings;
+		CollapsibleSettings settings = settingsSupplier.get();
 		int backgroundColor = collapsed ? settings.collapsedColor() : settings.expandedColor();
 		BookmarkSlotBorder border = new BookmarkSlotBorder(
-			String.valueOf(groupId), boostAlpha(backgroundColor), left, right, top, bottom);
+			groupId, boostAlpha(backgroundColor), left, right, top, bottom);
 		return Optional.of(new BookmarkSlotVisuals(
 			OptionalInt.of(backgroundColor),
 			OptionalInt.empty(),
-			collapsed ? Optional.of(String.valueOf(size)) : Optional.empty(),
+			collapsed && CollapsibleColorConfig.getShowGroupSize().getValue() ? Optional.of(String.valueOf(size)) : Optional.empty(),
 			OptionalInt.of(0xFFFFFFFF),
 			Optional.empty(),
 			OptionalInt.empty(),
@@ -83,13 +83,13 @@ public final class CollapsibleSlotVisualsProvider {
 		if (!dirty &&
 			columnCount == context.columnCount() &&
 			slotCount == context.slotCount() &&
-			layoutVersion == context.layoutVersion()) {
+			layoutVersion == context.layoutVersion()
+		) {
 			return;
 		}
 		this.dirty = false;
 		this.columnCount = context.columnCount();
 		this.layoutVersion = context.layoutVersion();
-		this.settings = settingsSupplier.get();
 		Map<Integer, String> map = new HashMap<>();
 		List<IngredientListSlot> slots = rawSlotsSupplier.get();
 		this.slotCount = slots.size();

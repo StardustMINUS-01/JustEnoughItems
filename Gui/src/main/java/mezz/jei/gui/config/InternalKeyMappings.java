@@ -6,12 +6,12 @@ import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingCategoryBuilder;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 import mezz.jei.common.input.keys.JeiKeyConflictContext;
 import mezz.jei.common.input.keys.JeiKeyModifier;
 import mezz.jei.common.input.keys.JeiMultiKeyMapping;
 import mezz.jei.common.platform.IPlatformInputHelper;
 import mezz.jei.common.platform.Services;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;
 
@@ -24,17 +24,19 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping toggleCheatModeConfigButton;
 
 	private final IJeiKeyMapping recipeBack;
+	private final IJeiKeyMapping recipeForward;
 	private final IJeiKeyMapping previousCategory;
 	private final IJeiKeyMapping nextCategory;
 	private final IJeiKeyMapping previousRecipePage;
 	private final IJeiKeyMapping nextRecipePage;
 	private final IJeiKeyMappingInternal pauseRecipeCycling;
-	private final IJeiKeyMapping selectRecipeInput;
+	private final IJeiKeyMappingInternal showBookmarkTooltipFeatures;
+	private final IJeiKeyMappingWithExtraModifiers selectRecipeInput;
 
 	private final IJeiKeyMapping previousPage;
 	private final IJeiKeyMapping nextPage;
 
-	private final IJeiKeyMapping bookmark;
+	private final IJeiKeyMappingWithExtraModifiers bookmark;
 	private final IJeiKeyMapping favoriteRecipe;
 	private final IJeiKeyMapping bookmarkWorldTarget;
 	private final IJeiKeyMapping showWorldTargetRecipe;
@@ -48,14 +50,14 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping toggleBookmarkOverlay;
 	private final IJeiKeyMapping transferRecipeBookmark;
 	private final IJeiKeyMapping maxTransferRecipeBookmark;
-	private final IJeiKeyMappingInternal showBookmarkTooltipFeatures;
 	private final IJeiKeyMapping quickMove;
 	private final IJeiKeyMapping searchIngredientInTerminal;
 	private final IJeiKeyMapping shareToChat;
 
-	private final IJeiKeyMapping showRecipe;
-	private final IJeiKeyMapping showUses;
+	private final IJeiKeyMappingWithExtraModifiers showRecipe;
+	private final IJeiKeyMappingWithExtraModifiers showUses;
 	private final IJeiKeyMapping copyIngredientName;
+	private final IJeiKeyMapping copyIngredientNbt;
 	private final IJeiKeyMapping copyIngredientTags;
 	private final IJeiKeyMapping copyIngredientId;
 
@@ -80,10 +82,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	private final IJeiKeyMapping enterKey;
 
 	private static int getDefaultBookmarkTooltipFeaturesKey() {
-		if (Minecraft.ON_OSX) {
-			return GLFW.GLFW_KEY_LEFT_SUPER;
-		}
-		return GLFW.GLFW_KEY_LEFT_SHIFT;
+		return net.minecraft.client.Minecraft.ON_OSX ? GLFW.GLFW_KEY_LEFT_SUPER : GLFW.GLFW_KEY_LEFT_SHIFT;
 	}
 
 	public InternalKeyMappings(Consumer<KeyMapping> registerMethod) {
@@ -224,6 +223,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.buildMouseRight()
 			.register(registerMethod);
 
+		copyIngredientNbt = mouseHover.createMapping("key.jei.copyIngredientNbt")
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_S)
+			.register(registerMethod);
 		copyIngredientName = mouseHover.createMapping("key.jei.copyIngredientName")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
 			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
@@ -260,10 +264,10 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.register(registerMethod);
 
 		quickMove = mouseHover.createMapping("key.jei.quickMove")
-				.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
-				.setModifier(JeiKeyModifier.SHIFT)
-				.buildMouseLeft()
-				.register(registerMethod);
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.SHIFT)
+			.buildMouseLeft()
+			.register(registerMethod);
 
 		searchIngredientInTerminal = mouseHover.createMapping("key.jei.searchIngredientInTerminal")
 			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
@@ -272,10 +276,10 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 			.register(registerMethod);
 
 		shareToChat = mouseHover.createMapping("key.jei.shareToChat")
-				.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
-				.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
-				.buildKeyboardKey(GLFW.GLFW_KEY_L)
-				.register(registerMethod);
+			.setContext(JeiKeyConflictContext.JEI_GUI_HOVER)
+			.setModifier(JeiKeyModifier.CONTROL_OR_COMMAND)
+			.buildKeyboardKey(GLFW.GLFW_KEY_L)
+			.register(registerMethod);
 
 		// Search Bar
 		hoveredClearSearchBar = search.createMapping("key.jei.clearSearchBar")
@@ -349,6 +353,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 		recipeBack = recipeCategory.createMapping("key.jei.recipeBack")
 			.setContext(JeiKeyConflictContext.GUI)
 			.buildKeyboardKey(GLFW.GLFW_KEY_BACKSPACE)
+			.register(registerMethod);
+
+		recipeForward = recipeCategory.createMapping("key.jei.recipeForward")
+			.setContext(JeiKeyConflictContext.GUI)
+			.buildUnbound()
 			.register(registerMethod);
 
 		previousRecipePage = recipeCategory.createMapping("key.jei.previousRecipePage")
@@ -457,6 +466,11 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	}
 
 	@Override
+	public IJeiKeyMapping getRecipeForward() {
+		return recipeForward;
+	}
+
+	@Override
 	public IJeiKeyMapping getPreviousCategory() {
 		return previousCategory;
 	}
@@ -477,12 +491,17 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	}
 
 	@Override
+	public IJeiKeyMappingInternal getShowBookmarkTooltipFeatures() {
+		return showBookmarkTooltipFeatures;
+	}
+
+	@Override
 	public IJeiKeyMappingInternal getPauseRecipeCycling() {
 		return pauseRecipeCycling;
 	}
 
 	@Override
-	public IJeiKeyMapping getSelectRecipeInput() {
+	public IJeiKeyMappingWithExtraModifiers getSelectRecipeInput() {
 		return selectRecipeInput;
 	}
 
@@ -502,7 +521,7 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	}
 
 	@Override
-	public IJeiKeyMapping getBookmark() {
+	public IJeiKeyMappingWithExtraModifiers getBookmark() {
 		return bookmark;
 	}
 
@@ -561,13 +580,18 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	}
 
 	@Override
-	public IJeiKeyMapping getShowRecipe() {
+	public IJeiKeyMappingWithExtraModifiers getShowRecipe() {
 		return showRecipe;
 	}
 
 	@Override
-	public IJeiKeyMapping getShowUses() {
+	public IJeiKeyMappingWithExtraModifiers getShowUses() {
 		return showUses;
+	}
+
+	@Override
+	public IJeiKeyMapping getCopyIngredientNbt() {
+		return copyIngredientNbt;
 	}
 
 	@Override
@@ -593,11 +617,6 @@ public final class InternalKeyMappings implements IInternalKeyMappings {
 	@Override
 	public IJeiKeyMapping getMaxTransferRecipeBookmark() {
 		return maxTransferRecipeBookmark;
-	}
-
-	@Override
-	public IJeiKeyMappingInternal getShowBookmarkTooltipFeatures() {
-		return showBookmarkTooltipFeatures;
 	}
 
 	@Override

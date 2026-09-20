@@ -9,8 +9,10 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.platform.Services;
+import mezz.jei.common.ingredients.TypedIngredientUtil;
+import mezz.jei.common.ingredients.TypedIngredient;
+import mezz.jei.common.ingredients.itemStacks.TypedItemStack;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.library.ingredients.itemStacks.TypedItemStack;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ItemLike;
@@ -51,7 +53,8 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 		Preconditions.checkNotNull(ingredients, "ingredients");
 
 		for (Object ingredient : ingredients) {
-			@Nullable ITypedIngredient<?> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientManager, ingredient, false);
+			@Nullable
+			ITypedIngredient<?> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientManager, ingredient, false);
 			if (typedIngredient != null) {
 				this.ingredients.add(typedIngredient);
 			}
@@ -67,7 +70,9 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 
 		List<@Nullable ITypedIngredient<T>> typedIngredients = TypedIngredient.createAndFilterInvalidList(this.ingredientManager, ingredientType, ingredients, false);
 
-		for (@Nullable ITypedIngredient<T> typedIngredient : typedIngredients) {
+		for (@Nullable
+			ITypedIngredient<T> typedIngredient : typedIngredients
+		) {
 			if (typedIngredient != null) {
 				this.ingredients.add(typedIngredient);
 			}
@@ -97,9 +102,10 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 	public <I> SimpleIngredientAcceptor addTypedIngredient(ITypedIngredient<I> typedIngredient) {
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 
-		@Nullable ITypedIngredient<I> copy = TypedIngredient.defensivelyCopyTypedIngredientFromApi(ingredientManager, typedIngredient);
-		if (copy != null) {
-			this.ingredients.add(copy);
+		@Nullable
+		ITypedIngredient<I> checkedIngredient = TypedIngredientUtil.checkAndValidateTypedIngredientFromApi(ingredientManager, typedIngredient);
+		if (checkedIngredient != null) {
+			this.ingredients.add(checkedIngredient);
 		}
 
 		return this;
@@ -146,7 +152,7 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 
 		for (Optional<ITypedIngredient<?>> optionalTypedIngredient : ingredients) {
 			if (optionalTypedIngredient.isPresent()) {
-				this.ingredients.add(optionalTypedIngredient.get());
+				this.addTypedIngredient(optionalTypedIngredient.get());
 			}
 		}
 		return this;
@@ -161,7 +167,8 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 		if (ingredient == null) {
 			return;
 		}
-		@Nullable ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, false);
+		@Nullable
+		ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, false);
 		if (typedIngredient != null) {
 			this.ingredients.add(typedIngredient);
 		}

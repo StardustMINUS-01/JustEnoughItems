@@ -1,5 +1,7 @@
 package mezz.jei.forge.network;
 
+import mezz.jei.common.network.packets.PacketShareIngredient;
+import mezz.jei.common.network.packets.PacketShareRecipe;
 import com.google.common.collect.ImmutableMap;
 import mezz.jei.common.network.ClientConnectionHelper;
 import mezz.jei.common.network.IConnectionToServer;
@@ -58,8 +60,25 @@ public final class ConnectionToServer implements IConnectionToServer {
 	}
 
 	@Override
+	public boolean supportsRecipeTransferResults() {
+		return Optional.ofNullable(ClientConnectionHelper.getConnectedClientPacketListener())
+			.map(ClientPacketListener::getConnection)
+			.map(NetworkHooks::getConnectionData)
+			.map(ConnectionData::getChannels)
+			.map(channels -> channels.containsKey(networkHandler.getRecipeTransferResultChannelId()))
+			.orElse(false);
+	}
+
+	@Override
 	public void sendPacketToServer(PacketJei packet) {
-		boolean groupShare = packet instanceof PacketShareBookmarkGroup;
+		if (packet instanceof mezz.jei.common.network.packets.PacketCraftingGridCraft && !canCraftBookmarks()) {
+			return;
+		}
+		boolean chatShare = packet instanceof PacketShareRecipe || packet instanceof PacketShareIngredient;
+		if (chatShare && !canShareChat()) {
+			return;
+		}
+		boolean groupShare = packet instanceof PacketShareBookmarkGroup || chatShare;
 		if (groupShare && !canShareBookmarkGroup()) {
 			return;
 		}
@@ -67,7 +86,7 @@ public final class ConnectionToServer implements IConnectionToServer {
 		ClientPacketListener netHandler = minecraft.getConnection();
 		if (netHandler != null && isJeiOnServer()) {
 			Pair<FriendlyByteBuf, Integer> packetData = packet.getPacketData();
-			ICustomPacket<Packet<?>> payload = NetworkDirection.PLAY_TO_SERVER.buildPacket(packetData, groupShare ? NetworkHandler.BOOKMARK_GROUP_CHANNEL : networkHandler.getChannelId());
+			ICustomPacket<Packet<?>> payload = NetworkDirection.PLAY_TO_SERVER.buildPacket(packetData, groupShare ? NetworkHandler.BOOKMARK_GROUP_CHANNEL : packet.getChannelId());
 			netHandler.send(payload.getThis());
 		}
 	}
@@ -80,6 +99,28 @@ public final class ConnectionToServer implements IConnectionToServer {
 			.map(NetworkHooks::getConnectionData)
 			.map(ConnectionData::getChannels)
 			.map(channels -> channels.containsKey(NetworkHandler.BOOKMARK_GROUP_CHANNEL))
+			.orElse(false);
+	}
+
+	@Override
+	public boolean canCraftBookmarks() {
+		return Optional.ofNullable(Minecraft.getInstance().getConnection())
+			.map(ClientPacketListener::getConnection)
+			.filter(connection -> connection.isConnected())
+			.map(NetworkHooks::getConnectionData)
+			.map(ConnectionData::getChannels)
+			.map(channels -> channels.containsKey(mezz.jei.common.network.packets.PacketCraftingGridCraft.CHANNEL))
+			.orElse(false);
+	}
+
+	@Override
+	public boolean canShareChat() {
+		return Optional.ofNullable(Minecraft.getInstance().getConnection())
+			.map(ClientPacketListener::getConnection)
+			.filter(connection -> connection.isConnected())
+			.map(NetworkHooks::getConnectionData)
+			.map(ConnectionData::getChannels)
+			.map(channels -> "2".equals(channels.get(NetworkHandler.BOOKMARK_GROUP_CHANNEL)))
 			.orElse(false);
 	}
 

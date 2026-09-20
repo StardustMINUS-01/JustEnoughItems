@@ -61,7 +61,8 @@ public final class JeiRecipeChainPatternEncodingService {
 				skippedExistingCount++;
 			} else if (preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_CATALYST
 				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE
-				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN) {
+				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN
+			) {
 				skippedInvalidCount++;
 			}
 		}
@@ -121,7 +122,7 @@ public final class JeiRecipeChainPatternEncodingService {
 	private static List<PreparedEntry> prepareEntries(ServerPlayer player, AbstractContainerMenu menu, List<JeiPatternEncodeRequestWire> requests) {
 		List<PreparedEntry> preparedEntries = new ArrayList<>(requests.size());
 		Set<AEKey> knownPrimaryOutputs = getPlayerPatternPrimaryOutputs(player);
-	Predicate<AEKey> networkHasPattern = getNetworkPatternLookup(menu);
+		Predicate<AEKey> networkHasPattern = getNetworkPatternLookup(menu);
 
 		for (JeiPatternEncodeRequestWire request : requests) {
 			String catalystValidationFailure = validateCatalysts(request);

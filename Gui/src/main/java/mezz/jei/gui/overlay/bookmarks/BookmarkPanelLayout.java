@@ -64,7 +64,8 @@ public final class BookmarkPanelLayout {
 			if (rowSlot.isEmpty()) {
 				rowSlots.add(new RowSlot<>(panelSlot.item(), panelSlot.groupId(), withGridLeft(panelSlot.area(), gridLeftX)));
 			} else if (BookmarkGroupManager.DEFAULT_GROUP_ID == rowSlot.get().groupId() &&
-				BookmarkGroupManager.DEFAULT_GROUP_ID != panelSlot.groupId()) {
+				BookmarkGroupManager.DEFAULT_GROUP_ID != panelSlot.groupId()
+			) {
 				int index = rowSlots.indexOf(rowSlot.get());
 				RowSlot<T> current = rowSlot.get();
 				rowSlots.set(index, new RowSlot<>(current.item(), panelSlot.groupId(), current.area()));
@@ -85,8 +86,7 @@ public final class BookmarkPanelLayout {
 				continue;
 			}
 			BookmarkItemMetadata metadata = displaySlot.entry().metadata();
-			Object recipeKey = metadata.type().isRecipeAssociated() ?
-				displaySlot.entry().displayRecipeUid().orElse(metadata.recipeUid()) : null;
+			Object recipeKey = metadata.type().isRecipeAssociated() ? displaySlot.entry().displayRecipeUid().orElse(metadata.recipeUid()) : null;
 			panelSlots.add(new PanelSlot<>(
 				displaySlot.entry().item(),
 				metadata.groupId(),
@@ -393,9 +393,7 @@ public final class BookmarkPanelLayout {
 	private static <T> int getRecipeBoundary(List<PanelSlot<T>> panelSlots, int rowY, boolean firstSlot) {
 		Optional<PanelSlot<T>> boundarySlot = panelSlots.stream()
 			.filter(slot -> slot.area().getY() == rowY)
-			.min(firstSlot ?
-				Comparator.comparingInt(slot -> slot.area().getX()) :
-				Comparator.comparingInt((PanelSlot<T> slot) -> slot.area().getX()).reversed());
+			.min(firstSlot ? Comparator.comparingInt(slot -> slot.area().getX()) : Comparator.comparingInt((PanelSlot<T> slot) -> slot.area().getX()).reversed());
 		if (boundarySlot.isEmpty() || boundarySlot.get().recipeKey() == null) {
 			return rowY;
 		}

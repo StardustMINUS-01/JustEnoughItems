@@ -1,6 +1,8 @@
 package mezz.jei.gui.recipes;
 
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
@@ -22,7 +24,8 @@ public class RecipeCategoryTitle {
 	public static RecipeCategoryTitle create(IRecipeCategory<?> recipeCategory, Font font, ImmutableRect2i availableArea) {
 		Component fullString = StringUtil.stripStyling(recipeCategory.getTitle());
 		FormattedCharSequence visibleString;
-		@Nullable Component tooltipString;
+		@Nullable
+		Component tooltipString;
 
 		final int availableTitleWidth = availableArea.getWidth();
 		if (font.width(fullString) > availableTitleWidth) {
@@ -59,6 +62,6 @@ public class RecipeCategoryTitle {
 	}
 
 	public void draw(GuiGraphics guiGraphics, Font font) {
-		StringUtil.drawCenteredStringWithShadow(guiGraphics, font, visibleString, area);
+		StringUtil.drawCenteredStringWithShadow(guiGraphics, font, visibleString, area, JeiGuiColors.getColor(GuiColor.RECIPE_CATEGORY_TITLE_TEXT));
 	}
 }

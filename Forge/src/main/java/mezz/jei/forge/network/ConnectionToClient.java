@@ -24,9 +24,15 @@ public class ConnectionToClient implements IConnectionToClient {
 	}
 
 	@Override
+	public boolean canShareChat(ServerPlayer player) {
+		var data = NetworkHooks.getConnectionData(player.connection.connection);
+		return data != null && "2".equals(data.getChannels().get(NetworkHandler.BOOKMARK_GROUP_CHANNEL));
+	}
+
+	@Override
 	public void sendPacketToClient(PacketJei packet, ServerPlayer player) {
 		Pair<FriendlyByteBuf, Integer> packetData = packet.getPacketData();
-		ICustomPacket<Packet<?>> payload = NetworkDirection.PLAY_TO_CLIENT.buildPacket(packetData, networkHandler.getChannelId());
+		ICustomPacket<Packet<?>> payload = NetworkDirection.PLAY_TO_CLIENT.buildPacket(packetData, packet.getChannelId());
 		player.connection.send(payload.getThis());
 	}
 }

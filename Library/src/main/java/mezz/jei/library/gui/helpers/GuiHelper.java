@@ -1,36 +1,48 @@
 package mezz.jei.library.gui.helpers;
 
 import mezz.jei.api.gui.ITickTimer;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IDrawableAnimated;
 import mezz.jei.api.gui.drawable.IDrawableBuilder;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
 import mezz.jei.api.gui.ingredient.ICraftingGridHelper;
+import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.gui.widgets.IScrollBoxWidget;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.elements.DrawableAnimated;
 import mezz.jei.common.gui.elements.DrawableBlank;
 import mezz.jei.common.gui.elements.DrawableCombined;
 import mezz.jei.common.gui.elements.DrawableIngredient;
+import mezz.jei.common.gui.elements.DrawableIngredientRenderer;
 import mezz.jei.common.gui.elements.DrawableSprite;
 import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
+import mezz.jei.common.ingredients.TypedIngredientUtil;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.TickTimer;
 import mezz.jei.library.gui.elements.DrawableBuilder;
+import mezz.jei.library.gui.ingredients.CycleTimer;
+import mezz.jei.library.gui.recipes.layout.builder.RecipeSlotBuilder;
 import mezz.jei.library.gui.widgets.AbstractScrollWidget;
 import mezz.jei.library.gui.widgets.DrawableWidget;
 import mezz.jei.library.gui.widgets.ScrollBoxRecipeWidget;
 import mezz.jei.library.gui.widgets.ScrollGridWidgetFactory;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.resources.ResourceLocation;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
 
 public class GuiHelper implements IGuiHelper {
 	private final IIngredientManager ingredientManager;
@@ -44,6 +56,7 @@ public class GuiHelper implements IGuiHelper {
 		return new DrawableBuilder(resourceLocation, u, v, width, height);
 	}
 
+	@SuppressWarnings("removal")
 	@Override
 	@Deprecated(since = "15.32.0")
 	public IDrawableStatic createDrawableSprite(TextureAtlas textureAtlas, ResourceLocation spriteId) {
@@ -169,9 +182,44 @@ public class GuiHelper implements IGuiHelper {
 	@Override
 	public <V> IDrawable createDrawableIngredient(ITypedIngredient<V> ingredient) {
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
-		IIngredientType<V> type = ingredient.getType();
+		ITypedIngredient<V> checkedIngredient = TypedIngredientUtil.checkTypedIngredientFromApi(ingredientManager, ingredient);
+		IIngredientType<V> type = checkedIngredient.getType();
 		IIngredientRenderer<V> ingredientRenderer = ingredientManager.getIngredientRenderer(type);
-		return new DrawableIngredient<>(ingredient, ingredientRenderer);
+		return new DrawableIngredient<>(checkedIngredient, ingredientRenderer);
+	}
+
+	@Override
+	public <V> IDrawable createDrawableIngredient(IIngredientRenderer<V> ingredientRenderer, V ingredient) {
+		ErrorUtil.checkNotNull(ingredientRenderer, "ingredientRenderer");
+		ErrorUtil.checkNotNull(ingredient, "ingredient");
+		return new DrawableIngredientRenderer<>(ingredientRenderer, ingredient);
+	}
+
+	@Override
+	public IRecipeSlotDrawable createRecipeSlotDrawable(
+		RecipeIngredientRole role,
+		List<Optional<ITypedIngredient<?>>> ingredients,
+		Set<Integer> focusedIngredients,
+		int ingredientCycleOffset
+	) {
+		return createRecipeSlotDrawable(
+			role,
+			acceptor -> acceptor.addOptionalTypedIngredients(ingredients),
+			focusedIngredients,
+			ingredientCycleOffset
+		);
+	}
+
+	@Override
+	public IRecipeSlotDrawable createRecipeSlotDrawable(
+		RecipeIngredientRole role,
+		Consumer<IIngredientAcceptor<?>> ingredientAdder,
+		Set<Integer> focusedIngredients,
+		int ingredientCycleOffset
+	) {
+		RecipeSlotBuilder builder = new RecipeSlotBuilder(ingredientManager, 0, role);
+		ingredientAdder.accept(builder);
+		return builder.build(focusedIngredients, CycleTimer.create(ingredientCycleOffset)).second();
 	}
 
 	@Override

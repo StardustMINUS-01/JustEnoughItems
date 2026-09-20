@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 public class SmithingRecipeCategory extends AbstractRecipeCategory<SmithingRecipe> implements IExtendableSmithingRecipeCategory {
 	private final Map<Class<? extends SmithingRecipe>, ISmithingCategoryExtension<?>> extensions = new HashMap<>();
 
@@ -82,7 +81,7 @@ public class SmithingRecipeCategory extends AbstractRecipeCategory<SmithingRecip
 
 	@Override
 	public void createRecipeExtras(IRecipeExtrasBuilder builder, SmithingRecipe recipe, IFocusGroup focuses) {
-		builder.addRecipeArrow().setPosition(61, 6);
+		builder.addRecipeArrowWidget().setPosition(61, 6);
 	}
 
 	@Override

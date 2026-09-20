@@ -15,6 +15,7 @@ import mezz.jei.common.config.file.FileWatcher;
 import mezz.jei.common.config.file.IConfigSchemaBuilder;
 import mezz.jei.common.network.ClientConnectionHelper;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.network.packets.PacketRecipeTransferResult;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.recipes.VanillaClientRecipeLoader;
 import mezz.jei.common.util.ChatUtil;
@@ -73,6 +74,7 @@ public final class JeiStarter {
 		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
 		this.data = data;
 		this.plugins = data.plugins();
+		PluginHelper.removePluginsWithCrashingUids(plugins);
 		this.vanillaPlugin = PluginHelper.getPluginWithClass(VanillaPlugin.class, plugins)
 			.orElseThrow(() -> new IllegalStateException("vanilla plugin not found"));
 		JeiInternalPlugin jeiInternalPlugin = PluginHelper.getPluginWithClass(JeiInternalPlugin.class, plugins)
@@ -188,6 +190,7 @@ public final class JeiStarter {
 			editModeConfig,
 			runtimeRegistration.getIngredientListOverlay(),
 			runtimeRegistration.getBookmarkOverlay(),
+			runtimeRegistration.getBookmarkManager(),
 			runtimeRegistration.getRecipesGui(),
 			runtimeRegistration.getIngredientFilter(),
 			configManager
@@ -206,27 +209,36 @@ public final class JeiStarter {
 	private void verifyClientRecipes(Minecraft minecraft) {
 		IConnectionToServer serverConnection = data.serverConnection();
 		List<Recipe<?>> clientRecipes = Internal.getClientSyncedRecipes();
+		boolean showWarning = jeiClientConfigs.getClientConfig().isRecipeSyncWarningEnabled();
 
 		if (Internal.hasClientSyncedRecipes() && clientRecipes.isEmpty()) {
 			String key = "jei.message.server.recipe.sync.error";
-			writeChatMessage(minecraft, Component.translatable(key).withStyle(ChatFormatting.RED));
+			if (showWarning) {
+				writeChatMessage(minecraft, Component.translatable(key).withStyle(ChatFormatting.RED));
+			}
 			LOGGER.error(Translator.translateToLocal(key));
 		} else if (Internal.hasClientFallbackRecipes()) {
 			if (!serverConnection.isJeiOnServer() &&
-				serverConnection.isSameModLoader())
-			{
+				serverConnection.isSameModLoader()
+			) {
 				String key = "jei.message.server.recipe.sync.jei.missing";
 				String serverBrand = ClientConnectionHelper.getServerBrand();
-				writeChatMessage(minecraft, Component.translatable(key, serverBrand).withStyle(ChatFormatting.RED));
+				if (showWarning) {
+					writeChatMessage(minecraft, Component.translatable(key, serverBrand).withStyle(ChatFormatting.RED));
+				}
 				LOGGER.warn(Translator.translateToLocalFormatted(key, serverBrand));
 			} else if (ClientConnectionHelper.hasServerBrand(VANILLA_SERVER_BRAND)) {
 				String key = "jei.message.server.recipe.sync.vanilla";
-				writeChatMessage(minecraft, Component.translatable(key).withStyle(ChatFormatting.YELLOW));
+				if (showWarning) {
+					writeChatMessage(minecraft, Component.translatable(key).withStyle(ChatFormatting.YELLOW));
+				}
 				LOGGER.warn(Translator.translateToLocal(key));
 			} else {
 				String key = "jei.message.server.recipe.sync.unavailable";
 				String serverBrand = ClientConnectionHelper.getServerBrand();
-				writeChatMessage(minecraft, Component.translatable(key, serverBrand).withStyle(ChatFormatting.RED));
+				if (showWarning) {
+					writeChatMessage(minecraft, Component.translatable(key, serverBrand).withStyle(ChatFormatting.RED));
+				}
 				LOGGER.warn(Translator.translateToLocalFormatted(key, serverBrand));
 			}
 		}
@@ -249,6 +261,7 @@ public final class JeiStarter {
 
 		List<IModPlugin> plugins = data.plugins();
 		PluginCaller.callOnPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable);
+		PacketRecipeTransferResult.clearPendingRecipeTransfers();
 
 		Internal.onRuntimeStopped();
 

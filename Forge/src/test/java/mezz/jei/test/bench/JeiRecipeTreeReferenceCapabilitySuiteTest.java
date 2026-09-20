@@ -1,12 +1,19 @@
 package mezz.jei.test.bench;
 
 import mezz.jei.gui.favorites.FavoriteTreeBuilder;
+import mezz.jei.gui.favorites.FavoriteRecipeStore;
+import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
+import mezz.jei.gui.input.FocusedRecipe;
+import net.minecraft.resources.ResourceLocation;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -16,6 +23,37 @@ import java.util.stream.Stream;
  * with one {@code [jei-reference]} log line per scenario.
  */
 public class JeiRecipeTreeReferenceCapabilitySuiteTest {
+	@Test
+	public void expandsGeneratedFavoritesAndKeepsManualPriority() {
+		var type = new ResourceLocation("test", "crafting");
+		var root = new FocusedRecipe(type, new ResourceLocation("test", "root"));
+		var middle = new FocusedRecipe(type, new ResourceLocation("test", "middle"));
+		var leaf = new FocusedRecipe(type, new ResourceLocation("test", "leaf"));
+		var end = new FocusedRecipe(type, new ResourceLocation("test", "end"));
+		var manual = new FocusedRecipe(type, new ResourceLocation("test", "manual"));
+		var a = BookmarkIngredientKey.of("test:item", "a");
+		var b = BookmarkIngredientKey.of("test:item", "b");
+		var c = BookmarkIngredientKey.of("test:item", "c");
+		var d = BookmarkIngredientKey.of("test:item", "d");
+		var e = BookmarkIngredientKey.of("test:item", "e");
+		var graph = Map.of(
+			root, new FavoriteTreeBuilder.ResolvedRecipe(root, List.of(new FavoriteTreeBuilder.ResolvedInput(0, a, List.of(a, b), List.of()))),
+			middle, new FavoriteTreeBuilder.ResolvedRecipe(middle, List.of(new FavoriteTreeBuilder.ResolvedInput(0, d, List.of(c, d), List.of()))),
+			leaf, new FavoriteTreeBuilder.ResolvedRecipe(leaf, List.of(new FavoriteTreeBuilder.ResolvedInput(0, e, List.of(e), List.of()))),
+			end, new FavoriteTreeBuilder.ResolvedRecipe(end, List.of()),
+			manual, new FavoriteTreeBuilder.ResolvedRecipe(manual, List.of())
+		);
+		var store = new FavoriteRecipeStore();
+		store.setFavorite(BookmarkIngredientKey.of("test:item", "saved"), middle,
+			Map.of(0, new FavoriteRecipeStore.FavoriteSlotInput(c, List.of(c, d))));
+		store.setGeneratedFavoriteResolver(key -> Optional.ofNullable(Map.of(a, middle, c, leaf, e, end).get(key)));
+		var builder = new FavoriteTreeBuilder(store, recipe -> Optional.ofNullable(graph.get(recipe)));
+		Assertions.assertEquals(List.of(root, middle, leaf, end), builder.build(root, 3).recipes().stream().map(FavoriteTreeBuilder.FavoriteTreeRecipe::recipe).toList());
+		Assertions.assertEquals(1, builder.build(root, 0).recipes().size());
+		store.setFavorite(a, manual, Map.of());
+		Assertions.assertEquals(List.of(root, manual), builder.build(root, 3).recipes().stream().map(FavoriteTreeBuilder.FavoriteTreeRecipe::recipe).toList());
+	}
+
 	private record TreeRun(int recipes, long buildNanos) {
 	}
 
@@ -76,9 +114,7 @@ public class JeiRecipeTreeReferenceCapabilitySuiteTest {
 		if (outcome.value().recipes() == scenario.expectedRecipes()) {
 			return JeiSupportStatus.SUPPORTED;
 		}
-		return outcome.value().recipes() > scenario.expectedRecipes() ?
-			JeiSupportStatus.FALSE_POSITIVE :
-			JeiSupportStatus.FALSE_NEGATIVE;
+		return outcome.value().recipes() > scenario.expectedRecipes() ? JeiSupportStatus.FALSE_POSITIVE : JeiSupportStatus.FALSE_NEGATIVE;
 	}
 
 	private void printSummary(List<JeiRecipeTreeScenario> scenarios) {

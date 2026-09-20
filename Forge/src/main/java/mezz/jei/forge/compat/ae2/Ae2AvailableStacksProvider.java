@@ -1,8 +1,9 @@
 package mezz.jei.forge.compat.ae2;
 
-import mezz.jei.forge.compat.CompatUtil;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
+import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
+import mezz.jei.forge.compat.CompatUtil;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -19,7 +20,6 @@ import appeng.menu.me.items.CraftingTermMenu;
 public class Ae2AvailableStacksProvider implements BookmarkAvailableStacksProviders.Provider {
 	private static final long REFRESH_INTERVAL_MILLIS = 200;
 
-	private final AvailableStacksAccess availableStacksAccess;
 	private @Nullable AbstractContainerMenu cachedMenu;
 	private @Nullable List<ItemStack> cachedStacks;
 	private long cachedAtMillis;
@@ -27,36 +27,34 @@ public class Ae2AvailableStacksProvider implements BookmarkAvailableStacksProvid
 	public static Optional<Ae2AvailableStacksProvider> createIfLoaded() {
 		return CompatUtil.createIfLoaded(
 			"appeng.menu.me.items.CraftingTermMenu",
-			() -> new Ae2AvailableStacksProvider(new DirectAvailableStacksAccess())
+			Ae2AvailableStacksProvider::new
 		);
 	}
 
-	private Ae2AvailableStacksProvider(AvailableStacksAccess availableStacksAccess) {
-		this.availableStacksAccess = availableStacksAccess;
+	private Ae2AvailableStacksProvider() {
 	}
 
 	@Override
 	public Optional<List<ItemStack>> getAvailableStacks(AbstractContainerMenu menu) {
-		if (cachedMenu == menu && cachedStacks != null &&
-			System.currentTimeMillis() - cachedAtMillis < REFRESH_INTERVAL_MILLIS) {
+		boolean scoped = !BookmarkCraftingScope.getInterests().isEmpty();
+		if (!scoped && cachedMenu == menu && cachedStacks != null &&
+			System.currentTimeMillis() - cachedAtMillis < REFRESH_INTERVAL_MILLIS
+		) {
 			return Optional.of(cachedStacks);
 		}
-		Optional<List<ItemStack>> stacks = availableStacksAccess.getAvailableStacks(menu);
-		stacks.ifPresent(result -> {
-			cachedMenu = menu;
-			cachedStacks = result;
-			cachedAtMillis = System.currentTimeMillis();
-		});
+		Optional<List<ItemStack>> stacks = DirectAvailableStacksAccess.getAvailableStacks(menu);
+		if (!scoped) {
+			stacks.ifPresent(result -> {
+				cachedMenu = menu;
+				cachedStacks = result;
+				cachedAtMillis = System.currentTimeMillis();
+			});
+		}
 		return stacks;
 	}
 
-	private interface AvailableStacksAccess {
-		Optional<List<ItemStack>> getAvailableStacks(AbstractContainerMenu menu);
-	}
-
-	private static final class DirectAvailableStacksAccess implements AvailableStacksAccess {
-		@Override
-		public Optional<List<ItemStack>> getAvailableStacks(AbstractContainerMenu menu) {
+	private static final class DirectAvailableStacksAccess {
+		private static Optional<List<ItemStack>> getAvailableStacks(AbstractContainerMenu menu) {
 			if (!(menu instanceof CraftingTermMenu)) {
 				return Optional.empty();
 			}

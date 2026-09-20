@@ -5,7 +5,6 @@ import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.Internal;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PacketJei;
@@ -14,10 +13,10 @@ import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import net.minecraft.world.item.crafting.Recipe;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
@@ -28,7 +27,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 public final class BookmarkAutoCraftingActivator {
-	private static final Logger LOGGER = LogManager.getLogger();
 	private static final Set<String> CLAIMED_AUTO_CRAFTING_KEYS = new HashSet<>();
 
 	private BookmarkAutoCraftingActivator() {
@@ -45,9 +43,6 @@ public final class BookmarkAutoCraftingActivator {
 		}
 		String keyId = keyId(input.getKey());
 		if (CLAIMED_AUTO_CRAFTING_KEYS.contains(keyId)) {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] craftDiag CLAIM-DUPLICATE key={}", keyId);
-			}
 			return false;
 		}
 		CLAIMED_AUTO_CRAFTING_KEYS.add(keyId);
@@ -69,7 +64,7 @@ public final class BookmarkAutoCraftingActivator {
 		Runnable onActivated
 	) {
 		IConnectionToServer serverConnection = Internal.getServerConnection();
-		if (!serverConnection.isJeiOnServer()) {
+		if (!serverConnection.canCraftBookmarks()) {
 			LocalPlayer player = Minecraft.getInstance().player;
 			if (!input.isSimulate() && player != null) {
 				player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);
@@ -97,36 +92,17 @@ public final class BookmarkAutoCraftingActivator {
 		boolean hasShift,
 		Runnable playClickSound,
 		Consumer<PacketJei> packetSender,
-		boolean hasServerSupport
-	) {
-		return activate(input, recipeLayout, containerMenu, onActivated, hasShift, playClickSound, packetSender, hasServerSupport, List.of());
-	}
-
-	public static boolean activate(
-		UserInput input,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		@Nullable AbstractContainerMenu containerMenu,
-		Runnable onActivated,
-		boolean hasShift,
-		Runnable playClickSound,
-		Consumer<PacketJei> packetSender,
 		boolean hasServerSupport,
 		List<ItemStack> availableStacks
 	) {
 		if (!hasServerSupport || !hasShift || containerMenu == null ||
-			!RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())) {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] ACTIVATE-PRE-REJECT hasShift={} menu={}",
-					hasShift, containerMenu == null ? "null" : containerMenu.getClass().getSimpleName());
-			}
+			!RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())
+		) {
 			return false;
 		}
 
 		int targetSlotCount = BookmarkGhostOverlayTargetSlots.fromMenu(containerMenu).size();
 		if (targetSlotCount <= 0) {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] ACTIVATE-NO-CRAFTING-SLOTS menu={}", containerMenu.getClass().getSimpleName());
-			}
 			return false;
 		}
 
@@ -134,22 +110,14 @@ public final class BookmarkAutoCraftingActivator {
 			.map(fill -> {
 				if (!input.isSimulate()) {
 					List<ItemStack> targetStacks = fill.targetStacks();
-					if (DebugConfig.isDebugModeEnabled()) {
-						LOGGER.info("[Bug6] ACTIVATE-SEND-PACKET containerId={} multiplier={} targetStacks={}",
-							containerMenu.containerId, fill.multiplier(), targetStacks);
-					}
-					packetSender.accept(new PacketCraftingGridCraft(containerMenu.containerId, fill.multiplier(), targetStacks));
+					ResourceLocation recipeId = recipeLayout.getRecipe() instanceof Recipe<?> recipe ? recipe.getId() : null;
+					packetSender.accept(new PacketCraftingGridCraft(containerMenu.containerId, recipeId, fill.multiplier(), targetStacks));
 					onActivated.run();
 					playClickSound.run();
 				}
 				return true;
 			})
-			.orElseGet(() -> {
-				if (DebugConfig.isDebugModeEnabled()) {
-					LOGGER.info("[Bug6] ACTIVATE-FILL-EMPTY menu={}", containerMenu.getClass().getSimpleName());
-				}
-				return false;
-			});
+			.orElse(false);
 	}
 
 	public static List<ItemStack> getPlayerInventoryStacks() {
@@ -170,4 +138,5 @@ public final class BookmarkAutoCraftingActivator {
 	private static String keyId(InputConstants.Key key) {
 		return key.getType() + ":" + key.getValue();
 	}
+
 }

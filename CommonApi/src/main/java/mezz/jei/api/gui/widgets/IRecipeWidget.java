@@ -7,6 +7,8 @@ import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenPosition;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A widget is a drawable element in a recipe layout.
@@ -27,15 +29,17 @@ public interface IRecipeWidget {
 	ScreenPosition getPosition();
 
 	/**
-	 * Get the area this widget occupies, including its position and dimensions.
-	 * Not part of the {@link IRecipeWidget} interface; provided by {@link AbstractRecipeWidgetBuilder}
-	 * and other concrete widget types via their concrete classes. Callers that need this in 1.20.1
-	 * should declare the variable as a concrete type (e.g. {@code AbstractRecipeWidgetBuilder<?>})
-	 * or check {@link #getPosition()} and dimensions directly.
+	 * Get the bounds of this widget, relative to its parent element.
+	 * JEI uses these bounds to call {@link #getTooltip} only while the mouse is over the widget.
 	 *
-	 * @since 15.58.1
+	 * Return null when the widget does not have rectangular bounds or handles its own tooltip
+	 * hit-testing in {@link #getTooltip}.
+	 *
+	 * @since 15.56.0
 	 */
-	// Intentionally not a default on the interface: IRecipeWidget in 1.20.1 has no getWidth/getHeight.
+	default @Nullable ScreenRectangle getScreenRectangle() {
+		return null;
+	}
 
 	/**
 	 * Draw extras or additional info about the recipe, relative to its {@link #getPosition()}.
@@ -54,7 +58,7 @@ public interface IRecipeWidget {
 	 */
 	default void drawWidget(GuiGraphics guiGraphics, double mouseX, double mouseY) {
 		ScreenPosition position = getPosition();
-		draw(guiGraphics, mouseX + position.x(),  mouseY + position.y());
+		draw(guiGraphics, mouseX + position.x(), mouseY + position.y());
 	}
 
 	/**
@@ -81,8 +85,9 @@ public interface IRecipeWidget {
 	/**
 	 * Add extra tooltips for this widget.
 	 *
-	 * Be careful to only add tooltips when the mouse is over the widget,
-	 * there is no way to determine if the mouse is over this widget except in this method.
+	 * Mouse coordinates are relative to {@link #getPosition()}. When {@link #getScreenRectangle()}
+	 * returns null, implementations must only add tooltip content when the mouse is within their
+	 * bounds.
 	 *
 	 * @param mouseX          the X position of the mouse, relative to its position.
 	 * @param mouseY          the Y position of the mouse, relative to its position.

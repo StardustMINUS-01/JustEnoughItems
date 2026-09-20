@@ -22,6 +22,7 @@ public final class ClientConfig implements IClientConfig {
 	// appearance
 	private final ConfigValue<Boolean> centerSearchBarEnabled;
 	private final ConfigValue<Boolean> quantityFieldEnabled;
+	private final ConfigValue<Integer> configScreenTransparency;
 	private final ConfigValue<Integer> maxRecipeGuiHeight;
 	private final Supplier<Boolean> toastReflowEnabled;
 
@@ -52,6 +53,7 @@ public final class ClientConfig implements IClientConfig {
 	// advanced
 	private final ConfigValue<Boolean> lowMemorySlowSearchEnabled;
 	private final Supplier<Boolean> catchRenderErrorsEnabled;
+	private final Supplier<Boolean> recipeSyncWarningEnabled;
 	private final Supplier<Boolean> lookupFluidContentsEnabled;
 	private final Supplier<Boolean> lookupBlockTagsEnabled;
 	private final Supplier<Boolean> showTagRecipesEnabled;
@@ -60,6 +62,7 @@ public final class ClientConfig implements IClientConfig {
 	// input
 	private final Supplier<Integer> dragDelayMs;
 	private final Supplier<Integer> smoothScrollRate;
+	private final ConfigValue<Boolean> recipeSlotCyclingEnabled;
 
 	// sorting
 	private final ConfigValue<List<IngredientSortStage>> ingredientSorterStages;
@@ -69,14 +72,20 @@ public final class ClientConfig implements IClientConfig {
 	private final Supplier<Boolean> tagContentTooltipEnabled;
 	private final Supplier<Boolean> hideSingleTagContentTooltipEnabled;
 
+	@Override
+	public int getConfigScreenTransparency() {
+		return configScreenTransparency.getValue();
+	}
+
 	public ClientConfig(IConfigSchemaBuilder schema) {
 		instance = this;
 
 		boolean isDev = Services.PLATFORM.getModHelper().isInDev();
 
 		IConfigCategoryBuilder appearance = schema.addCategory("appearance");
-		centerSearchBarEnabled = appearance.addBoolean("centerSearch",			defaultCenterSearchBar		);
+		centerSearchBarEnabled = appearance.addBoolean("centerSearch", defaultCenterSearchBar);
 		quantityFieldEnabled = appearance.addBoolean("quantityFieldEnabled", true);
+		configScreenTransparency = appearance.addInteger("configScreenTransparency", 25, 0, 100);
 		maxRecipeGuiHeight = appearance.addInteger(
 			"recipeGuiHeight",
 			defaultRecipeGuiHeight,
@@ -89,7 +98,7 @@ public final class ClientConfig implements IClientConfig {
 		giveMode = cheating.addEnum("giveMode", GiveMode.defaultGiveMode);
 		cheatToHotbarUsingHotkeysEnabled = cheating.addBoolean("cheatToHotbarUsingHotkeysEnabled", false);
 		showHiddenIngredients = cheating.addBoolean("showHiddenIngredients", false);
-		showTagRecipesEnabled = cheating.addBoolean("showTagRecipesEnabled", isDev);
+		showTagRecipesEnabled = cheating.addBoolean("showTagRecipesEnabled", true);
 
 		IConfigCategoryBuilder bookmarks = schema.addCategory("bookmarks");
 		addBookmarksToFrontEnabled = bookmarks.addBoolean("addBookmarksToFrontEnabled", false);
@@ -126,6 +135,7 @@ public final class ClientConfig implements IClientConfig {
 
 		IConfigCategoryBuilder advanced = schema.addCategory("advanced");
 		catchRenderErrorsEnabled = advanced.addBoolean("catchRenderErrorsEnabled", !isDev);
+		recipeSyncWarningEnabled = advanced.addBoolean("recipeSyncWarningEnabled", true);
 
 		IConfigCategoryBuilder input = schema.addCategory("input");
 		dragDelayMs = input.addInteger(
@@ -140,6 +150,7 @@ public final class ClientConfig implements IClientConfig {
 			1,
 			50
 		);
+		recipeSlotCyclingEnabled = input.addBoolean("recipeSlotCyclingEnabled", true);
 
 		IConfigCategoryBuilder sorting = schema.addCategory("sorting");
 		ingredientSorterStages = sorting.addList(
@@ -201,6 +212,11 @@ public final class ClientConfig implements IClientConfig {
 	@Override
 	public boolean isCatchRenderErrorsEnabled() {
 		return catchRenderErrorsEnabled.get();
+	}
+
+	@Override
+	public boolean isRecipeSyncWarningEnabled() {
+		return recipeSyncWarningEnabled.get();
 	}
 
 	@Override
@@ -311,6 +327,11 @@ public final class ClientConfig implements IClientConfig {
 	@Override
 	public void addMaxLookupHistoryIngredientsListener(IConfigListener<Integer> listener) {
 		maxLookupHistoryIngredients.addListener(listener::onConfigValueChanged);
+	}
+
+	@Override
+	public ConfigValue<Boolean> recipeSlotCyclingEnabled() {
+		return recipeSlotCyclingEnabled;
 	}
 
 	@Override

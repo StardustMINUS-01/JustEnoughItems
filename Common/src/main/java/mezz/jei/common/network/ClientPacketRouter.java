@@ -4,6 +4,7 @@ import mezz.jei.common.config.IServerConfig;
 import mezz.jei.common.network.packets.IClientPacketHandler;
 import mezz.jei.common.network.packets.PacketCheatPermission;
 import mezz.jei.common.network.packets.PacketCraftingGridCraftAck;
+import mezz.jei.common.network.packets.PacketRecipeTransferResult;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.FriendlyByteBuf;
 import org.apache.logging.log4j.LogManager;
@@ -24,6 +25,7 @@ public class ClientPacketRouter {
 		this.serverConfig = serverConfig;
 		clientHandlers.put(PacketIdClient.CHEAT_PERMISSION, PacketCheatPermission::readPacketData);
 		clientHandlers.put(PacketIdClient.CRAFTING_GRID_CRAFT_ACK, PacketCraftingGridCraftAck::readPacketData);
+		clientHandlers.put(PacketIdClient.RECIPE_TRANSFER_RESULT, PacketRecipeTransferResult::readPacketData);
 	}
 
 	public void onPacket(FriendlyByteBuf packetBuffer, LocalPlayer player) {

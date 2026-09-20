@@ -33,6 +33,10 @@ public final class CollapsibleGroup {
 		return expressionText;
 	}
 
+	public boolean hasNbt() {
+		return matcher.hasNbt();
+	}
+
 	public boolean matches(IngredientMatchInfo info) {
 		return matcher.matches(info);
 	}

@@ -18,11 +18,10 @@ public class PinnedTooltipManagerTest {
 
 	@Test
 	public void pinnedTooltipAllowsExtraKeyboardModifier() {
-		// Setup: simulate Forge rejecting an unmodified action because the pin modifier is held.
+		// Setup: simulate NeoForge rejecting an unmodified action because the pin modifier is held.
 		TestKeyMapping actionMapping = new TestKeyMapping(ACTION_KEY, false);
 		TestKeyMapping pinMapping = new TestKeyMapping(PIN_KEY, true);
-		IPinnedTooltipHolder holder = () -> {
-		};
+		IPinnedTooltipHolder holder = () -> {};
 
 		// Operation and assertions: the relaxed match only applies while a tooltip is pinned.
 		assertFalse(PinnedTooltipManager.matchesInput(ACTION_KEY, actionMapping, pinMapping));
@@ -40,8 +39,7 @@ public class PinnedTooltipManagerTest {
 		InputConstants.Key mouseKey = InputConstants.Type.MOUSE.getOrCreate(InputConstants.MOUSE_BUTTON_LEFT);
 		TestKeyMapping actionMapping = new TestKeyMapping(mouseKey, false);
 		TestKeyMapping pinMapping = new TestKeyMapping(PIN_KEY, true);
-		IPinnedTooltipHolder holder = () -> {
-		};
+		IPinnedTooltipHolder holder = () -> {};
 
 		// Operation and assertion: mouse modifier matching remains strict.
 		PinnedTooltipManager.opened(holder);
@@ -54,8 +52,7 @@ public class PinnedTooltipManagerTest {
 
 	@Test
 	public void pinnedTooltipSuppressesOnlyExternalTooltips() {
-		IPinnedTooltipHolder holder = () -> {
-		};
+		IPinnedTooltipHolder holder = () -> {};
 
 		assertFalse(PinnedTooltipManager.shouldSuppressExternalTooltip());
 		PinnedTooltipManager.opened(holder);
@@ -84,7 +81,7 @@ public class PinnedTooltipManagerTest {
 		}
 
 		@Override
-		public boolean matchesIgnoringModifiers(InputConstants.Key key) {
+		public boolean isActiveAndMatchesAllowingExtraModifiers(InputConstants.Key key) {
 			return this.key.equals(key);
 		}
 

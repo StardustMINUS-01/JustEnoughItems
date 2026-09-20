@@ -42,6 +42,7 @@ public final class BookmarkAutoCraftingRunner {
 
 	public void stop() {
 		activeTask = null;
+		mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope.clear();
 	}
 
 	public boolean hasActiveTask() {

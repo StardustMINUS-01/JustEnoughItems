@@ -111,8 +111,7 @@ public final class GtmVirtualCircuitCompat {
 
 		private static Access create() {
 			Class<?> gtRecipeClass = classOrNull(GT_RECIPE_CLASS);
-			Method getVirtualCircuit = gtRecipeClass == null ? null :
-				staticMethod(RECIPE_METADATA_CLASS, "getVirtualCircuit", gtRecipeClass);
+			Method getVirtualCircuit = gtRecipeClass == null ? null : staticMethod(RECIPE_METADATA_CLASS, "getVirtualCircuit", gtRecipeClass);
 			Method createCircuitStack = staticMethod(INT_CIRCUIT_CLASS, "stack", int.class);
 			Method isIntegratedCircuit = staticMethod(INT_CIRCUIT_CLASS, "isIntegratedCircuit", ItemStack.class);
 			return new Access(gtRecipeClass, getVirtualCircuit, createCircuitStack, isIntegratedCircuit);
@@ -222,7 +221,8 @@ public final class GtmVirtualCircuitCompat {
 		private static Optional<Object> getSingleFluidInput(@Nullable Object ingredient) {
 			Object candidates = invokeNoArg(ingredient, "getFluids");
 			if (!(candidates instanceof Object[] stacks) || stacks.length != 1 || stacks[0] == null
-				|| Boolean.TRUE.equals(invokeNoArg(stacks[0], "isEmpty"))) {
+				|| Boolean.TRUE.equals(invokeNoArg(stacks[0], "isEmpty"))
+			) {
 				return Optional.empty();
 			}
 			return Optional.of(stacks[0]);

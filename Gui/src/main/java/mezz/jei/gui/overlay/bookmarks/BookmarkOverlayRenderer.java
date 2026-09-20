@@ -106,7 +106,8 @@ public class BookmarkOverlayRenderer {
 			boolean connectedToNext = BookmarkPanelLayout.isConnectedToNextRow(rowSlots, i) ||
 				(i == lastRowIndex && boundaryConnections.connectedToNext());
 			if (sortDragState != null &&
-				sortDragState.getGroupPanelRenderMode(slot.groupId()) == BookmarkSortDragState.GroupPanelRenderMode.DRAG_PLACEHOLDER) {
+				sortDragState.getGroupPanelRenderMode(slot.groupId()) == BookmarkSortDragState.GroupPanelRenderMode.DRAG_PLACEHOLDER
+			) {
 				ImmutableRect2i area = overlay.getGroupPanelArea(slot.area());
 				guiGraphics.fill(
 					area.getX(),
@@ -265,8 +266,7 @@ public class BookmarkOverlayRenderer {
 		ImmutableRect2i controlArea,
 		IPaged paged
 	) {
-		if (
-			controlArea.isEmpty() ||
+		if (controlArea.isEmpty() ||
 			!overlay.hasDefaultGroupBookmarks() ||
 			!bookmarkList.isGroupCraftingMode(BookmarkGroupManager.DEFAULT_GROUP_ID)
 		) {
@@ -294,7 +294,7 @@ public class BookmarkOverlayRenderer {
 			boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 			JeiTooltip tooltip = new JeiTooltip();
 			addRecipeChainTooltip(tooltip, groupId);
-			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, overlay.getKeyBindings(), Screen.hasAltDown());
+			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, overlay.getKeyBindings(), Screen.hasAltDown(), craftingMode, canPullDefaultGroupItems(), Internal.getServerConnection().canShareBookmarkGroup());
 			tooltip.draw(guiGraphics, mouseX, mouseY);
 			return true;
 		}
@@ -309,18 +309,17 @@ public class BookmarkOverlayRenderer {
 		boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 		JeiTooltip tooltip = new JeiTooltip();
 		addRecipeChainTooltip(tooltip, groupId);
-		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, overlay.getKeyBindings(), Screen.hasAltDown(), grouped, craftingMode, canEncodeAe2Patterns(), canBatchMarkAe2());
+		BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, overlay.getKeyBindings(), Screen.hasAltDown(), grouped, craftingMode, canEncodeAe2Patterns(), overlay.canStartGroupDrop(groupId), Internal.getServerConnection().canShareBookmarkGroup());
 		tooltip.draw(guiGraphics, mouseX, mouseY);
 		return true;
 	}
 
 	private static boolean canEncodeAe2Patterns() {
-		// 1.20.1 has no AE2 pattern-encoding compat; the group drop is the only AE2 integration.
-		return false;
-	}
-
-	private static boolean canBatchMarkAe2() {
-		return false;
+		if (!(Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> containerScreen)) {
+			return false;
+		}
+		var bridge = mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
+		return bridge.isAvailable() && bridge.isPatternEncodingTerminal(containerScreen.getMenu());
 	}
 
 	boolean drawFavoriteRecipeRowHotkeyTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -348,9 +347,8 @@ public class BookmarkOverlayRenderer {
 		long bookmarkVersion = bookmarkList.getChangeVersion();
 		long shiftVersion = updateRecipeChainTooltipShiftVersion(shiftDown);
 		RecipeChainHoverTooltip hoverTooltip = recipeChainHoverTooltip;
-		if (
-			hoverTooltip == null ||
-				!hoverTooltip.matches(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown)
+		if (hoverTooltip == null ||
+			!hoverTooltip.matches(groupId, bookmarkVersion, shiftVersion, shiftDown, controlDown)
 		) {
 			RecipeChainTooltipModel model;
 			Map<BookmarkIngredientKey, ITypedIngredient<?>> resolvedIngredients = bookmarkList.getRecipeChainTooltipIngredients(groupId);

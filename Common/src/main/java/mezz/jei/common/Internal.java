@@ -198,6 +198,9 @@ public final class Internal {
 	}
 
 	public static void onRuntimeStopped() {
+		if (fileWatcher != null) {
+			fileWatcher.clearRuntimeCallbacks();
+		}
 		closeRecipeGuiIfOpen();
 
 		if (clientRecipes != null) {

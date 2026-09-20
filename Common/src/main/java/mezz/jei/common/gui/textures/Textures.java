@@ -27,6 +27,7 @@ public class Textures {
 	private final DrawableNineSliceTexture ingredientListBackground;
 	private final DrawableNineSliceTexture bookmarkListBackground;
 	private final DrawableNineSliceTexture recipeBackground;
+	private final DrawableNineSliceTexture interactiveIngredientTooltipBackground;
 	private final DrawableNineSliceTexture recipePreviewBackground;
 	private final DrawableNineSliceTexture searchBackground;
 	private final DrawableNineSliceTexture scrollbarBackground;
@@ -57,6 +58,8 @@ public class Textures {
 	private final IDrawableStatic recipePlusSign;
 	private final IDrawableStatic bookmarksFirst;
 	private final IDrawableStatic craftableFirst;
+	private final IDrawableStatic tagBadgeIcon;
+	private final IDrawableStatic listBadgeIcon;
 
 	private final IDrawableStatic brewingStandBackground;
 	private final IDrawableStatic brewingStandBlazeHeat;
@@ -93,6 +96,7 @@ public class Textures {
 		this.ingredientListBackground = createNineSliceGuiSprite("ingredient_list_background", 64, 64, 16, 16, 16, 16);
 		this.bookmarkListBackground = createNineSliceGuiSprite("bookmark_list_background", 64, 64, 16, 16, 16, 16);
 		this.recipeBackground = createNineSliceGuiSprite("single_recipe_background", 64, 64, 16, 16, 16, 16);
+		this.interactiveIngredientTooltipBackground = createNineSliceGuiSprite("interactive_ingredient_tooltip_background", 64, 64, 16, 16, 16, 16);
 		this.recipePreviewBackground = createNineSliceGuiSprite("recipe_preview_background", 64, 64, 16, 16, 16, 16);
 		this.searchBackground = createNineSliceGuiSprite("search_background", 20, 20, 6, 6, 6, 6);
 		this.scrollbarBackground = createNineSliceGuiSprite("scrollbar_background", 14, 50, 6, 6, 6, 6);
@@ -144,6 +148,8 @@ public class Textures {
 		this.configSwitchOff = createGuiSprite("config/switch_off", 32, 18);
 		this.configIconUp = createGuiSprite("config/icon_up", 16, 16);
 		this.configIconDown = createGuiSprite("config/icon_down", 16, 16);
+		this.tagBadgeIcon = createGuiSprite("icons/tag_badge", 9, 9);
+		this.listBadgeIcon = createGuiSprite("icons/list_badge", 9, 9);
 	}
 
 	private ResourceLocation createSprite(String name) {
@@ -200,6 +206,14 @@ public class Textures {
 		return craftableFirst;
 	}
 
+	public IDrawableStatic getTagBadgeIcon() {
+		return tagBadgeIcon;
+	}
+
+	public IDrawableStatic getListBadgeIcon() {
+		return listBadgeIcon;
+	}
+
 	public IDrawableStatic getConfigButtonIcon() {
 		return configButtonIcon;
 	}
@@ -238,10 +252,15 @@ public class Textures {
 		}
 
 		if (hovered) {
-			return pressed ? buttonPressedHighlight : buttonHighlight;
-		} else {
-			return pressed ? buttonPressed : buttonEnabled;
+			if (pressed) {
+				return buttonPressedHighlight;
+			}
+			return buttonHighlight;
 		}
+		if (pressed) {
+			return buttonPressed;
+		}
+		return buttonEnabled;
 	}
 
 	public DrawableNineSliceTexture getRecipeGuiBackground() {
@@ -258,6 +277,10 @@ public class Textures {
 
 	public DrawableNineSliceTexture getRecipeBackground() {
 		return recipeBackground;
+	}
+
+	public DrawableNineSliceTexture getInteractiveIngredientTooltipBackground() {
+		return interactiveIngredientTooltipBackground;
 	}
 
 	public DrawableNineSliceTexture getRecipePreviewBackground() {

@@ -51,19 +51,19 @@ dependencies {
     }
     testImplementation(
         group = "org.junit.jupiter",
-        name = "junit-jupiter-api",
+        name = "junit-jupiter",
         version = jUnitVersion
     )
     testRuntimeOnly(
-        group = "org.junit.jupiter",
-        name = "junit-jupiter-engine",
-        version = jUnitVersion
+        group = "org.junit.platform",
+        name = "junit-platform-launcher"
     )
 }
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
     include("mezz/jei/test/**")
+    include("mezz/jei/library/**")
     exclude("mezz/jei/test/lib/**")
     outputs.upToDateWhen { false }
     testLogging {

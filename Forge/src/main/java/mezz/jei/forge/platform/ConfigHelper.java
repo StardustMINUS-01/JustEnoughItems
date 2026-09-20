@@ -23,6 +23,8 @@ public class ConfigHelper implements IPlatformConfigHelper {
 	public Optional<Screen> getConfigScreen() {
 		Minecraft minecraft = Minecraft.getInstance();
 		ErrorUtil.checkNotNull(minecraft.screen, "minecraft.screen");
-		return Optional.of(new JeiConfigScreen(minecraft.screen, Internal.getJeiRuntime().getConfigManager(), ConfigKeyBinding.create()));
+		return Optional.of(new JeiConfigScreen(Internal.getJeiRuntime().getConfigManager(), ConfigKeyBinding.create(),
+			screen -> net.minecraftforge.client.ForgeHooksClient.pushGuiLayer(minecraft, screen),
+			() -> net.minecraftforge.client.ForgeHooksClient.popGuiLayer(minecraft)));
 	}
 }

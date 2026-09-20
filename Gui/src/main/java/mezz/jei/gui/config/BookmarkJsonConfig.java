@@ -98,7 +98,8 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		IGuiHelper guiHelper,
 		IIngredientManager ingredientManager,
 		RegistryAccess registryAccess,
-		BookmarkList bookmarkList
+		BookmarkList bookmarkList,
+		mezz.jei.common.transfer.RecipeTransferService recipeTransferService
 	) {
 		this.bookmarkList = bookmarkList;
 		Optional<Path> jsonPath = getPath(jeiConfigurationDir);
@@ -127,7 +128,8 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 					guiHelper,
 					ingredientManager,
 					registryAccess,
-					bookmarkList
+					bookmarkList,
+					recipeTransferService
 				);
 				save(path, ingredientManager);
 				return;
@@ -143,7 +145,8 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 				guiHelper,
 				ingredientManager,
 				registryAccess,
-				bookmarkList
+				bookmarkList,
+				recipeTransferService
 			);
 			if (save(path, ingredientManager)) {
 				Path legacyPath = iniPath.get();

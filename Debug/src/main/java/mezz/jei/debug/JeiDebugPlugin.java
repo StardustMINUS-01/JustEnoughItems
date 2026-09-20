@@ -52,6 +52,7 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -95,6 +96,32 @@ public class JeiDebugPlugin implements IModPlugin {
 	@Override
 	public void registerExtraIngredients(IExtraIngredientRegistration registration) {
 		registration.addExtraIngredients(DebugIngredient.TYPE, DebugIngredientListFactory.create(0, 10));
+		registration.addExtraItemStacks(createDamageBarTestIngredients());
+	}
+
+	private static List<ItemStack> createDamageBarTestIngredients() {
+		return List.of(
+			createDamageBarTestIngredient(Items.WOODEN_SWORD, 10),
+			createDamageBarTestIngredient(Items.STONE_SWORD, 25),
+			createDamageBarTestIngredient(Items.IRON_SWORD, 40),
+			createDamageBarTestIngredient(Items.GOLDEN_SWORD, 55),
+			createDamageBarTestIngredient(Items.DIAMOND_SWORD, 75),
+			createDamageBarTestIngredient(Items.NETHERITE_SWORD, 90),
+			createDamageBarTestIngredient(Items.WOODEN_PICKAXE, 10),
+			createDamageBarTestIngredient(Items.STONE_PICKAXE, 25),
+			createDamageBarTestIngredient(Items.IRON_PICKAXE, 40),
+			createDamageBarTestIngredient(Items.GOLDEN_PICKAXE, 55),
+			createDamageBarTestIngredient(Items.DIAMOND_PICKAXE, 75),
+			createDamageBarTestIngredient(Items.NETHERITE_PICKAXE, 90)
+		);
+	}
+
+	private static ItemStack createDamageBarTestIngredient(Item item, int damagePercent) {
+		ItemStack itemStack = new ItemStack(item);
+		int damageValue = itemStack.getMaxDamage() * damagePercent / 100;
+		itemStack.setDamageValue(damageValue);
+		itemStack.setHoverName(Component.literal("JEI Debug Damage Bar (" + damagePercent + "% Damaged)"));
+		return itemStack;
 	}
 
 	@Override
@@ -169,7 +196,7 @@ public class JeiDebugPlugin implements IModPlugin {
 			new ItemStack(Blocks.JUNGLE_DOOR),
 			new ItemStack(Blocks.ACACIA_DOOR),
 			new ItemStack(Blocks.DARK_OAK_DOOR)
-			),
+		),
 			Component.translatable("description.jei.wooden.door.1"), // actually 2 lines
 			Component.translatable("description.jei.wooden.door.2"),
 			Component.translatable("description.jei.wooden.door.3")
@@ -194,15 +221,17 @@ public class JeiDebugPlugin implements IModPlugin {
 				Component.translatable("description.jei.debug.formatting.3", "various").withStyle(ChatFormatting.DARK_AQUA)
 			),
 			Component.translatable("description.jei.debug.formatting.2",
-				Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
-				Component.literal("various").withStyle(ChatFormatting.RED)
-			).withStyle(ChatFormatting.BLUE),
+					Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
+					Component.literal("various").withStyle(ChatFormatting.RED)
+				)
+				.withStyle(ChatFormatting.BLUE),
 			Component.translatable("description.jei.debug.formatting.1",
 				Component.translatable("description.jei.debug.formatting.3",
 					Component.translatable("description.jei.debug.formatting.2",
-						Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
-						Component.literal("various").withStyle(ChatFormatting.RED)
-					).withStyle(ChatFormatting.DARK_AQUA)
+							Component.literal("multiple").withStyle(ChatFormatting.GOLD).withStyle(ChatFormatting.ITALIC),
+							Component.literal("various").withStyle(ChatFormatting.RED)
+						)
+						.withStyle(ChatFormatting.DARK_AQUA)
 				)
 			)
 		);
@@ -292,10 +321,18 @@ public class JeiDebugPlugin implements IModPlugin {
 
 	private <T> void registerRecipeCatalysts(IRecipeCatalystRegistration registration, IPlatformFluidHelper<T> fluidHelper) {
 		long bucketVolume = fluidHelper.bucketVolume();
-
 		registration.addRecipeCatalyst(DebugIngredient.TYPE, new DebugIngredient(7), DebugRecipeCategory.TYPE);
 		registration.addRecipeCatalyst(fluidHelper.getFluidIngredientType(), fluidHelper.create(Fluids.WATER, bucketVolume, null), DebugRecipeCategory.TYPE);
 		registration.addRecipeCatalyst(new ItemStack(Items.STICK), DebugRecipeCategory.TYPE);
+		registration.addRecipeCatalyst(
+			RecipeTypes.CRAFTING,
+			acceptor -> {
+				acceptor.addIngredients(Ingredient.of(ItemTags.PLANKS));
+				acceptor.addItemLike(Items.EMERALD);
+				acceptor.addItemLike(Items.DIAMOND);
+			}
+		);
+
 		IPlatformRegistry<Item> registry = Services.PLATFORM.getRegistry(Registries.ITEM);
 		registry.getValues()
 			.limit(300)

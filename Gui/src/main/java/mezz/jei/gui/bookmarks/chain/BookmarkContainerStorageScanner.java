@@ -46,7 +46,6 @@ public final class BookmarkContainerStorageScanner {
 		return copy;
 	}
 
-
 	public record StorageSnapshot(
 		Map<BookmarkIngredientKey, Long> amounts,
 		Map<BookmarkIngredientKey, ItemStack> representatives

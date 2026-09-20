@@ -1,11 +1,15 @@
 package mezz.jei.api.recipe;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 /**
  * This is a helper class for looking up recipe catalysts.
@@ -14,6 +18,7 @@ import java.util.stream.Stream;
  *
  * @since 9.5.0
  */
+@ApiStatus.NonExtendable
 public interface IRecipeCatalystLookup {
 	/**
 	 * By default, hidden results are not returned.
@@ -29,6 +34,13 @@ public interface IRecipeCatalystLookup {
 	 * @since 9.5.0
 	 */
 	Stream<ITypedIngredient<?>> get();
+
+	/**
+	 * Get the recipe catalysts as the groups used to render each rotating catalyst slot.
+	 *
+	 * @since 15.59.0
+	 */
+	Stream<Consumer<IIngredientAcceptor<?>>> getGroups();
 
 	/**
 	 * Get the recipe catalyst results of the given type for this lookup.

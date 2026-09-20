@@ -6,6 +6,7 @@ import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.gui.widgets.IRecipeWidgetBuilder;
 import mezz.jei.api.gui.widgets.IRecipeWidgetTooltipCallback;
+import mezz.jei.common.util.PlaceableUtil;
 import net.minecraft.client.gui.navigation.ScreenPosition;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.network.chat.FormattedText;
@@ -30,10 +31,7 @@ public abstract class AbstractRecipeWidgetBuilder<THIS extends IRecipeWidgetBuil
 		return position;
 	}
 
-	// Not @Override: IRecipeWidget in 1.20.1 has no getScreenRectangle() default. Callers
-	// (including this class's subclasses and internal sites like RecipeLayout) can downcast
-	// to AbstractRecipeWidgetBuilder<?> to access it; 1.20.1 concrete widgets (Drawer,
-	// TextWidget, etc.) provide their own accessors as needed.
+	@Override
 	public ScreenRectangle getScreenRectangle() {
 		return new ScreenRectangle(position, getWidth(), getHeight());
 	}
@@ -53,9 +51,15 @@ public abstract class AbstractRecipeWidgetBuilder<THIS extends IRecipeWidgetBuil
 		HorizontalAlignment horizontalAlignment,
 		VerticalAlignment verticalAlignment
 	) {
-		int x = areaX + horizontalAlignment.getXPos(areaWidth, getWidth());
-		int y = areaY + verticalAlignment.getYPos(areaHeight, getHeight());
-		return setPosition(x, y);
+		return PlaceableUtil.setPosition(
+			getThis(),
+			areaX,
+			areaY,
+			areaWidth,
+			areaHeight,
+			horizontalAlignment,
+			verticalAlignment
+		);
 	}
 
 	@Override

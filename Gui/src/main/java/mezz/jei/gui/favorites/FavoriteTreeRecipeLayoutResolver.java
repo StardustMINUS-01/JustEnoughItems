@@ -4,11 +4,12 @@ import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusFactory;
-import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
+import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 
@@ -16,14 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-/**
- * Resolves {@link FocusedRecipe}s into recipe layouts for the favorite tree,
- * ported from JEI 1.21.1
- * ({@code mezz.jei.gui.favorites.FavoriteTreeRecipeLayoutResolver}).
- * The 1.21.1-only {@code GtmVirtualCircuitCompat} non-consumable input
- * projection (which has no equivalent in 1.20.1) is omitted.
- */
 public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuilder.RecipeResolver {
 	private final IFocusFactory focusFactory;
 	private final IIngredientManager ingredientManager;
@@ -64,9 +59,13 @@ public final class FavoriteTreeRecipeLayoutResolver implements FavoriteTreeBuild
 	private List<FavoriteTreeBuilder.ResolvedInput> resolveInputs(IRecipeLayoutDrawable<?> layout) {
 		List<IRecipeSlotView> inputSlots = layout.getRecipeSlotsView()
 			.getSlotViews(RecipeIngredientRole.INPUT);
-		// The 1.21.1 implementation subtracts GTM virtual-circuit non-consumable
-		// inputs here via GtmVirtualCircuitCompat; no such compat exists in 1.20.1.
-		Set<BookmarkIngredientKey> nonConsumableInputs = Set.of();
+		Set<BookmarkIngredientKey> nonConsumableInputs = GtmVirtualCircuitCompat
+			.projectVirtualInputs(layout.getRecipe(), ingredientManager)
+			.inputs()
+			.stream()
+			.map(GtmVirtualCircuitCompat.VirtualInput::ingredient)
+			.map(this::createKey)
+			.collect(Collectors.toUnmodifiableSet());
 		List<FavoriteTreeBuilder.ResolvedInput> resolvedInputs = new ArrayList<>();
 		for (int i = 0; i < inputSlots.size(); i++) {
 			resolveInput(i, inputSlots.get(i), nonConsumableInputs)

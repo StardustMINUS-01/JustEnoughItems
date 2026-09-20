@@ -32,9 +32,15 @@ public interface IPlatformRenderHelper {
 
 	void renderTooltip(GuiGraphics guiGraphics, List<Either<FormattedText, TooltipComponent>> elements, int x, int y, Font font, ItemStack stack);
 
-	default void renderTooltip(GuiGraphics guiGraphics, List<Either<FormattedText, TooltipComponent>> elements, int x, int y, Font font, ItemStack stack, ClientTooltipPositioner positioner) {
-		renderTooltip(guiGraphics, elements, x, y, font, stack);
-	}
+	void renderTooltip(
+		GuiGraphics guiGraphics,
+		List<Either<FormattedText, TooltipComponent>> elements,
+		int x,
+		int y,
+		Font font,
+		ItemStack stack,
+		ClientTooltipPositioner positioner
+	);
 
 	Component getName(TagKey<?> tagKey);
 

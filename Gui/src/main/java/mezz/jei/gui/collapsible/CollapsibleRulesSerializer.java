@@ -20,6 +20,10 @@ public final class CollapsibleRulesSerializer {
 	private CollapsibleRulesSerializer() {}
 
 	public static CollapsibleRules deserialize(List<String> lines) {
+		return deserialize(lines, "collapsible rules");
+	}
+
+	public static CollapsibleRules deserialize(List<String> lines, String source) {
 		List<CollapsibleGroup> groups = new ArrayList<>();
 		for (ConfigLineReader.Entry entry : ConfigLineReader.read(lines)) {
 			if (!"item".equals(entry.key())) {
@@ -28,7 +32,7 @@ public final class CollapsibleRulesSerializer {
 			String value = entry.value();
 			Optional<IngredientExpression> expression = IngredientExpression.parseIngredient(value);
 			if (value.isBlank() || expression.isEmpty()) {
-				LOGGER.error("Skipping invalid collapsible group: {}", value);
+				LOGGER.error("Skipping invalid collapsible group in {}: {}", source, value);
 				continue;
 			}
 			groups.add(CollapsibleGroup.create(value, expression.get()));
@@ -36,27 +40,4 @@ public final class CollapsibleRulesSerializer {
 		return new CollapsibleRules(groups);
 	}
 
-	public static CollapsibleSettings deserializeSettings(List<String> lines) {
-		int collapsedColor = CollapsibleSettings.DEFAULT_COLLAPSED_COLOR;
-		int expandedColor = CollapsibleSettings.DEFAULT_EXPANDED_COLOR;
-		for (ConfigLineReader.Entry entry : ConfigLineReader.read(lines)) {
-			switch (entry.key()) {
-				case "collapsedColor" -> collapsedColor = parseColor(entry.value(), collapsedColor);
-				case "expandedColor" -> expandedColor = parseColor(entry.value(), expandedColor);
-				default -> {
-					// Unknown keys are skipped.
-				}
-			}
-		}
-		return new CollapsibleSettings(collapsedColor, expandedColor);
-	}
-
-	private static int parseColor(String value, int fallback) {
-		try {
-			return Integer.decode(value.trim());
-		} catch (RuntimeException e) {
-			LOGGER.error("Invalid collapsible color value '{}', using {}", value, String.format("0x%08X", fallback));
-			return fallback;
-		}
-	}
 }

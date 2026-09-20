@@ -21,29 +21,16 @@ import java.util.Set;
  * Relation lookup happens many times while calculating one chain. Keeping it
  * here makes those lookups proportional to a recipe's own slots instead of to
  * every bookmark in the group.
- *
- * Logic ported from JEI 1.21.1 (StardustMINUS-01/JustEnoughItems, branch 1.21.1).
- * 1.20.1 adaptation: JEI 1.20.1's VanillaTypes.ITEM_STACK uid is the short
- * "item_stack" form (1.21.1 uses "minecraft:item_stack"), so the relaxed
- * producer index keys on the stable item identity instead of one hard-coded
- * type annotation. {@link BookmarkIngredientKey#isItemKey} and
- * {@link BookmarkIngredientKey#itemBaseId} cover both forms plus the
- * legacy/unknown keys produced by favorites.json round-trips.
  */
 public final class RecipeChainGraph {
+	private static final String ITEM_STACK_TYPE_UID = "minecraft:item_stack";
+
 	private final Map<ResourceLocation, List<RecipeChainInput>> ingredientsByRecipe;
 	private final Map<ResourceLocation, List<RecipeChainInput>> resultsByRecipe;
 	private final Map<ResourceLocation, List<RecipeChainInput>> itemsByRecipe;
 	private final Map<Set<BookmarkIngredientKey>, List<RecipeChainInput>> resultsByPermutations;
 	private final Map<BookmarkIngredientKey, List<RecipeChainInput>> resultsByKey;
-	/**
-	 * Result inputs indexed by stable item identity (namespace:path), so recipe
-	 * ingredients link to their producers even when the two sides carry different
-	 * type annotations ("item_stack" vs legacy/unknown) or different snapshot
-	 * counts/NBT (recipe output Count:8b vs input Count:1b). Exact keys take
-	 * precedence; {@link #findBest} still gates candidates with isSatisfiedBy.
-	 */
-	private final Map<String, List<RecipeChainInput>> resultsByItemBaseId;
+	private final Map<String, List<RecipeChainInput>> relaxedItemResultsById;
 	private final Map<RecipeChainInput, Integer> resultOrder;
 
 	private RecipeChainGraph(
@@ -52,7 +39,7 @@ public final class RecipeChainGraph {
 		Map<ResourceLocation, List<RecipeChainInput>> itemsByRecipe,
 		Map<Set<BookmarkIngredientKey>, List<RecipeChainInput>> resultsByPermutations,
 		Map<BookmarkIngredientKey, List<RecipeChainInput>> resultsByKey,
-		Map<String, List<RecipeChainInput>> resultsByItemBaseId,
+		Map<String, List<RecipeChainInput>> relaxedItemResultsById,
 		Map<RecipeChainInput, Integer> resultOrder
 	) {
 		this.ingredientsByRecipe = ingredientsByRecipe;
@@ -60,7 +47,7 @@ public final class RecipeChainGraph {
 		this.itemsByRecipe = itemsByRecipe;
 		this.resultsByPermutations = resultsByPermutations;
 		this.resultsByKey = resultsByKey;
-		this.resultsByItemBaseId = resultsByItemBaseId;
+		this.relaxedItemResultsById = relaxedItemResultsById;
 		this.resultOrder = resultOrder;
 	}
 
@@ -70,7 +57,7 @@ public final class RecipeChainGraph {
 		Map<ResourceLocation, List<RecipeChainInput>> itemsByRecipe = new LinkedHashMap<>();
 		Map<Set<BookmarkIngredientKey>, List<RecipeChainInput>> resultsByPermutations = new HashMap<>();
 		Map<BookmarkIngredientKey, List<RecipeChainInput>> resultsByKey = new HashMap<>();
-		Map<String, List<RecipeChainInput>> resultsByItemBaseId = new HashMap<>();
+		Map<String, List<RecipeChainInput>> relaxedItemResultsById = new HashMap<>();
 		Map<RecipeChainInput, Integer> resultOrder = new HashMap<>();
 
 		for (RecipeChainInput input : inputs) {
@@ -92,9 +79,7 @@ public final class RecipeChainGraph {
 			resultsByPermutations.computeIfAbsent(permutations, ignored -> new ArrayList<>()).add(input);
 			for (BookmarkIngredientKey key : permutations) {
 				resultsByKey.computeIfAbsent(key, ignored -> new ArrayList<>()).add(input);
-				if (BookmarkIngredientKey.isItemKey(key)) {
-					resultsByItemBaseId.computeIfAbsent(key.itemBaseId(), ignored -> new ArrayList<>()).add(input);
-				}
+				getRelaxedItemId(key).ifPresent(itemId -> relaxedItemResultsById.computeIfAbsent(itemId, ignored -> new ArrayList<>()).add(input));
 			}
 		}
 
@@ -104,7 +89,7 @@ public final class RecipeChainGraph {
 			freeze(itemsByRecipe),
 			freeze(resultsByPermutations),
 			freeze(resultsByKey),
-			freeze(resultsByItemBaseId),
+			freeze(relaxedItemResultsById),
 			Map.copyOf(resultOrder)
 		);
 	}
@@ -139,9 +124,7 @@ public final class RecipeChainGraph {
 		LinkedHashSet<RecipeChainInput> candidates = new LinkedHashSet<>();
 		for (BookmarkIngredientKey key : ingredientMetadata.permutations()) {
 			candidates.addAll(resultsByKey.getOrDefault(key, List.of()));
-			if (BookmarkIngredientKey.isItemKey(key)) {
-				candidates.addAll(resultsByItemBaseId.getOrDefault(key.itemBaseId(), List.of()));
-			}
+			getRelaxedItemId(key).ifPresent(itemId -> candidates.addAll(relaxedItemResultsById.getOrDefault(itemId, List.of())));
 		}
 		RecipeChainInput fallback = findBest(order(candidates), ingredientMetadata, visited);
 		return Optional.ofNullable(fallback);
@@ -156,8 +139,7 @@ public final class RecipeChainGraph {
 		for (RecipeChainInput result : candidates) {
 			BookmarkItemMetadata resultMetadata = result.metadata();
 			ResourceLocation recipeUid = resultMetadata.recipeUid();
-			if (
-				resultMetadata.emptyFactor() ||
+			if (resultMetadata.emptyFactor() ||
 				recipeUid == null ||
 				visited.contains(recipeUid) ||
 				!ingredientMetadata.isSatisfiedBy(resultMetadata)
@@ -175,6 +157,16 @@ public final class RecipeChainGraph {
 		return candidates.stream()
 			.sorted(Comparator.comparingInt(resultOrder::get))
 			.toList();
+	}
+
+	private static Optional<String> getRelaxedItemId(BookmarkIngredientKey key) {
+		if (!ITEM_STACK_TYPE_UID.equals(key.ingredientTypeUid())) {
+			return Optional.empty();
+		}
+		String uid = key.ingredientUid();
+		int namespaceSeparator = uid.indexOf(':');
+		int subtypeSeparator = namespaceSeparator < 0 ? -1 : uid.indexOf(':', namespaceSeparator + 1);
+		return Optional.of(subtypeSeparator < 0 ? uid : uid.substring(0, subtypeSeparator));
 	}
 
 	private static <K> Map<K, List<RecipeChainInput>> freeze(Map<K, List<RecipeChainInput>> map) {

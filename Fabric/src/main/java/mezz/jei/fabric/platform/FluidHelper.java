@@ -23,6 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Iterator;
@@ -97,6 +98,11 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 		return ingredient.getFluid().builtInRegistryHolder().tags()
 			.map(TagKey::location)
 			.collect(Collectors.toUnmodifiableSet());
+	}
+
+	@Override
+	public boolean isEmpty(IJeiFluidIngredient ingredient) {
+		return ingredient.getAmount() <= 0 || ingredient.getFluid().isSame(Fluids.EMPTY);
 	}
 
 	@Override

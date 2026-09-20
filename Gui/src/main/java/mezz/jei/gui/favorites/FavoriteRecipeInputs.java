@@ -36,16 +36,8 @@ public final class FavoriteRecipeInputs {
 				continue;
 			}
 			BookmarkIngredientKey selected = selections.get(i);
-			BookmarkIngredientKey requested = selected; // effectively final for the lambda below
-			if (requested == null || !permutations.contains(requested)) {
-				// Same-ingredient fallback: the selection's NBT snapshot may differ from the
-				// layout's variants (tool damage/materials); keep the user's exact key when the
-				// ingredient kind matches, otherwise fall back to the first layout variant.
-				boolean sameIngredient = requested != null &&
-					permutations.stream().anyMatch(key -> key.matches(requested));
-				if (requested == null || (!permutations.contains(requested) && !sameIngredient)) {
-					selected = permutations.get(0);
-				}
+			if (selected == null || !permutations.contains(selected)) {
+				selected = permutations.get(0);
 			}
 			inputs.put(i, new FavoriteRecipeStore.FavoriteSlotInput(selected, permutations));
 		}

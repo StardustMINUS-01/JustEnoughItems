@@ -114,6 +114,9 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	}
 
 	private void updateScreenPropertiesIfDirty() {
+		if (Minecraft.getInstance().screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
+			return;
+		}
 		if (this.screenPropertiesDirty) {
 			getScreenPropertiesUpdater()
 				.updateScreen(Minecraft.getInstance().screen)
@@ -183,8 +186,7 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 
 		this.configButton.updateBounds(configButtonArea);
 		boolean hasQuantitySpace = GuiProperties.getGuiBottom(guiProperties) + SEARCH_HEIGHT < guiProperties.getScreenHeight();
-		this.quantityArea = clientConfig.isQuantityFieldEnabled() && hasQuantitySpace ?
-			getSearchAndConfigArea(displayArea, !searchBarCentered, guiProperties) : ImmutableRect2i.EMPTY;
+		this.quantityArea = clientConfig.isQuantityFieldEnabled() && hasQuantitySpace ? getSearchAndConfigArea(displayArea, !searchBarCentered, guiProperties) : ImmutableRect2i.EMPTY;
 	}
 
 	private void onFilterTextChanged(String filterText) {
@@ -335,6 +337,17 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 			}
 			if (this.screenPropertiesCache.hasValidScreen()) {
 				return configButtonInputHandler;
+			}
+			return NullInputHandler.INSTANCE;
+		});
+	}
+
+	public IUserInputHandler createDeleteItemInputHandler() {
+		final IUserInputHandler deleteItemInputHandler = this.contents.createDeleteItemInputHandler();
+
+		return new ProxyInputHandler(() -> {
+			if (isListDisplayed()) {
+				return deleteItemInputHandler;
 			}
 			return NullInputHandler.INSTANCE;
 		});

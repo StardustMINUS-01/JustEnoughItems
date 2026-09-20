@@ -115,9 +115,7 @@ public class JeiBoundaryCapabilitySuiteTest {
 		if (!outcome.completed()) {
 			return JeiSupportStatus.ENGINE_ERROR;
 		}
-		return outcome.value().equals(c.expected()) ?
-			JeiSupportStatus.SUPPORTED :
-			JeiSupportStatus.FALSE_NEGATIVE;
+		return outcome.value().equals(c.expected()) ? JeiSupportStatus.SUPPORTED : JeiSupportStatus.FALSE_NEGATIVE;
 	}
 
 	private static String formatQuery(String query) {
@@ -152,8 +150,7 @@ public class JeiBoundaryCapabilitySuiteTest {
 				case FALSE_NEGATIVE -> falseNegative++;
 				case ENGINE_ERROR -> engineError++;
 				case ENGINE_TIMEOUT -> timeout++;
-				case FALSE_POSITIVE -> {
-				}
+				case FALSE_POSITIVE -> {}
 			}
 		}
 		System.out.printf(

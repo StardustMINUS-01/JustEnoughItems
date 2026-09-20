@@ -138,11 +138,10 @@ public record RecipeChainTooltipModel(
 		for (RecipeChainInput input : recipeInputs) {
 			BookmarkItemMetadata metadata = input.metadata();
 			ResourceLocation recipeUid = metadata.recipeUid();
-			if (
-				!metadata.type().isGraphOutput() ||
-					recipeUid == null ||
-					metadata.emptyFactor() ||
-					!originalDetails.outputRecipes().contains(recipeUid)
+			if (!metadata.type().isGraphOutput() ||
+				recipeUid == null ||
+				metadata.emptyFactor() ||
+				!originalDetails.outputRecipes().contains(recipeUid)
 			) {
 				adjusted.add(input);
 				continue;
@@ -252,16 +251,13 @@ public record RecipeChainTooltipModel(
 			BookmarkIngredientKey availabilityKey = target.key().getCraftingAvailabilityKey();
 			long inventoryAmount = inventoryAmounts.getOrDefault(availabilityKey, 0L);
 			long usedAmount = usedAmounts.getOrDefault(availabilityKey, 0L);
-			if (inventoryAmount <= usedAmount) {
-				continue;
+			long allocated = Math.min(target.amount(), inventoryAmount - Math.min(inventoryAmount, usedAmount));
+			if (allocated > 0) {
+				merge(available, target.withAmount(allocated));
+				usedAmounts.merge(availabilityKey, allocated, SaturatedMath::add);
 			}
-			long remaining = inventoryAmount - usedAmount;
-			if (remaining >= target.amount()) {
-				merge(available, target.withAmount(target.amount()));
-				usedAmounts.merge(availabilityKey, target.amount(), SaturatedMath::add);
-			} else {
-				merge(missing, target.withAmount(remaining));
-				usedAmounts.merge(availabilityKey, remaining, SaturatedMath::add);
+			if (allocated < target.amount()) {
+				merge(missing, target.withAmount(target.amount() - allocated));
 			}
 		}
 	}
@@ -300,11 +296,10 @@ public record RecipeChainTooltipModel(
 		Map<BookmarkIngredientKey, Item> items = new LinkedHashMap<>();
 		for (RecipeChainInput input : inputs) {
 			RecipeChainItem item = details.calculatedItems().get(input.index());
-			if (
-				item != null &&
-					input.metadata().type().isGraphOutput() &&
-					item.type() == RecipeChainItemType.REMAINDER &&
-					item.requiredAmount() > 0
+			if (item != null &&
+				input.metadata().type().isGraphOutput() &&
+				item.type() == RecipeChainItemType.REMAINDER &&
+				item.requiredAmount() > 0
 			) {
 				toItem(input, item.requiredAmount()).ifPresent(needed -> merge(items, needed));
 			}
@@ -381,7 +376,6 @@ public record RecipeChainTooltipModel(
 			Set.of(key)
 		);
 	}
-
 
 	public record Section(
 		RecipeChainTooltipSectionType type,

@@ -319,6 +319,11 @@ public class LookupHistoryOverlayLayoutTest {
 		}
 
 		@Override
+		public mezz.jei.common.config.IngredientGridLayoutMode getLayoutMode() {
+			return mezz.jei.common.config.IngredientGridLayoutMode.RECTANGULAR;
+		}
+
+		@Override
 		public HorizontalAlignment getHorizontalAlignment() {
 			return horizontalAlignment.getValue();
 		}

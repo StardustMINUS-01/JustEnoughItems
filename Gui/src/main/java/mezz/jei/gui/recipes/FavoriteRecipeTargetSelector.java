@@ -1,13 +1,19 @@
+/*
+ * SPDX-License-Identifier: LGPL-3.0-or-later
+ *
+ * Portions of this file are adapted from GTNewHorizons NotEnoughItems:
+ * https://github.com/GTNewHorizons/NotEnoughItems
+ *
+ * GTNH NEI modifications copyright (c) 2019-2024 mitchej123 and the GTNH Team.
+ */
 package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashMap;
@@ -16,11 +22,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+/**
+ * Mirrors GTNH NEI GuiFavoriteButton's favoriteResult/selectedResult target selection.
+ */
 public final class FavoriteRecipeTargetSelector {
-	private static final Logger LOGGER = LogManager.getLogger();
-	public record Target(BookmarkIngredientKey key, IRecipeSlotDrawable slot) {
-	}
-
 	private final List<Target> targets;
 	private final Function<ITypedIngredient<?>, BookmarkIngredientKey> keyFactory;
 	private int selectedIndex;
@@ -28,11 +33,11 @@ public final class FavoriteRecipeTargetSelector {
 	private FavoriteRecipeTargetSelector(
 		List<Target> targets,
 		Function<ITypedIngredient<?>, BookmarkIngredientKey> keyFactory,
-		@Nullable BookmarkIngredientKey storedTarget
+		int selectedIndex
 	) {
 		this.targets = targets;
 		this.keyFactory = keyFactory;
-		this.selectedIndex = getInitialIndex(targets, storedTarget);
+		this.selectedIndex = selectedIndex;
 	}
 
 	public static FavoriteRecipeTargetSelector create(
@@ -41,41 +46,34 @@ public final class FavoriteRecipeTargetSelector {
 		@Nullable BookmarkIngredientKey storedTarget
 	) {
 		List<Target> targets = getTargets(recipeLayout, keyFactory);
-		return new FavoriteRecipeTargetSelector(targets, keyFactory, storedTarget);
+		int selectedIndex = getInitialIndex(targets, storedTarget);
+		return new FavoriteRecipeTargetSelector(targets, keyFactory, selectedIndex);
 	}
 
 	public int targetCount() {
-		return this.targets.size();
+		return targets.size();
 	}
 
 	public boolean hasMultipleTargets() {
-		return this.targets.size() > 1;
+		return targets.size() > 1;
 	}
 
 	public Optional<BookmarkIngredientKey> selectedKey() {
-		return selectedTarget()
-			.map(Target::key);
+		return selectedTarget().map(Target::key);
 	}
 
 	public Optional<IRecipeSlotDrawable> selectedSlot() {
-		return selectedTarget()
-			.map(Target::slot);
+		return selectedTarget().map(Target::slot);
 	}
 
 	public Optional<BookmarkIngredientKey> keyForSlot(IRecipeSlotDrawable slot) {
-		Optional<ITypedIngredient<?>> first = slot.getAllIngredients()
-			.findFirst();
-		if (first.isEmpty() && DebugConfig.isDebugModeEnabled()) {
-			LOGGER.info("[Bug5] keyForSlot EMPTY slot={}", slot);
-		}
-		return first.map(keyFactory);
+		return slot.getDisplayedIngredient()
+			.or(() -> slot.getAllIngredients().findFirst())
+			.map(keyFactory);
 	}
 
 	public boolean isSelectedTarget(@Nullable BookmarkIngredientKey key) {
-		if (key == null) {
-			return false;
-		}
-		return selectedKey()
+		return key != null && selectedKey()
 			.map(key::equals)
 			.orElse(false);
 	}
@@ -94,10 +92,10 @@ public final class FavoriteRecipeTargetSelector {
 	}
 
 	private Optional<Target> selectedTarget() {
-		if (this.selectedIndex < 0 || this.selectedIndex >= this.targets.size()) {
+		if (selectedIndex < 0 || selectedIndex >= targets.size()) {
 			return Optional.empty();
 		}
-		return Optional.of(this.targets.get(this.selectedIndex));
+		return Optional.of(targets.get(selectedIndex));
 	}
 
 	private static List<Target> getTargets(
@@ -105,17 +103,15 @@ public final class FavoriteRecipeTargetSelector {
 		Function<ITypedIngredient<?>, BookmarkIngredientKey> keyFactory
 	) {
 		Map<BookmarkIngredientKey, Target> uniqueTargets = new LinkedHashMap<>();
-		recipeLayout.getRecipeSlotsView()
-			.getSlotViews(RecipeIngredientRole.OUTPUT)
-			.stream()
-			.filter(slotView -> slotView instanceof IRecipeSlotDrawable)
-			.map(slotView -> (IRecipeSlotDrawable) slotView)
-			.forEach(slot -> {
-				slot.getAllIngredients()
-					.findFirst()
-					.map(ingredient -> new Target(keyFactory.apply(ingredient), slot))
-					.ifPresent(target -> uniqueTargets.putIfAbsent(target.key(), target));
-			});
+		for (IRecipeSlotView slotView : recipeLayout.getRecipeSlotsView().getSlotViews(RecipeIngredientRole.OUTPUT)) {
+			if (!(slotView instanceof IRecipeSlotDrawable slot)) {
+				continue;
+			}
+			slot.getAllIngredients()
+				.findFirst()
+				.map(ingredient -> new Target(keyFactory.apply(ingredient), slot))
+				.ifPresent(target -> uniqueTargets.putIfAbsent(target.key(), target));
+		}
 		return List.copyOf(uniqueTargets.values());
 	}
 
@@ -125,12 +121,14 @@ public final class FavoriteRecipeTargetSelector {
 		}
 		if (storedTarget != null) {
 			for (int i = 0; i < targets.size(); i++) {
-				Target target = targets.get(i);
-				if (storedTarget.equals(target.key())) {
+				if (storedTarget.equals(targets.get(i).key())) {
 					return i;
 				}
 			}
 		}
 		return 0;
+	}
+
+	private record Target(BookmarkIngredientKey key, IRecipeSlotDrawable slot) {
 	}
 }
