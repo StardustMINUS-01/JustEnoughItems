@@ -547,6 +547,7 @@
   "gui.jei.recipe_navigation.target.recipes": "%s的配方",
   "gui.jei.recipe_navigation.target.uses": "%s的用途",
   "gui.jei.recipe_filter.search": "搜索配方……",
+  "gui.jei.recipe_filter.error": "配方搜索失败，详情请查看 latest.log。",
   "gui.jei.recipe_filter.mode": "配方筛选：%s",
   "gui.jei.recipe_filter.mode.all": "全部",
   "gui.jei.recipe_filter.mode.preferred": "偏好",

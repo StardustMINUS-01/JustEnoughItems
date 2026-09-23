@@ -463,6 +463,9 @@ public class JeiGuiStarter {
 			() -> {
 				favoriteRecipes.clearGeneratedFavorites();
 				recipePreferenceCandidateResolver.invalidateAll();
+				if (recipeManager instanceof mezz.jei.common.recipes.IRecipeMaterialCacheInternal materials)
+					materials.invalidateRecipeMaterials();
+				recipesGui.invalidateRecipeSearch();
 			}
 		);
 

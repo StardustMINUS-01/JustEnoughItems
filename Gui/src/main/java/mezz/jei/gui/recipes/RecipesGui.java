@@ -561,6 +561,15 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		recipeGuiTabs.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 		filterModeButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
 		recipeSearchField.render(guiGraphics, mouseX, mouseY, partialTicks);
+		if (navigationLogic.isRecipeSearchPending()) {
+			int x = recipeSearchField.getX();
+			int y = recipeSearchField.getY() + recipeSearchField.getHeight() - 2;
+			int width = recipeSearchField.getWidth();
+			int segment = Math.max(1, width / 4);
+			int offset = (int) ((System.nanoTime() / 5_000_000L) % Math.max(1, width + segment)) - segment;
+			guiGraphics.fill(x, y, x + width, y + 2, 0x443399FF);
+			guiGraphics.fill(x + Math.max(0, offset), y, x + Math.min(width, offset + segment), y + 2, 0xFF3399FF);
+		}
 		filterModeButton.drawTooltips(guiGraphics, mouseX, mouseY);
 		backNavigation.drawTooltips(guiGraphics, mouseX, mouseY);
 		forwardNavigation.drawTooltips(guiGraphics, mouseX, mouseY);
@@ -622,6 +631,8 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	private void drawEmptyRecipeResults(GuiGraphics guiGraphics) {
+		if (navigationLogic.isRecipeSearchPending())
+			return;
 		ImmutableRect2i contentArea = getRecipeLayoutsArea();
 		int centerX = contentArea.getX() + (contentArea.getWidth() / 2);
 		int totalHeight = (font.lineHeight * 2) + 8 + font.lineHeight;
@@ -822,6 +833,16 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			return;
 		}
 		super.onClose();
+	}
+
+	public void invalidateRecipeSearch() {
+		logic.clearRecipeResultSnapshot();
+		if (isOpen())
+			applyRecipeResultFilter();
+	}
+
+	public void stopRecipeSearch() {
+		logic.clearRecipeResultSnapshot();
 	}
 
 	@Override

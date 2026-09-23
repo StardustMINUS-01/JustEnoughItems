@@ -200,6 +200,102 @@ public class InternalRecipeManagerPluginTest {
 		return new PluginFixture(ingredientManager, roleMaps, recipeCategory, plugin);
 	}
 
+	@Test
+	public void recipeMaterialsReuseRegistrationAndRespectInvalidation(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+		IIngredientManager ingredients = createIngredientManager();
+		var calls = new java.util.concurrent.atomic.AtomicInteger();
+		var handled = new java.util.concurrent.atomic.AtomicBoolean(true);
+		var entered = new java.util.concurrent.CountDownLatch(1);
+		var release = new java.util.concurrent.CountDownLatch(1);
+		var candidates = new java.util.concurrent.atomic.AtomicReference<>(List.of(INPUT, CATALYST, INPUT));
+		TestRecipeCategory category = new TestRecipeCategory() {
+			@Override
+			public void setRecipe(IRecipeLayoutBuilder builder, String recipe, IFocusGroup focuses) {
+				calls.incrementAndGet();
+				if (recipe.equals("blocked")) {
+					entered.countDown();
+					try {
+						org.junit.jupiter.api.Assertions.assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS));
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						throw new AssertionError(e);
+					}
+				}
+				builder.addSlot(RecipeIngredientRole.INPUT).addIngredients(INGREDIENT_TYPE, candidates.get());
+				builder.addSlot(RecipeIngredientRole.OUTPUT).addIngredient(INGREDIENT_TYPE, CATALYST);
+				builder.addInvisibleIngredients(RecipeIngredientRole.CATALYST).addIngredient(INGREDIENT_TYPE, INPUT);
+			}
+
+			@Override
+			public boolean isHandled(String recipe) {
+				return handled.get();
+			}
+
+			@Override
+			public ResourceLocation getRegistryName(String recipe) {
+				return ResourceLocation.parse("test:shared_recipe_id");
+			}
+		};
+		var visibility = (mezz.jei.api.runtime.IIngredientVisibility) java.lang.reflect.Proxy.newProxyInstance(
+			getClass().getClassLoader(), new Class<?>[]{mezz.jei.api.runtime.IIngredientVisibility.class},
+			(instance, method, arguments) -> method.getReturnType() == boolean.class ? true : null);
+		var internal = new mezz.jei.library.recipes.RecipeManagerInternal(List.of(category), com.google.common.collect.ImmutableListMultimap.of(),
+			ingredients, new mezz.jei.library.config.RecipeCategorySortingConfig(directory.resolve("categories.ini")), visibility);
+		var manager = new mezz.jei.library.recipes.RecipeManager(internal, ingredients, com.google.common.collect.ImmutableListMultimap.of(), List.of());
+		String first = new String("same");
+		String second = new String("same");
+		internal.addRecipes(RECIPE_TYPE, List.of(first, second));
+		assertEquals(2, calls.get());
+		IIngredientSupplier materials = manager.getRecipeIngredients(category, first);
+		org.junit.jupiter.api.Assertions.assertSame(materials, manager.getRecipeIngredients(category, first));
+		assertNotSame(materials, manager.getRecipeIngredients(category, second));
+		assertEquals(2, calls.get(), "reading registered recipes must not run their layout callback again");
+		assertEquals(List.of(INPUT, CATALYST, INPUT), materials.getIngredients(RecipeIngredientRole.INPUT).stream().map(ITypedIngredient::getIngredient).toList());
+		assertEquals(List.of(INPUT), materials.getIngredients(RecipeIngredientRole.CATALYST).stream().map(ITypedIngredient::getIngredient).toList());
+		org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class, () -> materials.getIngredients(RecipeIngredientRole.INPUT).clear());
+
+		candidates.set(List.of(CATALYST));
+		internal.hideRecipes(RECIPE_TYPE, List.of(first));
+		internal.unhideRecipes(RECIPE_TYPE, List.of(first));
+		assertEquals(1, manager.getRecipeIngredients(category, first).getIngredients(RecipeIngredientRole.INPUT).size());
+		assertEquals(3, calls.get());
+		assertEquals(3, manager.getRecipeIngredients(category, second).getIngredients(RecipeIngredientRole.INPUT).size());
+		manager.invalidateRecipeMaterials();
+		assertEquals(1, manager.getRecipeIngredients(category, second).getIngredients(RecipeIngredientRole.INPUT).size());
+		assertEquals(4, calls.get());
+
+		String dynamic = "dynamic";
+		handled.set(false);
+		org.junit.jupiter.api.Assertions.assertTrue(manager.getRecipeIngredients(category, dynamic).getIngredients(RecipeIngredientRole.OUTPUT).isEmpty());
+		handled.set(true);
+		assertEquals(1, manager.getRecipeIngredients(category, dynamic).getIngredients(RecipeIngredientRole.OUTPUT).size());
+		manager.getRecipeIngredients(category, dynamic);
+		assertEquals(5, calls.get(), "unhandled recipes must not become permanent empty cached results");
+		TestRecipeCategory otherCategory = new TestRecipeCategory();
+		org.junit.jupiter.api.Assertions.assertTrue(manager.getRecipeIngredients(otherCategory, dynamic).getIngredients(RecipeIngredientRole.INPUT).isEmpty());
+
+		candidates.set(java.util.Collections.nCopies(65_536, INPUT));
+		assertEquals(65_536, manager.getRecipeIngredients(category, "oversized").getIngredients(RecipeIngredientRole.INPUT).size());
+		manager.getRecipeIngredients(category, "oversized");
+		assertEquals(7, calls.get(), "oversized dynamic recipes must not remain in the bounded cache");
+		candidates.set(List.of(INPUT));
+		manager.onRuntimeStopped();
+		manager.getRecipeIngredients(category, dynamic);
+		assertEquals(8, calls.get());
+		try (var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+			var result = worker.submit(() -> manager.getRecipeIngredients(category, "blocked"));
+			try {
+				org.junit.jupiter.api.Assertions.assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+				manager.invalidateRecipeMaterials();
+			} finally {
+				release.countDown();
+			}
+			result.get(5, java.util.concurrent.TimeUnit.SECONDS);
+			manager.getRecipeIngredients(category, "blocked");
+			assertEquals(10, calls.get(), "an extraction racing with invalidation must not refill the cleared cache");
+		}
+	}
+
 	private static EnumMap<RecipeIngredientRole, RecipeMap> createRoleMaps(IIngredientManager ingredientManager) {
 		Comparator<RecipeType<?>> recipeTypeComparator = Comparator.comparing(recipeType -> recipeType.getUid().toString());
 		EnumMap<RecipeIngredientRole, RecipeMap> roleMaps = new EnumMap<>(RecipeIngredientRole.class);

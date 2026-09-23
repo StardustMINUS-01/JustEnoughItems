@@ -16,17 +16,24 @@ public final class IngredientSupplierHelper {
 	}
 
 	public static <T> IIngredientSupplier getIngredientSupplier(T recipe, IRecipeCategory<T> recipeCategory, IIngredientManager ingredientManager) {
+		return extractIngredients(recipe, recipeCategory, ingredientManager).supplier();
+	}
+
+	public static <T> Extraction extractIngredients(T recipe, IRecipeCategory<T> recipeCategory, IIngredientManager ingredientManager) {
 		IngredientSupplierBuilder builder = new IngredientSupplierBuilder(ingredientManager);
 		if (!recipeCategory.isHandled(recipe)) {
-			return builder.buildIngredientSupplier();
+			return new Extraction(builder.buildIngredientSupplier(), false);
 		}
 		try {
 			recipeCategory.setRecipe(builder, recipe, FocusGroup.EMPTY);
 		} catch (RuntimeException | LinkageError e) {
 			String recipeInfo = ErrorUtil.getRecipeInfo(recipeCategory, recipe);
 			LOGGER.error("Found a broken recipe, failed to setRecipe with RecipeLayoutBuilder:\n{}", recipeInfo, e);
+			return new Extraction(builder.buildIngredientSupplier(), false);
 		}
 
-		return builder.buildIngredientSupplier();
+		return new Extraction(builder.buildIngredientSupplier(), true);
 	}
+
+	public record Extraction(IIngredientSupplier supplier, boolean complete) {}
 }

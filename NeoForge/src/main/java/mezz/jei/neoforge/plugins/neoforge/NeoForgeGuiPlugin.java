@@ -55,6 +55,10 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 
 	@Override
 	public void onRuntimeUnavailable() {
+		mezz.jei.common.Internal.getOptionalJeiRuntime().ifPresent(runtime -> {
+			if (runtime.getRecipesGui() instanceof mezz.jei.gui.recipes.RecipesGui gui)
+				gui.stopRecipeSearch();
+		});
 		mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.onRuntimeStopped();
 		LOGGER.info("Stopping JEI GUI");
 		runtimeSubscriptions.clear();

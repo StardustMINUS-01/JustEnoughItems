@@ -27,7 +27,7 @@ import mezz.jei.library.focus.FocusGroup;
 import mezz.jei.library.gui.ingredients.CycleTimer;
 import mezz.jei.library.gui.recipes.RecipeLayout;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeSlotBuilder;
-import mezz.jei.library.util.IngredientSupplierHelper;
+import mezz.jei.common.recipes.IRecipeMaterialCacheInternal;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Unmodifiable;
 
@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public class RecipeManager implements IRecipeManager {
+public class RecipeManager implements IRecipeManager, IRecipeMaterialCacheInternal {
 	private final RecipeManagerInternal internal;
 	private final IIngredientManager ingredientManager;
 	private final ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
@@ -189,7 +189,16 @@ public class RecipeManager implements IRecipeManager {
 
 	@Override
 	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
-		return IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
+		return internal.getRecipeIngredients(recipeCategory, recipe);
+	}
+
+	@Override
+	public void invalidateRecipeMaterials() {
+		internal.invalidateRecipeMaterials();
+	}
+
+	public void onRuntimeStopped() {
+		internal.clearRecipeMaterials();
 	}
 
 	@Override

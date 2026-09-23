@@ -50,6 +50,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	private final PluginManager pluginManager;
 	private final Set<RecipeType<?>> hiddenRecipeTypes = new HashSet<>();
 	private final IIngredientVisibility ingredientVisibility;
+	private final RecipeMaterialCache recipeMaterialCache = new RecipeMaterialCache();
 
 	@Nullable
 	@Unmodifiable
@@ -129,6 +130,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	}
 
 	private <T> boolean addRecipe(IRecipeCategory<T> recipeCategory, T recipe, Set<T> hiddenRecipes) {
+		recipeMaterialCache.invalidate(recipeCategory, recipe);
 		RecipeType<T> recipeType = recipeCategory.getRecipeType();
 		if (hiddenRecipes.contains(recipe)) {
 			if (LOGGER.isDebugEnabled()) {
@@ -144,18 +146,33 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 			}
 			return false;
 		}
-		IIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
+		IngredientSupplierHelper.Extraction extraction = IngredientSupplierHelper.extractIngredients(recipe, recipeCategory, ingredientManager);
+		IIngredientSupplier ingredientSupplier = extraction.supplier();
 
 		try {
 			for (RecipeMap recipeMap : recipeMaps.values()) {
 				recipeMap.addRecipe(recipeType, recipe, ingredientSupplier);
 			}
+			if (extraction.complete())
+				recipeMaterialCache.register(recipeCategory, recipe, ingredientSupplier);
 			return true;
 		} catch (RuntimeException | LinkageError e) {
 			String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, recipeCategory, ingredientManager);
 			LOGGER.error("Found a broken recipe, failed to addRecipe: {}\n", recipeInfo, e);
 			return false;
 		}
+	}
+
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> category, T recipe) {
+		return recipeMaterialCache.getIngredients(category, recipe, ingredientManager);
+	}
+
+	public void invalidateRecipeMaterials() {
+		recipeMaterialCache.invalidateAll();
+	}
+
+	public void clearRecipeMaterials() {
+		recipeMaterialCache.clear();
 	}
 
 	public boolean isCategoryHidden(IRecipeCategory<?> recipeCategory, IFocusGroup focuses) {
@@ -294,6 +311,8 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
 		Set<T> hiddenRecipes = recipeTypeData.getHiddenRecipes();
 		hiddenRecipes.addAll(recipes);
+		for (T recipe : recipes)
+			recipeMaterialCache.invalidate(recipeTypeData.getRecipeCategory(), recipe);
 		recipeCategoriesVisibleCache = null;
 	}
 
@@ -301,6 +320,8 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
 		Set<T> hiddenRecipes = recipeTypeData.getHiddenRecipes();
 		hiddenRecipes.removeAll(recipes);
+		for (T recipe : recipes)
+			recipeMaterialCache.invalidate(recipeTypeData.getRecipeCategory(), recipe);
 		recipeCategoriesVisibleCache = null;
 	}
 

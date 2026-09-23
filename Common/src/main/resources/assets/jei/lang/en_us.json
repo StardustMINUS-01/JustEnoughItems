@@ -548,6 +548,7 @@
   "gui.jei.recipe_navigation.target.recipes": "Recipes for %s",
   "gui.jei.recipe_navigation.target.uses": "Uses for %s",
   "gui.jei.recipe_filter.search": "Search recipes...",
+  "gui.jei.recipe_filter.error": "Recipe search failed. See latest.log for details.",
   "gui.jei.recipe_filter.mode": "Recipe filter: %s",
   "gui.jei.recipe_filter.mode.all": "All",
   "gui.jei.recipe_filter.mode.preferred": "Preferred",

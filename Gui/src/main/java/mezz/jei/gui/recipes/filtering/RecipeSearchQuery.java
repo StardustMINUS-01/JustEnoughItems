@@ -1,5 +1,14 @@
 package mezz.jei.gui.recipes.filtering;
 
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.api.ingredients.IIngredientSupplier;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.api.runtime.IIngredientManager;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -41,13 +50,110 @@ public final class RecipeSearchQuery {
 		return alternatives.isEmpty();
 	}
 
-	public boolean matches(RecipeSearchDocument document) {
-		return matches(document, IRecipeSearchTextMatcher.DEFAULT);
+	public java.util.Set<String> getTokens() {
+		return alternatives.stream().flatMap(List::stream).map(SearchTerm::value).collect(java.util.stream.Collectors.toUnmodifiableSet());
 	}
 
-	boolean matches(RecipeSearchDocument document, IRecipeSearchTextMatcher matcher) {
-		return isEmpty() || alternatives.stream()
-			.anyMatch(alternative -> alternative.stream().allMatch(term -> term.matches(document, matcher)));
+	public <T> boolean matches(IRecipeCategory<T> category, T recipe, IRecipeManager recipes, IIngredientManager ingredients,
+		java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts) {
+		return matches(category, recipe, recipes, ingredients, catalysts, IRecipeSearchTextMatcher.DEFAULT);
+	}
+
+	<T> boolean matches(IRecipeCategory<T> category, T recipe, IRecipeManager recipes, IIngredientManager ingredients,
+		java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts, IRecipeSearchTextMatcher matcher) {
+		if (isEmpty())
+			return true;
+		RecipeMaterials<T> materials = new RecipeMaterials<>(category, recipe, recipes, ingredients, catalysts, matcher);
+		for (List<SearchTerm> alternative : alternatives) {
+			boolean matches = true;
+			for (SearchTerm term : alternative) {
+				if (term.excluded() == materials.matches(term)) {
+					matches = false;
+					break;
+				}
+			}
+			if (matches)
+				return true;
+		}
+		return false;
+	}
+
+	private static final class RecipeMaterials<T> {
+		private final IRecipeCategory<T> category;
+		private final T recipe;
+		private final IRecipeManager recipes;
+		private final IIngredientManager ingredients;
+		private final java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts;
+		private @Nullable IIngredientSupplier materials;
+		private final IRecipeSearchTextMatcher matcher;
+
+		private RecipeMaterials(IRecipeCategory<T> category, T recipe, IRecipeManager recipes, IIngredientManager ingredients,
+			java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts, IRecipeSearchTextMatcher matcher) {
+			this.category = category;
+			this.recipe = recipe;
+			this.recipes = recipes;
+			this.ingredients = ingredients;
+			this.catalysts = catalysts;
+			this.matcher = matcher;
+		}
+
+		private boolean matches(SearchTerm term) {
+			return switch (term.scope()) {
+				case ALL -> matchesRole(RecipeIngredientRole.INPUT, term) || matchesRole(RecipeIngredientRole.OUTPUT, term) ||
+					matchesIngredients(catalysts.get(), term) || matchesRecipe(term);
+				case INPUT -> matchesRole(RecipeIngredientRole.INPUT, term);
+				case OUTPUT -> matchesRole(RecipeIngredientRole.OUTPUT, term);
+				case CATALYST -> matchesIngredients(catalysts.get(), term);
+				case RECIPE -> matchesRecipe(term);
+			};
+		}
+
+		private boolean matchesRole(RecipeIngredientRole role, SearchTerm term) {
+			if (materials == null)
+				materials = recipes.getRecipeIngredients(category, recipe);
+			return matchesIngredients(materials.getIngredients(role), term);
+		}
+
+		private boolean matchesIngredients(List<ITypedIngredient<?>> candidates, SearchTerm term) {
+			for (ITypedIngredient<?> candidate : candidates) {
+				if (matchesIngredient(candidate, term))
+					return true;
+			}
+			return false;
+		}
+
+		private <I> boolean matchesIngredient(ITypedIngredient<I> candidate, SearchTerm term) {
+			IIngredientHelper<I> helper = ingredients.getIngredientHelper(candidate.getType());
+			I ingredient = candidate.getIngredient();
+			return switch (term.matchType()) {
+				case TEXT -> contains(helper.getDisplayName(ingredient), term.value()) ||
+					contains(helper.getResourceLocation(ingredient).toString(), term.value()) ||
+					contains(helper.getDisplayModId(ingredient), term.value()) ||
+					helper.getTagStream(ingredient).anyMatch(tag -> contains(tag.toString(), term.value()));
+				case TAG -> helper.getTagStream(ingredient).anyMatch(tag -> contains(tag.toString(), term.value()));
+				case MOD -> contains(helper.getDisplayModId(ingredient), term.value());
+				case RESOURCE_LOCATION -> contains(helper.getResourceLocation(ingredient).toString(), term.value());
+			};
+		}
+
+		private boolean matchesRecipe(SearchTerm term) {
+			if (term.matchType() == MatchType.TAG)
+				return false;
+			if (matchesRecipeText(category.getTitle().getString(), term) || matchesRecipeText(category.getRecipeType().getUid().toString(), term))
+				return true;
+			var id = category.getRegistryName(recipe);
+			return id != null && matchesRecipeText(id.toString(), term);
+		}
+
+		private boolean matchesRecipeText(String text, SearchTerm term) {
+			if (term.matchType() == MatchType.MOD)
+				text = SearchTerm.getNamespace(text);
+			return contains(text, term.value());
+		}
+
+		private boolean contains(String text, String value) {
+			return matcher.contains(text.toLowerCase(Locale.ROOT), value);
+		}
 	}
 
 	public boolean hasInputTerms() {
@@ -138,27 +244,6 @@ public final class RecipeSearchQuery {
 			return new SearchTerm(scope, matchType, token.toLowerCase(Locale.ROOT), excluded);
 		}
 
-		private boolean matches(RecipeSearchDocument document, IRecipeSearchTextMatcher matcher) {
-			boolean matched = switch (scope) {
-				case ALL -> matchesIngredients(document.inputs(), matcher) ||
-					matchesIngredients(document.outputs(), matcher) ||
-					matchesIngredients(document.catalysts(), matcher) ||
-					matchesRecipeText(document, matcher);
-				case INPUT -> matchesIngredients(document.inputs(), matcher);
-				case OUTPUT -> matchesIngredients(document.outputs(), matcher);
-				case CATALYST -> matchesIngredients(document.catalysts(), matcher);
-				case RECIPE -> matchesRecipeText(document, matcher);
-			};
-			return excluded != matched;
-		}
-
-		private boolean matchesIngredients(
-			List<RecipeSearchIngredient> ingredients,
-			IRecipeSearchTextMatcher matcher
-		) {
-			return ingredients.stream().anyMatch(ingredient -> matchesIngredientValue(ingredient, matcher));
-		}
-
 		private boolean matchesIngredient(RecipeSearchIngredient ingredient, IRecipeSearchTextMatcher matcher) {
 			return excluded != matchesIngredientValue(ingredient, matcher);
 		}
@@ -170,18 +255,6 @@ public final class RecipeSearchQuery {
 				case MOD -> ingredient.matchesMod(value, matcher);
 				case RESOURCE_LOCATION -> ingredient.matchesResourceLocation(value, matcher);
 			};
-		}
-
-		private boolean matchesRecipeText(RecipeSearchDocument document, IRecipeSearchTextMatcher matcher) {
-			if (matchType == MatchType.TAG) {
-				return false;
-			}
-			return document.recipeText().stream().anyMatch(text -> switch (matchType) {
-				case TEXT -> matcher.contains(text, value);
-				case MOD -> matcher.contains(getNamespace(text), value);
-				case RESOURCE_LOCATION -> matcher.contains(text, value);
-				case TAG -> false;
-			});
 		}
 
 		private static String getNamespace(String value) {
