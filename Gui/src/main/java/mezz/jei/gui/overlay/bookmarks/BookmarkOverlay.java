@@ -149,6 +149,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	private final BookmarkOverlayRenderer renderer;
 	private final BookmarkOverlayInputHandlers inputHandlers;
 	private final BookmarkOverlayDragHandlers dragHandlers;
+	private final BookmarkChapterNavigation chapterNavigation;
 	private long defaultGroupBookmarksVersion = Long.MIN_VALUE;
 	private boolean defaultGroupHasBookmarks;
 
@@ -198,6 +199,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		);
 		this.inputHandlers = new BookmarkOverlayInputHandlers(this);
 		this.dragHandlers = new BookmarkOverlayDragHandlers(this);
+		this.chapterNavigation = new BookmarkChapterNavigation(this);
+		contents.enableLeadingNavigationContent();
 		this.favoriteContents = favoriteContents;
 		this.lookupHistoryOverlay = lookupHistoryOverlay;
 		this.guiPropertiesCache = new GuiPropertiesCache<>(
@@ -212,7 +215,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		this.previewTooltipController = new BookmarkPreviewTooltipController(this, recipeTransferService);
 		bookmarkList.addSourceListChangedListener(() -> {
 			layout.clearPanelSnapshot();
-			toggleState.setBookmarkEnabled(!bookmarkList.isEmpty());
+			toggleState.setBookmarkEnabled(!bookmarkList.isEmpty() || bookmarkList.getChapters().size() > 1);
 			markScreenPropertiesDirty();
 		});
 
@@ -239,7 +242,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return toggleState.isBookmarkOverlayEnabled() &&
 			guiPropertiesCache.hasValidScreen() &&
 			contents.hasRoom() &&
-			!bookmarkList.isEmpty();
+			(!bookmarkList.isEmpty() || bookmarkList.getChapters().size() > 1);
 	}
 
 	public boolean isFavoritePanelDisplayed() {
@@ -272,7 +275,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	public boolean toggleBookmarkPanel(boolean simulate) {
-		if (bookmarkList.isEmpty() || !hasBookmarkPanelRoom()) {
+		if (bookmarkList.isEmpty() && bookmarkList.getChapters().size() <= 1 || !hasBookmarkPanelRoom()) {
 			return false;
 		}
 		if (!simulate) {
@@ -334,6 +337,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		layout.clearPanelSnapshot();
 		IGuiProperties guiProperties = this.guiPropertiesCache.getGuiProperties();
 		if (guiProperties == null) {
+			chapterNavigation.unfocus();
 			this.contents.close();
 			this.favoriteContents.close();
 			this.lookupHistoryOverlay.close();
@@ -613,6 +617,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			getScrollStepArea();
 			this.scrollStepField.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
 		}
+		if (isListDisplayed())
+			chapterNavigation.draw(guiGraphics, mouseX, mouseY, partialTicks);
 	}
 
 	private void drawBookmarkGroupPanels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -661,6 +667,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	public void drawTooltips(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
+			return;
 		if (sortDragState != null) {
 			boolean drewSortDrag = sortDragState.drawDraggedItems(guiGraphics, mouseX, mouseY);
 			drewSortDrag = renderer.drawFloatingGroupPanel(guiGraphics, sortDragState, mouseX, mouseY) || drewSortDrag;
@@ -716,6 +724,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	@Override
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
+		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
+			return Stream.empty();
 		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			return Stream.concat(this.contents.getIngredientUnderMouse(mouseX, mouseY), this.lookupHistoryOverlay.getIngredientUnderMouse(mouseX, mouseY));
@@ -797,6 +807,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 		final IUserInputHandler displayedInputHandler = new CombinedInputHandler(
 			"BookmarkOverlay",
+			chapterNavigation,
 			recipeCollapseInputHandler,
 			groupInputHandler,
 			this.scrollStepField.createInputHandler(),
@@ -1151,6 +1162,9 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			return ImmutableRect2i.EMPTY;
 		}
 		int x = back.getX() + back.getWidth();
+		ImmutableRect2i chapterArea = contents.getLeadingNavigationArea();
+		if (!chapterArea.isEmpty())
+			x = chapterArea.x() + chapterArea.width() + 2;
 		int width = next.getX() - x;
 		if (width <= 0) {
 			return ImmutableRect2i.EMPTY;

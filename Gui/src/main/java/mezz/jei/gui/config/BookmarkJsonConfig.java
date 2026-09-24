@@ -37,7 +37,7 @@ import java.util.Optional;
 public class BookmarkJsonConfig implements IBookmarkConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final Duration SAVE_DELAY_TIME = Duration.ofSeconds(5);
-	private static final int VERSION = 2;
+	private static final int VERSION = 3;
 
 	@SuppressWarnings("deprecation")
 	private final LegacyBookmarkConfig legacyBookmarkConfig;
@@ -88,19 +88,22 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		}
 		this.ingredientManager = ingredientManager;
 		this.codecHelper = codecHelper;
-		List<IBookmark> bookmarksSnapshot = List.copyOf(bookmarks);
+		List<BookmarkConfigEntry> entriesSnapshot = bookmarkList.createChapterEntries();
 		return getPath(jeiConfigurationDir)
 			.map(path -> {
-				delayedSave.run(() -> save(path, registryAccess, bookmarksSnapshot, bookmarkCodec));
+				delayedSave.run(() -> saveEntries(path, registryAccess, entriesSnapshot, bookmarkCodec));
 				return true;
 			})
 			.orElse(false);
 	}
 
 	private boolean save(Path path, RegistryAccess registryAccess, Collection<IBookmark> bookmarks, Codec<IBookmark> bookmarkCodec) {
+		return saveEntries(path, registryAccess, bookmarkList.createChapterEntries(), bookmarkCodec);
+	}
+
+	private boolean saveEntries(Path path, RegistryAccess registryAccess, List<BookmarkConfigEntry> entries, Codec<IBookmark> bookmarkCodec) {
 		Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
 		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
-		List<BookmarkConfigEntry> entries = BookmarkJsonSerializer.createEntries(bookmarkList, bookmarks);
 		try {
 			JsonArrayFileHelper.write(
 				path,
@@ -155,7 +158,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		try {
 			BookmarkJsonSerializer.migrate(
 				path, VERSION, LegacyBookmarkConfig.getPath(jeiConfigurationDir),
-				BookmarkJsonSerializer.createEntries(bookmarkList),
+				bookmarkList.createChapterEntries(),
 				BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec), registryOps);
 		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to migrate bookmark config to file {}", path, e);
@@ -179,19 +182,16 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 				List<IBookmark> bookmarks;
 				Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
 
-				try (BufferedReader reader = Files.newBufferedReader(path)) {
-					List<BookmarkConfigEntry> entries = JsonArrayFileHelper.read(
-						reader,
-						VERSION,
-						entryCodec,
-						registryOps,
-						(element, error) -> {
-							LOGGER.error("Encountered an error when loading the bookmark config from file {}\n{}\n{}", path, element, error);
-						},
-						(element, exception) -> {
-							LOGGER.error("Encountered an exception when loading the bookmark config from file {}\n{}", path, element, exception);
+				try {
+					List<BookmarkConfigEntry> entries = readEntries(path, VERSION, entryCodec, registryOps);
+					if (entries.isEmpty()) {
+						entries = readEntries(path, 2, entryCodec, registryOps);
+						if (!entries.isEmpty()) {
+							Path backup = path.resolveSibling("bookmarks.before-chapters.json");
+							if (!Files.exists(backup))
+								Files.copy(path, backup);
 						}
-					);
+					}
 					BookmarkJsonSerializer.applyEntriesWithoutNotifying(entries, bookmarkList);
 					bookmarks = bookmarkList.getBookmarks();
 					LOGGER.debug("Loaded bookmarks config from file: {}", path);
@@ -203,6 +203,14 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 				return bookmarks;
 			})
 			.orElseGet(List::of);
+	}
+
+	private List<BookmarkConfigEntry> readEntries(Path path, int version, Codec<BookmarkConfigEntry> codec, RegistryOps<JsonElement> ops) throws IOException {
+		try (BufferedReader reader = Files.newBufferedReader(path)) {
+			return JsonArrayFileHelper.read(reader, version, codec, ops,
+				(element, error) -> LOGGER.error("Unable to read bookmark entry in {}: {}: {}", path, element, error),
+				(element, exception) -> LOGGER.error("Unable to read bookmark entry in {}: {}", path, element, exception));
+		}
 	}
 
 	@Unmodifiable

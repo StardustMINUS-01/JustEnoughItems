@@ -11,6 +11,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.codecs.EnumCodec;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkChapter;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkIngredientAmountResolver;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
@@ -52,6 +53,15 @@ public final class BookmarkConfigEntryCodec {
 	private BookmarkConfigEntryCodec() {
 	}
 
+	private static final Codec<BookmarkChapter> CHAPTER_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+			Codec.STRING.validate(type -> type.equals("chapter") ? DataResult.success(type) : DataResult.error(() -> "Not a chapter")).fieldOf("type").forGetter(chapter -> "chapter"),
+			Codec.intRange(1, Integer.MAX_VALUE).fieldOf("id").forGetter(BookmarkChapter::id),
+			Codec.STRING.optionalFieldOf("title", "").forGetter(BookmarkChapter::title),
+			Codec.intRange(0, Integer.MAX_VALUE).optionalFieldOf("page", 0).forGetter(BookmarkChapter::page),
+			Codec.BOOL.optionalFieldOf("active", false).forGetter(BookmarkChapter::active)
+		)
+		.apply(instance, (type, id, title, page, active) -> new BookmarkChapter(id, title, page, active)));
+
 	public static Codec<BookmarkConfigEntry> create(
 		ICodecHelper codecHelper,
 		IIngredientManager ingredientManager,
@@ -72,11 +82,14 @@ public final class BookmarkConfigEntryCodec {
 					return DataResult.success(Pair.of(normalizeIngredientBookmark(entry.bookmark(), ingredientManager), encodedForkData));
 				}
 			);
-		return Codec.either(GROUP_CODEC, bookmarkEntryCodec)
+		Codec<BookmarkConfigEntry> contentCodec = Codec.either(GROUP_CODEC, bookmarkEntryCodec)
 			.xmap(
 				either -> either.map(BookmarkConfigEntry::group, entry -> entry),
 				entry -> entry.group() != null ? Either.left(entry.group()) : Either.right(entry)
 			);
+		return Codec.either(CHAPTER_CODEC, contentCodec).xmap(
+			either -> either.map(BookmarkConfigEntry::chapter, entry -> entry),
+			entry -> entry.chapter() != null ? Either.left(entry.chapter()) : Either.right(entry));
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})

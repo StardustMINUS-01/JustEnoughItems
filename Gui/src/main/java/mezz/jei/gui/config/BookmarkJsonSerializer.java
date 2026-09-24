@@ -73,6 +73,10 @@ public final class BookmarkJsonSerializer {
 	}
 
 	static void applyEntriesWithoutNotifying(List<BookmarkConfigEntry> entries, BookmarkList bookmarkList) {
+		if (entries.stream().anyMatch(entry -> entry.chapter() != null)) {
+			bookmarkList.loadChapters(entries);
+			return;
+		}
 		for (BookmarkConfigEntry entry : entries) {
 			if (entry.group() != null) {
 				bookmarkList.addGroupFromConfig(entry.group());
@@ -181,7 +185,7 @@ public final class BookmarkJsonSerializer {
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static IBookmark withGroupId(IBookmark bookmark, int groupId) {
+	public static IBookmark withGroupId(IBookmark bookmark, int groupId) {
 		if (bookmark instanceof IngredientBookmark<?> ingredientBookmark) {
 			return ingredientBookmark.withEqualityScope(groupId);
 		}

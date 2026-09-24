@@ -29,6 +29,16 @@ public class PageNavigation {
 	private ImmutableRect2i area = ImmutableRect2i.EMPTY;
 	private @Nullable IconButton extraButton;
 	private IUserInputHandler extraInput = NullInputHandler.INSTANCE;
+	private boolean leadingContent;
+	private ImmutableRect2i leadingArea = ImmutableRect2i.EMPTY;
+
+	public void setLeadingContent(boolean enabled) {
+		leadingContent = enabled;
+	}
+
+	public ImmutableRect2i getLeadingArea() {
+		return isVisible() ? leadingArea : ImmutableRect2i.EMPTY;
+	}
 
 	public void setExtraButton(IconButton button) {
 		this.extraButton = button;
@@ -79,12 +89,13 @@ public class PageNavigation {
 		if (area.isEmpty()) {
 			return false;
 		}
-		return !hideOnSinglePage || this.paged.hasNext() || this.paged.hasPrevious();
+		return leadingContent || !hideOnSinglePage || this.paged.hasNext() || this.paged.hasPrevious();
 	}
 
 	public void updateBounds(ImmutableRect2i area) {
 		this.area = area;
-		int buttonSize = Math.min(area.getHeight(), area.width() / 2);
+		int buttonSize = Math.min(area.getHeight(), leadingContent ? Math.max(0, (area.width() - 4) / (extraButton == null ? 4 : 5)) : area.width() / 2);
+		leadingArea = leadingContent && buttonSize > 0 ? new ImmutableRect2i(area.x() + buttonSize + 2, area.y(), buttonSize * 2, area.height()) : ImmutableRect2i.EMPTY;
 
 		ImmutableRect2i backArea = area.keepLeft(buttonSize);
 		this.backButton.updateBounds(backArea);
@@ -119,13 +130,15 @@ public class PageNavigation {
 				JeiGuiColors.getColor(GuiColor.PAGE_NAVIGATION_BACKGROUND)
 			);
 
-			int right = extraButton != null && !extraButton.getArea().isEmpty() ? extraButton.getX() : nextButton.getX();
+			int right = nextButton.getX();
 			int left = backButton.getX() + backButton.getWidth();
-			int availableWidth = Math.max(0, right - left - (extraButton == null ? 0 : 2));
+			int availableWidth = Math.max(0, right - left);
 			Font font = minecraft.font;
-			ImmutableRect2i textArea = extraButton == null ? this.area : new ImmutableRect2i(left + 1, area.y(), availableWidth, area.height());
+			ImmutableRect2i textArea = new ImmutableRect2i(left, area.y(), availableWidth, area.height());
 			ImmutableRect2i centerArea = MathUtil.centerTextArea(textArea, font, this.pageNumDisplayString);
-			if (centerArea.width() <= availableWidth) {
+			if (centerArea.width() <= availableWidth && !centerArea.intersects(leadingArea) &&
+				(extraButton == null || !centerArea.intersects(extraButton.getArea()))
+			) {
 				guiGraphics.drawString(font, pageNumDisplayString, centerArea.getX(), centerArea.getY(), JeiGuiColors.getColor(GuiColor.PAGE_NAVIGATION_TEXT));
 			}
 			nextButton.draw(guiGraphics, mouseX, mouseY, partialTicks);

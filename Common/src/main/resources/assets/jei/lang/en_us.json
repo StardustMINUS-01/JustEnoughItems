@@ -547,6 +547,8 @@
   "gui.jei.recipe_navigation.forward.shift": "Shift + Click: jump to the latest query",
   "gui.jei.recipe_navigation.target.recipes": "Recipes for %s",
   "gui.jei.recipe_navigation.target.uses": "Uses for %s",
+  "gui.jei.bookmark.chapter.create": "Create chapter",
+  "gui.jei.bookmark.chapter.rename": "Rename chapter",
   "gui.jei.recipe_filter.search": "Search recipes...",
   "gui.jei.recipe_filter.error": "Recipe search failed. See latest.log for details.",
   "gui.jei.recipe_filter.mode": "Recipe filter: %s",

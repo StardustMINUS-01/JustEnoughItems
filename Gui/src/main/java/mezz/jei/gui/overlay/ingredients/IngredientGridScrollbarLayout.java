@@ -11,6 +11,13 @@ public final class IngredientGridScrollbarLayout {
 	private IngredientGridScrollbarLayout() {
 	}
 
+	public static IngredientGridWithNavigationLayout calculateWithNavigation(IIngredientGridConfig config, ImmutableRect2i area, Set<ImmutableRect2i> exclusions, int ingredientCount) {
+		IngredientGridWithNavigationLayout layout = calculate(config, area.cropTop(IngredientGridWithNavigationLayout.NAVIGATION_HEIGHT + IngredientGridWithNavigationLayout.INNER_PADDING), exclusions, ingredientCount);
+		ImmutableRect2i navigation = IngredientGridWithNavigationLayout.calculateNavigationArea(layout.slotBackgroundArea(), true);
+		navigation = IngredientGridButtonNavigationLayout.calculateNavigationAreaAvoidingExclusions(navigation, layout.slotBackgroundArea(), exclusions, config);
+		return IngredientGridWithNavigationLayout.fromGridArea(config, layout.ingredientGridArea(), layout.availableSlotCount(), navigation, navigation, true, layout.scrollbarArea(), layout.scrollbarEnabled());
+	}
+
 	public static IngredientGridWithNavigationLayout calculate(
 		IIngredientGridConfig gridConfig,
 		ImmutableRect2i availableArea,

@@ -8,8 +8,16 @@ import org.jetbrains.annotations.Nullable;
 public record BookmarkConfigEntry(
 	@Nullable BookmarkGroup group,
 	@Nullable IBookmark bookmark,
-	@Nullable BookmarkItemMetadata metadata
+	@Nullable BookmarkItemMetadata metadata,
+	@Nullable mezz.jei.gui.bookmarks.BookmarkChapter chapter
 ) {
+	public BookmarkConfigEntry(BookmarkGroup group, IBookmark bookmark, BookmarkItemMetadata metadata) {
+		this(group, bookmark, metadata, null);
+	}
+
+	public static BookmarkConfigEntry chapter(mezz.jei.gui.bookmarks.BookmarkChapter chapter) {
+		return new BookmarkConfigEntry(null, null, null, chapter);
+	}
 	public static BookmarkConfigEntry group(BookmarkGroup group) {
 		return new BookmarkConfigEntry(group, null, null);
 	}

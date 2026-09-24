@@ -58,6 +58,165 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	private final List<IBookmark> bookmarksList = new LinkedList<>();
 	private final Set<IBookmark> bookmarksSet = new HashSet<>();
 	private final BookmarkGroupManager<IBookmark> bookmarkGroups = new BookmarkGroupManager<>();
+	private final Map<Integer, ChapterState> chapters = new java.util.TreeMap<>();
+	private int activeChapterId = 1;
+
+	private record ChapterState(String title, int page, List<mezz.jei.gui.config.BookmarkConfigEntry> entries) {}
+
+	public List<BookmarkChapter> getChapters() {
+		ensureChapter();
+		return chapters.entrySet().stream().map(entry -> new BookmarkChapter(entry.getKey(), entry.getValue().title(), entry.getValue().page(), entry.getKey() == activeChapterId)).toList();
+	}
+
+	private void ensureChapter() {
+		chapters.putIfAbsent(activeChapterId, new ChapterState(Integer.toString(activeChapterId), 0, List.of()));
+	}
+
+	public int getActiveChapterId() {
+		return activeChapterId;
+	}
+
+	public int getChapterPage() {
+		ensureChapter();
+		return chapters.get(activeChapterId).page();
+	}
+
+	public void rememberChapterPage(int page) {
+		ensureChapter();
+		ChapterState state = chapters.get(activeChapterId);
+		if (state.page() != page) {
+			chapters.put(activeChapterId, new ChapterState(state.title(), page, state.entries()));
+			saveBookmarks();
+		}
+	}
+
+	public void renameChapter(int id, String title) {
+		ChapterState chapter = chapters.get(id);
+		if (chapter != null) {
+			chapters.put(id, new ChapterState(title.strip(), chapter.page(), chapter.entries()));
+			saveBookmarks();
+		}
+	}
+
+	public int createChapter() {
+		ensureChapter();
+		int id = 1;
+		while (chapters.containsKey(id))
+			id++;
+		chapters.put(id, new ChapterState(Integer.toString(id), 0, List.of()));
+		saveBookmarks();
+		return id;
+	}
+
+	public boolean deleteChapter(int id) {
+		ensureChapter();
+		if (chapters.size() == 1 || !chapters.containsKey(id))
+			return false;
+		chapters.remove(id);
+		if (activeChapterId == id) {
+			activeChapterId = chapters.keySet().iterator().next();
+			restoreChapter(chapters.get(activeChapterId));
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
+	}
+
+	public void selectChapter(int id) {
+		ensureChapter();
+		if (id == activeChapterId || !chapters.containsKey(id))
+			return;
+		storeActiveChapter();
+		activeChapterId = id;
+		restoreChapter(chapters.get(id));
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
+	private void storeActiveChapter() {
+		ensureChapter();
+		ChapterState state = chapters.get(activeChapterId);
+		List<mezz.jei.gui.config.BookmarkConfigEntry> entries = new ArrayList<>();
+		entries.add(mezz.jei.gui.config.BookmarkConfigEntry.group(bookmarkGroups.getGroup(BookmarkGroupManager.DEFAULT_GROUP_ID).orElseThrow()));
+		entries.addAll(mezz.jei.gui.config.BookmarkJsonSerializer.createEntries(this));
+		chapters.put(activeChapterId, new ChapterState(state.title(), state.page(), List.copyOf(entries)));
+	}
+
+	private void restoreChapter(ChapterState chapter) {
+		bookmarksList.clear();
+		bookmarksSet.clear();
+		bookmarkGroups.clear();
+		for (var entry : chapter.entries()) {
+			if (entry.group() != null) {
+				addGroupFromConfig(entry.group());
+			} else if (entry.bookmark() != null && entry.metadata() != null) {
+				addToListWithoutNotifying(entry.bookmark(), false);
+				moveBookmarkMetadataFromConfig(entry.bookmark(), entry.metadata());
+			}
+		}
+	}
+
+	public List<mezz.jei.gui.config.BookmarkConfigEntry> createChapterEntries() {
+		storeActiveChapter();
+		List<mezz.jei.gui.config.BookmarkConfigEntry> entries = new ArrayList<>();
+		for (var entry : chapters.entrySet()) {
+			ChapterState state = entry.getValue();
+			entries.add(mezz.jei.gui.config.BookmarkConfigEntry.chapter(new BookmarkChapter(entry.getKey(), state.title(), state.page(), entry.getKey() == activeChapterId)));
+			entries.addAll(state.entries());
+		}
+		return List.copyOf(entries);
+	}
+
+	public void loadChapters(List<mezz.jei.gui.config.BookmarkConfigEntry> entries) {
+		chapters.clear();
+		int id = 1;
+		int selected = 1;
+		String title = "";
+		int page = 0;
+		List<mezz.jei.gui.config.BookmarkConfigEntry> content = new ArrayList<>();
+		for (var entry : entries) {
+			if (entry.chapter() != null) {
+				if (!content.isEmpty() || chapters.containsKey(id))
+					chapters.put(id, new ChapterState(title, page, List.copyOf(content)));
+				content.clear();
+				BookmarkChapter chapter = entry.chapter();
+				id = chapter.id();
+				title = chapter.title();
+				page = chapter.page();
+				chapters.put(id, new ChapterState(title, page, List.of()));
+				if (chapter.active())
+					selected = id;
+			} else {
+				content.add(entry);
+			}
+		}
+		chapters.put(id, new ChapterState(title, page, List.copyOf(content)));
+		activeChapterId = chapters.containsKey(selected) ? selected : chapters.keySet().iterator().next();
+		restoreChapter(chapters.get(activeChapterId));
+	}
+
+	public int moveGroupToChapter(int groupId, int chapterId) {
+		if (chapterId == activeChapterId)
+			return groupId;
+		BookmarkGroup group = bookmarkGroups.getGroup(groupId).orElseThrow();
+		List<mezz.jei.gui.config.BookmarkConfigEntry> entries = bookmarksList.stream()
+			.filter(bookmark -> bookmarkGroups.getGroupId(bookmark) == groupId)
+			.map(bookmark -> mezz.jei.gui.config.BookmarkConfigEntry.bookmark(bookmark, bookmarkGroups.getItemMetadata(bookmark))).toList();
+		for (var entry : entries)
+			removeBookmarkWithoutNotifying(entry.bookmark());
+		bookmarkGroups.removeGroup(groupId);
+		selectChapter(chapterId);
+		int targetGroup = bookmarkGroups.createGroup(group.title());
+		addGroupFromConfig(new BookmarkGroup(targetGroup, group.title(), group.viewMode(), group.collapsed(), group.craftingMode(), group.collapsedRecipeIds()));
+		for (var entry : entries) {
+			IBookmark bookmark = mezz.jei.gui.config.BookmarkJsonSerializer.withGroupId(entry.bookmark(), targetGroup);
+			addToListWithoutNotifying(bookmark, false);
+			moveBookmarkMetadataFromConfig(bookmark, entry.metadata().withGroupId(targetGroup));
+		}
+		notifyListenersOfChange();
+		saveBookmarks();
+		return targetGroup;
+	}
 
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;

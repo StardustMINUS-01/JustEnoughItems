@@ -81,6 +81,74 @@ public class BookmarkSerializerTest {
 		Assertions.assertEquals(group, decoded);
 	}
 
+	@Test
+	public void roundTripsIndependentChaptersAndMovesGroups() {
+		BookmarkList source = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		IBookmark glass = IngredientBookmark.create(typed(new ItemStack(Items.GLASS)), INGREDIENT_MANAGER);
+		source.addToListWithoutNotifying(glass, false);
+		int originalGroup = source.createGroupForBookmarks("Glass", List.of(glass));
+		source.setGroupCraftingMode(originalGroup, true);
+		source.rememberChapterPage(3);
+		source.renameChapter(1, "First");
+		int second = source.createChapter();
+		Assertions.assertEquals(2, second);
+		Assertions.assertEquals("2", source.getChapters().getLast().title());
+		source.selectChapter(second);
+		Assertions.assertTrue(source.getBookmarks().isEmpty());
+		source.renameChapter(second, "Independent name");
+		IBookmark stone = IngredientBookmark.create(typed(new ItemStack(Items.STONE)), INGREDIENT_MANAGER);
+		source.addToListWithoutNotifying(stone, false);
+		int targetGroup = source.createGroupForBookmarks("Existing", List.of(stone));
+		source.selectChapter(1);
+		Assertions.assertEquals(3, source.getChapterPage());
+		var originalArea = new mezz.jei.common.util.ImmutableRect2i(10, 90, 16, 16);
+		var drag = mezz.jei.gui.overlay.bookmarks.BookmarkSortDragState.group(originalGroup, originalArea, 13, 96);
+		var originalSlots = List.of(new mezz.jei.gui.overlay.bookmarks.BookmarkPanelLayout.PanelSlot<>(source.getBookmarks().getFirst(), originalGroup, originalArea, false));
+		drag.update(source, originalSlots, originalSlots, 13, 96, 0);
+		var preview = drag.getFloatingGroupPanelSlots(100, 40);
+		Assertions.assertFalse(preview.isEmpty());
+		int moved = source.moveGroupToChapter(originalGroup, second);
+		drag.continueGroupDrag(moved);
+		var targetArea = new mezz.jei.common.util.ImmutableRect2i(70, 180, 16, 16);
+		var targetSlots = List.of(new mezz.jei.gui.overlay.bookmarks.BookmarkPanelLayout.PanelSlot<>(source.getBookmarks().getLast(), moved, targetArea, false));
+		drag.update(source, targetSlots, targetSlots, 100, 40, 0);
+		Assertions.assertEquals(preview, drag.getFloatingGroupPanelSlots(100, 40), "chapter changes must preserve the original grab offset and preview coordinates");
+		drag.continueGroupDrag(moved);
+		Assertions.assertEquals(preview, drag.getFloatingGroupPanelSlots(100, 40));
+		drag.stop();
+		Assertions.assertNotEquals(targetGroup, moved);
+		Assertions.assertTrue(source.isGroupCraftingMode(moved));
+		Assertions.assertEquals(2, source.getBookmarks().size());
+		Codec<BookmarkConfigEntry> codec = createEntryCodec();
+		List<BookmarkConfigEntry> entries = source.createChapterEntries().stream()
+			.map(entry -> codec.parse(JsonOps.INSTANCE, codec.encodeStart(JsonOps.INSTANCE, entry).getOrThrow()).getOrThrow()).toList();
+		BookmarkList decoded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		BookmarkJsonSerializer.applyEntries(entries, decoded);
+		Assertions.assertEquals(second, decoded.getActiveChapterId());
+		Assertions.assertEquals("Independent name", decoded.getChapters().getLast().title());
+		Assertions.assertEquals(2, decoded.getBookmarks().size());
+		Assertions.assertTrue(decoded.isGroupCraftingMode(moved));
+		decoded.selectChapter(1);
+		Assertions.assertTrue(decoded.getBookmarks().isEmpty());
+		Assertions.assertEquals(3, decoded.getChapterPage());
+		int empty = decoded.createChapter();
+		decoded.selectChapter(empty);
+		decoded.selectChapter(second);
+		Assertions.assertEquals(3, decoded.getChapters().size(), "switching must retain empty unnamed chapters");
+		List<BookmarkConfigEntry> saved = decoded.createChapterEntries().stream()
+			.map(entry -> codec.parse(JsonOps.INSTANCE, codec.encodeStart(JsonOps.INSTANCE, entry).getOrThrow()).getOrThrow()).toList();
+		BookmarkList restored = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		BookmarkJsonSerializer.applyEntries(saved, restored);
+		Assertions.assertEquals(decoded.getChapters(), restored.getChapters());
+		Assertions.assertTrue(restored.deleteChapter(empty));
+		Assertions.assertEquals(empty, restored.createChapter(), "only explicit deletion releases chapter ids");
+		Assertions.assertTrue(restored.deleteChapter(second));
+		Assertions.assertEquals(1, restored.getActiveChapterId());
+		Assertions.assertTrue(restored.getBookmarks().isEmpty());
+		Assertions.assertTrue(restored.deleteChapter(empty));
+		Assertions.assertFalse(restored.deleteChapter(1), "at least one chapter remains");
+	}
+
 	@ParameterizedTest
 	@CsvSource({"1, 1", "128, 1", "1, 1000", "2500, 1000"})
 	public void preservesMissingAmounts(long amount, int normalizedAmount) {

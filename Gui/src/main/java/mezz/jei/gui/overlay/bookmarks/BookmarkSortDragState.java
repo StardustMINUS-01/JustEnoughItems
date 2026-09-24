@@ -36,7 +36,7 @@ public final class BookmarkSortDragState {
 
 	private final Kind kind;
 	private final @Nullable IBookmark sourceBookmark;
-	private final int sourceGroupId;
+	private int sourceGroupId;
 	private final ImmutableRect2i sourceArea;
 	private final int dragOffsetX;
 	private final int dragOffsetY;
@@ -114,6 +114,16 @@ public final class BookmarkSortDragState {
 
 	public int getSourceGroupId() {
 		return sourceGroupId;
+	}
+
+	public boolean isGroupDrag() {
+		return kind == Kind.GROUP;
+	}
+
+	public void continueGroupDrag(int groupId) {
+		stop();
+		sourceGroupId = groupId;
+		active = true;
 	}
 
 	public static int getDragOverlayColor() {

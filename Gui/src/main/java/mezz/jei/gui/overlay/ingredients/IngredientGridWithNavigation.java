@@ -66,6 +66,18 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 	private ImmutablePoint2i mouseExclusionPoint;
 	private boolean active;
 	private boolean layoutDirty;
+	private boolean leadingNavigationContent;
+
+	public void enableLeadingNavigationContent() {
+		leadingNavigationContent = true;
+		navigation.setLeadingContent(true);
+		markLayoutDirty();
+	}
+
+	public ImmutableRect2i getLeadingNavigationArea() {
+		updateLayoutIfDirty();
+		return navigation.getLeadingArea();
+	}
 
 	public IngredientGridWithNavigation(
 		String debugName,
@@ -205,6 +217,8 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 		int ingredientCount
 	) {
 		if (this.gridConfig.navigationMode().getValue().usesScrollbar()) {
+			if (leadingNavigationContent && gridConfig.navigationVisibility().getValue() != mezz.jei.common.config.NavigationVisibility.DISABLED)
+				return IngredientGridScrollbarLayout.calculateWithNavigation(gridConfig, availableArea, guiExclusionAreas, ingredientCount);
 			return IngredientGridScrollbarLayout.calculate(
 				this.gridConfig,
 				availableArea,
@@ -213,6 +227,8 @@ public class IngredientGridWithNavigation implements IIngredientListOverlayConte
 			);
 		}
 
+		if (leadingNavigationContent && gridConfig.navigationVisibility().getValue() != mezz.jei.common.config.NavigationVisibility.DISABLED)
+			return IngredientGridButtonNavigationLayout.calculateWithNavigation(gridConfig, availableArea, guiExclusionAreas);
 		return IngredientGridButtonNavigationLayout.calculate(
 			this.gridConfig,
 			availableArea,

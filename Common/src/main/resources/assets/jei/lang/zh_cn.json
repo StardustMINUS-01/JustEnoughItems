@@ -546,6 +546,8 @@
   "gui.jei.recipe_navigation.forward.shift": "Shift + 点击：前往本次查询末项",
   "gui.jei.recipe_navigation.target.recipes": "%s的配方",
   "gui.jei.recipe_navigation.target.uses": "%s的用途",
+  "gui.jei.bookmark.chapter.create": "创建章节",
+  "gui.jei.bookmark.chapter.rename": "重命名章节",
   "gui.jei.recipe_filter.search": "搜索配方……",
   "gui.jei.recipe_filter.error": "配方搜索失败，详情请查看 latest.log。",
   "gui.jei.recipe_filter.mode": "配方筛选：%s",
