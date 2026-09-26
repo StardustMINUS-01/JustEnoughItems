@@ -24,7 +24,6 @@ public final class RecipeFilterModeButtonController implements IIconButtonContro
 	@Override
 	public boolean onPress(IJeiUserInput input) {
 		if (!input.isSimulate()) {
-			settings.cycleMode();
 			applyFilter.run();
 		}
 		return true;
@@ -33,12 +32,14 @@ public final class RecipeFilterModeButtonController implements IIconButtonContro
 	@Override
 	public void updateState(IButtonState state) {
 		state.setActive(true);
-		state.setForcePressed(settings.getMode() != RecipeFilterMode.ALL);
+		state.setForcePressed(settings.getMode() != RecipeFilterMode.DEFAULT || settings.getScope() != RecipeSearchScope.NONE);
 	}
 
 	@Override
 	public void getTooltips(ITooltipBuilder tooltip) {
 		String modeKey = switch (settings.getMode()) {
+			case DEFAULT -> "gui.jei.recipe_filter.mode.default";
+			case DISABLED -> "gui.jei.recipe_filter.mode.disabled";
 			case ALL -> "gui.jei.recipe_filter.mode.all";
 			case PREFERRED -> "gui.jei.recipe_filter.mode.preferred";
 			case NOT_PREFERRED -> "gui.jei.recipe_filter.mode.not_preferred";
@@ -59,7 +60,8 @@ public final class RecipeFilterModeButtonController implements IIconButtonContro
 
 	private int getLineColor(int line) {
 		return switch (settings.getMode()) {
-			case ALL -> ACTIVE_COLOR;
+			case ALL, DEFAULT -> ACTIVE_COLOR;
+			case DISABLED -> 0xFFFF5555;
 			case PREFERRED -> line == 0 ? ACTIVE_COLOR : INACTIVE_COLOR;
 			case NOT_PREFERRED -> line == 0 ? INACTIVE_COLOR : ACTIVE_COLOR;
 		};

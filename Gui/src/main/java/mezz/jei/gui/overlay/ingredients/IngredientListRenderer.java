@@ -400,9 +400,10 @@ public class IngredientListRenderer {
 	}
 
 	private static void drawBottomRightText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
-		int x = area.getX() + area.getWidth() - scaledTextWidth(font, text);
-		int y = area.getY() + area.getHeight() - Math.round(font.lineHeight * BOOKMARK_SLOT_TEXT_SCALE);
-		drawScaledText(guiGraphics, font, text, x, y, color);
+		float scale = Internal.getClientConfigs().getClientConfig().bookmarkAmountFontScale().getValue() / 100f;
+		int x = area.getX() + area.getWidth() - Math.round(font.width(text) * scale);
+		int y = area.getY() + area.getHeight() - Math.round(font.lineHeight * scale);
+		drawScaledText(guiGraphics, font, text, x, y, color, scale);
 	}
 
 	private static int scaledTextWidth(Font font, String text) {
@@ -410,9 +411,13 @@ public class IngredientListRenderer {
 	}
 
 	private static void drawScaledText(GuiGraphics guiGraphics, Font font, String text, int x, int y, int color) {
+		drawScaledText(guiGraphics, font, text, x, y, color, BOOKMARK_SLOT_TEXT_SCALE);
+	}
+
+	private static void drawScaledText(GuiGraphics guiGraphics, Font font, String text, int x, int y, int color, float scale) {
 		guiGraphics.pose().pushPose();
 		guiGraphics.pose().translate(x, y, GuiRenderLayers.OVERLAY_DECORATION_Z);
-		guiGraphics.pose().scale(BOOKMARK_SLOT_TEXT_SCALE, BOOKMARK_SLOT_TEXT_SCALE, 1);
+		guiGraphics.pose().scale(scale, scale, 1);
 		guiGraphics.drawString(font, text, 0, 0, color, true);
 		guiGraphics.pose().popPose();
 	}

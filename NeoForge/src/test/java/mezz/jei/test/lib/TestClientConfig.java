@@ -12,6 +12,10 @@ import mezz.jei.common.config.RecipeSorterStage;
 import java.util.List;
 
 public class TestClientConfig implements IClientConfig {
+	private final IJeiConfigValue<Integer> bookmarkAmountFontScale = value("amountFontScale", 50);
+
+	@Override
+	public IJeiConfigValue<Integer> bookmarkAmountFontScale() { return bookmarkAmountFontScale; }
 	private final IJeiConfigValue<Boolean> quantityFieldEnabled = value("quantityFieldEnabled", true);
 	private final IJeiConfigValue<Integer> configScreenTransparency = value("configScreenTransparency", 25);
 

@@ -18,6 +18,7 @@ import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.IRecipeSlotCandidateView;
+import mezz.jei.common.gui.IRecipeSlotBackgroundInternal;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.RecipeSlotOptionsTooltipComponent;
 import mezz.jei.common.gui.elements.OffsetDrawable;
@@ -42,9 +43,10 @@ import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
 
-public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipeSlotCandidateView {
+public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipeSlotCandidateView, IRecipeSlotBackgroundInternal {
 	private static final int SLOT_FOREGROUND_Z = 200;
 
 	private final RecipeIngredientRole role;
@@ -53,6 +55,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	private final List<IRecipeSlotRichTooltipCallback> tooltipCallbacks;
 	private final @Nullable RendererOverrides rendererOverrides;
 	private final @Nullable OffsetDrawable background;
+	private @Nullable ToIntFunction<ITypedIngredient<?>> ingredientBackgroundColor;
 	private final @Nullable IDrawable overlay;
 	private final @Nullable String slotName;
 	private final LazySupplier<Optional<TagKey<?>>> tagKey;
@@ -311,6 +314,11 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	}
 
 	@Override
+	public void setIngredientBackgroundColor(ToIntFunction<ITypedIngredient<?>> color) {
+		this.ingredientBackgroundColor = color;
+	}
+
+	@Override
 	public void draw(GuiGraphics guiGraphics, boolean hovered) {
 		final int x = this.rect.getX();
 		final int y = this.rect.getY();
@@ -322,6 +330,14 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		RenderSystem.enableBlend();
 
 		Optional<ITypedIngredient<?>> displayedIngredient = getDisplayedIngredient();
+		if (ingredientBackgroundColor != null) {
+			displayedIngredient.ifPresent(ingredient -> {
+				int color = ingredientBackgroundColor.applyAsInt(ingredient);
+				if (color != 0) {
+					guiGraphics.fill(x, y, x + rect.getWidth(), y + rect.getHeight(), color);
+				}
+			});
+		}
 		displayedIngredient.ifPresent(ingredient -> drawIngredient(guiGraphics, ingredient, x, y));
 
 		if (overlay != null) {

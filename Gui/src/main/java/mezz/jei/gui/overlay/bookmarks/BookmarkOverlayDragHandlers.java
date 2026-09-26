@@ -1,6 +1,8 @@
 package mezz.jei.gui.overlay.bookmarks;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.common.Internal;
+import net.minecraft.client.Minecraft;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
@@ -56,6 +58,14 @@ public final class BookmarkOverlayDragHandlers {
 	}
 
 	IDragHandler createSortDragHandler() {
+		return createSortDragHandler(true);
+	}
+
+	IDragHandler createPlainSortDragHandler() {
+		return createSortDragHandler(false);
+	}
+
+	private IDragHandler createSortDragHandler(boolean shiftRequired) {
 		return new IDragHandler() {
 			@Override
 			public Optional<IDragHandler> handleDragStart(Screen screen, UserInput input) {
@@ -63,11 +73,20 @@ public final class BookmarkOverlayDragHandlers {
 					return Optional.empty();
 				}
 				int mouseButton = input.getKey().getValue();
-				if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT || !InputModifiers.hasShift(input)) {
+				if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT || InputModifiers.hasShift(input) != shiftRequired) {
 					return Optional.empty();
 				}
+				var config = Internal.getClientConfigs().getClientConfig();
+				if (!shiftRequired) {
+					var player = Minecraft.getInstance().player;
+					if (!config.dragToRearrangeBookmarksEnabled().getValue() || InputModifiers.hasControl(input) || InputModifiers.hasAlt(input) ||
+						player == null || !player.containerMenu.getCarried().isEmpty()
+					) {
+						return Optional.empty();
+					}
+				}
 				Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
-				if (slot.filter(groupSlot -> !(groupSlot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)).isPresent()) {
+				if (shiftRequired && slot.filter(groupSlot -> !(groupSlot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)).isPresent()) {
 					overlay.setSortDragState(BookmarkSortDragState.group(
 						slot.get().groupId(),
 						slot.get().area(),
@@ -82,6 +101,11 @@ public final class BookmarkOverlayDragHandlers {
 					.flatMap(clicked -> clicked.getElement()
 						.getBookmark()
 						.map(bookmark -> {
+							if (!shiftRequired) {
+								overlay.setSortDragState(BookmarkSortDragState.delayedItem(bookmark, clicked.getArea(), input.getMouseX(), input.getMouseY(),
+									System.currentTimeMillis(), config.dragDelayMs().getValue()));
+								return this;
+							}
 							overlay.setSortDragState(BookmarkSortDragState.item(
 								bookmark,
 								clicked.getArea(),

@@ -158,6 +158,14 @@ public class RecipeGuiTabs implements IPaged {
 		return new ProxyInputHandler(() -> inputHandler);
 	}
 
+	public java.util.Optional<IRecipeCategory<?>> getCategoryUnderMouse(double x, double y) {
+		for (int i = 0; i < tabs.size(); i++) {
+			if (tabs.get(i).isMouseOver(x, y))
+				return java.util.Optional.of(recipeGuiLogic.getRecipeCategories().get(pageNumber * categoriesPerPage + i));
+		}
+		return java.util.Optional.empty();
+	}
+
 	@Override
 	public boolean nextPage() {
 		if (hasNext()) {

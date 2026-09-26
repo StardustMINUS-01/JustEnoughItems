@@ -23,6 +23,10 @@ import mezz.jei.gui.bookmarks.RecipeLayoutProjection;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
+import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackLinkedSet;
+import java.util.Set;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -84,9 +88,9 @@ public final class RecipeTreeScreen extends Screen {
 	private String heading = "";
 	private String searchText = "";
 	private @Nullable EditBox searchBox;
-	private boolean showDemand = true;
 	private boolean remainingView;
-	private @Nullable Button inventoryViewButton;
+	private final Set<ItemStack> checkedCraftables = ItemStackLinkedSet.createTypeAndComponentsSet();
+	private final Set<ItemStack> craftables = ItemStackLinkedSet.createTypeAndComponentsSet();
 	private final Map<RecipeTreeLayout.Node, StackView<?>> demandStacks = new HashMap<>();
 	private @Nullable RecipeTreeViewState pendingViewState;
 	private int bookmarkRow;
@@ -104,7 +108,6 @@ public final class RecipeTreeScreen extends Screen {
 			pendingViewState = state;
 			showBookmarks = state.bookmarksVisible();
 			showSummary = state.summaryVisible();
-			showDemand = state.demandVisible();
 			remainingView = state.remainingView();
 			searchText = state.search();
 			sidebarScroll = state.sidebarScroll();
@@ -146,20 +149,6 @@ public final class RecipeTreeScreen extends Screen {
 			.bounds(101, 6, 20, 20).tooltip(Tooltip.create(Component.translatable(showBookmarks ? "jei.tree.hide_bookmarks" : "jei.tree.show_bookmarks"))).build());
 		addTool("=", "jei.tree.totals", 125, () -> { showSummary = !showSummary; sidebarScroll = 0; sidebarLayout = null; });
 		addRenderableWidget(Button.builder(
-				modeIcon("#", showDemand),
-				button -> {
-					showDemand = !showDemand;
-					button.setMessage(modeIcon("#", showDemand));
-					if (!showDemand) {
-						remainingView = false;
-					}
-					inventoryViewButton.active = showDemand;
-					inventoryViewButton.setMessage(modeIcon("I", remainingView));
-					updateDemands();
-				}
-			)
-			.bounds(149, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.demand_view"))).build());
-		inventoryViewButton = addRenderableWidget(Button.builder(
 				modeIcon("I", remainingView),
 				button -> {
 					remainingView = !remainingView;
@@ -167,8 +156,7 @@ public final class RecipeTreeScreen extends Screen {
 					updateDemands();
 				}
 			)
-			.bounds(173, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.remaining_view"))).build());
-		inventoryViewButton.active = showDemand;
+			.bounds(149, 6, 20, 20).tooltip(Tooltip.create(Component.translatable("jei.tree.remaining_view"))).build());
 		int searchWidth = Math.min(150, Math.max(40, width - 208));
 		searchBox = addRenderableWidget(new EditBox(font, width - searchWidth - 6, 7, searchWidth, 18, Component.translatable("jei.tree.search")));
 		searchBox.setMaxLength(128);
@@ -246,6 +234,7 @@ public final class RecipeTreeScreen extends Screen {
 	}
 
 	private void updateInventory() {
+		clearCraftables();
 		inventoryInputs = inventoryProvider.getTreeInventoryInputs(groupId, sourceMenu);
 		if (remainingView) {
 			updateDemands();
@@ -266,9 +255,6 @@ public final class RecipeTreeScreen extends Screen {
 	}
 
 	private void updateDemandStacks() {
-		if (!showDemand) {
-			return;
-		}
 		for (var node : tree.nodes()) {
 			var source = node.target();
 			var original = stacks.get(source.index());
@@ -279,7 +265,30 @@ public final class RecipeTreeScreen extends Screen {
 	}
 
 	private @Nullable StackView<?> nodeStack(RecipeTreeLayout.Node node) {
-		return showDemand ? demandStacks.get(node) : stacks.get(node.target().index());
+		return demandStacks.get(node);
+	}
+
+	private void clearCraftables() {
+		checkedCraftables.clear();
+		craftables.clear();
+	}
+
+	private boolean isNetworkCraftable(ITypedIngredient<?> ingredient) {
+		if (sourceMenu == null || minecraft.player == null || minecraft.player.containerMenu != sourceMenu) {
+			clearCraftables();
+			return false;
+		}
+		return ingredient.getItemStack().map(stack -> {
+				if (!checkedCraftables.contains(stack)) {
+					ItemStack key = stack.copyWithCount(1);
+					checkedCraftables.add(key);
+					if (BookmarkExternalStorageSnapshots.isCraftable(sourceMenu, key)) {
+						craftables.add(key);
+					}
+				}
+				return craftables.contains(stack);
+			})
+			.orElse(false);
 	}
 
 	private void updateSearch() {
@@ -635,6 +644,9 @@ public final class RecipeTreeScreen extends Screen {
 				preview = new FocusedRecipeLayoutResolver(runtime.getRecipeManager())
 					.resolve(new FocusedRecipe(metadata.recipeTypeUid(), metadata.recipeUid()), runtime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup())
 					.map(layout -> new RecipeTreePreview(layout, node.slots(), ingredients, previousChoices)).orElse(null);
+				if (preview != null) {
+					preview.setNetworkCraftablePredicate(this::isNetworkCraftable);
+				}
 			}
 		}
 		selected = node;
@@ -741,7 +753,7 @@ public final class RecipeTreeScreen extends Screen {
 			double oldX = node.get().x(), oldY = node.get().y();
 			int allocated = tree.getAllocatedNodeCount();
 			boolean changed = !node.get().expandable() || tree.toggle(node.get());
-			if (changed && showDemand) {
+			if (changed) {
 				if (allocated != tree.getAllocatedNodeCount()) {
 					updateDemands();
 				} else {
@@ -910,7 +922,7 @@ public final class RecipeTreeScreen extends Screen {
 		var expansion = tree.captureExpansion(selected);
 		bookmarks.cacheTreeViewState(groupId, new RecipeTreeViewState(zoom,
 			((viewportLeft() + viewportRight()) / 2.0 - panX) / zoom, ((TOP + height) / 2.0 - panY) / zoom,
-			showBookmarks, showSummary || selected != null && expansion.selected() < 0, showDemand, remainingView,
+			showBookmarks, showSummary || selected != null && expansion.selected() < 0, remainingView,
 			searchText, sidebarScroll, bookmarkPanel == null ? bookmarkRow : bookmarkPanel.firstRow(), expansion));
 	}
 
@@ -960,6 +972,9 @@ public final class RecipeTreeScreen extends Screen {
 		private StackView<T> withAmount(long amount) { return new StackView<>(this, amount); }
 
 		private void draw(GuiGraphics graphics, int x, int y) {
+			if (isNetworkCraftable(typed)) {
+				graphics.fill(x, y, x + 16, y + 16, RecipeTreePreview.NETWORK_CRAFTABLE_BACKGROUND);
+			}
 			graphics.pose().pushPose();
 			graphics.pose().translate(x, y, 0);
 			float size = 16f / Math.max(1, Math.max(renderer.getWidth(), renderer.getHeight()));
@@ -984,6 +999,9 @@ public final class RecipeTreeScreen extends Screen {
 			JeiTooltip tooltip = new JeiTooltip();
 			tooltip.setIngredient(typed);
 			renderer.getTooltip(tooltip, tooltipIngredient, minecraft.options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL);
+			if (isNetworkCraftable(typed)) {
+				tooltip.add(Component.translatable("jei.tree.network_craftable").withStyle(ChatFormatting.AQUA));
+			}
 			tooltip.add(Component.translatable("jei.tree.amount", amountText).withStyle(ChatFormatting.GRAY));
 			if (nonConsumable) {
 				tooltip.add(Component.translatable("jei.tree.non_consumable").withStyle(ChatFormatting.YELLOW));

@@ -42,6 +42,7 @@ public final class BookmarkSortDragState {
 	private final int dragOffsetY;
 	private final long startedAtMillis;
 	private final long thresholdMillis;
+	private final boolean requireMovement;
 	private final Set<IBookmark> hiddenBookmarks = new HashSet<>();
 	private List<PreviewSlot<IBookmark>> previewSlots = List.of();
 	private List<ImmutableRect2i> targetSlotOverlayAreas = List.of();
@@ -56,7 +57,8 @@ public final class BookmarkSortDragState {
 		int dragOffsetY,
 		long startedAtMillis,
 		long thresholdMillis,
-		boolean active
+		boolean active,
+		boolean requireMovement
 	) {
 		this.kind = kind;
 		this.sourceBookmark = sourceBookmark;
@@ -67,6 +69,7 @@ public final class BookmarkSortDragState {
 		this.startedAtMillis = startedAtMillis;
 		this.thresholdMillis = thresholdMillis;
 		this.active = active;
+		this.requireMovement = requireMovement;
 	}
 
 	public static BookmarkSortDragState item(
@@ -86,8 +89,14 @@ public final class BookmarkSortDragState {
 			sourceArea.getY() - (int) Math.round(mouseY),
 			startedAtMillis,
 			thresholdMillis,
-			!sourceArea.contains(mouseX, mouseY)
+			!sourceArea.contains(mouseX, mouseY),
+			false
 		);
+	}
+
+	public static BookmarkSortDragState delayedItem(IBookmark bookmark, ImmutableRect2i area, double mouseX, double mouseY, long startedAtMillis, long delayMillis) {
+		return new BookmarkSortDragState(Kind.ITEM, bookmark, BookmarkGroupManager.DEFAULT_GROUP_ID, area,
+			area.getX() - (int) Math.round(mouseX), area.getY() - (int) Math.round(mouseY), startedAtMillis, delayMillis, false, true);
 	}
 
 	public static BookmarkSortDragState group(int sourceGroupId) {
@@ -104,7 +113,8 @@ public final class BookmarkSortDragState {
 			sourceArea.getY() - (int) Math.round(mouseY),
 			0,
 			0,
-			true
+			true,
+			false
 		);
 	}
 
@@ -295,7 +305,15 @@ public final class BookmarkSortDragState {
 		long nowMillis
 	) {
 		if (!active) {
-			active = !sourceArea.contains(mouseX, mouseY) || nowMillis - startedAtMillis >= thresholdMillis;
+			if (requireMovement) {
+				double centerX = sourceArea.isEmpty() ? sourceArea.getX() - dragOffsetX : sourceArea.getX() + sourceArea.getWidth() / 2.0;
+				double centerY = sourceArea.isEmpty() ? sourceArea.getY() - dragOffsetY : sourceArea.getY() + sourceArea.getHeight() / 2.0;
+				double dx = mouseX - centerX;
+				double dy = mouseY - centerY;
+				active = nowMillis - startedAtMillis >= thresholdMillis && !sourceArea.contains(mouseX, mouseY) && dx * dx + dy * dy > 64;
+			} else {
+				active = !sourceArea.contains(mouseX, mouseY) || nowMillis - startedAtMillis >= thresholdMillis;
+			}
 			if (!active) {
 				return false;
 			}

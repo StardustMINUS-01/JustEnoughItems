@@ -1,15 +1,18 @@
 package mezz.jei.gui.recipes.filtering;
 
 public enum RecipeFilterMode {
+	DEFAULT,
 	ALL,
 	PREFERRED,
-	NOT_PREFERRED;
+	NOT_PREFERRED,
+	DISABLED;
 
-	public RecipeFilterMode next() {
-		return switch (this) {
-			case ALL -> PREFERRED;
-			case PREFERRED -> NOT_PREFERRED;
-			case NOT_PREFERRED -> ALL;
-		};
+	public boolean filtersPreference() {
+		return this == PREFERRED || this == NOT_PREFERRED;
 	}
+
+	public boolean isUnrestricted() {
+		return this == ALL || this == DEFAULT && RecipeCategoryPreferences.get().disabled().isEmpty();
+	}
+
 }

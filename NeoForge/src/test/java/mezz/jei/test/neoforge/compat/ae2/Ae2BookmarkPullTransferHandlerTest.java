@@ -88,6 +88,12 @@ public class Ae2BookmarkPullTransferHandlerTest {
 		assertTrue(provider.scan(new TestMenu(8), new Object(), stack -> Optional.empty()).isEmpty());
 	}
 
+	@Test
+	public void craftableLookupDoesNotHandleUnrelatedContainers() {
+		var provider = Ae2BookmarkStorageSnapshotProvider.createIfLoaded().orElseThrow();
+		assertTrue(provider.isCraftable(new TestMenu(8), new ItemStack(Items.DIAMOND)).isEmpty());
+	}
+
 	private static final class FakeStorageAccess implements Ae2BookmarkPullTransferHandler.StorageAccess {
 		private final AbstractContainerMenu ae2Menu;
 		private int lastExtractAmount;

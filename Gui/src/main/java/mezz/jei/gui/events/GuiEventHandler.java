@@ -174,7 +174,9 @@ public class GuiEventHandler {
 			bookmarkOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 			ingredientListOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 		}
-		ingredientListOverlay.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+		boolean covered = inputLayers.stream().anyMatch(layer -> layer.isMouseOver(mouseX, mouseY));
+		var backgroundMouse = mezz.jei.gui.input.GuiHoverUtil.backgroundMouse(covered, mouseX, mouseY);
+		ingredientListOverlay.drawForeground(minecraft, guiGraphics, backgroundMouse.x(), backgroundMouse.y(), partialTicks);
 		bookmarkOverlay.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 	}
 
@@ -210,6 +212,7 @@ public class GuiEventHandler {
 		for (int i = this.inputLayers.size() - 1; i >= 0; i--) {
 			this.inputLayers.get(i).draw(guiGraphics, mouseX, mouseY);
 		}
+		bookmarkOverlay.drawDragPreviews(guiGraphics, mouseX, mouseY);
 
 		if (DebugConfig.isDebugGuisEnabled()) {
 			drawDebugInfoForScreen(screen, guiProperties, guiGraphics);

@@ -51,6 +51,15 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 	@FunctionalInterface
 	public interface EntryReader {
 		Optional<List<BookmarkExternalStorageSnapshots.Entry>> readEntries(Object menu);
+
+		default Optional<Boolean> isCraftable(Object menu, ItemStack stack) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public Optional<Boolean> isCraftable(Object menu, ItemStack stack) {
+		return entryReader.isCraftable(menu, stack);
 	}
 
 	private static final class ReflectionEntryReader implements EntryReader {
@@ -67,6 +76,9 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 		private final Method getWhatMethod;
 		private final Method getStoredAmountMethod;
 		private final Method toStackMethod;
+		private final Method isCraftableMethod;
+		private final Method getLinkStatusMethod;
+		private final Method isConnectedMethod;
 
 		private ReflectionEntryReader() throws ReflectiveOperationException {
 			this.menuClass = Class.forName(ME_STORAGE_MENU);
@@ -80,6 +92,38 @@ public class Ae2BookmarkStorageSnapshotProvider implements BookmarkExternalStora
 			this.getWhatMethod = entryClass.getMethod("getWhat");
 			this.getStoredAmountMethod = entryClass.getMethod("getStoredAmount");
 			this.toStackMethod = itemKeyClass.getMethod("toStack", int.class);
+			this.isCraftableMethod = entryClass.getMethod("isCraftable");
+			this.getLinkStatusMethod = menuClass.getMethod("getLinkStatus");
+			this.isConnectedMethod = getLinkStatusMethod.getReturnType().getMethod("connected");
+		}
+
+		@Override
+		public Optional<Boolean> isCraftable(Object menu, ItemStack stack) {
+			if (!menuClass.isInstance(menu)) {
+				return Optional.empty();
+			}
+			try {
+				if (!Boolean.TRUE.equals(isConnectedMethod.invoke(getLinkStatusMethod.invoke(menu)))) {
+					return Optional.of(false);
+				}
+				Object repo = getClientRepoMethod.invoke(menu);
+				if (repo == null || stack.isEmpty()) {
+					return Optional.of(false);
+				}
+				Collection<?> entries = (Collection<?>) getByIngredientMethod.invoke(repo, Ingredient.of(stack));
+				for (Object entry : entries) {
+					Object key = getWhatMethod.invoke(entry);
+					if (itemKeyClass.isInstance(key) && Boolean.TRUE.equals(isCraftableMethod.invoke(entry)) &&
+						toStackMethod.invoke(key, 1) instanceof ItemStack candidate && ItemStack.isSameItemSameComponents(stack, candidate)
+					) {
+						return Optional.of(true);
+					}
+				}
+				return Optional.of(false);
+			} catch (ReflectiveOperationException | RuntimeException e) {
+				LOGGER.warn("Failed to read AE2 craftable status for recipe tree item {}", stack, e);
+				return Optional.of(false);
+			}
 		}
 
 		@Override

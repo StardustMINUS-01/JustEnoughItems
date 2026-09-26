@@ -34,6 +34,7 @@ public final class ClientConfig implements IClientConfig {
 	private final ConfigValue<Boolean> holdShiftToShowBookmarkTooltipFeaturesEnabled;
 	private final ConfigValue<Boolean> dragToRearrangeBookmarksEnabled;
 	private final ConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode;
+	private final ConfigValue<Integer> bookmarkAmountFontScale;
 	private final ConfigValue<Boolean> showRecipeHandlerIconEnabled;
 	private final ConfigValue<Integer> favoriteTreeDepth;
 
@@ -94,9 +95,10 @@ public final class ClientConfig implements IClientConfig {
 
 		IConfigCategoryBuilder bookmarks = schema.addCategory("bookmarks");
 		addBookmarksToFrontEnabled = bookmarks.addBoolean("addBookmarksToFrontEnabled", false);
-		bookmarkOutputAsRecipe = bookmarks.addBoolean("bookmarkOutputAsRecipe", true);
+		bookmarkOutputAsRecipe = bookmarks.addBoolean("bookmarkOutputAsRecipe", false);
 		dragToRearrangeBookmarksEnabled = bookmarks.addBoolean("dragToRearrangeBookmarksEnabled", true);
 		bookmarkRecipeMarkerMode = bookmarks.addEnum("recipeMarkerMode", BookmarkRecipeMarkerMode.NONE);
+		bookmarkAmountFontScale = bookmarks.addInteger("amountFontScale", 50, 25, 100);
 		showRecipeHandlerIconEnabled = bookmarks.addBoolean("showRecipeHandlerIcon", true);
 		favoriteTreeDepth = bookmarks.addInteger("favoriteTreeDepth", 9, 0, 100);
 
@@ -257,6 +259,11 @@ public final class ClientConfig implements IClientConfig {
 	@Override
 	public ConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode() {
 		return bookmarkRecipeMarkerMode;
+	}
+
+	@Override
+	public ConfigValue<Integer> bookmarkAmountFontScale() {
+		return bookmarkAmountFontScale;
 	}
 
 	@Override

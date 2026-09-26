@@ -65,7 +65,7 @@ class TreeBookmarkPanelTest {
 		int group = group(book, "a");
 		long version = book.getChangeVersion();
 		assertTrue(book.getTreeViewState(group).isEmpty());
-		var state = new RecipeTreeViewState(1, 0, 0, true, false, true, false, "", 0, 0,
+		var state = new RecipeTreeViewState(1, 0, 0, true, false, false, "", 0, 0,
 			new RecipeTreeViewState.Expansion(List.of(), -1));
 		book.cacheTreeViewState(group, state);
 		assertEquals(state, book.getTreeViewState(group).orElseThrow());

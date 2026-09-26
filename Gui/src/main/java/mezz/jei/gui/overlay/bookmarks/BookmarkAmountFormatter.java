@@ -36,11 +36,8 @@ public final class BookmarkAmountFormatter {
 	}
 
 	private static String formatFluidAmount(long amount, long bucketVolume) {
-		if (amount < bucketVolume) {
-			return FluidAmountFormatter.format(amount, bucketVolume);
-		}
 		if (amount < bucketVolume * 100) {
-			return FluidAmountFormatter.format(amount, bucketVolume) + "B";
+			return FluidAmountFormatter.format(amount, bucketVolume);
 		}
 		if (amount < bucketVolume * 100_000) {
 			return formatCompact(amount, bucketVolume * 1_000, "kB");

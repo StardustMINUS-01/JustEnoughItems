@@ -34,6 +34,8 @@ public interface IClientConfig {
 
 	IJeiConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode();
 
+	IJeiConfigValue<Integer> bookmarkAmountFontScale();
+
 	IJeiConfigValue<Boolean> showRecipeHandlerIconEnabled();
 
 	IJeiConfigValue<Integer> favoriteTreeDepth();

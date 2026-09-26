@@ -63,6 +63,10 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 
 	@Override
 	public void update(double mouseX, double mouseY) {
+		if (bookmarkOverlay.blocksChapterBackgroundHover(mouseX, mouseY)) {
+			hide();
+			return;
+		}
 		if (!Internal.getKeyMappings().getPauseRecipeCycling().isDown() ||
 			!bookmarkOverlay.isListDisplayed()
 		) {

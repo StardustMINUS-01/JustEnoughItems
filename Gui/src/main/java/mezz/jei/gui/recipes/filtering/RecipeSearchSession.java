@@ -29,6 +29,7 @@ public final class RecipeSearchSession {
 	private @Nullable ForkJoinPool executor;
 	private @Nullable Future<?> pending;
 	private long pendingRevision;
+	private RecipeCategoryPreferences.State categoryPreferences = RecipeCategoryPreferences.get();
 
 	public RecipeSearchSession(IRecipeManager recipeManager, IIngredientManager ingredientManager, ISearchStorageBuilderFactory searchStorageBuilderFactory) {
 		this.recipeManager = recipeManager;
@@ -41,7 +42,8 @@ public final class RecipeSearchSession {
 		preferenceRules = null;
 		this.mode = mode;
 		this.query = query;
-		if (mode == RecipeFilterMode.ALL && query.isEmpty())
+		categoryPreferences = RecipeCategoryPreferences.get();
+		if (mode.isUnrestricted() && query.isEmpty())
 			return;
 		traversal = new RecipeSearchTraversal(recipeManager, ingredientManager, state, mode, query,
 			RecipeSearchTextMatcher.createFactory(searchStorageBuilderFactory, query));
@@ -57,7 +59,7 @@ public final class RecipeSearchSession {
 	}
 
 	public boolean needsPreferenceRefresh(RecipePreferenceRules rules) {
-		return mode != RecipeFilterMode.ALL && preferenceRules != null && preferenceRules != rules;
+		return categoryPreferences != RecipeCategoryPreferences.get() || mode.filtersPreference() && preferenceRules != null && preferenceRules != rules;
 	}
 
 	public Optional<Result> tick(RecipePreferenceRules rules) {

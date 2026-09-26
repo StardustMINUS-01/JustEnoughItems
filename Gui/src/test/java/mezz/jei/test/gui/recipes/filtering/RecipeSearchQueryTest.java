@@ -57,6 +57,19 @@ public class RecipeSearchQueryTest {
 	}
 
 	private static boolean matchesDirect(String text, Set<String> accessed) {
+		return matchesDirect(text, accessed, mezz.jei.gui.recipes.filtering.RecipeSearchScope.NONE);
+	}
+
+	@Test
+	public void scopesUnqualifiedTermsWithoutOverridingExplicitTerms() {
+		Assertions.assertTrue(matchesDirect("ingot", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.INPUT));
+		Assertions.assertFalse(matchesDirect("ingot", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.OUTPUT));
+		Assertions.assertTrue(matchesDirect("i:ingot dust", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.OUTPUT));
+		Assertions.assertTrue(matchesDirect("missing | macerator", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.CATALYST));
+		Assertions.assertFalse(matchesDirect("-macerator", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.RECIPE));
+	}
+
+	private static boolean matchesDirect(String text, Set<String> accessed, mezz.jei.gui.recipes.filtering.RecipeSearchScope scope) {
 		mezz.jei.api.ingredients.IIngredientType<RecipeSearchIngredient> type = () -> RecipeSearchIngredient.class;
 		var helper = proxy(mezz.jei.api.ingredients.IIngredientHelper.class, (method, args) -> {
 			RecipeSearchIngredient ingredient = (RecipeSearchIngredient) args[0];
@@ -109,7 +122,7 @@ public class RecipeSearchQueryTest {
 			case "getRegistryName" -> ResourceLocation.parse("gtceu:macerator/silver_ingot");
 			default -> throw new AssertionError(method);
 		});
-		return RecipeSearchQuery.parse(text).matches(category, "recipe", recipes, ingredients, () -> {
+		return RecipeSearchQuery.parse(text).withDefaultScope(scope).matches(category, "recipe", recipes, ingredients, () -> {
 			accessed.add("CATALYST");
 			return PULVERIZING.catalysts().stream().map(typed).toList();
 		});

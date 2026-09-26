@@ -33,7 +33,7 @@ public final class SlotPreferenceResolver implements SlotRuleResolver {
 		RecipeLayoutBuildCache layoutCache
 	) {
 		RecipePreferenceRules rules = rulesSupplier.get();
-		if (rules.isEmpty() || variants.isEmpty()) {
+		if (rules.isEmpty() && mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().preferred().isEmpty() || variants.isEmpty()) {
 			return Optional.empty();
 		}
 		Map<FocusedRecipe, RecipePreferenceCandidate> merged = new LinkedHashMap<>();
@@ -45,6 +45,9 @@ public final class SlotPreferenceResolver implements SlotRuleResolver {
 		if (merged.isEmpty()) {
 			return Optional.empty();
 		}
-		return rules.resolvePreferredRecipe(List.copyOf(merged.values()));
+		List<RecipePreferenceCandidate> candidates = List.copyOf(merged.values());
+		if (rules.isEmpty())
+			return RecipePreferenceCandidateResolver.resolvePreferredCategory(candidates);
+		return rules.resolvePreferredRecipe(candidates).or(() -> RecipePreferenceCandidateResolver.resolvePreferredCategory(candidates));
 	}
 }

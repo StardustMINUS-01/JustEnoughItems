@@ -47,6 +47,16 @@ public final class BookmarkExternalStorageSnapshots {
 		return Optional.empty();
 	}
 
+	public static boolean isCraftable(Object menu, ItemStack stack) {
+		for (Provider provider : PROVIDERS) {
+			Optional<Boolean> craftable = provider.isCraftable(menu, stack);
+			if (craftable.isPresent()) {
+				return craftable.get();
+			}
+		}
+		return false;
+	}
+
 	public static List<ItemStack> toAvailableStacks(List<Entry> entries) {
 		List<ItemStack> stacks = new ArrayList<>();
 		for (Entry entry : entries) {
@@ -93,6 +103,9 @@ public final class BookmarkExternalStorageSnapshots {
 
 	@FunctionalInterface
 	public interface Provider {
+		default Optional<Boolean> isCraftable(Object menu, ItemStack stack) {
+			return Optional.empty();
+		}
 		Optional<BookmarkContainerStorageScanner.StorageSnapshot> scan(
 			Object menu,
 			Object screen,

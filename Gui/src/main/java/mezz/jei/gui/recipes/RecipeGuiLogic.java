@@ -74,7 +74,14 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	private @Nullable IRecipeLayoutList cachedRecipeLayoutsWithButtons;
 	private int cachedContainerId = -1;
 	private Set<RecipeSorterStage> cachedSorterStages = Set.of();
-	private RecipeFilterMode filterMode = RecipeFilterMode.ALL;
+	private RecipeFilterMode filterMode = RecipeFilterMode.DEFAULT;
+	private mezz.jei.gui.recipes.filtering.RecipeSearchScope searchScope = mezz.jei.gui.recipes.filtering.RecipeSearchScope.NONE;
+
+	public void setSearchScope(mezz.jei.gui.recipes.filtering.RecipeSearchScope scope) {
+		searchScope = scope;
+	}
+
+	public mezz.jei.gui.recipes.filtering.RecipeSearchScope getSearchScope() { return searchScope; }
 	private String searchQueryText = "";
 	private RecipeSearchQuery searchQuery = RecipeSearchQuery.parse("");
 	private IRecipeSearchTextMatcher searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
@@ -350,24 +357,30 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	}
 
 	private RecipeNavigationEntry createNavigationEntry() {
-		return new RecipeNavigationEntry(
+		RecipeNavigationEntry entry = new RecipeNavigationEntry(
 			unfilteredState,
 			createNavigationTitle(unfilteredState),
 			filterMode,
 			searchQueryText,
 			state
 		);
+		entry.setSearchScope(searchScope);
+		return entry;
 	}
 
 	private void updateCurrentNavigationEntry() {
 		navigationHistory.current()
-			.ifPresent(entry -> entry.updateView(filterMode, searchQueryText, state));
+			.ifPresent(entry -> {
+				entry.updateView(filterMode, searchQueryText, state);
+				entry.setSearchScope(searchScope);
+			});
 	}
 
 	private boolean restoreNavigationEntry(RecipeNavigationEntry entry) {
+		this.searchScope = entry.getSearchScope();
 		this.filterMode = entry.getFilterMode();
 		this.searchQueryText = entry.getSearchQuery();
-		this.searchQuery = RecipeSearchQuery.parse(searchQueryText);
+		this.searchQuery = RecipeSearchQuery.parse(searchQueryText).withDefaultScope(searchScope);
 		this.unfilteredState = entry.getLookupState();
 		this.state = unfilteredState;
 		this.searchSession.clear();
@@ -406,7 +419,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	private void rebuildDisplayedState() {
 		IRecipeCategory<?> selectedCategory = this.state.getFocusedRecipes().getRecipeCategory();
 		searchSession.request(unfilteredState, filterMode, searchQuery);
-		if (filterMode == RecipeFilterMode.ALL && searchQuery.isEmpty()) {
+		if (filterMode.isUnrestricted() && searchQuery.isEmpty()) {
 			this.displayedSearchQuery = searchQuery;
 			this.pendingSearchPosition = null;
 			this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
@@ -432,7 +445,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		this.pendingSearchPosition = null;
 		this.filterMode = mode;
 		this.searchQueryText = query;
-		this.searchQuery = RecipeSearchQuery.parse(query);
+		this.searchQuery = RecipeSearchQuery.parse(query).withDefaultScope(searchScope);
 		rebuildDisplayedState();
 		clearLayoutCache();
 		stateListener.onStateChange();

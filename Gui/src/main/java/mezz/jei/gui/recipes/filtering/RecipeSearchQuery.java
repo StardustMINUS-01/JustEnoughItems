@@ -50,6 +50,15 @@ public final class RecipeSearchQuery {
 		return alternatives.isEmpty();
 	}
 
+	public RecipeSearchQuery withDefaultScope(RecipeSearchScope scope) {
+		if (scope == RecipeSearchScope.NONE)
+			return this;
+		Scope selected = Scope.valueOf(scope.name());
+		return new RecipeSearchQuery(alternatives.stream().map(terms -> terms.stream()
+			.map(term -> term.scope() == Scope.ALL ? new SearchTerm(selected, term.matchType(), term.value(), term.excluded()) : term).toList())
+			.toList());
+	}
+
 	public java.util.Set<String> getTokens() {
 		return alternatives.stream().flatMap(List::stream).map(SearchTerm::value).collect(java.util.stream.Collectors.toUnmodifiableSet());
 	}

@@ -14,11 +14,12 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
 
-final class BookmarkChapterNavigation implements IUserInputHandler {
+final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLayer {
 	private final BookmarkOverlay overlay;
 	private final Button button = Button.builder(Component.empty(), b -> {}).build();
 	private ImmutableRect2i area = ImmutableRect2i.EMPTY;
@@ -29,6 +30,9 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 	private int lastClickedChapter = -1;
 	private long lastClickTime;
 	private boolean lastClickOnHeader;
+	private @Nullable EditBox editor;
+	private int editingChapter;
+	private boolean editingHeader;
 
 	BookmarkChapterNavigation(BookmarkOverlay overlay) {
 		this.overlay = overlay;
@@ -47,14 +51,19 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 		list.rememberChapterPage(overlay.getContents().getPageDelegate().getPageNumber());
 		area = overlay.getContents().getLeadingNavigationArea();
 		if (area.isEmpty()) {
-			open = false;
+			unfocus();
 			return;
 		}
 		List<BookmarkChapter> chapters = list.getChapters();
 		BookmarkChapter current = chapters.stream().filter(BookmarkChapter::active).findFirst().orElseThrow();
 		button.setRectangle(area.width(), area.height(), area.x(), area.y());
 		button.setMessage(label(current));
-		button.render(graphics, mouseX, mouseY, partialTicks);
+		if (editor != null && editingHeader) {
+			editor.setRectangle(area.width(), area.height(), area.x(), area.y());
+			editor.render(graphics, mouseX, mouseY, partialTicks);
+		} else {
+			button.render(graphics, mouseX, mouseY, partialTicks);
+		}
 		if (!open)
 			return;
 		Minecraft minecraft = Minecraft.getInstance();
@@ -76,13 +85,29 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 			if (hovered)
 				graphics.fill(menu.x(), top, menu.x() + width, top + 18, 0xFF505050);
 			String text = index == chapters.size() ? "+" : label(chapters.get(index)).getString();
-			graphics.drawString(minecraft.font, minecraft.font.plainSubstrByWidth(text, width - 8), menu.x() + 4, top + 5,
-				index < chapters.size() && chapters.get(index).active() ? 0xFFFFFF55 : 0xFFFFFFFF);
+			if (editor != null && !editingHeader && index < chapters.size() && chapters.get(index).id() == editingChapter) {
+				editor.setRectangle(width - 2, 16, menu.x() + 1, top + 1);
+				editor.render(graphics, mouseX, mouseY, partialTicks);
+			} else {
+				graphics.drawString(minecraft.font, minecraft.font.plainSubstrByWidth(text, width - 8), menu.x() + 4, top + 5,
+					index < chapters.size() && chapters.get(index).active() ? 0xFFFFFF55 : 0xFFFFFFFF);
+			}
 			if (hovered && index == chapters.size())
 				graphics.renderTooltip(minecraft.font, Component.translatable("gui.jei.bookmark.chapter.create"), mouseX, mouseY);
 		}
 		graphics.pose().popPose();
 	}
+
+	@Override
+	public void draw(GuiGraphics graphics, int mouseX, int mouseY) {
+		if (overlay.isListDisplayed())
+			draw(graphics, mouseX, mouseY, Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false));
+		else
+			unfocus();
+	}
+
+	@Override
+	public boolean isMouseOver(double x, double y) { return isMenuHovered(x, y); }
 
 	private void restorePage() {
 		var pages = overlay.getContents().getPageDelegate();
@@ -109,6 +134,26 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+		if (!overlay.isListDisplayed())
+			return Optional.empty();
+		if (editor != null) {
+			if (!input.isSimulate()) {
+				int key = input.getKey().getValue();
+				if (input.getKey().getType() == InputConstants.Type.MOUSE) {
+					if (editor.isMouseOver(input.getMouseX(), input.getMouseY()))
+						editor.mouseClicked(input.getMouseX(), input.getMouseY(), key);
+					else
+						finishEditing(true);
+				} else if (key == GLFW.GLFW_KEY_ESCAPE) {
+					finishEditing(false);
+				} else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+					finishEditing(true);
+				} else {
+					input.callVanilla(editor::keyPressed);
+				}
+			}
+			return Optional.of(this);
+		}
 		if (input.getKey().getType() != InputConstants.Type.MOUSE) {
 			if (open && input.getKey().getValue() == GLFW.GLFW_KEY_ESCAPE) {
 				if (!input.isSimulate())
@@ -146,9 +191,8 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 		} else if (click == InputConstants.MOUSE_BUTTON_LEFT) {
 			long now = net.minecraft.Util.getMillis();
 			if (row < chapters.size() && lastClickedChapter == chapter.id() && lastClickOnHeader == header && now - lastClickTime <= 250) {
-				open = false;
 				lastClickedChapter = -1;
-				Minecraft.getInstance().setScreen(new RenameScreen(screen, overlay.getBookmarkList(), chapter));
+				beginEditing(chapter, header, row);
 				return Optional.of(this);
 			}
 			lastClickedChapter = row == chapters.size() ? -1 : chapter.id();
@@ -167,6 +211,10 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 
 	@Override
 	public Optional<IUserInputHandler> handleMouseScrolled(double x, double y, double dx, double dy) {
+		if (!overlay.isListDisplayed())
+			return Optional.empty();
+		if (editor != null)
+			return Optional.of(this);
 		if (dy == 0)
 			return Optional.empty();
 		List<BookmarkChapter> chapters = overlay.getBookmarkList().getChapters();
@@ -190,61 +238,45 @@ final class BookmarkChapterNavigation implements IUserInputHandler {
 
 	@Override
 	public void unfocus() {
+		finishEditing(false);
 		open = false;
 		lastClickedChapter = -1;
 	}
 
 	boolean isMenuHovered(double x, double y) {
-		return overlay.isListDisplayed() && open && menu.contains(x, y);
+		return overlay.isListDisplayed() && (open || editor != null || area.contains(x, y));
 	}
 
-	private static final class RenameScreen extends Screen {
-		private final Screen parent;
-		private final BookmarkList bookmarks;
-		private final BookmarkChapter chapter;
-		private EditBox name;
+	boolean isEditing() {
+		return editor != null;
+	}
 
-		private RenameScreen(Screen parent, BookmarkList bookmarks, BookmarkChapter chapter) {
-			super(Component.translatable("gui.jei.bookmark.chapter.rename"));
-			this.parent = parent;
-			this.bookmarks = bookmarks;
-			this.chapter = chapter;
-		}
+	boolean charTyped(char codePoint, int modifiers) {
+		if (editor == null)
+			return false;
+		editor.charTyped(codePoint, modifiers);
+		return true;
+	}
 
-		@Override
-		protected void init() {
-			int x = width / 2 - 100, y = height / 2 - 10;
-			name = new EditBox(font, x, y, 200, 20, title);
-			name.setMaxLength(256);
-			name.setValue(chapter.title());
-			addRenderableWidget(name);
-			setInitialFocus(name);
-			addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose()).bounds(x, y + 26, 96, 20).build());
-			addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> save()).bounds(x + 104, y + 26, 96, 20).build());
-		}
+	private void beginEditing(BookmarkChapter chapter, boolean header, int row) {
+		editingChapter = chapter.id();
+		editingHeader = header;
+		open = !header;
+		ImmutableRect2i bounds = header ? area : new ImmutableRect2i(menu.x() + 1, menu.y() + (row - firstRow) * 18 + 1, menu.width() - 2, 16);
+		editor = new EditBox(Minecraft.getInstance().font, bounds.x(), bounds.y(), bounds.width(), bounds.height(), Component.translatable("gui.jei.bookmark.chapter.rename"));
+		editor.setMaxLength(256);
+		editor.setValue(chapter.title());
+		editor.setFocused(true);
+		editor.setCursorPosition(chapter.title().length());
+		editor.setHighlightPos(0);
+	}
 
-		private void save() {
-			bookmarks.renameChapter(chapter.id(), name.getValue());
-			onClose();
-		}
-
-		@Override
-		public boolean keyPressed(int key, int scan, int modifiers) {
-			if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
-				save();
-				return true;
-			}
-			return super.keyPressed(key, scan, modifiers);
-		}
-
-		@Override
-		public void onClose() { minecraft.setScreen(parent); }
-
-		@Override
-		public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-			renderBackground(graphics, mouseX, mouseY, partialTicks);
-			graphics.drawCenteredString(font, title, width / 2, height / 2 - 30, 0xFFFFFFFF);
-			super.render(graphics, mouseX, mouseY, partialTicks);
+	private void finishEditing(boolean save) {
+		if (editor != null) {
+			if (save)
+				overlay.getBookmarkList().renameChapter(editingChapter, editor.getValue());
+			editor = null;
 		}
 	}
+
 }

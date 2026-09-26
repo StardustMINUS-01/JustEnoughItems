@@ -31,6 +31,7 @@ final class RecipeSearchTraversal {
 	private final IIngredientManager ingredientManager;
 	private final RecipeFilterMode mode;
 	private final RecipeSearchQuery query;
+	private final RecipeCategoryPreferences.State categoryPreferences = RecipeCategoryPreferences.get();
 	private final Supplier<IRecipeSearchTextMatcher> matcherFactory;
 	private final IRecipeSearchTextMatcher displayMatcher;
 	private final List<Batch<?>> batches = new ArrayList<>();
@@ -52,7 +53,8 @@ final class RecipeSearchTraversal {
 		this.displayMatcher = matcherFactory.get();
 		// Capture the lookup state on the client thread; workers only traverse these fixed recipe lists.
 		for (IRecipeCategory<?> category : state.getRecipeCategories())
-			addBatches(state.getFocusedRecipes(category));
+			if (categoryPreferences.allows(category.getRecipeType().getUid(), mode))
+				addBatches(state.getFocusedRecipes(category));
 		this.results = new AtomicReferenceArray<>(batches.size());
 	}
 
@@ -65,7 +67,7 @@ final class RecipeSearchTraversal {
 	public void scan(RecipePreferenceRules rules, int parallelism) {
 		try {
 			Set<FocusedRecipe> preferred;
-			if (mode == RecipeFilterMode.ALL) {
+			if (!mode.filtersPreference()) {
 				preferred = Set.of();
 			} else {
 				AtomicReferenceArray<List<RecipePreferenceCandidate>> candidates = new AtomicReferenceArray<>(batches.size());
@@ -120,9 +122,9 @@ final class RecipeSearchTraversal {
 		for (T recipe : batch.recipes()) {
 			checkCancelled();
 			IRecipeCategory<T> category = batch.category();
-			if (mode != RecipeFilterMode.ALL) {
+			if (mode.filtersPreference()) {
 				var id = category.getRegistryName(recipe);
-				boolean selected = id != null && preferred.contains(new FocusedRecipe(category.getRecipeType().getUid(), id));
+				boolean selected = categoryPreferences.isPreferred(category.getRecipeType().getUid(), id == null ? null : new FocusedRecipe(category.getRecipeType().getUid(), id), preferred);
 				if (selected != (mode == RecipeFilterMode.PREFERRED))
 					continue;
 			}

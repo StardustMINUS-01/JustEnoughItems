@@ -55,6 +55,7 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 
 	@Override
 	public void onRuntimeUnavailable() {
+		mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.clear();
 		mezz.jei.common.Internal.getOptionalJeiRuntime().ifPresent(runtime -> {
 			if (runtime.getRecipesGui() instanceof mezz.jei.gui.recipes.RecipesGui gui)
 				gui.stopRecipeSearch();

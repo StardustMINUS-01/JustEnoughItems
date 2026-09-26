@@ -202,6 +202,20 @@ public class RecipeSearchSessionTest {
 			}
 			Assertions.assertEquals(List.of("one", "recipe0", "tail"), recipes(await(direct).recipes()));
 			Assertions.assertEquals(List.of("one"), recipes(partial), "later categories must not mutate previously published results");
+			try {
+				mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.toggle(unknown.getRecipeType().getUid(), false);
+				direct.request(multipleCategories, RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("r:test"));
+				Assertions.assertEquals(List.of(CATEGORY, unknown), await(direct).recipes().stream().map(IFocusedRecipes::getRecipeCategory).toList());
+				mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.toggle(unknown.getRecipeType().getUid(), true);
+				direct.request(multipleCategories, RecipeFilterMode.DEFAULT, RecipeSearchQuery.parse("r:test"));
+				Assertions.assertEquals(List.of(CATEGORY), await(direct).recipes().stream().map(IFocusedRecipes::getRecipeCategory).toList());
+				direct.request(multipleCategories, RecipeFilterMode.DISABLED, RecipeSearchQuery.parse("r:test"));
+				Assertions.assertEquals(List.of(unknown), await(direct).recipes().stream().map(IFocusedRecipes::getRecipeCategory).toList());
+				direct.request(multipleCategories, RecipeFilterMode.ALL, RecipeSearchQuery.parse("r:test"));
+				Assertions.assertEquals(List.of(CATEGORY, unknown), await(direct).recipes().stream().map(IFocusedRecipes::getRecipeCategory).toList());
+			} finally {
+				mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.clear();
+			}
 		} finally {
 			direct.clear();
 		}

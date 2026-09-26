@@ -82,7 +82,8 @@ public class FavoriteRecipeStore {
 	}
 
 	public Optional<FocusedRecipe> getManualFavorite(BookmarkIngredientKey target) {
-		return Optional.ofNullable(recipesByTarget.get(target));
+		return Optional.ofNullable(recipesByTarget.get(target))
+			.filter(recipe -> !mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().disabled().contains(recipe.recipeTypeUid()));
 	}
 
 	public Optional<BookmarkIngredientKey> getManualFavorite(FocusedRecipe recipe) {
@@ -104,14 +105,16 @@ public class FavoriteRecipeStore {
 		BookmarkIngredientKey target,
 		RecipeLayoutBuildCache layoutCache
 	) {
-		Optional<FocusedRecipe> cached = Optional.ofNullable(generatedRecipesByTarget.get(target));
+		Optional<FocusedRecipe> cached = Optional.ofNullable(generatedRecipesByTarget.get(target))
+			.filter(recipe -> !mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().disabled().contains(recipe.recipeTypeUid()));
 		if (cached.isPresent()) {
 			return cached;
 		}
 		if (generatedFavoriteResolver == null) {
 			return Optional.empty();
 		}
-		Optional<FocusedRecipe> resolved = generatedFavoriteResolver.apply(target, layoutCache);
+		Optional<FocusedRecipe> resolved = generatedFavoriteResolver.apply(target, layoutCache)
+			.filter(recipe -> !mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().disabled().contains(recipe.recipeTypeUid()));
 		if (resolved.isPresent()) {
 			setGeneratedFavorite(target, resolved.get());
 		}

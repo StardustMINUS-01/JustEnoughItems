@@ -20,7 +20,7 @@ import java.util.LinkedList;
 
 public class BookmarkGroupsTest {
 	private static final RecipeTreeViewState TREE_STATE = new RecipeTreeViewState(
-		1, 30, 50, true, false, true, false, "iron", 0, 3,
+		1, 30, 50, true, false, false, "iron", 0, 3,
 		new RecipeTreeViewState.Expansion(List.of(), -1)
 	);
 	private final BookmarkGroupManager<String> groups = new BookmarkGroupManager<>();

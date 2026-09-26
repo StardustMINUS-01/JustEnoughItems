@@ -8,6 +8,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.common.gui.IRecipeSlotBackgroundInternal;
 import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipHelper;
 import mezz.jei.gui.bookmarks.BookmarkCandidateTooltipState;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
@@ -23,9 +24,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.function.Predicate;
 
 /** A bookmark-backed recipe region, without the recipe page's navigation or transfer buttons. */
 public final class RecipeTreePreview {
+	static final int NETWORK_CRAFTABLE_BACKGROUND = 0x6655BBFF;
 	private final IRecipeLayoutDrawable<?> layout;
 	private final BookmarkRecipeSelection selection;
 
@@ -90,6 +93,14 @@ public final class RecipeTreePreview {
 	}
 
 	public int width() { return layout.getRectWithBorder().getWidth(); }
+
+	public void setNetworkCraftablePredicate(Predicate<ITypedIngredient<?>> predicate) {
+		for (IRecipeSlotView slot : layout.getRecipeSlotsView().getSlotViews()) {
+			if (slot instanceof IRecipeSlotBackgroundInternal drawable) {
+				drawable.setIngredientBackgroundColor(ingredient -> predicate.test(ingredient) ? NETWORK_CRAFTABLE_BACKGROUND : 0);
+			}
+		}
+	}
 	public void tick() { layout.tick(); }
 
 	public Map<Integer, BookmarkIngredientKey> selectedKeys() { return selection.selectedKeys(); }

@@ -6,6 +6,7 @@ import mezz.jei.common.ingredients.TypedIngredient;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.favorites.IRecipeCandidateFactory;
 import mezz.jei.gui.favorites.IRecipeCandidateFinder;
+import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.RecipeCandidateReference;
 import mezz.jei.gui.favorites.RecipeCandidateResult;
 import mezz.jei.gui.favorites.RecipeLayoutBuildCache;
@@ -57,6 +58,18 @@ public class PreferenceResolverTest {
 		List<RecipePreferenceCandidate> candidates = resolver.getCandidates(keyA, typed("a"));
 
 		Assertions.assertEquals(List.of(recipeA), recipes(candidates));
+		FavoriteRecipeStore favorites = new FavoriteRecipeStore();
+		favorites.setFavorite(keyA, recipeA, Map.of());
+		try {
+			mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.toggle(RECIPE_TYPE, true);
+			Assertions.assertTrue(resolver.getCandidates(keyA, typed("a")).isEmpty());
+			Assertions.assertTrue(favorites.getFavorite(keyA).isEmpty());
+			Assertions.assertEquals(1, favorites.entries().size(), "disabling keeps the saved manual favorite");
+			mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.toggle(RECIPE_TYPE, true);
+			Assertions.assertEquals(Optional.of(recipeA), favorites.getFavorite(keyA));
+		} finally {
+			mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.clear();
+		}
 	}
 
 	@Test

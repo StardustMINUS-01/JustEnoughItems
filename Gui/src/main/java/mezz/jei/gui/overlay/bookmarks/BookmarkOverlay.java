@@ -254,12 +254,12 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	@Override
 	public boolean hasKeyboardFocus() {
-		return scrollStepField.isFocused();
+		return chapterNavigation.isEditing() || scrollStepField.isFocused();
 	}
 
 	@Override
 	public boolean onCharTyped(char codePoint, int modifiers) {
-		return scrollStepField.charTyped(codePoint, modifiers);
+		return chapterNavigation.charTyped(codePoint, modifiers) || scrollStepField.charTyped(codePoint, modifiers);
 	}
 
 	public boolean isFavoritePanelSelected() {
@@ -579,10 +579,11 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	public void drawForeground(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		var mouse = mezz.jei.gui.input.GuiHoverUtil.backgroundMouse(chapterNavigation.isMenuHovered(mouseX, mouseY), mouseX, mouseY);
 		if (isListDisplayed()) {
 			dragHandlers.updateSortDrag(mouseX, mouseY);
 			this.bookmarkDragManager.updateDrag(mouseX, mouseY);
-			this.contents.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+			this.contents.drawForeground(minecraft, guiGraphics, mouse.x(), mouse.y(), partialTicks);
 			renderer.drawDefaultGroupControlIndicator(
 				minecraft,
 				guiGraphics,
@@ -593,14 +594,14 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 				sortDragState.drawTargetSlotOverlays(guiGraphics);
 				sortDragState.drawSourceSlotOverlays(guiGraphics, getPanelSlots());
 			}
-			drawBookmarkGroupPanels(guiGraphics, mouseX, mouseY);
+			drawBookmarkGroupPanels(guiGraphics, mouse.x(), mouse.y());
 			if (groupPanelDrag != null) {
 				groupPanelDrag.drawPreview(guiGraphics, mouseX, mouseY);
 			}
 		}
 		if (isFavoritePanelDisplayed()) {
 			dragHandlers.updateFavoriteSortDrag(mouseX, mouseY);
-			this.favoriteContents.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+			this.favoriteContents.drawForeground(minecraft, guiGraphics, mouse.x(), mouse.y(), partialTicks);
 			if (favoriteSortDragState != null) {
 				favoriteSortDragState.drawTargetSlotOverlays(guiGraphics);
 				favoriteSortDragState.drawSourceSlotOverlays(guiGraphics);
@@ -608,17 +609,15 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			renderer.drawFavoriteRecipeRowPanels(guiGraphics, mouseX, mouseY, favoritePanelState);
 		}
 		if (guiPropertiesCache.hasValidScreen() && toggleState.isOverlayEnabled()) {
-			this.lookupHistoryOverlay.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+			this.lookupHistoryOverlay.draw(minecraft, guiGraphics, mouse.x(), mouse.y(), partialTicks);
 		}
 		if (this.guiPropertiesCache.hasValidScreen()) {
-			this.bookmarkButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
-			this.favoriteButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
-			this.historyButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
+			this.bookmarkButton.draw(guiGraphics, mouse.x(), mouse.y(), partialTicks);
+			this.favoriteButton.draw(guiGraphics, mouse.x(), mouse.y(), partialTicks);
+			this.historyButton.draw(guiGraphics, mouse.x(), mouse.y(), partialTicks);
 			getScrollStepArea();
-			this.scrollStepField.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
+			this.scrollStepField.renderWidget(guiGraphics, mouse.x(), mouse.y(), partialTicks);
 		}
-		if (isListDisplayed())
-			chapterNavigation.draw(guiGraphics, mouseX, mouseY, partialTicks);
 	}
 
 	private void drawBookmarkGroupPanels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -644,7 +643,13 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		return previewTooltipController;
 	}
 
+	public mezz.jei.gui.input.IGuiInputLayer getChapterInputLayer() { return chapterNavigation; }
+
+	boolean blocksChapterBackgroundHover(double x, double y) { return chapterNavigation.isMenuHovered(x, y); }
+
 	Stream<PreviewSource> getPreviewSourcesUnderMouse(double mouseX, double mouseY) {
+		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
+			return Stream.empty();
 		Stream<PreviewSource> bookmarkSources = contents.getIngredientUnderMouse(mouseX, mouseY)
 			.map(ingredient -> new PreviewSource(ingredient, bookmarkList, this::isListDisplayed));
 		IIngredientGridSource lookupHistory = lookupHistoryOverlay.getLookupHistory();
@@ -669,20 +674,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	public void drawTooltips(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
 			return;
-		if (sortDragState != null) {
-			boolean drewSortDrag = sortDragState.drawDraggedItems(guiGraphics, mouseX, mouseY);
-			drewSortDrag = renderer.drawFloatingGroupPanel(guiGraphics, sortDragState, mouseX, mouseY) || drewSortDrag;
-			if (drewSortDrag || sortDragState.isActive()) {
-				return;
-			}
-		}
-		if (favoriteSortDragState != null) {
-			boolean drewSortDrag = favoriteSortDragState.drawDraggedItems(guiGraphics, mouseX, mouseY);
-			drewSortDrag = renderer.drawFloatingFavoriteRecipeRowPanel(guiGraphics, favoriteSortDragState, mouseX, mouseY) || drewSortDrag;
-			if (drewSortDrag || favoriteSortDragState.isActive()) {
-				return;
-			}
-		}
+		if (sortDragState != null && sortDragState.isActive() || favoriteSortDragState != null && favoriteSortDragState.isActive())
+			return;
 		updateScreenPropertiesIfDirty();
 		if (!this.bookmarkDragManager.drawDraggedItem(guiGraphics, mouseX, mouseY)) {
 			if (isListDisplayed() && !previewTooltipController.isVisible()) {
@@ -722,6 +715,28 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 		}
 	}
 
+	public void drawDragPreviews(GuiGraphics graphics, int mouseX, int mouseY) {
+		boolean bookmarks = sortDragState != null && sortDragState.isActive() && isListDisplayed();
+		boolean favorites = favoriteSortDragState != null && favoriteSortDragState.isActive() && isFavoritePanelDisplayed();
+		if (!bookmarks && !favorites)
+			return;
+		// Drag previews are foreground content, not tooltips suppressed by menu hit testing.
+		graphics.pose().pushPose();
+		try {
+			graphics.pose().translate(0, 0, 400);
+			if (bookmarks) {
+				sortDragState.drawDraggedItems(graphics, mouseX, mouseY);
+				renderer.drawFloatingGroupPanel(graphics, sortDragState, mouseX, mouseY);
+			}
+			if (favorites) {
+				favoriteSortDragState.drawDraggedItems(graphics, mouseX, mouseY);
+				renderer.drawFloatingFavoriteRecipeRowPanel(graphics, favoriteSortDragState, mouseX, mouseY);
+			}
+		} finally {
+			graphics.pose().popPose();
+		}
+	}
+
 	@Override
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
 		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
@@ -741,6 +756,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 	@Override
 	public Stream<IDraggableIngredientInternal<?>> getDraggableIngredientUnderMouse(double mouseX, double mouseY) {
+		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
+			return Stream.empty();
 		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
 			return Stream.concat(this.contents.getDraggableIngredientUnderMouse(mouseX, mouseY), this.lookupHistoryOverlay.getDraggableIngredientUnderMouse(mouseX, mouseY));
@@ -807,7 +824,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 
 		final IUserInputHandler displayedInputHandler = new CombinedInputHandler(
 			"BookmarkOverlay",
-			chapterNavigation,
 			recipeCollapseInputHandler,
 			groupInputHandler,
 			this.scrollStepField.createInputHandler(),
@@ -860,6 +876,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 			sortDragHandler,
 			contentsDragHandler,
 			historyDragHandler,
+			dragHandlers.createPlainSortDragHandler(),
 			this.bookmarkDragManager.createDragHandler()
 		);
 
@@ -1099,6 +1116,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay, IC
 	}
 
 	Optional<GroupPanelSlot> getGroupPanelSlotUnderMouse(double mouseX, double mouseY) {
+		if (chapterNavigation.isMenuHovered(mouseX, mouseY))
+			return Optional.empty();
 		if (!isMouseOverVisibleGroupPanelArea(mouseX, mouseY)) {
 			return Optional.empty();
 		}

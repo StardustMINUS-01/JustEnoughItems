@@ -31,7 +31,7 @@ public class BookmarkVisualsTest {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"125,.125", "1000,1B", "1125,1.125B", "1000000,1kB", "1000000000,1MB"})
+	@CsvSource({"125,.125", "1000,1", "1125,1.125", "36864,36.864", "99999,99.999", "100000,0.1kB", "1000000,1kB", "1000000000,1MB"})
 	public void formatsFluidUnits(long amount, String expected) {
 		Assertions.assertEquals(expected, BookmarkAmountFormatter.formatTypedAmount(amount, "mekanism.api.chemical.gas.GasStack"));
 	}

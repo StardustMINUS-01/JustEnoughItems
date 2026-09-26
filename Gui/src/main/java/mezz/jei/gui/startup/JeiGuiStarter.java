@@ -313,6 +313,12 @@ public class JeiGuiStarter {
 			ingredientManager,
 			recipePreferenceRulesRef::get
 		);
+		var categoryPreferencesPath = mezz.jei.common.util.ServerConfigPathUtil.getWorldPath(configData.configDir()).orElse(configData.configDir()).resolve("recipe-category-preferences.json");
+		mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.load(categoryPreferencesPath, favoriteRecipes, () -> {
+			favoriteRecipes.clearGeneratedFavorites();
+			recipePreferenceCandidateResolver.invalidateAll();
+		});
+		favoriteRecipes.addSourceListChangedListener(() -> mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.refreshFavorites(favoriteRecipes));
 		// Recipe preference data used to require a delayed first full scan after the JEI runtime
 		// was created (Internal.setRuntime happens after the registerRuntime callback returns);
 		// it is now resolved on demand, so no scan is needed.
@@ -385,6 +391,7 @@ public class JeiGuiStarter {
 		registration.setRecipesGui(recipesGui);
 		var recipesGuiForegroundInputLayer = recipesGui.getForegroundInputLayer();
 		var bookmarkPreviewTooltipController = bookmarkOverlay.getPreviewTooltipController();
+		var bookmarkChapterInputLayer = bookmarkOverlay.getChapterInputLayer();
 
 		CombinedRecipeFocusSource recipeFocusSource = new CombinedRecipeFocusSource(
 			recipesGui.getCandidateFocusSource(),
@@ -404,6 +411,7 @@ public class JeiGuiStarter {
 			bookmarkAutoCraftingRunner,
 			tagSelectionTooltip,
 			recipesGuiForegroundInputLayer,
+			bookmarkChapterInputLayer,
 			bookmarkPreviewTooltipController
 		);
 
@@ -417,6 +425,7 @@ public class JeiGuiStarter {
 			"JEIGlobal",
 			tagSelectionTooltip,
 			recipesGuiForegroundInputLayer,
+			bookmarkChapterInputLayer,
 			bookmarkPreviewTooltipController,
 			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
 			ingredientListOverlay.createDeleteItemInputHandler(),
