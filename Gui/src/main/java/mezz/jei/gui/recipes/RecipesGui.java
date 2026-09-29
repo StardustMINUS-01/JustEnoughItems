@@ -424,6 +424,9 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 
 		if (!interactiveIngredientTooltipController.isVisible()) {
 			hoveredRecipeLayout.ifPresent(l -> l.drawOverlays(guiGraphics, mouseX, mouseY));
+			hoveredRecipeCatalyst.ifPresent(h -> {
+				h.drawTooltip(guiGraphics, mouseX, mouseY);
+			});
 		}
 
 		RenderSystem.enableDepthTest();
