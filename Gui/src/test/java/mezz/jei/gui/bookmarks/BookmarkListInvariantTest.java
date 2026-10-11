@@ -79,6 +79,112 @@ public class BookmarkListInvariantTest {
 
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
+	public void selectedOutputKeepsInputsAndFullProjectionKeepsAllOutputs(boolean counted) {
+		var manager = ItemStackIngredientTestFixtures.ingredientManager();
+		var factory = new RecipeBookmarkEntryFactory(manager);
+		var iron = ItemStackIngredientTestFixtures.item(Items.IRON_INGOT);
+		var gold = ItemStackIngredientTestFixtures.item(Items.GOLD_INGOT);
+		var layout = RecipeLayoutTestFixtures.singleIngredientLayout(new RecipeType<>(RECIPE_TYPE, Object.class), new Object(), RECIPE,
+			List.of(ItemStackIngredientTestFixtures.item(Items.STICK)), List.of(iron, gold));
+		for (var output : List.of(iron, gold)) {
+			var key = BookmarkItemMetadataFactory.createPermutationKey(output, manager);
+			var projection = new RecipeLayoutProjection(layout, Optional.of(key), Map.of());
+			var entries = factory.createRecipeBookmarkEntries(projection, counted, null);
+			Assertions.assertEquals(2, entries.size());
+			Assertions.assertEquals(BookmarkItemType.RESULT, entries.getFirst().metadata().type());
+			Assertions.assertEquals(output.getIngredient().getItem(), entries.getFirst().bookmark().getElement().getTypedIngredient().getItemStack().orElseThrow().getItem());
+			Assertions.assertEquals(BookmarkItemType.INGREDIENT, entries.getLast().metadata().type());
+			Assertions.assertTrue(entries.stream().allMatch(entry -> entry.metadata().multiplier() == (counted ? 1 : 0)));
+		}
+		Assertions.assertEquals(3, factory.createRecipeBookmarkEntries(new RecipeLayoutProjection(layout), counted, null).size());
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void mergingRecipeBlocksKeepsBothOutputsAndFirstInput(boolean insertBefore) {
+		BookmarkList bookmarks = bookmarkList();
+		var firstResult = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
+		var firstInput = recipeBookmark(Items.STICK, RecipeIngredientRole.INPUT);
+		bookmarks.addToListWithoutNotifying(firstResult, false);
+		bookmarks.addToListWithoutNotifying(firstInput, false);
+		bookmarks.moveBookmarkMetadataFromConfig(firstResult, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
+		bookmarks.moveBookmarkMetadataFromConfig(firstInput, metadata(BookmarkItemType.INGREDIENT, RECIPE, "stick").withMultiplier(3));
+		int target = bookmarks.createGroupForBookmarks("Target", List.of(firstResult, firstInput));
+		IBookmark anchor = bookmarks.getBookmarks().getFirst();
+		var secondResult = recipeBookmark(Items.GOLD_INGOT, RecipeIngredientRole.OUTPUT);
+		var secondInput = recipeBookmark(Items.STICK, RecipeIngredientRole.INPUT);
+		bookmarks.addToListWithoutNotifying(secondResult, false);
+		bookmarks.addToListWithoutNotifying(secondInput, false);
+		bookmarks.moveBookmarkMetadataFromConfig(secondResult, metadata(BookmarkItemType.RESULT, RECIPE, "gold"));
+		bookmarks.moveBookmarkMetadataFromConfig(secondInput, metadata(BookmarkItemType.INGREDIENT, RECIPE, "stick").withMultiplier(0));
+		int source = bookmarks.createGroupForBookmarks("Source", List.of(secondResult, secondInput));
+		var moving = bookmarks.getBookmarks().stream().filter(b -> bookmarks.getBookmarkGroupId(b) == source).toList();
+		if (insertBefore) {
+			bookmarks.moveBookmarks(moving, anchor, target, 0);
+		} else {
+			Assertions.assertTrue(bookmarks.moveBookmarksToGroup(moving, target));
+		}
+		Assertions.assertEquals(3, bookmarks.getBookmarks().size());
+		Assertions.assertTrue(bookmarks.getBookmarks().stream().allMatch(b -> bookmarks.getBookmarkGroupId(b) == target));
+		var inputs = bookmarks.getBookmarks().stream().map(bookmarks::getBookmarkMetadata).filter(m -> m.type() == BookmarkItemType.INGREDIENT).toList();
+		Assertions.assertEquals(1, inputs.size());
+		Assertions.assertEquals(insertBefore ? 0 : 3, inputs.getFirst().multiplier());
+		Assertions.assertEquals(List.of(BookmarkItemType.RESULT, BookmarkItemType.RESULT, BookmarkItemType.INGREDIENT),
+			bookmarks.getBookmarks().stream().map(bookmarks::getBookmarkMetadata).map(BookmarkItemMetadata::type).toList());
+	}
+
+	@Test
+	public void addingAnotherOutputPlacesItBeforeExistingInputs() {
+		var manager = ItemStackIngredientTestFixtures.ingredientManager();
+		var bookmarks = new BookmarkList(null, null, manager, null, null, null, null);
+		var iron = ItemStackIngredientTestFixtures.item(Items.IRON_INGOT);
+		var gold = ItemStackIngredientTestFixtures.item(Items.GOLD_INGOT);
+		var layout = RecipeLayoutTestFixtures.singleIngredientLayout(new RecipeType<>(RECIPE_TYPE, Object.class), new Object(), RECIPE,
+			List.of(ItemStackIngredientTestFixtures.item(Items.STICK)), List.of(iron, gold));
+		for (var output : List.of(iron, gold)) {
+			var projection = new RecipeLayoutProjection(layout, Optional.of(BookmarkItemMetadataFactory.createPermutationKey(output, manager)), Map.of());
+			Assertions.assertTrue(bookmarks.addRecipeBookmarks(projection, false));
+		}
+		Assertions.assertEquals(List.of(Items.IRON_INGOT, Items.GOLD_INGOT, Items.STICK), bookmarks.getBookmarks().stream()
+			.map(b -> b.getElement().getTypedIngredient().getItemStack().orElseThrow().getItem()).toList());
+	}
+
+	@Test
+	public void selectedOutputDistinguishesComponentsEvenWithSameIngredientUid() {
+		var manager = ItemStackIngredientTestFixtures.ingredientManager();
+		var factory = new RecipeBookmarkEntryFactory(manager);
+		var plain = ItemStackIngredientTestFixtures.item(Items.IRON_INGOT);
+		var namedStack = new ItemStack(Items.IRON_INGOT);
+		namedStack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.literal("Named"));
+		var named = ItemStackIngredientTestFixtures.typed(namedStack);
+		var layout = RecipeLayoutTestFixtures.singleIngredientLayout(new RecipeType<>(RECIPE_TYPE, Object.class), new Object(), RECIPE,
+			List.of(ItemStackIngredientTestFixtures.item(Items.STICK)), List.of(plain, named));
+		var projection = new RecipeLayoutProjection(layout, Optional.of(BookmarkItemMetadataFactory.createPermutationKey(named, manager)), Map.of());
+		var entries = factory.createRecipeBookmarkEntries(projection, false, null);
+		Assertions.assertEquals(2, entries.size());
+		Assertions.assertTrue(ItemStack.isSameItemSameComponents(namedStack, entries.getFirst().bookmark().getElement().getTypedIngredient().getItemStack().orElseThrow()));
+	}
+
+	@Test
+	public void groupDeduplicationKeepsDifferentComponents() {
+		BookmarkList bookmarks = bookmarkList();
+		var plain = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
+		bookmarks.addToListWithoutNotifying(plain, false);
+		bookmarks.moveBookmarkMetadataFromConfig(plain, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
+		int group = bookmarks.createGroupForBookmarks("Target", List.of(plain));
+		var stack = new ItemStack(Items.IRON_INGOT);
+		stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.literal("Named"));
+		var named = new RecipeBookmark<>(new TestRecipeCategory(RECIPE), RECIPE, RECIPE,
+			ItemStackIngredientTestFixtures.typed(stack), RecipeIngredientRole.OUTPUT, null);
+		bookmarks.addToListWithoutNotifying(named, false);
+		bookmarks.moveBookmarkMetadataFromConfig(named, metadata(BookmarkItemType.RESULT, RECIPE, "iron"));
+		Assertions.assertTrue(bookmarks.moveBookmarksToGroup(List.of(named), group));
+		Assertions.assertEquals(2, bookmarks.getBookmarks().size());
+		Assertions.assertTrue(bookmarks.getBookmarks().stream().allMatch(b -> bookmarks.getBookmarkGroupId(b) == group));
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
 	public void preservesRecipeDemand(boolean counted) {
 		var factory = new RecipeBookmarkEntryFactory(ItemStackIngredientTestFixtures.ingredientManager());
 		var type = new RecipeType<>(RECIPE_TYPE, Object.class);
@@ -213,7 +319,7 @@ public class BookmarkListInvariantTest {
 		Assertions.assertEquals(1, bookmarks.getBookmarks().size());
 		BookmarkItemMetadata merged = bookmarks.getBookmarkMetadata(bookmarks.getBookmarks().get(0));
 		Assertions.assertEquals(BookmarkItemType.RESULT, merged.type());
-		Assertions.assertEquals(1, merged.multiplier());
+		Assertions.assertEquals(3, merged.multiplier());
 		Assertions.assertEquals(4, merged.factor());
 		Assertions.assertEquals(5000, merged.chance());
 		Assertions.assertEquals(Set.of(key("iron"), key("gold")), merged.permutations());
@@ -272,7 +378,7 @@ public class BookmarkListInvariantTest {
 	}
 
 	@Test
-	public void movingRecipeIntoGroupWithSameRecipeSkipsDuplicate() {
+	public void movingRecipeIntoGroupWithSameRecipeMergesDuplicate() {
 		BookmarkList bookmarks = bookmarkList();
 		RecipeBookmark<Object, ItemStack> groupResult = recipeBookmark(Items.IRON_INGOT, RecipeIngredientRole.OUTPUT);
 		bookmarks.addToListWithoutNotifying(groupResult, false);
@@ -285,8 +391,9 @@ public class BookmarkListInvariantTest {
 
 		boolean changed = bookmarks.moveBookmarksToGroup(List.of(defaultResult), groupId);
 
-		Assertions.assertFalse(changed);
-		Assertions.assertEquals(BookmarkGroupManager.DEFAULT_GROUP_ID, bookmarks.getBookmarkGroupId(defaultResult));
+		Assertions.assertTrue(changed);
+		Assertions.assertFalse(bookmarks.getBookmarks().contains(defaultResult));
+		Assertions.assertEquals(1, bookmarks.getBookmarks().size());
 		Assertions.assertEquals(1, bookmarks.getBookmarks().stream()
 			.filter(b -> groupId == bookmarks.getBookmarkGroupId(b))
 			.count());

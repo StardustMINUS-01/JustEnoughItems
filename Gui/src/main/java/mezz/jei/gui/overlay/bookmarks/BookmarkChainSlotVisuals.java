@@ -273,7 +273,9 @@ public final class BookmarkChainSlotVisuals {
 
 	private static Optional<String> formatPlainBookmarkAmount(BookmarkItemMetadata metadata) {
 		long amount = metadata.amount();
-		if (amount <= 1 && !shouldShowChanceAmount(metadata)) {
+		if (amount <= 1 && !shouldShowChanceAmount(metadata) &&
+			metadata.permutations().stream().noneMatch(key -> BookmarkAmountFormatter.usesFluidAmountUnits(key.ingredientTypeUid()))
+		) {
 			return Optional.empty();
 		}
 		return formatPositiveAmount(metadata, amount);

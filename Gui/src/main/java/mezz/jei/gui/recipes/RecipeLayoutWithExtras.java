@@ -12,6 +12,8 @@ import mezz.jei.common.network.packets.PacketShareRecipe;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
+import mezz.jei.gui.bookmarks.RecipeLayoutProjection;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
@@ -154,14 +156,18 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	}
 
 	boolean addRecipeBookmarkGroup(UserInput input, boolean preserveAmount) {
+		return addRecipeBookmarkGroup(input, preserveAmount, null);
+	}
+
+	boolean addRecipeBookmarkGroup(UserInput input, boolean preserveAmount, @Nullable ITypedIngredient<?> output) {
 
 		if (!input.isSimulate()) {
-			boolean added = bookmarks.addRecipeBookmarks(
+			boolean added = bookmarks.addRecipeBookmarks(new RecipeLayoutProjection(
 				recipeLayout,
-				preserveAmount,
+				Optional.ofNullable(output).map(ingredient -> BookmarkItemMetadataFactory.createPermutationKey(ingredient, Internal.getJeiRuntime().getIngredientManager())),
 				inputSlotSelectionState.selectedKeys(),
 				inputSlotSelectionState.filteredCandidates()
-			);
+			), preserveAmount);
 			if (added) {
 				showBookmarkPanel.run();
 			}

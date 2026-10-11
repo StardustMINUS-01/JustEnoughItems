@@ -113,7 +113,7 @@ public class RecipeChainPreviewTooltipComponent implements ClientTooltipComponen
 		}
 
 		private static Optional<String> getAmountText(long amount, String ingredientTypeUid) {
-			if (amount <= 1) {
+			if (amount <= 0 || amount == 1 && !BookmarkAmountFormatter.usesFluidAmountUnits(ingredientTypeUid)) {
 				return Optional.empty();
 			}
 			return Optional.of(BookmarkAmountFormatter.formatTypedAmount(amount, ingredientTypeUid));

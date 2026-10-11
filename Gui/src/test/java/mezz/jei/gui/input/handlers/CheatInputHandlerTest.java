@@ -38,6 +38,31 @@ class CheatInputHandlerTest {
 		long configuredAmount, boolean nonStackable, int expected) {
 		ItemStack stack = new ItemStack(nonStackable ? Items.DIAMOND_SWORD : Items.DIAMOND);
 		assertEquals(expected, CheatInputHandler.resolveGiveAmount(mode, clickAmount, stack,
-			Optional.ofNullable(bookmarkAmount), configuredAmount));
+			Optional.ofNullable(bookmarkAmount), configuredAmount, mezz.jei.api.constants.VanillaTypes.ITEM_STACK, 0));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"INVENTORY,1000,1", "INVENTORY,1000000,3", "MOUSE_PICKUP,1000,1"})
+	void preservesCustomIngredientCheatStackCount(GiveMode mode, long amount, int count) {
+		mezz.jei.api.ingredients.IIngredientType<String> type = () -> String.class;
+		assertEquals(count, CheatInputHandler.resolveGiveAmount(mode, GiveAmount.MAX, new ItemStack(Items.WATER_BUCKET, count),
+			Optional.of(amount), 64, type, 0));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+		"INVENTORY,1000,1000,1",
+		"INVENTORY,3000,1000,3",
+		"INVENTORY,125,1000,1",
+		"INVENTORY,1500,1000,2",
+		"INVENTORY,243000,81000,3",
+		"INVENTORY,9223372036854775807,1000,2147483647",
+		"INVENTORY,,1000,1",
+		"MOUSE_PICKUP,3000,1000,1"
+	})
+	void convertsCalculatedFluidAmountToBuckets(GiveMode mode, Long amount, long bucketVolume, int expected) {
+		mezz.jei.api.ingredients.IIngredientType<String> fluidType = () -> String.class;
+		assertEquals(expected, CheatInputHandler.resolveGiveAmount(mode, GiveAmount.MAX, new ItemStack(Items.WATER_BUCKET),
+			Optional.ofNullable(amount), 64, fluidType, bucketVolume));
 	}
 }

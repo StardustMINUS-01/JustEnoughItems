@@ -32,14 +32,14 @@ public class BookmarkOverlayLayoutTest {
 		var display = IntStream.range(0, 12).mapToObj(i -> createDisplaySlot(i, "item" + i)).toList();
 		var slots = BookmarkPanelLayout.globalSlots(display, BookmarkRowLayout.RowLayout.create(3, List.of(2, 1, 3)));
 		var rows = BookmarkPanelLayout.createRowSlots(slots);
-		assertEquals(List.of(0, 2, 3, 6, 9), rows.stream().map(row -> row.area().getY()).toList());
+		assertEquals(List.of(0, 2, 3, 6, 8, 9), rows.stream().map(row -> row.area().getY()).toList());
 		var expected = IntStream.range(2, 12).mapToObj(i -> "item" + i).toList();
-		assertEquals(expected, BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(1), rows.get(4)));
-		assertEquals(expected, BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(4), rows.get(1)));
+		assertEquals(expected, BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(1), rows.get(5)));
+		assertEquals(expected, BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(5), rows.get(1)));
 		assertEquals(List.of("item2", "item3", "item4", "item5"),
 			BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(1), rows.get(2)));
-		var preview = BookmarkPanelLayout.createGroupingPreviewRows(slots, rows, rows.get(1), rows.get(4), true, -1);
-		assertEquals(List.of(1, 0, 0, 0, 0), preview.stream().map(BookmarkPanelLayout.RowSlot::groupId).toList());
+		var preview = BookmarkPanelLayout.createGroupingPreviewRows(slots, rows, rows.get(1), rows.get(5), true, -1);
+		assertEquals(List.of(1, 0, 0, 0, 0, 0), preview.stream().map(BookmarkPanelLayout.RowSlot::groupId).toList());
 		var recipeSlots = IntStream.range(0, slots.size()).mapToObj(i -> {
 				var slot = slots.get(i);
 				return new BookmarkPanelLayout.PanelSlot<>(slot.item(), slot.groupId(), slot.area(), false, i >= 2 && i < 9 ? "recipe" : null);

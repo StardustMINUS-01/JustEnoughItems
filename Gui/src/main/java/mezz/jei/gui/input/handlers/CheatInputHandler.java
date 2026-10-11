@@ -1,11 +1,14 @@
 package mezz.jei.gui.input.handlers;
 
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.GiveMode;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.platform.Services;
 import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
@@ -80,8 +83,14 @@ public class CheatInputHandler implements IUserInputHandler {
 				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
 				if (!itemStack.isEmpty()) {
 					if (!input.isSimulate()) {
+						IIngredientType<?> type = clicked.getTypedIngredient().getType();
+						var fluidHelper = Services.PLATFORM.getFluidHelper();
+						long bucketVolume = 0;
+						if (type.equals(fluidHelper.getFluidIngredientType())) {
+							bucketVolume = fluidHelper.bucketVolume();
+						}
 						int amount = resolveGiveAmount(clientConfig.giveMode().getValue(), giveAmount,
-							itemStack, clicked.getCheatGiveAmount(), scrollStep.getValue());
+							itemStack, clicked.getCheatGiveAmount(), scrollStep.getValue(), type, bucketVolume);
 						commandUtil.giveStack(itemStack, amount);
 					}
 					consumer.accept(new SameElementInputHandler(this, clicked::isMouseOver));
@@ -90,7 +99,14 @@ public class CheatInputHandler implements IUserInputHandler {
 			.findFirst();
 	}
 
-	static int resolveGiveAmount(GiveMode mode, GiveAmount giveAmount, ItemStack stack, Optional<Long> bookmarkAmount, long configuredAmount) {
+	static int resolveGiveAmount(GiveMode mode, GiveAmount giveAmount, ItemStack stack, Optional<Long> bookmarkAmount, long configuredAmount, IIngredientType<?> type, long bucketVolume) {
+		if (!type.equals(VanillaTypes.ITEM_STACK)) {
+			if (bucketVolume > 0 && mode == GiveMode.INVENTORY && bookmarkAmount.isPresent()) {
+				long buckets = Math.ceilDiv(bookmarkAmount.get(), bucketVolume);
+				return (int) Math.clamp(buckets, 1, Integer.MAX_VALUE);
+			}
+			return stack.getCount();
+		}
 		if (mode == GiveMode.MOUSE_PICKUP) {
 			return giveAmount.getAmountForStack(stack);
 		}

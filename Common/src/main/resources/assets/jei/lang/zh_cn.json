@@ -323,7 +323,7 @@
   "jei.config.client.bookmarks.recipeMarkerMode.description": "选择配方书签的标记方式：无标记、字母 R 或背景标记。\n不影响催化剂的 C 标记。",
   "jei.config.client.bookmarks.showRecipeHandlerIcon": "显示配方工作方块图标",
   "jei.config.client.bookmarks.amountFontScale": "书签数量字体缩放（%）",
-  "jei.config.client.bookmarks.amountFontScale.description": "书签右下角数量文字的缩放比例，50% 即 0.5 倍。不改变其他角标的字号。",
+  "jei.config.client.bookmarks.amountFontScale.description": "书签数量与乘数文字的缩放比例，65% 即 0.65 倍。不改变配方标记的字号。",
   "jei.config.client.bookmarks.showRecipeHandlerIcon.description": "在配方书签上显示对应工作方块的图标。",
   "jei.config.client.bookmarks.favoriteTreeDepth": "生成配方树的最大深度",
   "jei.config.client.bookmarks.favoriteTreeDepth.description": "从收藏配方生成配方树时，限制向下展开材料配方的深度。",

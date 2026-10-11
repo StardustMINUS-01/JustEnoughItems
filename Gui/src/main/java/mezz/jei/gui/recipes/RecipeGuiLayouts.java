@@ -190,7 +190,10 @@ public class RecipeGuiLayouts {
 			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
 			if (recipeLayout.isMouseOver(mouseX, mouseY) && isOutputSlotUnderMouse(recipeLayout, mouseX, mouseY)) {
 				if (recipeLayoutWithButtons instanceof RecipeLayoutWithExtras<?> recipeLayoutWithForkExtras) {
-					return recipeLayoutWithForkExtras.addRecipeBookmarkGroup(input, preserveAmount);
+					return recipeLayout.getSlotUnderMouse(mouseX, mouseY)
+						.flatMap(slot -> slot.slot().getDisplayedIngredient())
+						.map(output -> recipeLayoutWithForkExtras.addRecipeBookmarkGroup(input, preserveAmount, output))
+						.orElse(false);
 				}
 				return false;
 			}

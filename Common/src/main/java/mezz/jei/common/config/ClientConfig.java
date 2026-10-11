@@ -98,7 +98,7 @@ public final class ClientConfig implements IClientConfig {
 		bookmarkOutputAsRecipe = bookmarks.addBoolean("bookmarkOutputAsRecipe", false);
 		dragToRearrangeBookmarksEnabled = bookmarks.addBoolean("dragToRearrangeBookmarksEnabled", true);
 		bookmarkRecipeMarkerMode = bookmarks.addEnum("recipeMarkerMode", BookmarkRecipeMarkerMode.NONE);
-		bookmarkAmountFontScale = bookmarks.addInteger("amountFontScale", 50, 25, 100);
+		bookmarkAmountFontScale = bookmarks.addInteger("amountFontScale", 65, 25, 100);
 		showRecipeHandlerIconEnabled = bookmarks.addBoolean("showRecipeHandlerIcon", true);
 		favoriteTreeDepth = bookmarks.addInteger("favoriteTreeDepth", 9, 0, 100);
 

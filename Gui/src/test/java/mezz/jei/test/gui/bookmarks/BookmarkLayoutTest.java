@@ -416,13 +416,13 @@ public class BookmarkLayoutTest {
 			rowWidths
 		);
 
-		// Preserve the original variable-width fixture, including slots beyond the supplied rows.
-		Assertions.assertEquals(List.of(0, 1, 3, 5, 6, 8, 9, 11, 12, 13, 14),
+		// Page two repeats the same excluded rows instead of reverting to full-width rows.
+		Assertions.assertEquals(List.of(0, 1, 3, 5, 6, 8, 9, 11, 12, 14, 16),
 			slots.stream().map(BookmarkDisplaySlot::slotIndex).toList());
-		Set<Integer> left = Set.of(0, 3, 5, 8, 11);
-		Set<Integer> right = Set.of(1, 3, 6, 9, 12, 14);
-		Set<Integer> top = Set.of(0, 1, 6, 13);
-		Set<Integer> bottom = Set.of(0, 11, 12, 13, 14);
+		Set<Integer> left = Set.of(0, 3, 5, 8, 11, 14, 16);
+		Set<Integer> right = Set.of(1, 3, 6, 9, 12, 14, 16);
+		Set<Integer> top = Set.of(0, 1, 6);
+		Set<Integer> bottom = Set.of(0, 12, 16);
 		for (var slot : slots) {
 			int index = slot.slotIndex();
 			var border = slot.entry().border();

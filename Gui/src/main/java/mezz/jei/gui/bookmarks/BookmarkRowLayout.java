@@ -10,6 +10,7 @@ public final class BookmarkRowLayout {
 		private final int columns;
 		private final List<Integer> usableColumnsPerRow;
 		private final int[] rowStarts;
+		private final int slotsPerPage;
 
 		private RowLayout(int columns, List<Integer> usableColumnsPerRow) {
 			this.columns = columns;
@@ -20,6 +21,7 @@ public final class BookmarkRowLayout {
 				this.rowStarts[i] = cumulative;
 				cumulative += this.usableColumnsPerRow.get(i);
 			}
+			this.slotsPerPage = cumulative;
 		}
 
 		public static RowLayout create(int columns, List<Integer> usableColumnsPerRow) {
@@ -44,9 +46,9 @@ public final class BookmarkRowLayout {
 	}
 
 	public static int rowStart(int position, RowLayout layout) {
-		int rowIndex = findRowIndex(position, layout.rowStarts);
-		if (isWithinRow(position, rowIndex, layout)) {
-			return layout.rowStarts[rowIndex];
+		if (position >= 0 && layout.slotsPerPage > 0) {
+			int local = position % layout.slotsPerPage;
+			return position - local + layout.rowStarts[findRowIndex(local, layout.rowStarts)];
 		}
 		return layout.columns > 0 ? position - position % layout.columns : position;
 	}
@@ -56,9 +58,10 @@ public final class BookmarkRowLayout {
 	}
 
 	public static int nextRowStart(int position, RowLayout layout) {
-		int rowIndex = findRowIndex(position, layout.rowStarts);
-		if (isWithinRow(position, rowIndex, layout)) {
-			return layout.rowStarts[rowIndex] + layout.usableColumnsPerRow.get(rowIndex);
+		if (position >= 0 && layout.slotsPerPage > 0) {
+			int local = position % layout.slotsPerPage;
+			int rowIndex = findRowIndex(local, layout.rowStarts);
+			return position - local + layout.rowStarts[rowIndex] + layout.usableColumnsPerRow.get(rowIndex);
 		}
 		return layout.columns > 0 ? position + layout.columns - position % layout.columns : position + 1;
 	}
@@ -76,19 +79,14 @@ public final class BookmarkRowLayout {
 	}
 
 	public static int above(int position, RowLayout layout) {
-		int rowIndex = findRowIndex(position, layout.rowStarts);
-		if (isWithinRow(position, rowIndex, layout)) {
-			int column = position - layout.rowStarts[rowIndex];
-			if (rowIndex > 0) {
-				if (column < layout.usableColumnsPerRow.get(rowIndex - 1)) {
-					return layout.rowStarts[rowIndex - 1] + column;
-				}
+		if (position >= 0 && layout.slotsPerPage > 0) {
+			int start = rowStart(position, layout);
+			if (start == 0) {
 				return -1;
 			}
-			if (column < 0) {
-				return column;
-			}
-			return -1;
+			int previous = rowStart(start - 1, layout);
+			int column = position - start;
+			return column < start - previous ? previous + column : -1;
 		}
 		return layout.columns > 0 && position >= layout.columns ? position - layout.columns : -1;
 	}
@@ -98,13 +96,10 @@ public final class BookmarkRowLayout {
 	}
 
 	public static int below(int position, RowLayout layout) {
-		int rowIndex = findRowIndex(position, layout.rowStarts);
-		if (isWithinRow(position, rowIndex, layout)) {
-			int column = position - layout.rowStarts[rowIndex];
-			if (rowIndex + 1 < layout.rowStarts.length && column < layout.usableColumnsPerRow.get(rowIndex + 1)) {
-				return layout.rowStarts[rowIndex] + layout.usableColumnsPerRow.get(rowIndex) + column;
-			}
-			return -1;
+		if (position >= 0 && layout.slotsPerPage > 0) {
+			int column = position - rowStart(position, layout);
+			int next = nextRowStart(position, layout);
+			return column < nextRowStart(next, layout) - next ? next + column : -1;
 		}
 		return layout.columns > 0 ? position + layout.columns : -1;
 	}
@@ -130,9 +125,4 @@ public final class BookmarkRowLayout {
 		return low;
 	}
 
-	private static boolean isWithinRow(int position, int rowIndex, RowLayout layout) {
-		return rowIndex >= 0 &&
-			rowIndex < layout.rowStarts.length &&
-			position < layout.rowStarts[rowIndex] + layout.usableColumnsPerRow.get(rowIndex);
-	}
 }

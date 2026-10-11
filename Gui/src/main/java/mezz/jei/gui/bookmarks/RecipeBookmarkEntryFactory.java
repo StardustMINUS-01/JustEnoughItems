@@ -196,9 +196,19 @@ final class RecipeBookmarkEntryFactory {
 		if (selectedKey == null || ingredientManager == null) {
 			return Optional.empty();
 		}
-		return slotView.getAllIngredients()
+		if (slotView.getRole() == RecipeIngredientRole.OUTPUT && selectedKey.typedIngredient() != null &&
+			selectedKey.typedIngredient().getIngredient() instanceof net.minecraft.world.item.ItemStack selectedStack
+		) {
+			return java.util.stream.Stream.concat(slotView.getDisplayedIngredient().stream(), slotView.getAllIngredients())
+				.filter(ingredient -> ingredient.getIngredient() instanceof net.minecraft.world.item.ItemStack stack &&
+					net.minecraft.world.item.ItemStack.isSameItemSameComponents(selectedStack, stack))
+				.findFirst();
+		}
+		return slotView.getDisplayedIngredient()
 			.filter(ingredient -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
-			.findFirst();
+			.or(() -> slotView.getAllIngredients()
+				.filter(ingredient -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
+				.findFirst());
 	}
 
 	private <R, T> RecipeBookmarkEntry createRecipeBookmark(

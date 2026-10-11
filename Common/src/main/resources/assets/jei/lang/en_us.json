@@ -321,7 +321,7 @@
   "jei.config.client.bookmarks.recipeMarkerMode.description": "Choose how recipe bookmarks are marked: no marker, the letter R, or a background marker.\nDoes not affect catalyst C markers.",
   "jei.config.client.bookmarks.showRecipeHandlerIcon": "Show Recipe Workstation Icon",
   "jei.config.client.bookmarks.amountFontScale": "Bookmark Amount Font Scale (%)",
-  "jei.config.client.bookmarks.amountFontScale.description": "Scale of bottom-right bookmark amounts. 50% is 0.5x. Does not change other corner markers.",
+  "jei.config.client.bookmarks.amountFontScale.description": "Scale of bookmark amounts and multipliers. 65% is 0.65x. Does not change recipe markers.",
   "jei.config.client.bookmarks.showRecipeHandlerIcon.description": "Show the corresponding workstation icon on recipe bookmarks.",
   "jei.config.client.bookmarks.favoriteTreeDepth": "Maximum Generated Recipe Tree Depth",
   "jei.config.client.bookmarks.favoriteTreeDepth.description": "Limit how deeply ingredient recipes are expanded when generating a recipe tree from a favorite recipe.",

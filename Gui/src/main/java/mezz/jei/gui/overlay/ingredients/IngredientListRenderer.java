@@ -386,7 +386,8 @@ public class IngredientListRenderer {
 	}
 
 	private static void drawTopLeftText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
-		drawScaledText(guiGraphics, font, text, area.getX() + 1, area.getY() + 1, color);
+		float scale = Internal.getClientConfigs().getClientConfig().bookmarkAmountFontScale().getValue() / 100f;
+		drawScaledText(guiGraphics, font, text, area.getX() + 1, area.getY() + 1, color, scale);
 	}
 
 	private static void drawTopRightText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
