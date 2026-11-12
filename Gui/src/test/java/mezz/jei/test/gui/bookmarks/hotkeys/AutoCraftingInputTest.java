@@ -138,6 +138,21 @@ public class AutoCraftingInputTest {
 	}
 
 	@ParameterizedTest
+	@ValueSource(ints = {1, 2, 3})
+	void mapsProcessingInputsInDeclaredOrder(int slots) {
+		var types = List.of(RecipeTypes.STONECUTTING, RecipeTypes.ANVIL, RecipeTypes.SMITHING);
+		List<List<ITypedIngredient<?>>> inputs = new ArrayList<>();
+		var materials = List.of(Items.STONE, Items.DIAMOND, Items.IRON_INGOT);
+		for (int i = 0; i < slots; i++)
+			inputs.add(List.of(item(materials.get(i))));
+		var layout = RecipeLayoutTestFixtures.layout(types.get(slots - 1), new Object(), RECIPE, inputs, List.of(List.of(item(Items.STICK))));
+		var fill = BookmarkCraftingGridFill.create(layout, slots, 1).orElseThrow();
+		for (int i = 0; i < slots; i++)
+			assertTrue(fill.targetStacks().get(i).is(materials.get(i)));
+		assertTrue(BookmarkCraftingGridFill.create(layout, slots + 1, 1).isEmpty());
+	}
+
+	@ParameterizedTest
 	@ValueSource(ints = {4, 9})
 	void mapsCraftingSlots(int targetSlotCount) {
 		for (int[] occupied : List.of(new int[]{0, 1, 3, 4}, new int[]{0, 4})) {

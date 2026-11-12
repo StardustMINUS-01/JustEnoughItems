@@ -76,6 +76,14 @@ public record BookmarkCraftingGridFill(
 		for (int i = 0; i < targetSlotCount; i++) {
 			candidateSlots.add(List.of());
 		}
+		if (!recipeLayout.getRecipeCategory().getRecipeType().equals(RecipeTypes.CRAFTING)) {
+			if (inputSlots.size() != targetSlotCount)
+				return List.of();
+			for (int i = 0; i < inputSlots.size(); i++) {
+				candidateSlots.set(i, createCandidates(inputSlots.get(i), groups));
+			}
+			return candidateSlots;
+		}
 		if (recipeLayout.getRecipeCategory().getRecipeType().equals(RecipeTypes.CRAFTING) && inputSlots.size() == 9 &&
 			(targetSlotCount == 4 || targetSlotCount == 9)
 		) {

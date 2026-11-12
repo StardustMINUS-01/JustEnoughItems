@@ -184,11 +184,14 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			return Optional.empty();
 		}
 
-		int targetSlotCount = BookmarkGhostOverlayTargetSlots.fromMenu(containerScreen.getMenu()).size();
+		int targetSlotCount = Math.max(BookmarkGhostOverlayTargetSlots.fromMenu(containerScreen.getMenu()).size(),
+			mezz.jei.common.bookmarks.ProcessingStations.getInputSlotCount(containerScreen.getMenu()));
 		if (targetSlotCount <= 0) {
 			return Optional.empty();
 		}
-		if (!serverConnection.canSendPacket(PacketCraftingGridCraft.TYPE)) {
+		if (!serverConnection.canSendPacket(PacketCraftingGridCraft.TYPE) &&
+			!serverConnection.canSendPacket(mezz.jei.common.network.packets.PacketProcessingStationCraft.TYPE)
+		) {
 			if (!input.isSimulate()) {
 				minecraft.player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);
 			}

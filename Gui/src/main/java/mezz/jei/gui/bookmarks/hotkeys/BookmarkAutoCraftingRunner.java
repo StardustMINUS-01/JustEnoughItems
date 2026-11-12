@@ -20,6 +20,7 @@ public final class BookmarkAutoCraftingRunner {
 	public void tick() {
 		if (activeTask != null && !activeTask.tick()) {
 			activeTask = null;
+			BookmarkProcessingStations.cancel();
 		}
 	}
 
@@ -44,5 +45,6 @@ public final class BookmarkAutoCraftingRunner {
 	public void stop() {
 		activeTask = null;
 		BookmarkCraftingScope.clear();
+		BookmarkProcessingStations.cancel();
 	}
 }

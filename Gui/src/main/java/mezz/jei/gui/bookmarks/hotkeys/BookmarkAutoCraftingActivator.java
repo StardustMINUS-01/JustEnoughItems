@@ -9,6 +9,7 @@ import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.Internal;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.input.UserInput;
@@ -66,7 +67,8 @@ public final class BookmarkAutoCraftingActivator {
 		Runnable onActivated
 	) {
 		IConnectionToServer serverConnection = Internal.getServerConnection();
-		if (!serverConnection.canSendPacket(PacketCraftingGridCraft.TYPE)) {
+		boolean processing = !RecipeTypes.CRAFTING.equals(recipeLayout.getRecipeCategory().getRecipeType());
+		if (!serverConnection.canSendPacket(processing ? PacketProcessingStationCraft.TYPE : PacketCraftingGridCraft.TYPE)) {
 			LocalPlayer player = Minecraft.getInstance().player;
 			if (!input.isSimulate() && player != null) {
 				player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);
@@ -97,10 +99,20 @@ public final class BookmarkAutoCraftingActivator {
 		boolean hasServerSupport,
 		List<ItemStack> availableStacks
 	) {
-		if (!hasServerSupport || !hasShift || containerMenu == null ||
-			!RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())
-		) {
+		if (!hasServerSupport || !hasShift || containerMenu == null) {
 			return false;
+		}
+		if (!RecipeTypes.CRAFTING.equals(recipeLayout.getRecipeCategory().getRecipeType())) {
+			return BookmarkProcessingStations.createRequest(recipeLayout, containerMenu, 0, 0, 0, availableStacks).map(packet -> {
+					if (!input.isSimulate()) {
+						onActivated.run();
+						BookmarkProcessingStations.markDispatched(packet);
+						packetSender.accept(packet);
+						playClickSound.run();
+					}
+					return true;
+				})
+				.orElse(false);
 		}
 
 		int targetSlotCount = BookmarkGhostOverlayTargetSlots.fromMenu(containerMenu).size();

@@ -54,7 +54,7 @@ public class GuiEventHandler {
 
 	public void onGuiInit(Screen screen) {
 		BookmarkGhostOverlayState.INSTANCE.clear();
-		bookmarkAutoCraftingRunner.stop();
+		stopAutoCrafting();
 		if (screen instanceof JeiConfigScreen) {
 			return;
 		}
@@ -76,7 +76,7 @@ public class GuiEventHandler {
 			return;
 		}
 		BookmarkGhostOverlayState.INSTANCE.clear();
-		bookmarkAutoCraftingRunner.stop();
+		stopAutoCrafting();
 		ingredientListOverlay.getScreenPropertiesUpdater()
 			.updateScreen(screen)
 			.update();
@@ -86,12 +86,18 @@ public class GuiEventHandler {
 	}
 
 	public void onClientTick() {
+		if (!Minecraft.getInstance().isWindowActive())
+			stopAutoCrafting();
 		if (Minecraft.getInstance().screen instanceof JeiConfigScreen) {
 			return;
 		}
 		ingredientListOverlay.tick();
 		bookmarkOverlay.tick();
 		bookmarkAutoCraftingRunner.tick();
+	}
+
+	public void stopAutoCrafting() {
+		bookmarkAutoCraftingRunner.stop();
 	}
 
 	/**

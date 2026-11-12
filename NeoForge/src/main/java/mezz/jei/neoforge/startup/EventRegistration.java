@@ -28,6 +28,11 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 
 public class EventRegistration {
 	public static void registerEvents(RuntimeEventSubscriptions subscriptions, JeiEventHandlers eventHandlers) {
+		GuiEventHandler taskHandler = eventHandlers.guiEventHandler();
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseButtonPressed.Pre.class, event -> taskHandler.stopAutoCrafting());
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.KeyPressed.Pre.class, event -> taskHandler.stopAutoCrafting());
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseScrolled.Pre.class, event -> taskHandler.stopAutoCrafting());
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseDragged.Pre.class, event -> taskHandler.stopAutoCrafting());
 		ClientInputHandler clientInputHandler = eventHandlers.clientInputHandler();
 		registerClientInputHandler(subscriptions, clientInputHandler);
 		registerWorldInputHandler(subscriptions, eventHandlers.worldInputHandler());

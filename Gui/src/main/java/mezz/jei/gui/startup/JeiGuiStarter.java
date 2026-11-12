@@ -299,7 +299,10 @@ public class JeiGuiStarter {
 		bookmarkOverlay.setQuantityAreaSupplier(ingredientListOverlay::getQuantityArea);
 
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
-		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));
+		PacketCraftingGridCraftAck.setListener(ack -> {
+			mezz.jei.gui.bookmarks.hotkeys.BookmarkProcessingStations.acknowledge(ack.taskId(), ack.requestId());
+			bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount());
+		});
 
 		FavoriteTreeRecipeLayoutResolver favoriteTreeRecipeResolver = new FavoriteTreeRecipeLayoutResolver(
 			recipeManager,

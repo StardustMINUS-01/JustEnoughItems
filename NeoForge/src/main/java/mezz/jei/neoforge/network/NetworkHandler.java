@@ -1,6 +1,12 @@
 package mezz.jei.neoforge.network;
 
 import mezz.jei.common.Internal;
+import mezz.jei.common.bookmarks.ServerProcessingStationCraft;
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
+import mezz.jei.common.network.packets.PacketCancelProcessingStation;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import mezz.jei.common.config.IServerConfig;
 import mezz.jei.common.network.ClientPacketContext;
 import mezz.jei.common.network.IConnectionToClient;
@@ -52,7 +58,31 @@ public class NetworkHandler {
 	}
 
 	public void registerPacketHandlers(PermanentEventSubscriptions subscriptions) {
+		subscriptions.register(PlayerTickEvent.Post.class, event -> {
+			if (event.getEntity() instanceof ServerPlayer player)
+				ServerProcessingStationCraft.tick(player);
+		});
+		subscriptions.register(PlayerEvent.PlayerLoggedOutEvent.class, event -> {
+			if (event.getEntity() instanceof ServerPlayer player)
+				ServerProcessingStationCraft.cancel(player);
+		});
+		subscriptions.register(PlayerContainerEvent.Close.class, event -> {
+			if (event.getEntity() instanceof ServerPlayer player)
+				ServerProcessingStationCraft.cancel(player);
+		});
 		subscriptions.register(RegisterPayloadHandlersEvent.class, ev -> {
+			ev.registrar("1").executesOn(HandlerThread.MAIN).optional()
+				.playToServer(
+					PacketProcessingStationCraft.TYPE,
+					PacketProcessingStationCraft.STREAM_CODEC,
+					(packet, context) -> {
+						ServerPlayer player = (ServerPlayer) context.player();
+						if (player.connection.hasChannel(PacketCraftingGridCraftAck.TYPE)) {
+							packet.process(new ServerPacketContext(player, serverConfig, connectionToClient));
+						}
+					}
+				)
+				.playToServer(PacketCancelProcessingStation.TYPE, PacketCancelProcessingStation.STREAM_CODEC, wrapServerHandler(PacketCancelProcessingStation::process));
 			var registrar = ev.registrar(this.protocolVersion)
 				.executesOn(HandlerThread.MAIN)
 				.optional()

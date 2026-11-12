@@ -145,6 +145,8 @@ public final class BookmarkAutoCraftingBridge {
 		private int waitTicks;
 		private int expectedRequestId;
 		private int nextRequestId = 1;
+		private boolean processingRequest;
+		private List<ItemStack> dispatchedStacks = List.of();
 
 		private Task(
 			List<RecipeChainInput> chainInputs,
@@ -194,7 +196,7 @@ public final class BookmarkAutoCraftingBridge {
 			}
 			if (waitingForAck) {
 				waitTicks++;
-				if (waitTicks > MAX_WAIT_TICKS) {
+				if (waitTicks > (processingRequest ? 128 : MAX_WAIT_TICKS)) {
 					deactivate();
 					return false;
 				}
@@ -274,6 +276,8 @@ public final class BookmarkAutoCraftingBridge {
 			AtomicBoolean craftedOnePacket = new AtomicBoolean(false);
 			int requestId = nextRequestId++;
 			dispatchedInventorySnapshot = List.copyOf(inventorySupplier.get());
+			dispatchedStacks = availableStacksSupplier.get().stream().map(ItemStack::copy).toList();
+			processingRequest = false;
 			if (craftAll) {
 				if (!craftAllExpansionInventoryCaptured) {
 					craftAllExpansionInventorySnapshot = dispatchedInventorySnapshot;
@@ -290,6 +294,10 @@ public final class BookmarkAutoCraftingBridge {
 				(recipeUid, multiplier) -> {
 					if (craftedOnePacket.get()) {
 						return false;
+					}
+					var layout = recipeLayoutResolver.apply(recipeUid);
+					if (layout.isPresent() && !RecipeTypes.CRAFTING.equals(layout.get().getRecipeCategory().getRecipeType())) {
+						processingRequest = true;
 					}
 					return craft(
 						recipeUid,
@@ -318,6 +326,16 @@ public final class BookmarkAutoCraftingBridge {
 		}
 
 		private boolean inventoryHasExpectedResultIncreaseSinceDispatch() {
+			if (processingRequest) {
+				List<ItemStack> current = availableStacksSupplier.get();
+				if (current.size() != dispatchedStacks.size())
+					return true;
+				for (int i = 0; i < current.size(); i++) {
+					if (!ItemStack.matches(current.get(i), dispatchedStacks.get(i)))
+						return true;
+				}
+				return false;
+			}
 			if (dispatchedRecipeUid == null || acknowledgedCraftedCount <= 0) {
 				return false;
 			}
@@ -411,8 +429,21 @@ public final class BookmarkAutoCraftingBridge {
 		Runnable afterCraftAccepted
 	) {
 		IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutResolver.apply(recipeUid).orElse(null);
-		if (recipeLayout == null || !RecipeTypes.CRAFTING.getUid().equals(recipeLayout.getRecipeCategory().getRecipeType().getUid())) {
+		if (recipeLayout == null) {
 			return false;
+		}
+		if (!RecipeTypes.CRAFTING.equals(recipeLayout.getRecipeCategory().getRecipeType())) {
+			return BookmarkProcessingStations.createCurrentRequest(recipeLayout, containerId, multiplier, taskId, requestId, availableStacksSupplier.get())
+				.map(packet -> {
+					craftedOnePacket.set(true);
+					afterCraftAccepted.run();
+					if (!simulate) {
+						BookmarkProcessingStations.markDispatched(packet);
+						packetSender.accept(packet);
+					}
+					return true;
+				})
+				.orElse(false);
 		}
 
 		List<ItemStack> availableStacks = copyStacks(availableStacksSupplier.get());
