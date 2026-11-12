@@ -108,6 +108,7 @@ public class JeiGuiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	public static JeiEventHandlers start(IRuntimeRegistration registration) {
+		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.install();
 		LOGGER.info("Starting JEI GUI");
 		LoggedTimer timer = new LoggedTimer();
 

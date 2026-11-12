@@ -1,0 +1,5 @@
+package mezz.jei.api.gui.tooltip;
+
+public enum TooltipCloseReason {
+	PIN_RELEASED, ESCAPE, SCREEN_CHANGED, SOURCE_INVALIDATED, FOCUS_LOST, RESOURCE_RELOAD, RUNTIME_STOPPED, REPLACED, REQUESTED
+}

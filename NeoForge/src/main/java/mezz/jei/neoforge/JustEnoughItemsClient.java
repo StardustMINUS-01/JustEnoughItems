@@ -80,6 +80,7 @@ public class JustEnoughItemsClient {
 	}
 
 	public void register() {
+		mezz.jei.neoforge.startup.EventRegistration.registerInteractiveTooltips(subscriptions);
 		subscriptions.register(RegisterClientReloadListenersEvent.class, this::onRegisterReloadListenerEvent);
 		subscriptions.register(RegisterClientTooltipComponentFactoriesEvent.class, this::onRegisterClientTooltipEvent);
 		subscriptions.register(RecipesUpdatedEvent.class, this::onRecipesUpdatedEvent);

@@ -54,6 +54,46 @@ public class EventRegistration {
 		});
 	}
 
+	public static void registerInteractiveTooltips(mezz.jei.neoforge.events.PermanentEventSubscriptions subscriptions) {
+		var host = mezz.jei.gui.input.InteractiveTooltipController.INSTANCE;
+		subscriptions.register(ClientTickEvent.Post.class, event -> host.tick());
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseButtonPressed.Pre.class, event -> {
+			if (host.mousePressed(event.getMouseX(), event.getMouseY(), event.getButton(), modifiers()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseButtonReleased.Pre.class, event -> {
+			if (host.mouseReleased(event.getMouseX(), event.getMouseY(), event.getButton(), modifiers()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseDragged.Pre.class, event -> {
+			if (host.mouseDragged(event.getMouseX(), event.getMouseY(), event.getMouseButton(), event.getDragX(), event.getDragY()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseScrolled.Pre.class, event -> {
+			if (host.mouseScrolled(event.getMouseX(), event.getMouseY(), event.getScrollDeltaX(), event.getScrollDeltaY()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.KeyPressed.Pre.class, event -> {
+			if (host.keyPressed(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.KeyReleased.Pre.class, event -> {
+			if (host.keyReleased(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.CharacterTyped.Pre.class, event -> {
+			if (host.charTyped(event.getCodePoint(), event.getModifiers()))
+				event.setCanceled(true);
+		});
+		subscriptions.register(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut.class, event -> host.stop());
+	}
+
+	private static int modifiers() {
+		return (Screen.hasShiftDown() ? org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT : 0) |
+			(Screen.hasControlDown() ? org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL : 0) |
+			(Screen.hasAltDown() ? org.lwjgl.glfw.GLFW.GLFW_MOD_ALT : 0);
+	}
+
 	private static ItemStack getPickedStack(Minecraft minecraft) {
 		if (minecraft.player == null || minecraft.level == null || minecraft.hitResult == null) {
 			return ItemStack.EMPTY;

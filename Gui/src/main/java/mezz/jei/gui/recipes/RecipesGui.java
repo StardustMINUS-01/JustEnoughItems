@@ -1088,6 +1088,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	private void updateLayout() {
+		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.close(mezz.jei.api.gui.tooltip.TooltipCloseReason.SOURCE_INVALIDATED);
 		if (!init) {
 			return;
 		}

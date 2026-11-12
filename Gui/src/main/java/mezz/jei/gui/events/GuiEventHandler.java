@@ -53,6 +53,7 @@ public class GuiEventHandler {
 	}
 
 	public void onGuiInit(Screen screen) {
+		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.close(mezz.jei.api.gui.tooltip.TooltipCloseReason.SCREEN_CHANGED);
 		BookmarkGhostOverlayState.INSTANCE.clear();
 		stopAutoCrafting();
 		if (screen instanceof JeiConfigScreen) {
@@ -72,6 +73,7 @@ public class GuiEventHandler {
 	}
 
 	public void onGuiOpen(Screen screen) {
+		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.close(mezz.jei.api.gui.tooltip.TooltipCloseReason.SCREEN_CHANGED);
 		if (screen instanceof JeiConfigScreen) {
 			return;
 		}
@@ -219,6 +221,7 @@ public class GuiEventHandler {
 			this.inputLayers.get(i).draw(guiGraphics, mouseX, mouseY);
 		}
 		bookmarkOverlay.drawDragPreviews(guiGraphics, mouseX, mouseY);
+		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.draw(guiGraphics);
 
 		if (DebugConfig.isDebugGuisEnabled()) {
 			drawDebugInfoForScreen(screen, guiProperties, guiGraphics);

@@ -167,6 +167,10 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	}
 
 	private void addTooltip(ITooltipBuilder tooltip) {
+		if (tooltip instanceof JeiTooltip jeiTooltip) {
+			var selected = getDisplayedIngredient();
+			jeiTooltip.setInteractionSource(() -> getDisplayedIngredient().equals(selected));
+		}
 		getDisplayedIngredient()
 			.ifPresent(ingredient -> addIngredientTooltip(tooltip, ingredient));
 		for (IRecipeSlotRichTooltipCallback tooltipCallback : tooltipCallbacks) {

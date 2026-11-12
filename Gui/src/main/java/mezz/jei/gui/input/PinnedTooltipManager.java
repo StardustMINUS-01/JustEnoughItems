@@ -21,7 +21,10 @@ public final class PinnedTooltipManager {
 		if (PinnedTooltipManager.active == holder) {
 			PinnedTooltipManager.active = null;
 		}
+		InteractiveTooltipController.INSTANCE.ownerClosed(holder);
 	}
+
+	public static @Nullable IPinnedTooltipHolder getActiveHolder() { return active; }
 
 	public static void draw(IPinnedTooltipHolder holder, Runnable draw) {
 		if (active != holder) {
@@ -41,7 +44,7 @@ public final class PinnedTooltipManager {
 	}
 
 	public static boolean hasKeyboardFocus() {
-		return active instanceof ICharTypedHandler handler && handler.hasKeyboardFocus();
+		return InteractiveTooltipController.INSTANCE.hasKeyboardFocus() || active instanceof ICharTypedHandler handler && handler.hasKeyboardFocus();
 	}
 
 	public static boolean matchesInput(

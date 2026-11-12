@@ -47,6 +47,12 @@ public class JeiTooltip implements ITooltipBuilder {
 	private final List<Either<FormattedText, TooltipComponent>> lines = new ArrayList<>();
 	private final List<Either<FormattedText, TooltipComponent>> ingredientTooltipFooter = new ArrayList<>();
 	private @Nullable ITypedIngredient<?> typedIngredient;
+	private @Nullable ITypedIngredient<?> interactionIngredient;
+	private java.util.function.BooleanSupplier interactionSourceValid = () -> true;
+
+	public void setInteractionSource(java.util.function.BooleanSupplier sourceValid) {
+		this.interactionSourceValid = sourceValid;
+	}
 
 	public record TooltipRenderData(Font font, ItemStack itemStack) {
 	}
@@ -108,6 +114,7 @@ public class JeiTooltip implements ITooltipBuilder {
 	@Override
 	public void clearIngredient() {
 		this.typedIngredient = null;
+		this.interactionIngredient = null;
 	}
 
 	@Override
@@ -247,11 +254,13 @@ public class JeiTooltip implements ITooltipBuilder {
 		ItemStack itemStack,
 		@Nullable ClientTooltipPositioner positioner
 	) {
-		if (positioner == null) {
-			renderHelper.renderTooltip(guiGraphics, lines, x, y, font, itemStack);
-		} else {
-			renderHelper.renderTooltip(guiGraphics, lines, x, y, font, itemStack, positioner);
-		}
+		TooltipRenderScope.draw(interactionIngredient != null ? interactionIngredient : typedIngredient, interactionSourceValid, () -> {
+			if (positioner == null) {
+				renderHelper.renderTooltip(guiGraphics, lines, x, y, font, itemStack);
+			} else {
+				renderHelper.renderTooltip(guiGraphics, lines, x, y, font, itemStack, positioner);
+			}
+		});
 	}
 
 	public <T> TooltipRenderData prepareForIngredientTooltip(
@@ -259,6 +268,7 @@ public class JeiTooltip implements ITooltipBuilder {
 		IIngredientRenderer<T> ingredientRenderer,
 		IIngredientManager ingredientManager
 	) {
+		this.interactionIngredient = typedIngredient;
 		Minecraft minecraft = Minecraft.getInstance();
 		T ingredient = typedIngredient.getIngredient();
 		Font font = ingredientRenderer.getFontRenderer(minecraft, ingredient);

@@ -62,6 +62,9 @@ ${modDescription}
 [[mixins]]
 config = "jei-ae2.mixins.json"
 
+[[mixins]]
+config = "jei-tooltip.mixins.json"
+
     ordering="NONE"
     # Side this dependency is applied on - BOTH, CLIENT or SERVER
     side="BOTH"
