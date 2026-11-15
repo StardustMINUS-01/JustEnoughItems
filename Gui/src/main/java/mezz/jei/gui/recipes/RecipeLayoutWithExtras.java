@@ -15,8 +15,10 @@ import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.bookmarks.RecipeLayoutProjection;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.elements.IconButton;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
@@ -89,19 +91,18 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	}
 
 	@Override
-	public IUserInputHandler createUserInputHandler() {
-		List<IUserInputHandler> inputHandlers = new ArrayList<>();
+	public IInputTarget createUserInputHandler() {
+		List<IInputTarget> inputHandlers = new ArrayList<>();
 		if (favoriteButton != null) {
 			inputHandlers.add(favoriteButton.createInputHandler());
 		}
 		if (recipeBookmark != null) {
 			BiPredicate<Double, Double> bookmarkButtonIsMouseOver = bookmarkButton::isMouseOver;
-			inputHandlers.add(new IUserInputHandler() {
+			inputHandlers.add(new IInputTarget() {
 				@Override
-				public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+				public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 					if (input.is(keyBindings.getRightClick()) && bookmarkButtonIsMouseOver.test(input.getMouseX(), input.getMouseY())) {
-						shareRecipe(input);
-						return Optional.of(this);
+						return Optional.of(new InputAction(RecipeLayoutWithExtras.this::shareRecipe).within(bookmarkButton::isMouseOver));
 					}
 					return Optional.empty();
 				}
@@ -182,6 +183,11 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	}
 
 	@Override
+	public Optional<IInputInteraction> beginLegacyCategoryInput(UserInput input) {
+		return delegate.beginLegacyCategoryInput(input);
+	}
+
+	@Override
 	public @Nullable RecipeBookmark<?, ?> getRecipeBookmark() {
 		return recipeBookmark;
 	}
@@ -201,6 +207,10 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 
 	@Override
 	public void drawTooltips(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (favoriteButton != null && favoriteButton.isMouseOver(mouseX, mouseY)) {
+			favoriteButton.drawTooltips(guiGraphics, mouseX, mouseY);
+			return;
+		}
 		delegate.drawTooltips(guiGraphics, mouseX, mouseY);
 	}
 
@@ -209,21 +219,21 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 		return delegate.getMissingCountHint();
 	}
 
-	private record CandidateScrollInputHandler(IRecipeLayoutDrawable<?> recipeLayout, InputSlotSelectionState selections) implements IUserInputHandler {
+	private record CandidateScrollInputHandler(IRecipeLayoutDrawable<?> recipeLayout, InputSlotSelectionState selections) implements IInputTarget {
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 			return Optional.empty();
 		}
 
 		@Override
-		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+		public boolean scroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 			boolean synchronizeFamily = Screen.hasShiftDown();
 			if ((synchronizeFamily || Screen.hasControlDown()) &&
 				selections.scroll(recipeLayout, mouseX, mouseY, scrollDeltaY, synchronizeFamily)
 			) {
-				return Optional.of(this);
+				return true;
 			}
-			return Optional.empty();
+			return false;
 		}
 	}
 }

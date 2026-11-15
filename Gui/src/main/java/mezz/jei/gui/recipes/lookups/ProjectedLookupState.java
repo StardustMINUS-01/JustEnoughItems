@@ -4,6 +4,7 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.util.MathUtil;
+import mezz.jei.gui.recipes.RecipeGuiScrollState;
 
 import java.util.List;
 
@@ -15,6 +16,7 @@ public final class ProjectedLookupState implements ILookupState {
 	private int recipeCategoryIndex;
 	private int recipeIndex;
 	private int recipesPerPage = 1;
+	private final RecipeGuiScrollState scrollState = new RecipeGuiScrollState();
 
 	public ProjectedLookupState(ILookupState original, List<IFocusedRecipes<?>> projectedRecipes) {
 		this.focuses = original.getFocuses();
@@ -61,8 +63,14 @@ public final class ProjectedLookupState implements ILookupState {
 		return recipeIndex;
 	}
 
-	void setRecipeIndex(int recipeIndex) {
+	@Override
+	public void setRecipeIndex(int recipeIndex) {
 		this.recipeIndex = recipeIndex;
+	}
+
+	@Override
+	public RecipeGuiScrollState getScrollState() {
+		return scrollState;
 	}
 
 	@Override
@@ -105,18 +113,20 @@ public final class ProjectedLookupState implements ILookupState {
 		}
 		recipeCategoryIndex = index;
 		recipeIndex = 0;
+		scrollState.scrollToRecipe(0);
 		return true;
 	}
 
 	@Override
 	public void goToFirstPage() {
 		recipeIndex = 0;
+		scrollState.scrollToRecipe(0);
 	}
 
 	@Override
 	public boolean nextPage() {
-		int originalIndex = recipeIndex;
-		recipeIndex += recipesPerPage;
+		int originalIndex = recipeIndex - recipeIndex % recipesPerPage;
+		recipeIndex = originalIndex + recipesPerPage;
 		if (recipeIndex >= recipeCount()) {
 			recipeIndex = 0;
 		}
@@ -125,8 +135,8 @@ public final class ProjectedLookupState implements ILookupState {
 
 	@Override
 	public boolean previousPage() {
-		int originalIndex = recipeIndex;
-		recipeIndex -= recipesPerPage;
+		int originalIndex = recipeIndex - recipeIndex % recipesPerPage;
+		recipeIndex = originalIndex - recipesPerPage;
 		if (recipeIndex < 0) {
 			recipeIndex = (pageCount() - 1) * recipesPerPage;
 		}

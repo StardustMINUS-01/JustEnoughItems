@@ -26,6 +26,10 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.ConsumedInput;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.tree.RecipeTreeScreen;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
@@ -44,13 +48,10 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
-import mezz.jei.gui.input.CombinedRecipeFocusSource;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.PinnedTooltipManager;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventoryProvider;
@@ -58,7 +59,6 @@ import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import net.minecraft.client.Minecraft;
-import mezz.jei.gui.overlay.bookmarks.BookmarkPreviewTooltipController;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.gui.screens.Screen;
@@ -68,6 +68,8 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
+import mezz.jei.gui.input.GuiInputScene;
+import mezz.jei.gui.input.IngredientFocusSource;
 
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -75,8 +77,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-public class BookmarkInputHandler implements IUserInputHandler {
-	private final CombinedRecipeFocusSource focusSource;
+public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget {
+	private final IngredientFocusSource focusSource;
 	private final BookmarkList bookmarkList;
 	private final BookmarkOverlay bookmarkOverlay;
 	private final IIngredientManager ingredientManager;
@@ -85,14 +87,14 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	private final BookmarkAutoCraftingRunner autoCraftingRunner;
 	private final Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver;
 	private final Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup;
-	private final BookmarkPreviewTooltipController bookmarkPreviewTooltipController;
+	private final GuiInputScene inputScene;
 	private final IClientConfig clientConfig;
 	private final RecipesGui recipesGui;
 	private final Codec<BookmarkConfigEntry> bookmarkEntryCodec;
 	private final DynamicOps<JsonElement> bookmarkRegistryOps;
 
 	public BookmarkInputHandler(
-		CombinedRecipeFocusSource focusSource,
+		IngredientFocusSource focusSource,
 		BookmarkList bookmarkList,
 		BookmarkOverlay bookmarkOverlay,
 		IIngredientManager ingredientManager,
@@ -100,7 +102,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		BookmarkAutoCraftingRunner autoCraftingRunner,
 		Function<FocusedRecipe, Optional<Integer>> favoriteTreeSaver,
 		Function<BookmarkIngredientKey, Optional<FocusedRecipe>> favoriteRecipeLookup,
-		BookmarkPreviewTooltipController bookmarkPreviewTooltipController,
+		GuiInputScene inputScene,
 		IClientConfig clientConfig,
 		RecipesGui recipesGui,
 		Codec<BookmarkConfigEntry> bookmarkEntryCodec,
@@ -115,7 +117,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		this.autoCraftingRunner = autoCraftingRunner;
 		this.favoriteTreeSaver = favoriteTreeSaver;
 		this.favoriteRecipeLookup = favoriteRecipeLookup;
-		this.bookmarkPreviewTooltipController = bookmarkPreviewTooltipController;
+		this.inputScene = inputScene;
 		this.clientConfig = clientConfig;
 		this.recipesGui = recipesGui;
 		this.bookmarkEntryCodec = bookmarkEntryCodec;
@@ -123,19 +125,15 @@ public class BookmarkInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (input.is(keyBindings.getShowRecipeTree())) {
 			return bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
 				.filter(bookmarkList::isGroupCraftingMode)
-				.map(groupId -> {
-					if (!input.isSimulate()) {
-						Minecraft.getInstance().setScreen(new RecipeTreeScreen(screen, bookmarkList, groupId, ingredientManager));
-					}
-					return this;
-				});
+				.map(groupId -> InputAction.run(() -> Minecraft.getInstance().setScreen(new RecipeTreeScreen(screen, bookmarkList, groupId, ingredientManager)))
+					.within(bookmarkOverlay::isMouseOver));
 		}
 		if (input.is(keyBindings.getShareToChat())) {
-			Optional<IUserInputHandler> shareHandler = handleGroupShare(input);
+			Optional<IInputInteraction> shareHandler = handleGroupShare(input);
 			if (shareHandler.isPresent()) {
 				return shareHandler;
 			}
@@ -143,7 +141,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!InputModifiers.hasShift(input) && !InputModifiers.hasControl(input) &&
 			PinnedTooltipManager.matchesInput(input.getKey(), keyBindings.getBookmark(), keyBindings.getPauseRecipeCycling())
 		) {
-			Optional<IUserInputHandler> recipeHandler = handleRecipeBookmark(input);
+			Optional<IInputInteraction> recipeHandler = prepareRecipeBookmarkAction(input);
 			if (recipeHandler.isPresent()) {
 				return recipeHandler;
 			}
@@ -157,12 +155,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (isBookmarkPullInput(input, keyBindings.getBookmarkPullItems())) {
 			return handleBookmarkPull(input);
 		}
-		Optional<IUserInputHandler> patternEncodeHandler = handleRecipeChainPatternEncode(input, keyBindings);
+		Optional<IInputInteraction> patternEncodeHandler = handleRecipeChainPatternEncode(input, keyBindings);
 		if (patternEncodeHandler.isPresent()) {
 			return patternEncodeHandler;
 		}
 		if (isFavoriteActionInput(input, keyBindings)) {
-			Optional<IUserInputHandler> favoriteHandler = handleFavoriteRecipe(input, keyBindings);
+			Optional<IInputInteraction> favoriteHandler = handleFavoriteRecipe(input, keyBindings);
 			if (favoriteHandler.isPresent()) {
 				return favoriteHandler;
 			}
@@ -173,7 +171,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		return Optional.empty();
 	}
 
-	private Optional<IUserInputHandler> handleBookmarkAutoCrafting(UserInput input, IJeiKeyMapping craftItemsKey) {
+	private Optional<IInputInteraction> handleBookmarkAutoCrafting(UserInput input, IJeiKeyMapping craftItemsKey) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
@@ -197,138 +195,113 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			}
 			return Optional.empty();
 		}
-		if (!BookmarkAutoCraftingActivator.claimAutoCraftingInput(input, craftItemsKey)) {
-			return Optional.empty();
-		}
-
 		int hoveredGroupId = groupId.get();
 		AbstractContainerMenu menu = containerScreen.getMenu();
 		boolean craftAll = isCraftAllModifier(input.getModifiers());
-		boolean handled;
-		if (input.isSimulate()) {
-			handled = BookmarkAutoCraftingBridge.activate(
-				bookmarkList.getRecipeChainInputs(hoveredGroupId),
-				bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
-				targetSlotCount,
-				menu.containerId,
-				() -> getAutoCraftingInventoryInputs(hoveredGroupId),
-				recipeChainInventoryProvider::getAvailableStacks,
-				recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
-				serverConnection::sendPacketToServer,
-				true,
-				craftAll
-			);
-		} else {
-			handled = BookmarkAutoCraftingBridge.createTask(
-					bookmarkList.getRecipeChainInputs(hoveredGroupId),
-					bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
-					targetSlotCount,
-					menu.containerId,
-					() -> getAutoCraftingInventoryInputs(hoveredGroupId),
-					recipeChainInventoryProvider::getAvailableStacks,
-					recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
-					serverConnection::sendPacketToServer,
-					() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
-						activeScreen.getMenu() == menu,
-					craftAll
-				)
-				.map(autoCraftingRunner::start)
-				.orElse(false);
-		}
-		if (!handled) {
-			BookmarkAutoCraftingActivator.releaseAutoCraftingInput(input.getKey());
-			return Optional.empty();
-		}
-		if (!input.isSimulate()) {
-			JeiClientSoundUtil.playClickSound();
-		}
-		IUserInputHandler handler = new SameElementInputHandler(this, bookmarkOverlay::isMouseOver);
-		return Optional.of(handler);
+		return Optional.of(new InputAction(release -> {
+				if (!BookmarkAutoCraftingActivator.claimAutoCraftingInput(release, craftItemsKey)) {
+					return;
+				}
+				boolean handled = BookmarkAutoCraftingBridge.createTask(
+						bookmarkList.getRecipeChainInputs(hoveredGroupId),
+						bookmarkList.getCollapsedRecipeIds(hoveredGroupId),
+						targetSlotCount,
+						menu.containerId,
+						() -> getAutoCraftingInventoryInputs(hoveredGroupId),
+						recipeChainInventoryProvider::getAvailableStacks,
+						recipeUid -> bookmarkList.createRecipeLayoutDrawable(hoveredGroupId, recipeUid),
+						serverConnection::sendPacketToServer,
+						() -> Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> activeScreen &&
+							activeScreen.getMenu() == menu,
+						craftAll
+					)
+					.map(autoCraftingRunner::start)
+					.orElse(false);
+				if (handled) {
+					JeiClientSoundUtil.playClickSound();
+				} else {
+					BookmarkAutoCraftingActivator.releaseAutoCraftingInput(release.getKey());
+				}
+			})
+			.within(bookmarkOverlay::isMouseOver).when(() -> minecraft.screen == containerScreen));
 	}
 
 	private List<RecipeChainInput> getAutoCraftingInventoryInputs(int groupId) {
 		return recipeChainInventoryProvider.getInventoryInputs(groupId, -1);
 	}
 
-	private Optional<IUserInputHandler> handleRecipeChainPatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
+	private Optional<IInputInteraction> handleRecipeChainPatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
 		Minecraft minecraft = Minecraft.getInstance();
-		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
+		if (!input.is(keyBindings.getEncodeRecipeChainPatterns()) ||
+			!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null
+		) {
+			return Optional.empty();
+		}
+		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
+		if (!bridge.isAvailable() || !bridge.isPatternEncodingTerminal(containerScreen.getMenu())) {
 			return Optional.empty();
 		}
 		Optional<Integer> groupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY());
-		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
-		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handle(
-			input,
-			keyBindings.getEncodeRecipeChainPatterns(),
-			containerScreen.getMenu(),
-			groupId,
-			groupId.filter(bookmarkList::isGroupCraftingMode).isPresent(),
-			true,
-			bridge,
-			() -> bookmarkList.getGroupRecipeInputs(groupId.get()),
-			() -> bookmarkList.getCollapsedRecipeIds(groupId.get()),
-			recipeUid -> bookmarkList.createRecipeLayoutDrawable(groupId.get(), recipeUid),
-			ingredientManager,
-			message -> minecraft.player.displayClientMessage(message, false)
-		);
-		if (result.isEmpty()) {
+		if (groupId.isEmpty()) {
 			return handleSingleBookmarkPatternEncode(input, keyBindings, containerScreen.getMenu(), bridge);
 		}
-		if (!input.isSimulate() && result.get().sent()) {
-			JeiClientSoundUtil.playClickSound();
-		}
-		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
+		return Optional.of(new InputAction(release -> RecipeChainPatternEncodeController.handle(
+				release,
+				keyBindings.getEncodeRecipeChainPatterns(),
+				containerScreen.getMenu(),
+				groupId,
+				groupId.filter(bookmarkList::isGroupCraftingMode).isPresent(),
+				true,
+				bridge,
+				() -> bookmarkList.getGroupRecipeInputs(groupId.get()),
+				() -> bookmarkList.getCollapsedRecipeIds(groupId.get()),
+				recipeUid -> bookmarkList.createRecipeLayoutDrawable(groupId.get(), recipeUid),
+				ingredientManager,
+				message -> minecraft.player.displayClientMessage(message, false)
+			)
+			.filter(RecipeChainPatternEncodeController.HandleResult::sent).ifPresent(result -> JeiClientSoundUtil.playClickSound()))
+			.within(bookmarkOverlay::isMouseOver));
 	}
 
-	private Optional<IUserInputHandler> handleSingleBookmarkPatternEncode(
+	private Optional<IInputInteraction> handleSingleBookmarkPatternEncode(
 		UserInput input,
 		IInternalKeyMappings keyBindings,
 		AbstractContainerMenu menu,
 		Ae2RecipeChainPatternEncodingBridge bridge
 	) {
-		if (!input.is(keyBindings.getEncodeRecipeChainPatterns()) || !bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
+		if (!bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
 			return Optional.empty();
 		}
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.filter(clicked -> clicked.getElement().isVisible())
 			.findFirst()
-			.flatMap(clicked -> {
+			.map(clicked -> {
 				Optional<IRecipeLayoutDrawable<?>> layout = resolveSingleBookmarkPatternLayout(clicked.getElement(), clicked.getTypedIngredient());
-				if (layout.isEmpty() && bridge.isAvailable() && bridge.isPatternEncodingTerminal(menu)) {
-					if (!input.isSimulate()) {
+				return new InputAction(release -> {
 						Minecraft minecraft = Minecraft.getInstance();
-						if (minecraft.player != null) {
-							minecraft.player.displayClientMessage(Component.translatable("jei.message.ae2.pattern_encoding.no_recipe_request"), false);
+						if (layout.isEmpty()) {
+							if (minecraft.player != null) {
+								minecraft.player.displayClientMessage(Component.translatable("jei.message.ae2.pattern_encoding.no_recipe_request"), false);
+							}
+							return;
 						}
-					}
-					return Optional.of(new SameElementInputHandler(this, clicked::isMouseOver));
-				}
-				Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handleSingleRecipe(
-					input,
-					keyBindings.getEncodeRecipeChainPatterns(),
-					menu,
-					bridge,
-					layout,
-					Optional.empty(),
-					() -> clicked.getElement().getBookmark()
-						.map(bookmarkList::getRecipeInputs)
-						.orElseGet(List::of),
-					ingredientManager,
-					message -> {
-						Minecraft minecraft = Minecraft.getInstance();
-						if (minecraft.player != null) {
-							minecraft.player.displayClientMessage(message, false);
-						}
-					}
-				);
-				return result
-					.filter(RecipeChainPatternEncodeController.HandleResult::handled)
-					.map(handleResult -> {
-						if (!input.isSimulate() && handleResult.sent()) {
-							JeiClientSoundUtil.playClickSound();
-						}
-						return new SameElementInputHandler(this, clicked::isMouseOver);
-					});
+						RecipeChainPatternEncodeController.handleSingleRecipe(
+							release,
+							keyBindings.getEncodeRecipeChainPatterns(),
+							menu,
+							bridge,
+							layout,
+							Optional.empty(),
+							() -> clicked.getElement().getBookmark().map(bookmarkList::getRecipeInputs).orElseGet(List::of),
+							ingredientManager,
+							message -> {
+								if (minecraft.player != null) {
+									minecraft.player.displayClientMessage(message, false);
+								}
+							}
+						).filter(RecipeChainPatternEncodeController.HandleResult::sent).ifPresent(result -> JeiClientSoundUtil.playClickSound());
+					})
+					.within(clicked::isMouseOver).when(clicked.getElement()::isVisible);
 			});
 	}
 
@@ -381,7 +354,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 			IJeiKeyMappingWithExtraModifiers.matchesShortcut(bookmarkPullKey, input.getKey());
 	}
 
-	private Optional<IUserInputHandler> handleGroupShare(UserInput input) {
+	private Optional<IInputInteraction> handleGroupShare(UserInput input) {
 		if (!serverConnection.canSendPacket(PacketShareBookmarkGroup.TYPE)) {
 			return Optional.empty();
 		}
@@ -395,14 +368,14 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (snapshot.isEmpty()) {
 			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
-			serverConnection.sendPacketToServer(new PacketShareBookmarkGroup(snapshot.get()));
-			JeiClientSoundUtil.playClickSound();
-		}
-		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
+		return Optional.of(InputAction.run(() -> {
+				serverConnection.sendPacketToServer(new PacketShareBookmarkGroup(snapshot.get()));
+				JeiClientSoundUtil.playClickSound();
+			})
+			.within(bookmarkOverlay::isMouseOver));
 	}
 
-	private Optional<IUserInputHandler> handleSaveMissingRecipeChain(UserInput input) {
+	private Optional<IInputInteraction> handleSaveMissingRecipeChain(UserInput input) {
 		Optional<Integer> optionalGroupId = bookmarkOverlay.getPatternEncodeGroupIdUnderMouse(input.getMouseX(), input.getMouseY())
 			.filter(bookmarkList::isGroupCraftingMode);
 		if (optionalGroupId.isEmpty()) {
@@ -427,15 +400,15 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (missingItems.isEmpty()) {
 			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
-			bookmarkList.addMissingRecipeChainGroup(groupId, missingItems);
-			bookmarkOverlay.showBookmarkPanel();
-			JeiClientSoundUtil.playClickSound();
-		}
-		return Optional.of(new SameElementInputHandler(this, bookmarkOverlay::isMouseOver));
+		return Optional.of(InputAction.run(() -> {
+				bookmarkList.addMissingRecipeChainGroup(groupId, missingItems);
+				bookmarkOverlay.showBookmarkPanel();
+				JeiClientSoundUtil.playClickSound();
+			})
+			.within(bookmarkOverlay::isMouseOver));
 	}
 
-	private Optional<IUserInputHandler> handleBookmarkPull(UserInput input) {
+	private Optional<IInputInteraction> handleBookmarkPull(UserInput input) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (!(minecraft.screen instanceof AbstractContainerScreen<?> containerScreen) || minecraft.player == null) {
 			return Optional.empty();
@@ -444,65 +417,57 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (groupId.isEmpty()) {
 			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
-			JeiClientSoundUtil.playClickSound();
-			Inventory playerInventory = minecraft.player.getInventory();
-			BookmarkContainerStorageScanner.StorageSnapshot snapshot = BookmarkContainerStorageScanner.scan(
-				containerScreen.getMenu(),
-				playerInventory,
-				this::createKey
-			);
-			snapshot = BookmarkExternalStorageSnapshots.scan(containerScreen.getMenu(), containerScreen, this::createKey)
-				.orElse(snapshot);
-			BookmarkContainerPacketHandler handler = new BookmarkContainerPacketHandler(
-				snapshot.amounts(),
-				snapshot.representatives(),
-				containerScreen.getMenu().containerId,
-				serverConnection::sendPacketToServer
-			);
-			BookmarkContainerPullExecutor.pull(
-				new BookmarkContainerPullExecutor.Request(
-					bookmarkList.getRecipeChainInputs(groupId.get()),
-					bookmarkList.getCollapsedRecipeIds(groupId.get()),
-					getPlayerInventoryAmounts(playerInventory),
-					getFreePlayerInventorySlots(playerInventory),
-					playerInventory.getMaxStackSize(),
-					InputModifiers.hasShift(input)
-				),
-				handler
-			);
-		}
-		IUserInputHandler handler = new SameElementInputHandler(this, bookmarkOverlay::isMouseOver);
-		return Optional.of(handler);
+		return Optional.of(InputAction.run(() -> {
+				JeiClientSoundUtil.playClickSound();
+				Inventory playerInventory = minecraft.player.getInventory();
+				BookmarkContainerStorageScanner.StorageSnapshot snapshot = BookmarkContainerStorageScanner.scan(
+					containerScreen.getMenu(),
+					playerInventory,
+					this::createKey
+				);
+				snapshot = BookmarkExternalStorageSnapshots.scan(containerScreen.getMenu(), containerScreen, this::createKey)
+					.orElse(snapshot);
+				BookmarkContainerPacketHandler handler = new BookmarkContainerPacketHandler(
+					snapshot.amounts(),
+					snapshot.representatives(),
+					containerScreen.getMenu().containerId,
+					serverConnection::sendPacketToServer
+				);
+				BookmarkContainerPullExecutor.pull(
+					new BookmarkContainerPullExecutor.Request(
+						bookmarkList.getRecipeChainInputs(groupId.get()),
+						bookmarkList.getCollapsedRecipeIds(groupId.get()),
+						getPlayerInventoryAmounts(playerInventory),
+						getFreePlayerInventorySlots(playerInventory),
+						playerInventory.getMaxStackSize(),
+						InputModifiers.hasShift(input)
+					),
+					handler
+				);
+			})
+			.within(bookmarkOverlay::isMouseOver).when(() -> minecraft.screen == containerScreen));
 	}
 
-	private Optional<IUserInputHandler> handleFavoriteRecipe(UserInput input, IInternalKeyMappings keyBindings) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+	private Optional<IInputInteraction> handleFavoriteRecipe(UserInput input, IInternalKeyMappings keyBindings) {
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.findFirst()
 			.flatMap(clicked -> {
-				Optional<Boolean> favoriteElementHandled = resolveFavoriteRecipeElementAction(clicked.getElement(), input, keyBindings)
-					.flatMap(action -> handleFavoriteRecipeAction(clicked.getElement(), input, keyBindings, action));
-				if (favoriteElementHandled.isPresent()) {
-					return Optional.of(new SameElementInputHandler(this, clicked::isMouseOver));
+				Optional<InputAction> action = resolveFavoriteRecipeElementAction(clicked.getElement(), input, keyBindings)
+					.flatMap(favoriteAction -> prepareFavoriteRecipeAction(clicked.getElement(), input, keyBindings, favoriteAction));
+				if (action.isEmpty()) {
+					action = resolveFavoriteIngredientTreeRecipe(
+							clicked.getElement(), input, keyBindings, ingredient -> Optional.of(createKey(ingredient)), favoriteRecipeLookup
+						)
+						.map(recipe -> InputAction.run(() -> saveFavoriteTree(recipe)));
 				}
-
-				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
-						clicked.getElement(),
-						input,
-						keyBindings,
-						ingredient -> Optional.of(createKey(ingredient)),
-						favoriteRecipeLookup
-					)
-					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
-				return favoriteIngredientHandled
-					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
+				return action.map(value -> value.within(clicked::isMouseOver).when(clicked.getElement()::isVisible));
 			});
 	}
 
-	private Optional<IUserInputHandler> handleRecipeBookmark(UserInput input) {
+	private Optional<IInputInteraction> prepareRecipeBookmarkAction(UserInput input) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
-		if (bookmarkPreviewTooltipController.isMouseOver(mouseX, mouseY)) {
+		if (!inputScene.isTarget(recipesGui, input)) {
 			return Optional.empty();
 		}
 		Optional<IRecipeLayoutWithButtons<?>> layoutWithButtons = recipesGui.getRecipeLayoutUnderMouse(mouseX, mouseY);
@@ -518,14 +483,11 @@ public class BookmarkInputHandler implements IUserInputHandler {
 
 		IRecipeLayoutDrawable<?> layout = recipeLayoutWithButtons.getRecipeLayout();
 		Optional<RecipeSlotUnderMouse> slotUnderMouse = layout.getSlotUnderMouse(mouseX, mouseY);
-		if (!shouldBookmarkRecipe(slotUnderMouse, clientConfig.bookmarkOutputAsRecipe().getValue())) {
+		if (!shouldBookmarkRecipe(slotUnderMouse, clientConfig.bookmarkOutputAsRecipe().get())) {
 			return Optional.empty();
 		}
 
-		if (!input.isSimulate()) {
-			bookmarkList.toggleBookmark(recipeBookmark);
-		}
-		return Optional.of(new SameElementInputHandler(this, layout::isMouseOver));
+		return Optional.of(InputAction.run(() -> bookmarkList.toggleBookmark(recipeBookmark)).within(layout::isMouseOver));
 	}
 
 	static boolean shouldBookmarkRecipe(Optional<RecipeSlotUnderMouse> slotUnderMouse, boolean bookmarkOutputAsRecipeEnabled) {
@@ -538,30 +500,7 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		return role == RecipeIngredientRole.OUTPUT && bookmarkOutputAsRecipeEnabled;
 	}
 
-	private Optional<IUserInputHandler> handleIngredientBookmark(UserInput input, IInternalKeyMappings keyBindings) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
-			.findFirst()
-			.flatMap(clicked -> {
-				Optional<Boolean> favoriteElementHandled = resolveFavoriteRecipeElementAction(clicked.getElement(), input, keyBindings)
-					.flatMap(action -> handleFavoriteRecipeAction(clicked.getElement(), input, keyBindings, action));
-				if (favoriteElementHandled.isPresent()) {
-					return Optional.of(new SameElementInputHandler(this, clicked::isMouseOver));
-				}
-
-				Optional<Boolean> favoriteIngredientHandled = resolveFavoriteIngredientTreeRecipe(
-						clicked.getElement(),
-						input,
-						keyBindings,
-						ingredient -> Optional.of(createKey(ingredient)),
-						favoriteRecipeLookup
-					)
-					.flatMap(recipe -> handleFavoriteTreeSave(input, recipe));
-				return favoriteIngredientHandled
-					.map(handled -> new SameElementInputHandler(this, clicked::isMouseOver));
-			});
-	}
-
-	private Optional<Boolean> handleFavoriteRecipeAction(
+	private Optional<InputAction> prepareFavoriteRecipeAction(
 		IElement<?> element,
 		UserInput input,
 		IInternalKeyMappings keyBindings,
@@ -570,33 +509,21 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		if (!(element instanceof FavoriteRecipeElement<?> favoriteRecipeElement)) {
 			return Optional.empty();
 		}
-		if (input.isSimulate()) {
-			return Optional.of(true);
+		if (action == FavoriteRecipeHotkeyAction.REMOVE_FAVORITE) {
+			return favoriteRecipeElement.prepareAction(input, keyBindings)
+				.map(prepared -> new InputAction(release -> {
+					prepared.action().accept(release);
+					JeiClientSoundUtil.playClickSound();
+				}, prepared.canExecute()));
 		}
-		boolean handled = switch (action) {
-			case REMOVE_FAVORITE -> favoriteRecipeElement.handleClick(input, keyBindings);
-			case SAVE_FAVORITE_TREE -> favoriteTreeSaver.apply(favoriteRecipeElement.getFocusedRecipe()).isPresent();
-		};
-		if (!handled) {
-			return Optional.empty();
-		}
-		if (action == FavoriteRecipeHotkeyAction.SAVE_FAVORITE_TREE) {
-			bookmarkOverlay.showBookmarkPanel();
-		}
-		JeiClientSoundUtil.playClickSound();
-		return Optional.of(true);
+		return Optional.of(InputAction.run(() -> saveFavoriteTree(favoriteRecipeElement.getFocusedRecipe())));
 	}
 
-	private Optional<Boolean> handleFavoriteTreeSave(UserInput input, FocusedRecipe recipe) {
-		if (input.isSimulate()) {
-			return Optional.of(true);
+	private void saveFavoriteTree(FocusedRecipe recipe) {
+		if (favoriteTreeSaver.apply(recipe).isPresent()) {
+			bookmarkOverlay.showBookmarkPanel();
+			JeiClientSoundUtil.playClickSound();
 		}
-		if (favoriteTreeSaver.apply(recipe).isEmpty()) {
-			return Optional.empty();
-		}
-		bookmarkOverlay.showBookmarkPanel();
-		JeiClientSoundUtil.playClickSound();
-		return Optional.of(true);
 	}
 
 	private Map<BookmarkIngredientKey, Long> getPlayerInventoryAmounts(Inventory playerInventory) {
@@ -631,13 +558,12 @@ public class BookmarkInputHandler implements IUserInputHandler {
 		return BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager);
 	}
 
-	private Optional<IUserInputHandler> handleBookmark(UserInput input, IInternalKeyMappings keyBindings) {
+	private Optional<IInputInteraction> handleBookmark(UserInput input, IInternalKeyMappings keyBindings) {
 		boolean shiftDown = InputModifiers.hasShift(input);
 		boolean controlDown = InputModifiers.hasControl(input);
 		if (shiftDown) {
 			if (bookmarkOverlay.removeGroupUnderMouseGroupPanel(input)) {
-				IUserInputHandler handler = new SameElementInputHandler(this, bookmarkOverlay::isMouseOver);
-				return Optional.of(handler);
+				return Optional.of(input.isKeyboardInput() ? ConsumedInput.INSTANCE : new InputAction(release -> bookmarkOverlay.removeGroupUnderMouseGroupPanel(release)).within(bookmarkOverlay::isMouseOver));
 			}
 
 			Minecraft minecraft = Minecraft.getInstance();
@@ -660,32 +586,28 @@ public class BookmarkInputHandler implements IUserInputHandler {
 					bookmarkOverlay.showBookmarkPanel();
 					JeiClientSoundUtil.playClickSound();
 				}
-				IUserInputHandler handler = new SameElementInputHandler(this, recipesGui::isMouseOver);
-				return Optional.of(handler);
+				return Optional.of(input.isKeyboardInput() ? ConsumedInput.INSTANCE : new InputAction(release -> {
+						if (recipesGui.bookmarkRecipeUnderMouse(release, addRecipeWithAmount)) {
+							bookmarkOverlay.showBookmarkPanel();
+							JeiClientSoundUtil.playClickSound();
+						}
+					})
+					.within(recipesGui::isMouseOver));
 			}
 		}
 
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.findFirst()
-			.flatMap(clicked -> {
-				if (input.isSimulate()) {
-					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-					return Optional.of(handler);
-				}
-				Optional<BookmarkHotkeyAction> bookmarkAction = resolveBookmarkAction(clicked.getElement(), input, shiftDown, controlDown);
-				boolean changed = bookmarkAction
-					.map(action -> bookmarkList.onElementBookmarked(clicked.getElement(), action))
-					.orElse(false);
-				if (changed) {
-					bookmarkAction
-						.filter(BookmarkInputHandler::isAddBookmarkAction)
-						.ifPresent(action -> bookmarkOverlay.showBookmarkPanel());
-					JeiClientSoundUtil.playClickSound();
-					IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-					return Optional.of(handler);
-				}
-				return Optional.empty();
-			});
+			.flatMap(clicked -> resolveBookmarkAction(clicked.getElement(), input, shiftDown, controlDown)
+				.map(action -> InputAction.run(() -> {
+						if (bookmarkList.onElementBookmarked(clicked.getElement(), action)) {
+							if (isAddBookmarkAction(action)) {
+								bookmarkOverlay.showBookmarkPanel();
+							}
+							JeiClientSoundUtil.playClickSound();
+						}
+					})
+					.within(clicked::isMouseOver).when(clicked.getElement()::isVisible)));
 	}
 
 	public static Optional<FavoriteRecipeHotkeyAction> resolveFavoriteRecipeElementAction(

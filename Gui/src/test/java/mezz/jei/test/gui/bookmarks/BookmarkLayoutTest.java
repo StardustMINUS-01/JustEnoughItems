@@ -13,6 +13,14 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
 import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
+import mezz.jei.common.config.NavigationVisibility;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.api.gui.placement.VerticalAlignment;
+import mezz.jei.gui.overlay.ingredients.IngredientGridButtonNavigationLayout;
+import mezz.jei.gui.overlay.ingredients.IngredientGridScrollbarLayout;
+import mezz.jei.gui.overlay.ingredients.IngredientGridLayout;
+import mezz.jei.gui.overlay.ingredients.IngredientGridConfigTestFixtures.TestGridConfig;
+import java.util.function.ToIntFunction;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -33,6 +41,41 @@ public class BookmarkLayoutTest {
 	private static final ResourceLocation ROOT_RECIPE = ResourceLocation.parse("test:a");
 	private static final ResourceLocation PLATE_RECIPE = ResourceLocation.parse("test:plate");
 	private static final ResourceLocation MACHINE_RECIPE = ResourceLocation.parse("test:machine");
+
+	@ParameterizedTest
+	@CsvSource({"false, TOP, false", "false, BOTTOM, true", "true, TOP, true", "true, BOTTOM, false"})
+	public void shrinkingKeepsRecipeChainRowBreaks(boolean scrolling, VerticalAlignment alignment, boolean excluded) {
+		List<String> items = List.of("machine", "plate_input", "plate", "ingot_input", "ingot", "ore");
+		Map<String, BookmarkItemMetadata> metadata = Map.of(
+			"machine", metadata(BookmarkItemType.RESULT, MACHINE_RECIPE, "machine", 1, 1),
+			"plate_input", metadata(BookmarkItemType.INGREDIENT, MACHINE_RECIPE, "plate", 1, 1),
+			"plate", metadata(BookmarkItemType.RESULT, PLATE_RECIPE, "plate", 1, 1),
+			"ingot_input", metadata(BookmarkItemType.INGREDIENT, PLATE_RECIPE, "ingot", 1, 1),
+			"ingot", metadata(BookmarkItemType.RESULT, ROOT_RECIPE, "ingot", 1, 1),
+			"ore", metadata(BookmarkItemType.INGREDIENT, ROOT_RECIPE, "ore", 1, 1)
+		);
+		BookmarkGroup group = new BookmarkGroup(GROUP_ID, "Chain", BookmarkViewMode.TODO_LIST, false, true, Set.of());
+		var details = createDetails(items, metadata, Set.of());
+		Set<ImmutableRect2i> exclusions = excluded ? Set.of(new ImmutableRect2i(15, 80, 8, 20)) : Set.of();
+		ToIntFunction<ImmutableRect2i> slotCount = area -> {
+			var rows = IngredientGridLayout.getUsableColumnsPerRow(area, exclusions, null);
+			var slots = BookmarkDisplayGenerator.generate(items, metadata::get, Map.of(GROUP_ID, group), Map.of(GROUP_ID, details), rows.isEmpty() ? 0 : rows.getFirst(), rows);
+			Assertions.assertEquals(6, slots.size());
+			return slots.getLast().slotIndex() + 1;
+		};
+		var config = new TestGridConfig().maxColumns(3).maxRows(8).shrinkToFit(true)
+			.verticalAlignment(alignment).navigationVisibility(NavigationVisibility.AUTO_HIDE);
+		var availableArea = new ImmutableRect2i(0, 0, 120, 300);
+		var layout = scrolling
+			? IngredientGridScrollbarLayout.calculateProjected(config, availableArea, exclusions, slotCount, true, true)
+			: IngredientGridButtonNavigationLayout.calculateProjected(config, availableArea, exclusions, slotCount, true);
+		Assertions.assertTrue(layout.hasRoom());
+		Assertions.assertTrue(layout.navigationEnabled());
+		Assertions.assertTrue(slotCount.applyAsInt(layout.ingredientGridArea()) <= layout.availableSlotCount());
+		Assertions.assertTrue(layout.ingredientGridArea().height() >= 3 * IngredientGridLayout.INGREDIENT_HEIGHT);
+		Assertions.assertTrue(layout.ingredientGridArea().height() < 8 * IngredientGridLayout.INGREDIENT_HEIGHT);
+		Assertions.assertTrue(exclusions.stream().noneMatch(layout.navigationArea()::intersects));
+	}
 
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})

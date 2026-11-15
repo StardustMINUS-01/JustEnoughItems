@@ -9,7 +9,6 @@ import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
-import mezz.jei.common.config.file.JsonArrayFileHelper;
 import mezz.jei.common.transfer.RecipeTransferService;
 
 import mezz.jei.common.util.ServerConfigPathUtil;
@@ -22,8 +21,8 @@ import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Unmodifiable;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,6 +45,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	private IIngredientManager ingredientManager;
 	private ICodecHelper codecHelper;
 	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
+	private @Nullable JsonConfigFileGuard fileGuard;
 
 	private static Optional<Path> getPath(Path jeiConfigurationDir) {
 		return ServerConfigPathUtil.getWorldPath(jeiConfigurationDir)
@@ -89,33 +89,35 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		this.ingredientManager = ingredientManager;
 		this.codecHelper = codecHelper;
 		List<BookmarkConfigEntry> entriesSnapshot = bookmarkList.createChapterEntries();
+		JsonConfigFileGuard guard = fileGuard;
+		if (guard == null) {
+			return false;
+		}
 		return getPath(jeiConfigurationDir)
+			.filter(guard::canWrite)
 			.map(path -> {
-				delayedSave.run(() -> saveEntries(path, registryAccess, entriesSnapshot, bookmarkCodec));
+				delayedSave.run(() -> saveEntries(path, registryAccess, entriesSnapshot, bookmarkCodec, guard));
 				return true;
 			})
 			.orElse(false);
 	}
 
 	private boolean save(Path path, RegistryAccess registryAccess, Collection<IBookmark> bookmarks, Codec<IBookmark> bookmarkCodec) {
-		return saveEntries(path, registryAccess, bookmarkList.createChapterEntries(), bookmarkCodec);
+		JsonConfigFileGuard guard = fileGuard;
+		return guard != null && saveEntries(path, registryAccess, bookmarkList.createChapterEntries(), bookmarkCodec, guard);
 	}
 
-	private boolean saveEntries(Path path, RegistryAccess registryAccess, List<BookmarkConfigEntry> entries, Codec<IBookmark> bookmarkCodec) {
+	private boolean saveEntries(Path path, RegistryAccess registryAccess, List<BookmarkConfigEntry> entries, Codec<IBookmark> bookmarkCodec, JsonConfigFileGuard guard) {
 		Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
 		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
 		try {
-			JsonArrayFileHelper.write(
+			return guard.write(
 				path,
 				VERSION,
 				entries,
 				entryCodec,
-				registryOps,
-				error -> LOGGER.error("Encountered an error when saving bookmark config to file {}\n{}", path, error),
-				(entry, exception) -> LOGGER.error("Encountered an exception when saving bookmark config to file {}\n{}", path, entry, exception)
+				registryOps
 			);
-			LOGGER.debug("Saved bookmarks config to file: {}", path);
-			return true;
 		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to save bookmarks config to file {}", path, e);
 			return false;
@@ -140,26 +142,44 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		this.ingredientManager = ingredientManager;
 		this.codecHelper = codecHelper;
 		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
-		loadJsonBookmarks(ingredientManager, recipeManager, registryOps, codecHelper, bookmarkCodec);
-		List<IBookmark> legacyBookmarks = new ArrayList<>(legacyBookmarkConfig.loadBookmarks(
-			recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkFactory, recipeTransferService));
-		legacyBookmarks.addAll(loadLegacyCompressedJsonBookmarks(ingredientManager, recipeManager, registryAccess, codecHelper, bookmarkCodec));
-		if (!legacyBookmarks.isEmpty()) {
-			for (IBookmark bookmark : legacyBookmarks) {
-				bookmarkList.addToListWithoutNotifying(bookmark, false);
-			}
-			getPath(jeiConfigurationDir).ifPresent(path -> migrate(path, registryOps, bookmarkCodec));
+		if (fileGuard != null) {
+			fileGuard.preventWrites();
 		}
-		bookmarkList.notifyListenersOfChange();
+		fileGuard = getPath(jeiConfigurationDir).map(path -> new JsonConfigFileGuard(path, true)).orElse(null);
+		try {
+			loadJsonBookmarks(ingredientManager, recipeManager, registryOps, codecHelper, bookmarkCodec);
+			List<IBookmark> legacyBookmarks = new ArrayList<>(legacyBookmarkConfig.loadBookmarks(
+				recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkFactory, recipeTransferService));
+			legacyBookmarks.addAll(loadLegacyCompressedJsonBookmarks(ingredientManager, recipeManager, registryAccess, codecHelper, bookmarkCodec));
+			if (!legacyBookmarks.isEmpty()) {
+				for (IBookmark bookmark : legacyBookmarks) {
+					bookmarkList.addToListWithoutNotifying(bookmark, false);
+				}
+				getPath(jeiConfigurationDir).ifPresent(path -> migrate(path, registryOps, bookmarkCodec));
+			}
+			bookmarkList.notifyListenersOfChange();
+		} catch (RuntimeException e) {
+			if (fileGuard != null) {
+				fileGuard.preventLossyWrite();
+			}
+			throw e;
+		} finally {
+			if (fileGuard != null) {
+				fileGuard.finishLoading();
+			}
+		}
 	}
 
 	@SuppressWarnings("deprecation")
 	private void migrate(Path path, RegistryOps<JsonElement> registryOps, Codec<IBookmark> bookmarkCodec) {
+		if (fileGuard == null || !fileGuard.canWrite(path)) {
+			return;
+		}
 		try {
 			BookmarkJsonSerializer.migrate(
 				path, VERSION, LegacyBookmarkConfig.getPath(jeiConfigurationDir),
 				bookmarkList.createChapterEntries(),
-				BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec), registryOps);
+				BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec), registryOps, fileGuard);
 		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to migrate bookmark config to file {}", path, e);
 		}
@@ -175,10 +195,6 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	) {
 		return getPath(jeiConfigurationDir)
 			.<List<IBookmark>>map(path -> {
-				if (!Files.exists(path)) {
-					return List.of();
-				}
-
 				List<IBookmark> bookmarks;
 				Codec<BookmarkConfigEntry> entryCodec = BookmarkConfigEntryCodec.create(codecHelper, ingredientManager, bookmarkCodec);
 
@@ -193,9 +209,20 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 						}
 					}
 					BookmarkJsonSerializer.applyEntriesWithoutNotifying(entries, bookmarkList);
+					List<BookmarkConfigEntry> loadedEntries = bookmarkList.createChapterEntries();
+					boolean lostEntries = loadedEntries.stream().filter(entry -> entry.bookmark() != null).count() < entries.stream().filter(entry -> entry.bookmark() != null).count() ||
+						loadedEntries.stream().filter(entry -> entry.chapter() != null).count() < entries.stream().filter(entry -> entry.chapter() != null).count() ||
+						loadedEntries.stream().filter(entry -> entry.group() != null).count() < entries.stream().filter(entry -> entry.group() != null).count();
+					if (lostEntries && fileGuard != null) {
+						fileGuard.preventLossyWrite();
+						LOGGER.warn("Bookmark records in {} have conflicting identities. The original JSON will not be overwritten.", path);
+					}
 					bookmarks = bookmarkList.getBookmarks();
 					LOGGER.debug("Loaded bookmarks config from file: {}", path);
 				} catch (RuntimeException | IOException e) {
+					if (fileGuard != null) {
+						fileGuard.preventLossyWrite();
+					}
 					LOGGER.error("Failed to load bookmarks from file {}", path, e);
 					bookmarks = new ArrayList<>();
 				}
@@ -206,11 +233,13 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	}
 
 	private List<BookmarkConfigEntry> readEntries(Path path, int version, Codec<BookmarkConfigEntry> codec, RegistryOps<JsonElement> ops) throws IOException {
-		try (BufferedReader reader = Files.newBufferedReader(path)) {
-			return JsonArrayFileHelper.read(reader, version, codec, ops,
-				(element, error) -> LOGGER.error("Unable to read bookmark entry in {}: {}: {}", path, element, error),
-				(element, exception) -> LOGGER.error("Unable to read bookmark entry in {}: {}", path, element, exception));
+		JsonConfigFileGuard guard = fileGuard;
+		if (guard == null) {
+			return List.of();
 		}
+		return guard.read(version, codec, ops,
+			(element, error) -> LOGGER.error("Unable to read bookmark entry in {}: {}: {}", path, element, error),
+			(element, exception) -> LOGGER.error("Unable to read bookmark entry in {}: {}", path, element, exception));
 	}
 
 	@Unmodifiable
@@ -223,7 +252,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	) {
 		return getPath(jeiConfigurationDir)
 			.<List<IBookmark>>map(path -> {
-				if (!Files.exists(path)) {
+				if (!Files.exists(path) || fileGuard == null) {
 					return List.of();
 				}
 
@@ -231,9 +260,8 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 
 				RegistryOps<JsonElement> compressedOps = registryAccess.createSerializationContext(JsonOps.COMPRESSED);
 
-				try (BufferedReader reader = Files.newBufferedReader(path)) {
-					bookmarks = JsonArrayFileHelper.read(
-						reader,
+				try {
+					bookmarks = fileGuard.read(
 						null,
 						bookmarkCodec,
 						compressedOps,
@@ -246,6 +274,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 					);
 					LOGGER.debug("Loaded legacy compressed json bookmarks config from file: {}", path);
 				} catch (RuntimeException | IOException e) {
+					fileGuard.preventLossyWrite();
 					LOGGER.error("Failed to load legacy compressed json bookmarks from file {}", path, e);
 					bookmarks = new ArrayList<>();
 				}

@@ -3,8 +3,8 @@ package mezz.jei.test.gui.input;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
 
@@ -17,11 +17,11 @@ public class InputModifiersTest {
 	@Test
 	public void requiresCheatMode() {
 		IJeiKeyMapping binding = new TestKeyMapping(LEFT_MOUSE);
-		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputType.SIMULATE);
+		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputPhase.PRESS);
 
 		assertTrue(InputModifiers.isCheatGiveInput(input, binding, true));
 		assertFalse(InputModifiers.isCheatGiveInput(input, binding, false));
-		UserInput other = new UserInput(InputConstants.Type.MOUSE.getOrCreate(1), 0, 0, 0, InputType.SIMULATE);
+		UserInput other = new UserInput(InputConstants.Type.MOUSE.getOrCreate(1), 0, 0, 0, InputPhase.PRESS);
 		assertFalse(InputModifiers.isCheatGiveInput(other, binding, true));
 	}
 

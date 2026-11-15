@@ -3,23 +3,27 @@ package mezz.jei.gui.overlay.bookmarks;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.common.Internal;
-import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.buttons.IButtonState;
+import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.common.gui.textures.Textures;
-import mezz.jei.gui.elements.GuiIconToggleButton;
+import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
-public class FavoriteRecipePanelButton extends GuiIconToggleButton {
-	public static FavoriteRecipePanelButton create(BookmarkOverlay bookmarkOverlay, FavoriteRecipeStore favoriteRecipes) {
+public class FavoriteRecipePanelButton implements IIconButtonController {
+	public static IconButton create(BookmarkOverlay bookmarkOverlay, FavoriteRecipeStore favoriteRecipes) {
 		Textures textures = Internal.getTextures();
 		IDrawableStatic offIcon = textures.getFavoriteButtonDisabledIcon();
 		IDrawableStatic onIcon = textures.getFavoriteButtonEnabledIcon();
-		return new FavoriteRecipePanelButton(offIcon, onIcon, bookmarkOverlay, favoriteRecipes);
+		return new IconButton(new FavoriteRecipePanelButton(offIcon, onIcon, bookmarkOverlay, favoriteRecipes));
 	}
 
+	private final IDrawable offIcon;
+	private final IDrawable onIcon;
 	private final BookmarkOverlay bookmarkOverlay;
 	private final FavoriteRecipeStore favoriteRecipes;
 
@@ -29,13 +33,14 @@ public class FavoriteRecipePanelButton extends GuiIconToggleButton {
 		BookmarkOverlay bookmarkOverlay,
 		FavoriteRecipeStore favoriteRecipes
 	) {
-		super(offIcon, onIcon);
+		this.offIcon = offIcon;
+		this.onIcon = onIcon;
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.favoriteRecipes = favoriteRecipes;
 	}
 
 	@Override
-	protected void getTooltips(JeiTooltip tooltip) {
+	public void getTooltips(ITooltipBuilder tooltip) {
 		if (bookmarkOverlay.isFavoritePanelDisplayed()) {
 			tooltip.add(Component.translatable("jei.tooltip.favoriteRecipes.disable"));
 		} else {
@@ -48,13 +53,15 @@ public class FavoriteRecipePanelButton extends GuiIconToggleButton {
 	}
 
 	@Override
-	protected boolean isIconToggledOn() {
-		return bookmarkOverlay.isFavoritePanelDisplayed();
+	public void updateState(IButtonState state) {
+		boolean enabled = bookmarkOverlay.isFavoritePanelDisplayed();
+		state.setIcon(enabled ? onIcon : offIcon);
+		state.setForcePressed(enabled);
 	}
 
 	@Override
-	protected boolean onMouseClicked(UserInput input) {
-		if (InputModifiers.hasShift(input)) {
+	public boolean onPress(IJeiUserInput input) {
+		if (net.minecraft.client.gui.screens.Screen.hasShiftDown() || InputModifiers.hasShift(input.getModifiers())) {
 			return bookmarkOverlay.cycleFavoritePanelDisplayMode(input.isSimulate());
 		}
 		return bookmarkOverlay.toggleFavoritePanel(input.isSimulate());

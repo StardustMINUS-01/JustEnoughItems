@@ -5,8 +5,11 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkChapter;
 import mezz.jei.gui.bookmarks.BookmarkList;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.IGuiInputLayer;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.gui.input.ITextInputHandler;
+import mezz.jei.common.input.UserInput;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -19,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 
-final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLayer {
+final class BookmarkChapterNavigation implements IGuiInputLayer, ITextInputHandler {
 	private final BookmarkOverlay overlay;
 	private final Button button = Button.builder(Component.empty(), b -> {}).build();
 	private ImmutableRect2i area = ImmutableRect2i.EMPTY;
@@ -51,7 +54,7 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 		list.rememberChapterPage(overlay.getContents().getPageDelegate().getPageNumber());
 		area = overlay.getContents().getLeadingNavigationArea();
 		if (area.isEmpty()) {
-			unfocus();
+			clearFocus();
 			return;
 		}
 		List<BookmarkChapter> chapters = list.getChapters();
@@ -103,7 +106,7 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 		if (overlay.isListDisplayed())
 			draw(graphics, mouseX, mouseY, Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false));
 		else
-			unfocus();
+			clearFocus();
 	}
 
 	@Override
@@ -133,9 +136,31 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
-		if (!overlay.isListDisplayed())
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+		if (!overlay.isListDisplayed() || editor == null && !open &&
+			(!input.isMouseInput() || !area.contains(input.getMouseX(), input.getMouseY()))
+		) {
 			return Optional.empty();
+		}
+		if (editor != null && input.isKeyboardInput()) {
+			return Optional.of(new IInputInteraction() {
+				@Override
+				public boolean consumesCharacters() {
+					return false;
+				}
+
+				@Override
+				public void complete(UserInput completed) {
+					completeInput(completed);
+				}
+			});
+		}
+		return Optional.of(new InputAction(this::completeInput).when(overlay::isListDisplayed));
+	}
+
+	private void completeInput(UserInput input) {
+		if (!overlay.isListDisplayed())
+			return;
 		if (editor != null) {
 			if (!input.isSimulate()) {
 				int key = input.getKey().getValue();
@@ -149,33 +174,31 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 				} else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
 					finishEditing(true);
 				} else {
-					input.callVanilla(editor::keyPressed);
+					input.ifKeyboardEvent(editor::keyPressed);
 				}
 			}
-			return Optional.of(this);
+			return;
 		}
 		if (input.getKey().getType() != InputConstants.Type.MOUSE) {
 			if (open && input.getKey().getValue() == GLFW.GLFW_KEY_ESCAPE) {
 				if (!input.isSimulate())
 					open = false;
-				return Optional.of(this);
+				return;
 			}
-			return open ? Optional.of(this) : Optional.empty();
+			return;
 		}
 		double x = input.getMouseX(), y = input.getMouseY();
 		int click = input.getKey().getValue();
 		boolean header = area.contains(x, y);
 		boolean popup = open && menu.contains(x, y);
 		if (!header && !open)
-			return Optional.empty();
-		if (input.isSimulate())
-			return Optional.of(this);
+			return;
 		if (!header && !popup) {
 			open = false;
-			return Optional.of(this);
+			return;
 		}
 		if (overlay.getSortDragState() != null || overlay.getGroupPanelDrag() != null)
-			return Optional.of(this);
+			return;
 		List<BookmarkChapter> chapters = overlay.getBookmarkList().getChapters();
 		int row = popup ? firstRow + (int) (y - menu.y()) / 18 : -1;
 		BookmarkChapter chapter = row >= 0 && row < chapters.size() ? chapters.get(row) : chapters.stream().filter(BookmarkChapter::active).findFirst().orElseThrow();
@@ -193,7 +216,7 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 			if (row < chapters.size() && lastClickedChapter == chapter.id() && lastClickOnHeader == header && now - lastClickTime <= 250) {
 				lastClickedChapter = -1;
 				beginEditing(chapter, header, row);
-				return Optional.of(this);
+				return;
 			}
 			lastClickedChapter = row == chapters.size() ? -1 : chapter.id();
 			lastClickTime = now;
@@ -206,38 +229,38 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 				open = row < chapters.size();
 			}
 		}
-		return Optional.of(this);
+		return;
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleMouseScrolled(double x, double y, double dx, double dy) {
+	public boolean scroll(double x, double y, double dx, double dy) {
 		if (!overlay.isListDisplayed())
-			return Optional.empty();
+			return false;
 		if (editor != null)
-			return Optional.of(this);
+			return true;
 		if (dy == 0)
-			return Optional.empty();
+			return false;
 		List<BookmarkChapter> chapters = overlay.getBookmarkList().getChapters();
 		if (open && menu.contains(x, y)) {
 			firstRow = Math.max(0, Math.min(Math.max(0, chapters.size() + 1 - 8), firstRow + (dy > 0 ? -1 : 1)));
-			return Optional.of(this);
+			return true;
 		}
 		if (!area.contains(x, y))
-			return Optional.empty();
+			return false;
 		var drag = overlay.getSortDragState();
 		if (overlay.getGroupPanelDrag() != null || drag != null && !drag.isGroupDrag())
-			return Optional.of(this);
+			return true;
 		int current = 0;
 		while (!chapters.get(current).active())
 			current++;
 		int next = Math.floorMod(current + (dy > 0 ? -1 : 1), chapters.size());
 		if (next != current)
 			select(chapters.get(next).id(), x, y);
-		return Optional.of(this);
+		return true;
 	}
 
 	@Override
-	public void unfocus() {
+	public void clearFocus() {
 		finishEditing(false);
 		open = false;
 		lastClickedChapter = -1;
@@ -247,11 +270,25 @@ final class BookmarkChapterNavigation implements mezz.jei.gui.input.IGuiInputLay
 		return overlay.isListDisplayed() && (open || editor != null || area.contains(x, y));
 	}
 
-	boolean isEditing() {
-		return editor != null;
+	@Override
+	public boolean hasKeyboardFocus() {
+		return overlay.isListDisplayed() && editor != null;
 	}
 
-	boolean charTyped(char codePoint, int modifiers) {
+	@Override
+	public void focus() {
+		if (editor != null) {
+			editor.setFocused(true);
+		}
+	}
+
+	@Override
+	public void resetInput() {
+		clearFocus();
+	}
+
+	@Override
+	public boolean onCharTyped(char codePoint, int modifiers) {
 		if (editor == null)
 			return false;
 		editor.charTyped(codePoint, modifiers);

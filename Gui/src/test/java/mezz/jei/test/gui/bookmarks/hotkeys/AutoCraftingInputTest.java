@@ -10,8 +10,8 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingBridge;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkCraftingGridFill;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.Component;
@@ -25,7 +25,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.lwjgl.glfw.GLFW;
 
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,7 +69,7 @@ public class AutoCraftingInputTest {
 	@ValueSource(booleans = {false, true})
 	void releasesKey(boolean clearAll) {
 		IJeiKeyMapping binding = new TestKeyMapping(KEY);
-		UserInput press = new UserInput(KEY, 0, 0, GLFW.GLFW_MOD_SHIFT, InputType.EXECUTE);
+		UserInput press = new UserInput(KEY, 0, 0, GLFW.GLFW_MOD_SHIFT, InputPhase.PRESS);
 		assertTrue(BookmarkAutoCraftingActivator.claimAutoCraftingInput(press, binding));
 		assertFalse(BookmarkAutoCraftingActivator.claimAutoCraftingInput(press, binding));
 		if (clearAll) {
@@ -79,11 +81,11 @@ public class AutoCraftingInputTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = InputType.class, names = {"SIMULATE", "EXECUTE"})
-	void sendsOnExecution(InputType inputType) {
+	@MethodSource("craftInputs")
+	void sendsOnlyWhenInputExecutes(InputConstants.Key key, InputPhase phase, int executions) {
 		var layout = layout();
 		CraftingMenu menu = new CraftingMenu(7, new Inventory(null));
-		UserInput userInput = new UserInput(KEY, 0, 0, GLFW.GLFW_MOD_SHIFT, inputType);
+		UserInput userInput = new UserInput(key, 0, 0, GLFW.GLFW_MOD_SHIFT, phase);
 		List<PlayToServerPacket> packets = new ArrayList<>();
 		AtomicInteger closed = new AtomicInteger();
 		AtomicInteger sounds = new AtomicInteger();
@@ -91,13 +93,21 @@ public class AutoCraftingInputTest {
 		assertTrue(BookmarkAutoCraftingActivator.activate(userInput, layout, menu,
 			closed::incrementAndGet, true, sounds::incrementAndGet, packets::add, true,
 			List.of(new ItemStack(Items.OAK_PLANKS))));
-		int executions = inputType == InputType.EXECUTE ? 1 : 0;
 		assertEquals(executions, packets.size());
 		assertEquals(executions, closed.get());
 		assertEquals(executions, sounds.get());
 		if (executions > 0) {
 			assertInstanceOf(PacketCraftingGridCraft.class, packets.getFirst());
 		}
+	}
+
+	private static Stream<Arguments> craftInputs() {
+		InputConstants.Key mouse = InputConstants.Type.MOUSE.getOrCreate(0);
+		return Stream.of(
+			Arguments.of(mouse, InputPhase.PRESS, 0),
+			Arguments.of(mouse, InputPhase.RELEASE, 1),
+			Arguments.of(KEY, InputPhase.PRESS, 1)
+		);
 	}
 
 	@ParameterizedTest

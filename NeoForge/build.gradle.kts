@@ -1,3 +1,8 @@
+import mezz.jei.gradle.WriteClientOptions
+import mezz.jei.gradle.externalSourceSetClasspath
+import mezz.jei.gradle.optionalGradleProperty
+import mezz.jei.gradle.gradleProperty
+import org.gradle.api.publish.maven.internal.publication.MavenPublicationInternal
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import net.neoforged.moddevgradle.dsl.ModModel
@@ -14,27 +19,41 @@ plugins {
 	id("net.mezzdev.modshade")
 }
 
+repositories {
+    google { content { includeModule("com.android.tools", "r8") } }
+}
+
 // gradle.properties
-val curseHomepageUrl: String by extra
-val curseProjectId: String by extra
-val neoforgeVersion: String by extra
-val jUnitVersion: String by extra
-val minecraftVersion: String by extra
-val minecraftVersionRangeStart: String by extra
-val modGroup: String by extra
-val modId: String by extra
-val modJavaVersion: String by extra
-val modrinthId: String by extra
-val bakedSubstringIndexVersion: String by extra
-val suffixtreeVersion: String by extra
-val deduplicatingRunnerVersion: String by extra
+val curseHomepageUrl = gradleProperty("curseHomepageUrl")
+val curseProjectId = gradleProperty("curseProjectId")
+val neoforgeVersion = gradleProperty("neoforgeVersion")
+val jUnitVersion = gradleProperty("jUnitVersion")
+val minecraftVersion = gradleProperty("minecraftVersion")
+val minecraftVersionRangeStart = gradleProperty("minecraftVersionRangeStart")
+val modGroup = gradleProperty("modGroup")
+val modId = gradleProperty("modId")
+val modJavaVersion = gradleProperty("modJavaVersion")
+val modrinthId = gradleProperty("modrinthId")
+val mezzConfigCurseForgeProjectSlug = gradleProperty("mezzConfigCurseForgeProjectSlug")
+val mezzConfigModrinthProjectId = gradleProperty("mezzConfigModrinthProjectId")
+val mezzConfigGuiCurseForgeProjectSlug = gradleProperty("mezzConfigGuiCurseForgeProjectSlug")
+val mezzConfigGuiModrinthProjectId = gradleProperty("mezzConfigGuiModrinthProjectId")
+val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
+val mezzConfigVersion = gradleProperty("mezzConfigVersion")
+val mezzConfigVersionRange = gradleProperty("mezzConfigVersionRange")
+val mezzConfigApiDependency: String by rootProject.extra
+val mezzConfigNeoForgeDependency: String by rootProject.extra
+val mezzConfigGuiApiDependency: String by rootProject.extra
+val mezzConfigGuiNeoForgeDependency: String by rootProject.extra
+val luceneVersion = gradleProperty("luceneVersion")
 
 // set by ORG_GRADLE_PROJECT_modrinthToken in Jenkinsfile
-val modrinthToken: String? by project
+val modrinthToken = optionalGradleProperty("modrinthToken")
 // set by ORG_GRADLE_PROJECT_curseforgeApikey in Jenkinsfile
-val curseforgeApikey: String? by project
+val curseforgeApikey = optionalGradleProperty("curseforgeApikey")
 
 val baseArchivesName = "JEIunofficial-${minecraftVersion}-neoforge"
+val apiArchivesName = "${modId}-${minecraftVersion}-neoforge-api"
 base {
 	archivesName.set(baseArchivesName)
 }
@@ -46,6 +65,11 @@ repositories {
 			includeGroup("maven.modrinth")
 		}
 	}
+}
+
+val apiSourceSet = sourceSets.create("api") {
+    resources.setSrcDirs(emptyList<String>())
+    compileClasspath += configurations.compileClasspath.get()
 }
 
 val gameTestJunitResultsDir = layout.buildDirectory.dir("test-results/gameTest")
@@ -71,10 +95,10 @@ sourceSets {
 
 val dependencyProjects: List<Project> = listOf(
 	project(":Common"),
-	project(":CommonApi"),
+
 	project(":Library"),
 	project(":Gui"),
-	project(":NeoForgeApi"),
+
 )
 val debugProject = project(":Debug")
 
@@ -82,6 +106,16 @@ dependencyProjects.forEach {
 	project.evaluationDependsOn(it.path)
 }
 project.evaluationDependsOn(debugProject.path)
+
+val commonApiSourceSet = project(":Common").sourceSets.named("api").get()
+apiSourceSet.compileClasspath += commonApiSourceSet.output
+
+sourceSets.configureEach {
+    if (name != "api") {
+        compileClasspath += apiSourceSet.output + commonApiSourceSet.output
+        runtimeClasspath += apiSourceSet.output + commonApiSourceSet.output
+    }
+}
 
 configurations.named("gameTestImplementation") {
 	extendsFrom(configurations.implementation.get())
@@ -94,6 +128,7 @@ configurations.named("clientGameTestCompileOnly") {
 }
 
 tasks.named<JavaCompile>(sourceSets.main.get().compileJavaTaskName) {
+    source(commonApiSourceSet.allJava)
     dependencyProjects.forEach {
         source(it.sourceSets.main.get().allSource)
     }
@@ -103,6 +138,13 @@ tasks.named<ProcessResources>(sourceSets.main.get().processResourcesTaskName) {
     dependencyProjects.forEach {
         from(it.sourceSets.main.get().resources)
     }
+}
+
+tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) {
+	dependsOn(
+		"runGameTestServer",
+		tasks.named(sourceSets.named("clientGameTest").get().classesTaskName)
+	)
 }
 
 java {
@@ -159,16 +201,23 @@ fun Configuration.singleFileContents(): Provider<String> =
 		.map { it.asFile.readText() }
 
 dependencies {
+	compileOnly(mezzConfigApiDependency)
+	runtimeOnly(mezzConfigNeoForgeDependency)
+	jarJar(mezzConfigNeoForgeDependency) {
+		version {
+			strictly(mezzConfigVersionRange)
+			prefer(mezzConfigVersion)
+		}
+	}
+	compileOnly(mezzConfigGuiApiDependency)
+	runtimeOnly(mezzConfigGuiNeoForgeDependency)
 	dependencyProjects.forEach {
 		compileOnly(it)
-	}
-	modShadeImplementation("net.mezzdev:baked-substring-index:${bakedSubstringIndexVersion}") {
-		isTransitive = false
 	}
 	modShadeImplementation("net.mezzdev:deduplicating-runner:${deduplicatingRunnerVersion}") {
 		isTransitive = false
 	}
-	modShadeImplementation("net.mezzdev:suffixtree:${suffixtreeVersion}") {
+	modShadeImplementation("org.apache.lucene:lucene-core:${luceneVersion}") {
 		isTransitive = false
 	}
 	compileOnly("org.spongepowered:mixin:0.8.5")
@@ -179,6 +228,13 @@ dependencies {
 		isTransitive = false
 	}
 	"clientGameTestCompileOnly"("org.jspecify:jspecify:1.0.0")
+	"gameTestRuntimeOnly"(mezzConfigNeoForgeDependency)
+	"gameTestRuntimeOnly"(mezzConfigGuiNeoForgeDependency)
+	"clientGameTestRuntimeOnly"(mezzConfigNeoForgeDependency)
+	"clientGameTestRuntimeOnly"(mezzConfigGuiNeoForgeDependency)
+	testImplementation(mezzConfigApiDependency)
+	testImplementation(mezzConfigNeoForgeDependency)
+	testImplementation(mezzConfigGuiApiDependency)
 	testImplementation(
 		group = "org.junit.jupiter",
 		name = "junit-jupiter",
@@ -205,6 +261,7 @@ neoForge {
 	mods {
 		create("jei") {
 			sourceSet(sourceSets.main.get())
+				sourceSet(apiSourceSet)
 			for (dependencyProject in dependencyProjects) {
 				sourceSet(dependencyProject.sourceSets.main.get())
 			}
@@ -354,9 +411,9 @@ val copyClientRecipeSyncTestFmlConfigTasks = clientRecipeSyncRuns.associate { (r
 }
 
 val writeClientRecipeSyncTestOptionsTasks = clientRecipeSyncRuns.associate { (runName, _) ->
-	runName to tasks.register<Copy>("write${capitalizedRunName(runName)}Options") {
-		from(layout.projectDirectory.file("src/clientGameTest/templates/options.txt"))
-		into(clientRecipeSyncTestGameDirectory(runName))
+	runName to tasks.register<WriteClientOptions>("write${capitalizedRunName(runName)}Options") {
+		templateFile.set(layout.projectDirectory.file("src/clientGameTest/templates/options.txt"))
+		optionsFile.set(clientRecipeSyncTestGameDirectory(runName).file("options.txt"))
 	}
 }
 
@@ -364,8 +421,8 @@ val copyClientResourcePackTasks = clientRecipeSyncRuns.associate { (runName, _) 
 	runName to tasks.register<Sync>("copy${capitalizedRunName(runName)}ResourcePack") {
 		from(layout.projectDirectory.file("src/clientGameTest/templates/resourcepacks/$clientResourcePackName/pack.mcmeta"))
 		// Override JEI's 16x16 config button with an existing 32x32 texture to catch stale atlas coordinates.
-		from(commonProjectDirectory.file("src/main/resources/assets/jei/textures/jei/atlas/gui/icons/shapeless_icon_v2.png")) {
-			into("assets/jei/textures/jei/atlas/gui/icons")
+		from(commonProjectDirectory.file("src/main/resources/assets/jei/textures/gui/sprites/icons/shapeless_icon_v2.png")) {
+			into("assets/jei/textures/gui/sprites/icons")
 			rename { "config_button.png" }
 		}
 		into(clientRecipeSyncTestGameDirectory(runName).dir("resourcepacks/$clientResourcePackName"))
@@ -393,6 +450,7 @@ clientRecipeSyncRuns.forEach { (runName, _) ->
 }
 
 tasks.jar {
+    from(apiSourceSet.output)
 	from(sourceSets.main.get().output)
 	for (p in dependencyProjects) {
 		from(p.sourceSets.main.get().output)
@@ -402,6 +460,8 @@ tasks.jar {
 }
 
 val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
+    from(apiSourceSet.allJava)
+    from(commonApiSourceSet.allJava)
 	from(sourceSets.main.get().allJava)
 	for (p in dependencyProjects) {
 		from(p.sourceSets.main.get().allJava)
@@ -410,20 +470,27 @@ val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
 	archiveClassifier.set("sources")
 }
 
-val modShadeJar = modShade.shadeJar()
-modShadeJar.configure {
-	destinationDirectory.set(layout.buildDirectory.dir("intermediates/modshade"))
+// Shared API annotations are compile-only and absent from the loader runtime classpath.
+val r8Libraries = configurations.create("r8Libraries") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
 }
-// Repack the completed shaded archive without changing its entries or relocation rules.
-val shadedJar = tasks.register<Zip>("compactJar") {
-	from(modShadeJar.flatMap { it.archiveFile }.map { zipTree(it) })
-	archiveFileName.set(modShadeJar.flatMap { it.archiveFileName })
-	archiveExtension.set("jar")
-	destinationDirectory.set(layout.buildDirectory.dir("libs"))
-	isPreserveFileTimestamps = false
-	isReproducibleFileOrder = true
-	includeEmptyDirs = false
+dependencies {
+    add(r8Libraries.name, "com.google.code.findbugs:jsr305:3.0.2")
+    // AE2's screen signatures reference GuideME, which Modrinth's POM does not declare.
+    add(r8Libraries.name, "maven.modrinth:guideme:21.1.1")
 }
+
+val r8LibraryClasspath = externalSourceSetClasspath(listOf(sourceSets.main.get(), apiSourceSet))
+    .minus(commonApiSourceSet.output)
+
+val shadedJar = modShade.shadeJar()
+shadedJar.configure {
+    shrink.set(true)
+    shrinkLibraryClasspath.setFrom(r8LibraryClasspath.minus(project.files(configurations)), r8Libraries)
+    shrinkRuleFiles.from(rootProject.layout.projectDirectory.file("config/lucene-r8.pro"))
+}
+apply(from = "../gradle/verify-jar-bytecode.gradle")
 val shadedSourcesJar = modShade.shadeSourcesJar()
 
 publishMods {
@@ -437,6 +504,8 @@ publishMods {
 		projectId = curseProjectId
 		projectSlug = curseHomepageUrl.substringAfterLast("/")
 		accessToken.set(curseforgeApikey ?: "0")
+		requires(mezzConfigCurseForgeProjectSlug)
+		optional(mezzConfigGuiCurseForgeProjectSlug)
 		changelog.set(changelogHtml.singleFileContents())
 		changelogType = "html"
 		minecraftVersionRange {
@@ -452,6 +521,8 @@ publishMods {
 	modrinth {
 		projectId = modrinthId
 		accessToken = modrinthToken
+		requires(mezzConfigModrinthProjectId)
+		optional(mezzConfigGuiModrinthProjectId)
 		changelog.set(changelogMarkdown.singleFileContents())
 		minecraftVersionRange {
 			start = minecraftVersionRangeStart
@@ -479,12 +550,68 @@ tasks.assemble {
 	dependsOn(shadedJar)
 }
 
+val apiJarTask = tasks.register<Jar>("apiJar") {
+    archiveBaseName.set(apiArchivesName)
+    from(apiSourceSet.output)
+    manifest.attributes["Implementation-Title"] = "jar"
+}
+
+val apiSourcesJarTask = tasks.register<Jar>("apiSourcesJar") {
+    archiveBaseName.set(apiArchivesName)
+    archiveClassifier.set("sources")
+    from(apiSourceSet.allSource)
+    manifest.attributes["Implementation-Title"] = "sourcesJar"
+}
+
+tasks.assemble {
+    dependsOn(apiJarTask, apiSourcesJarTask)
+}
+
 publishing {
 	publications {
+        register<MavenPublication>("neoforgeApiJar") {
+            // Project dependencies continue to use the main publication's coordinates.
+            (this as MavenPublicationInternal).isAlias = true
+            artifactId = apiArchivesName
+            artifact(apiJarTask)
+            artifact(apiSourcesJarTask)
+            val apiDependencyInfo = mapOf(
+                "groupId" to project.group,
+                "artifactId" to "${modId}-${minecraftVersion}-common-api",
+                "version" to project.version
+            )
+            pom.withXml {
+                val dependency = asNode().appendNode("dependencies").appendNode("dependency")
+                apiDependencyInfo.forEach { (key, value) ->
+                    dependency.appendNode(key, value)
+                }
+            }
+        }
+
 		register<MavenPublication>("neoforgeJar") {
 			artifactId = baseArchivesName
 			artifact(shadedJar)
 			artifact(shadedSourcesJar)
+
+			val dependencyInfos = listOf(
+				dependencyInfo(mezzConfigGuiNeoForgeDependency) + ("optional" to "true")
+			) + dependencyProjects.map {
+				mapOf(
+					"groupId" to it.group,
+					"artifactId" to it.base.archivesName.get(),
+					"version" to it.version
+				)
+			}
+
+			pom.withXml {
+				val dependenciesNode = asNode().appendNode("dependencies")
+				dependencyInfos.forEach {
+					val dependencyNode = dependenciesNode.appendNode("dependency")
+					it.forEach { (key, value) ->
+						dependencyNode.appendNode(key, value)
+					}
+				}
+			}
 		}
 	}
 	repositories {
@@ -493,6 +620,15 @@ publishing {
 			maven(deployDir)
 		}
 	}
+}
+
+fun dependencyInfo(notation: String): Map<String, String> {
+	val (groupId, artifactId, version) = notation.split(":")
+	return mapOf(
+		"groupId" to groupId,
+		"artifactId" to artifactId,
+		"version" to version
+	)
 }
 
 idea {

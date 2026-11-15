@@ -5,10 +5,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import mezz.jei.common.Internal;
 import mezz.jei.neoforge.events.RuntimeEventSubscriptions;
 import mezz.jei.neoforge.input.ForgeUserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.input.ClientInputHandler;
 import mezz.jei.gui.input.PinnedTooltipManager;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import net.minecraft.client.Minecraft;
@@ -34,14 +34,14 @@ public class EventRegistration {
 		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseScrolled.Pre.class, event -> taskHandler.stopAutoCrafting());
 		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseDragged.Pre.class, event -> taskHandler.stopAutoCrafting());
 		ClientInputHandler clientInputHandler = eventHandlers.clientInputHandler();
+		subscriptions.onClear(clientInputHandler::onGuiChanged);
 		registerClientInputHandler(subscriptions, clientInputHandler);
-		registerWorldInputHandler(subscriptions, eventHandlers.worldInputHandler());
 
 		GuiEventHandler guiEventHandler = eventHandlers.guiEventHandler();
 		registerGuiHandler(subscriptions, guiEventHandler);
 	}
 
-	private static void registerWorldInputHandler(RuntimeEventSubscriptions subscriptions, WorldInputHandler handler) {
+	public static void registerWorldInputHandler(RuntimeEventSubscriptions subscriptions, WorldInputHandler handler) {
 		subscriptions.register(InputEvent.Key.class, event -> {
 			Minecraft minecraft = Minecraft.getInstance();
 			if (event.getAction() == InputConstants.PRESS && minecraft.screen == null) {
@@ -57,41 +57,18 @@ public class EventRegistration {
 	public static void registerInteractiveTooltips(mezz.jei.neoforge.events.PermanentEventSubscriptions subscriptions) {
 		var host = mezz.jei.gui.input.InteractiveTooltipController.INSTANCE;
 		subscriptions.register(ClientTickEvent.Post.class, event -> host.tick());
-		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseButtonPressed.Pre.class, event -> {
-			if (host.mousePressed(event.getMouseX(), event.getMouseY(), event.getButton(), modifiers()))
-				event.setCanceled(true);
-		});
+		// Runtime listeners are removed on shutdown, but an already consumed press still owns its release.
 		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseButtonReleased.Pre.class, event -> {
-			if (host.mouseReleased(event.getMouseX(), event.getMouseY(), event.getButton(), modifiers()))
+			if (host.consumeStoppedRelease(InputConstants.Type.MOUSE.getOrCreate(event.getButton()))) {
 				event.setCanceled(true);
-		});
-		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseDragged.Pre.class, event -> {
-			if (host.mouseDragged(event.getMouseX(), event.getMouseY(), event.getMouseButton(), event.getDragX(), event.getDragY()))
-				event.setCanceled(true);
-		});
-		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.MouseScrolled.Pre.class, event -> {
-			if (host.mouseScrolled(event.getMouseX(), event.getMouseY(), event.getScrollDeltaX(), event.getScrollDeltaY()))
-				event.setCanceled(true);
-		});
-		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.KeyPressed.Pre.class, event -> {
-			if (host.keyPressed(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
-				event.setCanceled(true);
+			}
 		});
 		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.KeyReleased.Pre.class, event -> {
-			if (host.keyReleased(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
+			if (host.consumeStoppedRelease(InputConstants.getKey(event.getKeyCode(), event.getScanCode()))) {
 				event.setCanceled(true);
-		});
-		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.CharacterTyped.Pre.class, event -> {
-			if (host.charTyped(event.getCodePoint(), event.getModifiers()))
-				event.setCanceled(true);
+			}
 		});
 		subscriptions.register(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut.class, event -> host.stop());
-	}
-
-	private static int modifiers() {
-		return (Screen.hasShiftDown() ? org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT : 0) |
-			(Screen.hasControlDown() ? org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL : 0) |
-			(Screen.hasAltDown() ? org.lwjgl.glfw.GLFW.GLFW_MOD_ALT : 0);
 	}
 
 	private static ItemStack getPickedStack(Minecraft minecraft) {
@@ -115,7 +92,8 @@ public class EventRegistration {
 	}
 
 	private static void registerClientInputHandler(RuntimeEventSubscriptions subscriptions, ClientInputHandler handler) {
-		subscriptions.register(ScreenEvent.Init.Post.class, event -> handler.onInitGui());
+		subscriptions.register(ScreenEvent.Init.Post.class, event -> handler.onGuiChanged());
+		subscriptions.register(ScreenEvent.Closing.class, event -> handler.onGuiChanged());
 
 		subscriptions.register(ScreenEvent.KeyPressed.Pre.class, event -> {
 			Screen screen = event.getScreen();
@@ -133,8 +111,10 @@ public class EventRegistration {
 		});
 
 		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> {
-			UserInput input = ForgeUserInput.fromEvent(event);
-			handler.onKeyboardKeyReleased(input);
+			handler.onKeyboardKeyReleased(event.getKeyCode(), event.getScanCode());
+			if (mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.keyReleased(event.getKeyCode(), event.getScanCode(), event.getModifiers())) {
+				event.setCanceled(true);
+			}
 		});
 
 		subscriptions.register(ScreenEvent.CharacterTyped.Pre.class, event -> {
@@ -214,6 +194,14 @@ public class EventRegistration {
 			Screen screen = event.getScreen();
 			guiEventHandler.onGuiOpen(screen);
 		});
+		subscriptions.register(EventPriority.HIGHEST, ScreenEvent.BackgroundRendered.class, event -> {
+			Screen screen = event.getScreen();
+			if (screen instanceof AbstractContainerScreen<?>) {
+				return;
+			}
+			var guiGraphics = event.getGuiGraphics();
+			runWithIdentityPose(guiGraphics, () -> guiEventHandler.drawForScreenBackground(screen, guiGraphics));
+		});
 		subscriptions.register(EventPriority.LOWEST, ContainerScreenEvent.Render.Foreground.class, event -> {
 			AbstractContainerScreen<?> containerScreen = event.getContainerScreen();
 			var guiGraphics = event.getGuiGraphics();
@@ -234,15 +222,12 @@ public class EventRegistration {
 			var guiGraphics = event.getGuiGraphics();
 			int mouseX = event.getMouseX();
 			int mouseY = event.getMouseY();
-			runWithIdentityPose(guiGraphics, () -> {
-				guiEventHandler.drawForScreenBackground(screen, guiGraphics);
-				guiEventHandler.drawForScreenForeground(screen, guiGraphics, mouseX, mouseY);
-			});
+			runWithIdentityPose(guiGraphics, () -> guiEventHandler.drawForScreenForeground(screen, guiGraphics, mouseX, mouseY));
 		});
 		subscriptions.register(ScreenEvent.RenderInventoryMobEffects.class, event -> {
-			if (guiEventHandler.renderCompactPotionIndicators()) {
-				// Forcibly renders the potion indicators in compact mode.
-				// This gives the ingredient list overlay more room to display ingredients.
+			if (event.getScreen() instanceof AbstractContainerScreen<?> screen &&
+				guiEventHandler.renderCompactPotionIndicators(screen)
+			) {
 				event.setCompact(true);
 			}
 		});

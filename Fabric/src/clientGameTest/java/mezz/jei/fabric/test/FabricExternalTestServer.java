@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
  * Starts disposable vanilla or Fabric dedicated servers for client recipe-sync tests.
  */
 final class FabricExternalTestServer implements AutoCloseable {
+	private static final String MEZZ_CONFIG_MOD_ID = "mezz_config";
+	private static final String MEZZ_CONFIG_GUI_MOD_ID = "mezz_config_gui";
 	private static final Duration EXTERNAL_SERVER_CLIENT_TIMEOUT = Duration.ofSeconds(ExternalServerClient.EXTERNAL_SERVER_CLIENT_TIMEOUT_SECONDS);
 	private static final ExternalServerClient.ClientAccess CLIENT_ACCESS = new ExternalServerClient.ClientAccess() {
 		@Override
@@ -139,7 +141,12 @@ final class FabricExternalTestServer implements AutoCloseable {
 			}
 		};
 
-		private static final List<String> SERVER_WITHOUT_JEI_EXCLUDED_MOD_IDS = List.of(ModIds.JEI_ID, "jei-client-tests");
+		private static final List<String> SERVER_WITHOUT_JEI_EXCLUDED_MOD_IDS = List.of(
+			ModIds.JEI_ID,
+			MEZZ_CONFIG_MOD_ID,
+			MEZZ_CONFIG_GUI_MOD_ID,
+			"jei-client-tests"
+		);
 
 		private final String description;
 		private final String mainClass;

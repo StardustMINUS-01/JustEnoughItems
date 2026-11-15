@@ -12,7 +12,6 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.Internal;
-import mezz.jei.common.config.BookmarkTooltipFeature;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
@@ -24,7 +23,8 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
@@ -195,10 +195,10 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 
 	private void addRecipePreviewTooltip(JeiTooltip tooltip) {
 		IClientConfig clientConfig = Internal.getClientConfigs().getClientConfig();
-		if (!clientConfig.bookmarkTooltipFeatures().getValue().contains(BookmarkTooltipFeature.PREVIEW)) {
+		if (!clientConfig.bookmarkTooltipPreviewEnabled().get()) {
 			return;
 		}
-		if (clientConfig.holdShiftToShowBookmarkTooltipFeaturesEnabled().getValue()) {
+		if (clientConfig.holdShiftToShowBookmarkTooltipFeaturesEnabled().get()) {
 			IJeiKeyMappingInternal showBookmarkTooltipFeatures = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
 			if (!showBookmarkTooltipFeatures.isDown()) {
 				tooltip.addKeyUsageComponent("jei.tooltip.bookmarks.tooltips.usage", showBookmarkTooltipFeatures);
@@ -248,14 +248,11 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	}
 
 	@Override
-	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<InputAction> prepareAction(UserInput input, IInternalKeyMappings keyBindings) {
 		if (favoriteRecipes == null || !BookmarkKeyInputs.isPlainBookmarkKey(input, keyBindings)) {
-			return false;
+			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
-			favoriteRecipes.removeFavorite(recipe);
-		}
-		return true;
+		return Optional.of(InputAction.run(() -> favoriteRecipes.removeFavorite(recipe)).when(this::isVisible));
 	}
 
 	@Override

@@ -83,7 +83,8 @@ public class BookmarkLookupTest {
 	}
 
 	private static BookmarkList createBookmarks(List<String> recipes) {
-		return createBookmarks(recipes, key -> Optional.empty(), null);
+		return new BookmarkList(createManager(recipes), createFocusFactory(), null, null, null, null, null,
+			null, null, null);
 	}
 
 	private static BookmarkList createBookmarks(

@@ -1,0 +1,217 @@
+package mezz.jei.gui.overlay.bookmarks;
+
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.bookmarks.BookmarkDisplayEntry;
+import mezz.jei.gui.bookmarks.BookmarkDisplaySlot;
+import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
+import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkItemType;
+import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.IngredientBookmark;
+import mezz.jei.gui.bookmarks.BookmarkViewMode;
+import mezz.jei.gui.bookmarks.BookmarkRowLayout;
+import mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.Items;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.IntStream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class BookmarkPanelProjectionTest {
+	@Test
+	void selectsAcrossPages() {
+		var display = IntStream.range(0, 12).mapToObj(i -> createDisplaySlot(i, "item" + i)).toList();
+		var slots = BookmarkPanelLayout.globalSlots(display, BookmarkRowLayout.RowLayout.create(3, List.of(2, 1, 3)));
+		var rows = BookmarkPanelLayout.createRowSlots(slots);
+		assertEquals(List.of(0, 2, 3, 6, 8, 9), rows.stream().map(row -> row.area().getY()).toList());
+		var expected = IntStream.range(2, 12).mapToObj(i -> "item" + i).toList();
+		assertEquals(expected, BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(1), rows.get(5)));
+		assertEquals(expected, BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(5), rows.get(1)));
+		assertEquals(List.of("item2", "item3", "item4", "item5"),
+			BookmarkPanelLayout.getItemsBetweenRecipeBounds(slots, rows.get(1), rows.get(2)));
+		var preview = BookmarkPanelLayout.createGroupingPreviewRows(slots, rows, rows.get(1), rows.get(5), true, -1);
+		assertEquals(List.of(1, 0, 0, 0, 0, 0), preview.stream().map(BookmarkPanelLayout.RowSlot::groupId).toList());
+		var recipeSlots = IntStream.range(0, slots.size()).mapToObj(i -> {
+				var slot = slots.get(i);
+				return new BookmarkPanelLayout.PanelSlot<>(slot.item(), slot.groupId(), slot.area(), false, i >= 2 && i < 9 ? "recipe" : null);
+			})
+			.toList();
+		assertEquals(IntStream.range(2, 9).mapToObj(i -> "item" + i).toList(),
+			BookmarkPanelLayout.getItemsBetweenRecipeBounds(recipeSlots, rows.get(2), rows.get(2)));
+	}
+
+	@Test
+	public void groupHoverSelectsFirstOutputOrPlainIngredientInTheHoveredGroup() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+		BookmarkList bookmarks = new BookmarkList(null, null, null, null, null, null, null);
+		var ingredientManager = ItemStackIngredientTestFixtures.ingredientManager();
+		var entries = List.of(Items.IRON_INGOT, Items.COAL, Items.GOLD_INGOT, Items.DIAMOND).stream()
+			.map(item -> IngredientBookmark.create(ItemStackIngredientTestFixtures.item(item), ingredientManager))
+			.toList();
+		entries.forEach(entry -> bookmarks.addToListWithoutNotifying(entry, false));
+		bookmarks.addGroupFromConfig(new BookmarkGroup(1, "Group"));
+		bookmarks.moveBookmarkMetadataFromConfig(entries.get(1), BookmarkItemMetadata.defaultForGroup(1).withType(BookmarkItemType.INGREDIENT));
+		bookmarks.moveBookmarkMetadataFromConfig(entries.get(2), BookmarkItemMetadata.defaultForGroup(1).withType(BookmarkItemType.RESULT));
+		bookmarks.moveBookmarkMetadataFromConfig(entries.get(3), BookmarkItemMetadata.defaultForGroup(1));
+		var slot = new BookmarkPanelProjection.GroupPanelSlot(entries.get(1), 1, new ImmutableRect2i(0, 0, 18, 18));
+		var previousProvider = BookmarkGroupDropBridge.getGroupDropHighlightProvider();
+		try {
+			BookmarkGroupDropBridge.setGroupDropHighlightProvider(ingredients -> List.of());
+			assertSame(entries.get(2).getElement().getTypedIngredient(), BookmarkGroupDropBridge.getGroupDropHoverIngredient(bookmarks, Optional.of(slot)).orElseThrow());
+			assertTrue(BookmarkGroupDropBridge.getGroupDropHoverIngredient(bookmarks, Optional.empty()).isEmpty());
+			BookmarkGroupDropBridge.setGroupDropHighlightProvider(null);
+			assertTrue(BookmarkGroupDropBridge.getGroupDropHoverIngredient(bookmarks, Optional.of(slot)).isEmpty());
+		} finally {
+			BookmarkGroupDropBridge.setGroupDropHighlightProvider(previousProvider);
+		}
+	}
+
+	@Test
+	public void projectedPanelStartsAtRenderedFirstItemIndex() {
+		List<BookmarkDisplaySlot<String>> displaySlots = List.of(
+			createDisplaySlot(54, "before"),
+			createDisplaySlot(55, "first"),
+			createDisplaySlot(56, "second")
+		);
+		List<ImmutableRect2i> pageAreas = IntStream.range(0, 45)
+			.mapToObj(index -> new ImmutableRect2i(index * 18, 0, 18, 18))
+			.toList();
+		BookmarkPanelProjection.PanelSnapshotKey key = new BookmarkPanelProjection.PanelSnapshotKey(
+			0,
+			9,
+			55,
+			pageAreas,
+			List.of()
+		);
+
+		List<BookmarkPanelLayout.PanelSlot<String>> projected = BookmarkPanelProjection.createProjectedPanelSlots(
+			displaySlots,
+			pageAreas,
+			key
+		);
+
+		assertEquals(List.of("first", "second"), projected.stream().map(BookmarkPanelLayout.PanelSlot::item).toList());
+		assertEquals(pageAreas.subList(0, 2), projected.stream().map(BookmarkPanelLayout.PanelSlot::area).toList());
+	}
+
+	@Test
+	public void panelSnapshotKeyChangesWhenSmoothScrollMovesSlotAreas() {
+		BookmarkPanelProjection.PanelSnapshotKey first = new BookmarkPanelProjection.PanelSnapshotKey(
+			0,
+			9,
+			55,
+			List.of(new ImmutableRect2i(0, 0, 18, 18)),
+			List.of()
+		);
+		BookmarkPanelProjection.PanelSnapshotKey partiallyScrolled = new BookmarkPanelProjection.PanelSnapshotKey(
+			0,
+			9,
+			55,
+			List.of(new ImmutableRect2i(0, -6, 18, 18)),
+			List.of()
+		);
+
+		assertNotEquals(first, partiallyScrolled);
+	}
+
+	@Test
+	public void visibleRowConnectsToAdjacentOffscreenRows() {
+		List<BookmarkDisplaySlot<String>> displaySlots = List.of(
+			createDisplaySlot(0, "previous-1", 1),
+			createDisplaySlot(1, "previous-2", 1),
+			createDisplaySlot(2, "visible-1", 1),
+			createDisplaySlot(3, "visible-2", 1),
+			createDisplaySlot(4, "next-1", 1),
+			createDisplaySlot(5, "next-2", 1)
+		);
+		ImmutableRect2i visibleArea = new ImmutableRect2i(0, 0, 18, 18);
+
+		BookmarkPanelProjection.BoundaryConnections result = BookmarkPanelProjection.calculateBoundaryConnections(
+			displaySlots,
+			List.of(visibleArea, visibleArea.moveRight(18)),
+			2,
+			2,
+			List.of(2),
+			List.of(new BookmarkPanelLayout.RowSlot<>("visible-1", 1, visibleArea))
+		);
+
+		assertTrue(result.connectedToPrevious());
+		assertTrue(result.connectedToNext());
+	}
+
+	@Test
+	public void visibleRowDoesNotConnectAcrossGroupBoundaries() {
+		List<BookmarkDisplaySlot<String>> displaySlots = List.of(
+			createDisplaySlot(0, "previous", 2),
+			createDisplaySlot(2, "visible", 1),
+			createDisplaySlot(4, "next", 3)
+		);
+		ImmutableRect2i visibleArea = new ImmutableRect2i(0, 0, 18, 18);
+
+		BookmarkPanelProjection.BoundaryConnections result = BookmarkPanelProjection.calculateBoundaryConnections(
+			displaySlots,
+			List.of(visibleArea, visibleArea.moveRight(18)),
+			2,
+			2,
+			List.of(2),
+			List.of(new BookmarkPanelLayout.RowSlot<>("visible", 1, visibleArea))
+		);
+
+		assertFalse(result.connectedToPrevious());
+		assertFalse(result.connectedToNext());
+	}
+
+	@Test
+	public void boundaryConnectionsUseVariableRowWidths() {
+		List<BookmarkDisplaySlot<String>> displaySlots = List.of(
+			createDisplaySlot(0, "previous-1", 1),
+			createDisplaySlot(1, "previous-2", 1),
+			createDisplaySlot(2, "visible", 1),
+			createDisplaySlot(3, "next-1", 1),
+			createDisplaySlot(4, "next-2", 1),
+			createDisplaySlot(5, "next-3", 1)
+		);
+		ImmutableRect2i visibleArea = new ImmutableRect2i(0, 0, 18, 18);
+
+		BookmarkPanelProjection.BoundaryConnections result = BookmarkPanelProjection.calculateBoundaryConnections(
+			displaySlots,
+			List.of(visibleArea),
+			2,
+			3,
+			List.of(2, 1, 3),
+			List.of(new BookmarkPanelLayout.RowSlot<>("visible", 1, visibleArea))
+		);
+
+		assertTrue(result.connectedToPrevious());
+		assertTrue(result.connectedToNext());
+	}
+
+	private static BookmarkDisplaySlot<String> createDisplaySlot(int slotIndex, String item) {
+		return createDisplaySlot(slotIndex, item, 1);
+	}
+
+	private static BookmarkDisplaySlot<String> createDisplaySlot(int slotIndex, String item, int groupId) {
+		BookmarkDisplayEntry<String> entry = new BookmarkDisplayEntry<>(
+			item,
+			slotIndex,
+			BookmarkItemMetadata.defaultForGroup(groupId),
+			BookmarkViewMode.DEFAULT,
+			false,
+			Optional.empty(),
+			Optional.empty(),
+			false,
+			false
+		);
+		return new BookmarkDisplaySlot<>(slotIndex, entry, false, false);
+	}
+}

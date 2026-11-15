@@ -12,6 +12,7 @@ import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
 import mezz.jei.api.registration.IRuntimeRegistration;
+import mezz.jei.api.runtime.IBookmarkManager;
 import mezz.jei.api.runtime.IEditModeConfig;
 import mezz.jei.api.runtime.IIngredientFilter;
 import mezz.jei.api.runtime.IIngredientManager;
@@ -20,10 +21,10 @@ import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
 import mezz.jei.common.config.IIngredientGridConfig;
-import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -37,6 +38,7 @@ import mezz.jei.common.util.LoggedTimer;
 import mezz.jei.gui.bookmarks.BookmarkCodec;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.BookmarkManager;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.collapsible.CollapsibleManager;
@@ -54,6 +56,7 @@ import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
+import mezz.jei.gui.config.JeiGuiSortingConfigData;
 import mezz.jei.gui.config.ModNameSortingConfig;
 import mezz.jei.gui.config.RecipePreferenceConfig;
 import mezz.jei.gui.events.GuiEventHandler;
@@ -72,26 +75,13 @@ import mezz.jei.gui.ingredients.IngredientFilter;
 import mezz.jei.gui.ingredients.IngredientFilterApi;
 import mezz.jei.gui.ingredients.IngredientListElementFactory;
 import mezz.jei.gui.ingredients.IngredientSorter;
-import mezz.jei.gui.input.ClientInputHandler;
-import mezz.jei.gui.input.CombinedRecipeFocusSource;
-import mezz.jei.gui.input.GuiContainerWrapper;
-import mezz.jei.gui.input.ICharTypedHandler;
-import mezz.jei.gui.input.handlers.BookmarkInputHandler;
-import mezz.jei.gui.input.handlers.ChatLinkInputHandler;
-import mezz.jei.gui.input.handlers.CheatInputHandler;
-import mezz.jei.gui.input.handlers.DragRouter;
-import mezz.jei.gui.input.handlers.EditInputHandler;
-import mezz.jei.gui.input.handlers.IngredientShortcutInputHandler;
-import mezz.jei.gui.input.handlers.GlobalInputHandler;
-import mezz.jei.gui.input.handlers.GuiAreaInputHandler;
-import mezz.jei.gui.input.handlers.UserInputRouter;
-import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
 import mezz.jei.gui.recipes.RecipesGui;
 import mezz.jei.gui.util.FocusUtil;
+import net.mezzdev.config.api.value.change.IConfigValueBatchChangeListener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.RegistryAccess;
@@ -105,9 +95,23 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 public class JeiGuiStarter {
+	private static final class CollapsibleConfigHolder {
+		private static final CollapsibleConfig CONFIG = createConfig();
+
+		private static CollapsibleConfig createConfig() {
+			CollapsibleConfig config = new CollapsibleConfig(Services.PLATFORM.getConfigHelper().createJeiConfigDir());
+			if (!Services.PLATFORM.getModHelper().isModLoaded("collapsible_groups")) {
+				config.initialize();
+			}
+			return config;
+		}
+	}
 	private static final Logger LOGGER = LogManager.getLogger();
 
-	public static JeiEventHandlers start(IRuntimeRegistration registration) {
+	public static JeiEventHandlers start(
+		IRuntimeRegistration registration,
+		JeiGuiSortingConfigData sortingConfigData
+	) {
 		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.install();
 		LOGGER.info("Starting JEI GUI");
 		LoggedTimer timer = new LoggedTimer();
@@ -140,30 +144,38 @@ public class JeiGuiStarter {
 
 		RegistryAccess registryAccess = level.registryAccess();
 
+		IClientConfigs jeiClientConfigs = Internal.getClientConfigs();
+		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
+		registerJeiRestartingConfigListeners(jeiClientConfigs);
+		IIngredientGridConfig ingredientListConfig = jeiClientConfigs.getIngredientListConfig();
+		IIngredientGridConfig bookmarkListConfig = jeiClientConfigs.getBookmarkListConfig();
+		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
+
 		timer.start("Building ingredient list");
-		List<IListElementInfo<?>> ingredientList = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
+		List<IListElementInfo<?>> ingredientList = IngredientListElementFactory.createBaseList(ingredientManager, ingredientFilterConfig, modIdHelper);
 		timer.stop();
 
 		timer.start("Building ingredient filter");
-		GuiConfigData configData = GuiConfigData.create();
+		GuiConfigData configData = GuiConfigData.create(sortingConfigData);
+		var configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
 
 		ModNameSortingConfig modNameSortingConfig = configData.modNameSortingConfig();
 		IngredientTypeSortingConfig ingredientTypeSortingConfig = configData.ingredientTypeSortingConfig();
 		IClientToggleState toggleState = Internal.getClientToggleState();
 		IBookmarkConfig bookmarkConfig = configData.bookmarkConfig();
 		FavoriteRecipeConfig favoriteRecipeConfig = new FavoriteRecipeConfig(
-			configData.configDir(),
+			configDir,
 			codecHelper,
 			ingredientManager,
 			registryAccess
 		);
-		RecipePreferenceConfig recipePreferenceConfig = configData.recipePreferenceConfig();
-		CollapsibleConfig collapsibleConfig = configData.collapsibleConfig();
-		CollapsibleStateStore collapsibleStateStore = configData.collapsibleStateStore();
+		RecipePreferenceConfig recipePreferenceConfig = new RecipePreferenceConfig(configDir);
+		CollapsibleConfig collapsibleConfig = CollapsibleConfigHolder.CONFIG;
+		CollapsibleStateStore collapsibleStateStore = new CollapsibleStateStore(configDir);
 		ILookupHistoryConfig lookupHistoryConfig = configData.lookupHistoryConfig();
 
 		boolean collapsibleGroupsInstalled = Services.PLATFORM.getModHelper().isModLoaded("collapsible_groups");
-		ConfigFileImporter configFileImporter = new ConfigFileImporter(configData.configDir());
+		ConfigFileImporter configFileImporter = new ConfigFileImporter(configDir);
 		recipePreferenceConfig.ensureDefaultFile();
 		configFileImporter.importFiles("recipe-preferences-", recipePreferenceConfig.getPath());
 
@@ -180,12 +192,7 @@ public class JeiGuiStarter {
 			collapsibleState.addListener(() -> collapsibleStateStore.save(collapsibleState.toMap()));
 		}
 
-		IClientConfigs jeiClientConfigs = Internal.getClientConfigs();
-		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-		ScrollStep scrollStep = new ScrollStep(() -> clientConfig.quantityFieldEnabled().getValue());
-		IIngredientGridConfig ingredientListConfig = jeiClientConfigs.getIngredientListConfig();
-		IIngredientGridConfig bookmarkListConfig = jeiClientConfigs.getBookmarkListConfig();
-		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
+		ScrollStep scrollStep = new ScrollStep(() -> clientConfig.quantityFieldEnabled().get());
 
 		Function<List<IListElementInfo<?>>, Comparator<IListElement<?>>> sortIndexUpdater = ingredients -> IngredientSorter.sortIngredients(
 			clientConfig,
@@ -204,9 +211,16 @@ public class JeiGuiStarter {
 			ingredientList,
 			modIdHelper,
 			ingredientVisibility,
+			ingredientTypeSortingConfig,
 			colorHelper,
 			searchStorageBuilderFactory,
 			toggleState
+		);
+		jeiClientConfigs.registerRuntimeListenerRemoval(
+			modNameSortingConfig.addChangeListener(ingredientFilter::onIngredientSortOrderConfigChanged)
+		);
+		jeiClientConfigs.registerRuntimeListenerRemoval(
+			ingredientTypeSortingConfig.addChangeListener(ingredientFilter::onIngredientTypeSortOrderConfigChanged)
 		);
 		ingredientManager.registerIngredientListener(ingredientFilter);
 		ingredientVisibility.registerListener(ingredientFilter);
@@ -244,7 +258,8 @@ public class JeiGuiStarter {
 			ingredientFilterConfig,
 			textures,
 			colorHelper,
-			collapsibleManager
+			collapsibleManager,
+			ingredientFilter
 		);
 		registration.setIngredientListOverlay(ingredientListOverlay);
 
@@ -258,10 +273,10 @@ public class JeiGuiStarter {
 			bookmarkConfig,
 			clientConfig,
 			guiHelper,
-			favoriteRecipes::getFavorite,
 			codecHelper,
+			bookmarkFactory,
 			bookmarkCodec,
-			bookmarkFactory
+			favoriteRecipes::getFavorite
 		);
 		bookmarkConfig.loadBookmarks(
 			recipeManager,
@@ -275,7 +290,8 @@ public class JeiGuiStarter {
 			bookmarkFactory,
 			recipeTransferService
 		);
-		registration.setBookmarkManager(bookmarkList);
+		IBookmarkManager bookmarkManager = new BookmarkManager(bookmarkList, bookmarkFactory, recipeManager, focusFactory, ingredientManager, recipeTransferService);
+		registration.setBookmarkManager(bookmarkManager);
 
 		BookmarkOverlay bookmarkOverlay = OverlayHelper.createBookmarkOverlay(
 			ingredientManager,
@@ -317,7 +333,7 @@ public class JeiGuiStarter {
 			ingredientManager,
 			recipePreferenceRulesRef::get
 		);
-		var categoryPreferencesPath = mezz.jei.common.util.ServerConfigPathUtil.getWorldPath(configData.configDir()).orElse(configData.configDir()).resolve("recipe-category-preferences.json");
+		var categoryPreferencesPath = mezz.jei.common.util.ServerConfigPathUtil.getWorldPath(configDir).orElse(configDir).resolve("recipe-category-preferences.json");
 		mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.load(categoryPreferencesPath, favoriteRecipes, () -> {
 			favoriteRecipes.clearGeneratedFavorites();
 			recipePreferenceCandidateResolver.invalidateAll();
@@ -338,27 +354,27 @@ public class JeiGuiStarter {
 				recipePreferenceCandidateResolver.invalidateGeneratedFavorites();
 			}
 		);
-		Internal.getFileWatcher().addRuntimeCallback(
+		Internal.getRuleFileWatcher().addRuntimeCallback(
 			recipePreferenceConfig.getPath(),
 			recipePreferenceRulesReloadController::onConfigFileChanged
 		);
 		if (collapsibleManager != null) {
 			CollapsibleManager activeCollapsibleManager = collapsibleManager;
-			CollapsibleColorConfig.getCollapsedColor().addListener(color -> activeCollapsibleManager.setSettings(new CollapsibleSettings(color, activeCollapsibleManager.settings().expandedColor())));
-			CollapsibleColorConfig.getExpandedColor().addListener(color -> activeCollapsibleManager.setSettings(new CollapsibleSettings(activeCollapsibleManager.settings().collapsedColor(), color)));
+			jeiClientConfigs.registerRuntimeListenerRemoval(CollapsibleColorConfig.getCollapsedColor().addListener(change -> activeCollapsibleManager.setSettings(new CollapsibleSettings(change.newValue(), activeCollapsibleManager.settings().expandedColor()))));
+			jeiClientConfigs.registerRuntimeListenerRemoval(CollapsibleColorConfig.getExpandedColor().addListener(change -> activeCollapsibleManager.setSettings(new CollapsibleSettings(activeCollapsibleManager.settings().collapsedColor(), change.newValue()))));
 			ConfigRulesReloadController<CollapsibleRules> collapsibleRulesReloadController = new ConfigRulesReloadController<>(
 				collapsibleConfig::load,
 				minecraft::execute,
 				activeCollapsibleManager::reload
 			);
-			Internal.getFileWatcher().addRuntimeDirectoryCallback(
+			Internal.getRuleFileWatcher().addRuntimeDirectoryCallback(
 				collapsibleConfig.getDirectory(),
 				path -> path.getFileName().toString().endsWith(".txt"),
 				collapsibleRulesReloadController::onConfigFileChanged
 			);
 		}
-		Internal.getFileWatcher().addRuntimeDirectoryCallback(
-			configData.configDir(),
+		Internal.getRuleFileWatcher().addRuntimeDirectoryCallback(
+			configDir,
 			path -> path.getFileName().toString().startsWith("recipe-preferences-"),
 			() -> configFileImporter.importFiles("recipe-preferences-", recipePreferenceConfig.getPath())
 		);
@@ -390,90 +406,44 @@ public class JeiGuiStarter {
 			bookmarkOverlay::showFavoritePanel,
 			recipePreferenceRulesRef::get,
 			searchStorageBuilderFactory,
-			focusUtil
+			focusUtil,
+			ingredientListOverlay
 		);
+		recipesGui.setIngredientSearch(ingredientFilter);
 		registration.setRecipesGui(recipesGui);
-		var recipesGuiForegroundInputLayer = recipesGui.getForegroundInputLayer();
-		var bookmarkPreviewTooltipController = bookmarkOverlay.getPreviewTooltipController();
-		var bookmarkChapterInputLayer = bookmarkOverlay.getChapterInputLayer();
-
-		CombinedRecipeFocusSource recipeFocusSource = new CombinedRecipeFocusSource(
-			recipesGui.getCandidateFocusSource(),
-			bookmarkPreviewTooltipController,
-			recipesGui,
+		JeiInputSetup input = JeiInputSetup.create(
 			ingredientListOverlay,
 			bookmarkOverlay,
-			new GuiContainerWrapper(screenHelper)
+			recipesGui,
+			bookmarkList,
+			bookmarkManager,
+			screenHelper,
+			ingredientManager,
+			focusFactory,
+			focusUtil,
+			clientConfig,
+			toggleState,
+			editModeConfig,
+			serverConnection,
+			keyMappings,
+			new JeiInputSetup.ForkInputs(
+				recipeManager, bookmarkAutoCraftingRunner,
+				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.favoriteTreeDepth().get()),
+				favoriteRecipes::getFavorite, bookmarkEntryCodec, bookmarkRegistryOps, scrollStep
+			)
 		);
-		var focusInputHandler = new IngredientShortcutInputHandler(recipeFocusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory);
-		mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.setShortcuts(focusInputHandler);
-		var tagSelectionTooltip = focusInputHandler.getTagSelectionTooltip();
 		GuiEventHandler guiEventHandler = new GuiEventHandler(
 			screenHelper,
 			bookmarkOverlay,
 			ingredientListOverlay,
-			bookmarkAutoCraftingRunner,
-			tagSelectionTooltip,
-			recipesGuiForegroundInputLayer,
-			bookmarkChapterInputLayer,
-			bookmarkPreviewTooltipController
+			input.scene()
 		);
-
-		List<ICharTypedHandler> charTypedHandlers = List.of(
-			tagSelectionTooltip,
-			ingredientListOverlay,
-			bookmarkOverlay
-		);
-
-		UserInputRouter userInputRouter = new UserInputRouter(
-			"JEIGlobal",
-			tagSelectionTooltip,
-			recipesGuiForegroundInputLayer,
-			bookmarkChapterInputLayer,
-			bookmarkPreviewTooltipController,
-			new EditInputHandler(recipeFocusSource, toggleState, editModeConfig),
-			ingredientListOverlay.createDeleteItemInputHandler(),
-			bookmarkOverlay.createDeleteItemInputHandler(),
-			new CheatInputHandler(recipeFocusSource, clientConfig, ingredientManager, toggleState, serverConnection, scrollStep),
-			ingredientListOverlay.createInputHandler(),
-			bookmarkOverlay.createInputHandler(),
-			new BookmarkInputHandler(
-				recipeFocusSource,
-				bookmarkList,
-				bookmarkOverlay,
-				ingredientManager,
-				serverConnection,
-				bookmarkAutoCraftingRunner,
-				recipe -> favoriteTreeBookmarkWriter.save(recipe, clientConfig.favoriteTreeDepth().getValue()),
-				favoriteRecipes::getFavorite,
-				bookmarkPreviewTooltipController,
-				clientConfig,
-				recipesGui,
-				bookmarkEntryCodec,
-				bookmarkRegistryOps
-			),
-			focusInputHandler,
-			new GlobalInputHandler(toggleState),
-			new GuiAreaInputHandler(screenHelper, recipesGui, focusFactory)
-		);
-
-		DragRouter dragRouter = new DragRouter(
-			tagSelectionTooltip,
-			ingredientListOverlay.createDragHandler(),
-			bookmarkOverlay.createDragHandler()
-		);
-		ClientInputHandler clientInputHandler = new ClientInputHandler(
-			charTypedHandlers,
-			new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList, bookmarkEntryCodec, bookmarkRegistryOps),
-			userInputRouter,
-			dragRouter,
-			keyMappings,
-			screenHelper
-		);
+		guiEventHandler.setAutoCraftingRunner(bookmarkAutoCraftingRunner);
 		ResourceReloadHandler resourceReloadHandler = new ResourceReloadHandler(
 			ingredientListOverlay,
 			ingredientFilter,
 			() -> {
+				mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.close(mezz.jei.api.gui.tooltip.TooltipCloseReason.RESOURCE_RELOAD);
 				favoriteRecipes.clearGeneratedFavorites();
 				recipePreferenceCandidateResolver.invalidateAll();
 				if (recipeManager instanceof mezz.jei.common.recipes.IRecipeMaterialCacheInternal materials)
@@ -484,9 +454,19 @@ public class JeiGuiStarter {
 
 		return new JeiEventHandlers(
 			guiEventHandler,
-			clientInputHandler,
-			new WorldInputHandler(bookmarkOverlay, recipesGui, focusUtil, ingredientManager),
+			input.handler(),
 			resourceReloadHandler
+		);
+	}
+
+	private static void registerJeiRestartingConfigListeners(IClientConfigs clientConfigs) {
+		IClientConfig clientConfig = clientConfigs.getClientConfig();
+		IConfigValueBatchChangeListener restartJei = changes -> Internal.restartJei();
+		clientConfigs.registerRuntimeListenerRemoval(
+			clientConfig.showTagRecipesEnabled().addBatchListener(restartJei)
+		);
+		clientConfigs.registerRuntimeListenerRemoval(
+			clientConfig.showHiddenIngredients().addBatchListener(restartJei)
 		);
 	}
 }

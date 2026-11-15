@@ -2,16 +2,17 @@ package mezz.jei.gui.overlay.bookmarks;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.Internal;
-import net.minecraft.client.Minecraft;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.MouseDrag;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
-import mezz.jei.gui.input.IDragHandler;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay.FavoriteRecipeElementPanelSlot;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay.FavoriteRecipeRowPanelSlot;
-import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPanelProjection.GroupPanelSlot;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.Optional;
@@ -21,211 +22,137 @@ import java.util.Optional;
  */
 public final class BookmarkOverlayDragHandlers {
 	private static final int GROUP_PANEL_DRAG_THRESHOLD_MS = 250;
-
 	private final BookmarkOverlay overlay;
+	private final BookmarkDragScroll dragScroll = new BookmarkDragScroll(System::nanoTime);
+	private final PageFlipHover pageFlipHover = new PageFlipHover(System::currentTimeMillis);
 
 	public BookmarkOverlayDragHandlers(BookmarkOverlay overlay) {
 		this.overlay = overlay;
 	}
 
 	void updateSortDrag(int mouseX, int mouseY) {
-		if (overlay.getSortDragState() != null) {
-			BookmarkSortDragState sortDragState = overlay.getSortDragState();
-			sortDragState.update(overlay.getBookmarkList(), overlay.getPanelSlots(), overlay.getProjectedPanelSlots(), mouseX, mouseY, System.currentTimeMillis());
-			if (sortDragState.isActive()) {
+		BookmarkSortDragState state = overlay.getSortDragState();
+		if (state != null) {
+			state.update(overlay.getBookmarkList(), overlay.getPanelSlots(), overlay.getProjectedPanelSlots(), mouseX, mouseY, System.currentTimeMillis());
+			if (state.isActive()) {
+				overlay.scrollDuringDrag(dragScroll, mouseX, mouseY);
+				PageFlipHover.Direction hovered = overlay.getHoveredPageEdge(mouseX, mouseY);
+				PageFlipHover.Direction flip = pageFlipHover.update(hovered);
+				if (flip != null) {
+					switch (flip) {
+						case NEXT -> overlay.getPageDelegate().nextPage();
+						case PREVIOUS -> overlay.getPageDelegate().previousPage();
+					}
+				}
+				overlay.setPageButtonsForcePressed(hovered == PageFlipHover.Direction.NEXT, hovered == PageFlipHover.Direction.PREVIOUS);
 				overlay.getContents().updateLayout(false);
-				sortDragState.updateProjectedSlotOverlayAreas(overlay.getProjectedPanelSlots());
+				state.updateProjectedSlotOverlayAreas(overlay.getProjectedPanelSlots());
 			}
 		}
 	}
 
 	void updateFavoriteSortDrag(int mouseX, int mouseY) {
-		if (overlay.getFavoriteSortDragState() != null) {
-			FavoriteRecipeSortDragState favoriteSortDragState = overlay.getFavoriteSortDragState();
-			boolean changed = favoriteSortDragState.update(
-				overlay.getFavoriteRecipes(),
-				overlay.getFavoritePanelState(),
-				overlay.getFavoriteRecipeElementPanelSlots(),
-				mouseX,
-				mouseY,
-				System.currentTimeMillis()
-			);
-			if (changed || favoriteSortDragState.isActive()) {
+		FavoriteRecipeSortDragState state = overlay.getFavoriteSortDragState();
+		if (state != null) {
+			boolean changed = state.update(overlay.getFavoriteRecipes(), overlay.getFavoritePanelState(),
+				overlay.getFavoriteRecipeElementPanelSlots(), mouseX, mouseY, System.currentTimeMillis());
+			if (changed || state.isActive()) {
 				overlay.getFavoriteContents().updateLayout(false);
-				favoriteSortDragState.updateProjectedSlotOverlayAreas(overlay.getFavoriteRecipeElementPanelSlots());
+				state.updateProjectedSlotOverlayAreas(overlay.getFavoriteRecipeElementPanelSlots());
 			}
 		}
 	}
 
-	IDragHandler createSortDragHandler() {
-		return createSortDragHandler(true);
+	Optional<IInputInteraction> beginSortDrag(Screen screen, UserInput input) {
+		return beginSortDrag(input, true);
 	}
 
-	IDragHandler createPlainSortDragHandler() {
-		return createSortDragHandler(false);
+	Optional<IInputInteraction> beginPlainSortDrag(Screen screen, UserInput input) {
+		return beginSortDrag(input, false);
 	}
 
-	private IDragHandler createSortDragHandler(boolean shiftRequired) {
-		return new IDragHandler() {
-			@Override
-			public Optional<IDragHandler> handleDragStart(Screen screen, UserInput input) {
-				if (input.getKey().getType() != InputConstants.Type.MOUSE) {
-					return Optional.empty();
-				}
-				int mouseButton = input.getKey().getValue();
-				if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT || InputModifiers.hasShift(input) != shiftRequired) {
-					return Optional.empty();
-				}
-				var config = Internal.getClientConfigs().getClientConfig();
-				if (!shiftRequired) {
-					var player = Minecraft.getInstance().player;
-					if (!config.dragToRearrangeBookmarksEnabled().getValue() || InputModifiers.hasControl(input) || InputModifiers.hasAlt(input) ||
-						player == null || !player.containerMenu.getCarried().isEmpty()
-					) {
-						return Optional.empty();
-					}
-				}
-				Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
-				if (shiftRequired && slot.filter(groupSlot -> !(groupSlot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)).isPresent()) {
-					overlay.setSortDragState(BookmarkSortDragState.group(
-						slot.get().groupId(),
-						slot.get().area(),
-						input.getMouseX(),
-						input.getMouseY()
-					));
-					return Optional.of(this);
-				}
-
-				return overlay.getDraggableIngredientUnderMouse(input.getMouseX(), input.getMouseY())
-					.findFirst()
-					.flatMap(clicked -> clicked.getElement()
-						.getBookmark()
-						.map(bookmark -> {
-							if (!shiftRequired) {
-								overlay.setSortDragState(BookmarkSortDragState.delayedItem(bookmark, clicked.getArea(), input.getMouseX(), input.getMouseY(),
-									System.currentTimeMillis(), config.dragDelayMs().getValue()));
-								return this;
-							}
-							overlay.setSortDragState(BookmarkSortDragState.item(
-								bookmark,
-								clicked.getArea(),
-								input.getMouseX(),
-								input.getMouseY(),
-								System.currentTimeMillis(),
-								GROUP_PANEL_DRAG_THRESHOLD_MS
-							));
-							return this;
-						}));
+	private Optional<IInputInteraction> beginSortDrag(UserInput input, boolean shiftRequired) {
+		if (!input.isMouseInput() || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
+			InputModifiers.hasShift(input) != shiftRequired || overlay.getGroupPanelDrag() != null
+		) {
+			return Optional.empty();
+		}
+		var config = Internal.getClientConfigs().getClientConfig();
+		if (!shiftRequired) {
+			var player = Minecraft.getInstance().player;
+			if (!config.dragToRearrangeBookmarksEnabled().get() || InputModifiers.hasControl(input) || InputModifiers.hasAlt(input) ||
+				player == null || !player.containerMenu.getCarried().isEmpty()
+			) {
+				return Optional.empty();
 			}
-
-			@Override
-			public boolean handleDragComplete(Screen screen, UserInput input) {
-				BookmarkSortDragState sortDragState = overlay.getSortDragState();
-				if (sortDragState == null) {
-					return false;
+		}
+		Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
+		if (shiftRequired && slot.filter(group -> group.groupId() != BookmarkGroupManager.DEFAULT_GROUP_ID).isPresent()) {
+			overlay.setSortDragState(BookmarkSortDragState.group(slot.get().groupId(), slot.get().area(), input.getMouseX(), input.getMouseY()));
+			return Optional.of(MouseDrag.forIngredient(ignored -> stopSortDrag(), this::stopSortDrag));
+		}
+		return overlay.getDraggableIngredientUnderMouse(input.getMouseX(), input.getMouseY())
+			.findFirst()
+			.flatMap(clicked -> clicked.getElement().getBookmark().map(bookmark -> {
+				if (shiftRequired) {
+					overlay.setSortDragState(BookmarkSortDragState.item(bookmark, clicked.getArea(),
+						input.getMouseX(), input.getMouseY(), System.currentTimeMillis(), GROUP_PANEL_DRAG_THRESHOLD_MS));
+				} else {
+					overlay.setSortDragState(BookmarkSortDragState.delayedItem(bookmark, clicked.getArea(),
+						input.getMouseX(), input.getMouseY(), System.currentTimeMillis(), config.dragDelayMs().get()));
 				}
-				boolean handled = sortDragState.isActive();
-				sortDragState.stop();
-				overlay.setSortDragState(null);
-				overlay.getContents().updateLayout(false);
-				return handled;
-			}
-
-			@Override
-			public void handleDragCanceled() {
-				BookmarkSortDragState sortDragState = overlay.getSortDragState();
-				if (sortDragState != null) {
-					sortDragState.stop();
-					overlay.setSortDragState(null);
-					overlay.getContents().updateLayout(false);
-				}
-			}
-		};
+				return MouseDrag.forIngredient(ignored -> stopSortDrag(), this::stopSortDrag);
+			}));
 	}
 
-	IDragHandler createFavoriteSortDragHandler() {
-		return new IDragHandler() {
-			@Override
-			public Optional<IDragHandler> handleDragStart(Screen screen, UserInput input) {
-				if (overlay.getFavoritePanelState().displayMode() != FavoriteRecipePanelState.DisplayMode.RECIPE_ROWS) {
-					return Optional.empty();
-				}
-				if (input.getKey().getType() != InputConstants.Type.MOUSE) {
-					return Optional.empty();
-				}
-				int mouseButton = input.getKey().getValue();
-				if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT || !InputModifiers.hasShift(input)) {
-					return Optional.empty();
-				}
+	void stopSortDrag() {
+		BookmarkSortDragState state = overlay.getSortDragState();
+		if (state != null) {
+			state.stop();
+			overlay.setSortDragState(null);
+			overlay.getContents().updateLayout(false);
+		}
+		pageFlipHover.update(null);
+		dragScroll.update(mezz.jei.common.util.ImmutableRect2i.EMPTY, false, false, 0, 0);
+		overlay.setPageButtonsForcePressed(false, false);
+	}
 
-				Optional<FavoriteRecipeRowPanelSlot> rowPanelSlot = overlay.getFavoriteRecipeRowPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
-				if (rowPanelSlot.isPresent()) {
-					overlay.setFavoriteSortDragState(FavoriteRecipeSortDragState.recipe(
-						rowPanelSlot.get().recipe(),
-						rowPanelSlot.get().area(),
-						input.getMouseX(),
-						input.getMouseY(),
-						System.currentTimeMillis(),
-						GROUP_PANEL_DRAG_THRESHOLD_MS
-					));
-					return Optional.of(this);
-				}
+	Optional<IInputInteraction> beginFavoriteSortDrag(Screen screen, UserInput input) {
+		if (overlay.getFavoritePanelState().displayMode() != FavoriteRecipePanelState.DisplayMode.RECIPE_ROWS ||
+			!input.isMouseInput() || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT || !InputModifiers.hasShift(input)
+		) {
+			return Optional.empty();
+		}
+		Optional<FavoriteRecipeRowPanelSlot> row = overlay.getFavoriteRecipeRowPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
+		if (row.isPresent()) {
+			overlay.setFavoriteSortDragState(FavoriteRecipeSortDragState.recipe(row.get().recipe(), row.get().area(),
+				input.getMouseX(), input.getMouseY(), System.currentTimeMillis(), GROUP_PANEL_DRAG_THRESHOLD_MS));
+			return Optional.of(MouseDrag.forIngredient(ignored -> stopFavoriteSortDrag(), this::stopFavoriteSortDrag));
+		}
+		Optional<FavoriteRecipeElementPanelSlot> slot = overlay.getFavoriteRecipeElementSlotUnderMouse(input.getMouseX(), input.getMouseY());
+		if (slot.isEmpty()) {
+			return Optional.empty();
+		}
+		FavoriteRecipeElement<?> element = slot.get().element();
+		if (element.isFavoriteTarget()) {
+			overlay.setFavoriteSortDragState(FavoriteRecipeSortDragState.recipe(element.getFocusedRecipe(), slot.get().area(),
+				input.getMouseX(), input.getMouseY(), System.currentTimeMillis(), GROUP_PANEL_DRAG_THRESHOLD_MS));
+			return Optional.of(MouseDrag.forIngredient(ignored -> stopFavoriteSortDrag(), this::stopFavoriteSortDrag));
+		}
+		return element.getRecipeInputKey().map(inputKey -> {
+			overlay.setFavoriteSortDragState(FavoriteRecipeSortDragState.input(element.getFocusedRecipe(), inputKey, slot.get().area(),
+				input.getMouseX(), input.getMouseY(), System.currentTimeMillis(), GROUP_PANEL_DRAG_THRESHOLD_MS));
+			return MouseDrag.forIngredient(ignored -> stopFavoriteSortDrag(), this::stopFavoriteSortDrag);
+		});
+	}
 
-				Optional<FavoriteRecipeElementPanelSlot> elementSlot = overlay.getFavoriteRecipeElementSlotUnderMouse(input.getMouseX(), input.getMouseY());
-				if (elementSlot.isEmpty()) {
-					return Optional.empty();
-				}
-				FavoriteRecipeElement<?> element = elementSlot.get().element();
-				if (element.isFavoriteTarget()) {
-					overlay.setFavoriteSortDragState(FavoriteRecipeSortDragState.recipe(
-						element.getFocusedRecipe(),
-						elementSlot.get().area(),
-						input.getMouseX(),
-						input.getMouseY(),
-						System.currentTimeMillis(),
-						GROUP_PANEL_DRAG_THRESHOLD_MS
-					));
-					return Optional.of(this);
-				}
-				return element.getRecipeInputKey()
-					.map(inputKey -> {
-						overlay.setFavoriteSortDragState(FavoriteRecipeSortDragState.input(
-							element.getFocusedRecipe(),
-							inputKey,
-							elementSlot.get().area(),
-							input.getMouseX(),
-							input.getMouseY(),
-							System.currentTimeMillis(),
-							GROUP_PANEL_DRAG_THRESHOLD_MS
-						));
-						return this;
-					});
-			}
-
-			@Override
-			public boolean handleDragComplete(Screen screen, UserInput input) {
-				FavoriteRecipeSortDragState favoriteSortDragState = overlay.getFavoriteSortDragState();
-				if (favoriteSortDragState == null) {
-					return false;
-				}
-				boolean handled = favoriteSortDragState.isActive();
-				favoriteSortDragState.stop();
-				overlay.setFavoriteSortDragState(null);
-				overlay.getFavoritePanelState().clearSortDragHiddenElements();
-				overlay.getFavoriteContents().updateLayout(false);
-				return handled;
-			}
-
-			@Override
-			public void handleDragCanceled() {
-				FavoriteRecipeSortDragState favoriteSortDragState = overlay.getFavoriteSortDragState();
-				if (favoriteSortDragState != null) {
-					favoriteSortDragState.stop();
-					overlay.setFavoriteSortDragState(null);
-					overlay.getFavoritePanelState().clearSortDragHiddenElements();
-					overlay.getFavoriteContents().updateLayout(false);
-				}
-			}
-		};
+	void stopFavoriteSortDrag() {
+		FavoriteRecipeSortDragState state = overlay.getFavoriteSortDragState();
+		if (state != null) {
+			state.stop();
+			overlay.setFavoriteSortDragState(null);
+			overlay.getFavoritePanelState().clearSortDragHiddenElements();
+			overlay.getFavoriteContents().updateLayout(false);
+		}
 	}
 }

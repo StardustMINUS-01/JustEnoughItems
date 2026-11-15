@@ -1,10 +1,9 @@
 package mezz.jei.test.gui.recipes.filtering;
 
 import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.common.search.BakedSubstringIndexBuilder;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
-import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import net.minecraft.resources.ResourceLocation;
@@ -21,18 +20,12 @@ public class RecipeSearchSessionTest {
 
 	@Test
 	public void matchesSearchAliases() throws Exception {
-		RecipeSearchIngredient ingredient = new RecipeSearchIngredient(
-			"至高木板",
-			ResourceLocation.parse("test:supreme_planks"),
-			"test",
-			Set.of("c:planks")
-		);
-		RecipeSearchQuery query = RecipeSearchQuery.parse("i:zhigaomuban");
 		@SuppressWarnings("unchecked")
 		mezz.jei.api.recipe.category.IRecipeCategory<Object> category = proxy(mezz.jei.api.recipe.category.IRecipeCategory.class, (method, args) -> switch (method) {
 			case "getTitle" -> net.minecraft.network.chat.Component.literal("至高木板");
 			case "getRecipeType" -> CATEGORY.getRecipeType();
 			case "getRegistryName" -> TYPE_UID;
+			case "getSourceRecipeIds" -> List.of(TYPE_UID);
 			default -> throw new AssertionError(method);
 		});
 		var state = proxy(mezz.jei.gui.recipes.lookups.ILookupState.class, (method, args) -> switch (method) {
@@ -40,13 +33,11 @@ public class RecipeSearchSessionTest {
 			case "getFocusedRecipes" -> new mezz.jei.gui.recipes.lookups.StaticFocusedRecipes<>(category, List.of("planks"));
 			default -> throw new AssertionError(method);
 		});
-		var session = new mezz.jei.gui.recipes.filtering.RecipeSearchSession(null, null, AliasSearchStorageBuilder::new);
+		var session = new mezz.jei.gui.recipes.filtering.RecipeSearchSession(null, AliasSearchStorageBuilder::new);
 		try {
 			session.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("r:zhigaomuban"));
 			var result = await(session);
 			Assertions.assertEquals(List.of("planks"), recipes(result.recipes()));
-			Assertions.assertFalse(result.matcher().contains("stone", "zhigaomuban"));
-			Assertions.assertTrue(query.matchesInputCandidate(ingredient, result.matcher()));
 			session.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("-r:zhigaomuban"));
 			Assertions.assertTrue(await(session).recipes().isEmpty());
 		} finally {
@@ -103,7 +94,7 @@ public class RecipeSearchSessionTest {
 		});
 		sourceRecipes.set(java.util.stream.IntStream.range(0, 96).mapToObj(i -> "recipe" + i).toList());
 		slowExtraction.set(true);
-		var direct = new mezz.jei.gui.recipes.filtering.RecipeSearchSession(manager, null, AliasSearchStorageBuilder::new);
+		var direct = new mezz.jei.gui.recipes.filtering.RecipeSearchSession(manager, AliasSearchStorageBuilder::new);
 		try {
 			int before = extractions.get();
 			direct.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("r:macerating"));
@@ -245,7 +236,7 @@ public class RecipeSearchSessionTest {
 			.toList();
 	}
 
-	private static final class AliasSearchStorageBuilder<T> extends BakedSubstringIndexBuilder<T> {
+	private static final class AliasSearchStorageBuilder<T> extends LuceneSearchStorageBuilder<T> {
 		@Override
 		public void put(String key, T value) {
 			super.put(key, value);

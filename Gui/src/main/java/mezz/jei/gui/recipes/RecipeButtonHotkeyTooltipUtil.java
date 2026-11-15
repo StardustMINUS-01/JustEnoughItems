@@ -1,6 +1,6 @@
 package mezz.jei.gui.recipes;
 
-import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.common.gui.HotkeyTooltipLine;
 import mezz.jei.common.input.IInternalKeyMappings;
 import net.minecraft.network.chat.CommonComponents;
@@ -11,7 +11,7 @@ public final class RecipeButtonHotkeyTooltipUtil {
 	}
 
 	public static void addFavoriteButtonHotkeys(
-		JeiTooltip tooltip,
+		ITooltipBuilder tooltip,
 		IInternalKeyMappings keyMappings,
 		boolean canChangeResultIndex
 	) {

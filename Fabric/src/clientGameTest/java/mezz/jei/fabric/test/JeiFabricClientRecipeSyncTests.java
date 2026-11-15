@@ -5,6 +5,7 @@ import mezz.jei.test.client.ClientTestUtil;
 import mezz.jei.common.Internal;
 import mezz.jei.common.network.ClientConnectionHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 import java.time.Duration;
@@ -40,6 +41,7 @@ final class JeiFabricClientRecipeSyncTests {
 	}
 
 	private static void runSingleplayerTestCase(String name, Runnable assertions) {
+		ConfigScreenClientTest.runFromMenu();
 		try (FabricClientTestWorld ignored = FabricClientTestWorld.create()) {
 			assertions.run();
 		}
@@ -102,6 +104,42 @@ final class JeiFabricClientRecipeSyncTests {
 		);
 	}
 
+	private static void assertRecipeUpdatesReplaceRecipesOnSameConnection() {
+		List<RecipeHolder<?>> updatedRecipes = ClientTestUtil.computeOnClient(client -> {
+			List<RecipeHolder<?>> syncedRecipes = Internal.getClientSyncedRecipes();
+			List<RecipeHolder<?>> recipes = syncedRecipes.stream()
+				.filter(recipe -> !recipe.id().equals(CRAFTING_TABLE_RECIPE_ID))
+				.toList();
+			if (recipes.size() == syncedRecipes.size()) {
+				throw new AssertionError("Expected the synced recipes to contain the crafting table recipe before the update.");
+			}
+			return recipes;
+		});
+
+		// A proxy can replace recipes without changing the client connection.
+		Object initialRuntime = ClientTestUtil.computeOnClient(client -> Internal.getJeiRuntime());
+		ClientTestUtil.runOnClient(client -> client.getConnection().handleUpdateRecipes(new ClientboundUpdateRecipesPacket(updatedRecipes)));
+		ClientTestUtil.waitUntil(
+			() -> ClientTestUtil.computeOnClient(client -> Internal.hasClientSyncedRecipes() &&
+				!hasVanillaRecipes(Internal.getClientSyncedRecipes()) &&
+				Internal.getJeiRuntime() != initialRuntime),
+			ASSERTION_TIMEOUT,
+			() -> "Expected JEI to replace synced recipes after an update on the same connection. " + describeRecipeState()
+		);
+
+		// Unlike newer Minecraft versions, vanilla 1.21.1 always sends recipes. An empty
+		// update must clear the previous recipes instead of keeping them or loading fallback recipes.
+		Object updatedRuntime = ClientTestUtil.computeOnClient(client -> Internal.getJeiRuntime());
+		ClientTestUtil.runOnClient(client -> client.getConnection().handleUpdateRecipes(new ClientboundUpdateRecipesPacket(List.of())));
+		ClientTestUtil.waitUntil(
+			() -> ClientTestUtil.computeOnClient(client -> Internal.hasClientSyncedRecipes() &&
+				Internal.getClientSyncedRecipes().isEmpty() &&
+				Internal.getJeiRuntime() != updatedRuntime),
+			ASSERTION_TIMEOUT,
+			() -> "Expected JEI to preserve an explicitly synchronized empty recipe list. " + describeRecipeState()
+		);
+	}
+
 	private static boolean hasVanillaRecipes(List<RecipeHolder<?>> recipes) {
 		return !recipes.isEmpty() &&
 			recipes.stream().anyMatch(recipe -> recipe.id().equals(CRAFTING_TABLE_RECIPE_ID));
@@ -149,14 +187,36 @@ final class JeiFabricClientRecipeSyncTests {
 		SINGLEPLAYER("singleplayer", "Fabric singleplayer") {
 			@Override
 			public void run() {
-				runSingleplayerTestCase(displayName(), JeiFabricClientRecipeSyncTests::assertSyncedRecipesFromSingleplayer);
+				runSingleplayerTestCase(displayName(), () -> {
+					assertSyncedRecipesFromSingleplayer();
+					ConfigScreenClientTest.run();
+					InventoryEffectsClientTest.run();
+					RecipeSlotTooltipClientTest.run();
+					RecipeScrollGridClientTest.run();
+					IngredientNavigationClientGameTest.run();
+					IngredientKeyboardNavigationClientGameTest.run();
+					CheatModeKeyClientTest.run();
+					ContainerIngredientShortcutsClientTest.run();
+					IngredientListVisibilityClientGameTest.run();
+					CheatToInventoryClientGameTest.run();
+					CookingCategoryExtensionClientTest.run(new FabricClientTestContext());
+					RecipeSourceIdsClientTest.run();
+					JeiGuiResizeClientGameTest.run();
+					RecipeGuiScrollingClientTest.run();
+					InteractiveIngredientTooltipClientGameTest.run();
+					BookmarkManagerClientGameTest.run();
+					SearchInputCaptureClientTest.run();
+				});
 			}
 		},
 		FABRIC_SERVER_WITH_JEI("fabricServerWithJei", "Fabric server with JEI") {
 			@Override
 			public void run() {
 				try (FabricExternalTestServer server = FabricExternalTestServer.startFabricWithJei()) {
-					runTestCase(displayName(), server, JeiFabricClientRecipeSyncTests::assertSyncedRecipesFromJeiServer);
+					runTestCase(displayName(), server, () -> {
+						assertSyncedRecipesFromJeiServer();
+						assertRecipeUpdatesReplaceRecipesOnSameConnection();
+					});
 				}
 			}
 		},

@@ -12,19 +12,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 public final class RecipeIdClipboardHandler {
 	private RecipeIdClipboardHandler() {
-	}
-
-	public static <R> Optional<String> getRecipeId(IRecipeLayoutDrawable<R> recipeLayout) {
-		IRecipeCategory<R> recipeCategory = recipeLayout.getRecipeCategory();
-		R recipe = recipeLayout.getRecipe();
-		return Optional.ofNullable(recipeCategory.getRegistryName(recipe))
-			.map(ResourceLocation::toString);
 	}
 
 	public static List<String> getRecipeIdsForCopy(
@@ -34,7 +25,7 @@ public final class RecipeIdClipboardHandler {
 		IFocusFactory focusFactory
 	) {
 		if (recipeLayout != null) {
-			return getRecipeId(recipeLayout).stream().toList();
+			return recipeLayout.getSourceRecipeIds().stream().map(ResourceLocation::toString).toList();
 		}
 		return getOutputRecipeIds(typedIngredient, recipeManager, focusFactory);
 	}
@@ -65,8 +56,7 @@ public final class RecipeIdClipboardHandler {
 		return recipeManager.createRecipeLookup(category.getRecipeType())
 			.limitFocus(focuses)
 			.get()
-			.map(category::getRegistryName)
-			.filter(Objects::nonNull)
+			.flatMap(recipe -> category.getSourceRecipeIds(recipe).stream())
 			.map(ResourceLocation::toString);
 	}
 }

@@ -6,10 +6,10 @@ import mezz.jei.api.constants.ModIds;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.builder.IClickableIngredientFactory;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.buttons.IButtonState;
 import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.handlers.IGuiContainerHandler;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -27,7 +27,6 @@ import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
-import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.runtime.IScreenHelper;
@@ -36,7 +35,6 @@ import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.platform.IPlatformScreenHelper;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.common.util.MathUtil;
 import mezz.jei.common.util.RegistryUtil;
 import mezz.jei.debug.ingredients.DebugIngredient;
 import mezz.jei.debug.ingredients.DebugIngredientHelper;
@@ -48,6 +46,7 @@ import mezz.jei.debug.ingredients.ErrorIngredientListFactory;
 import mezz.jei.debug.ingredients.ErrorIngredientRenderer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.BrewingStandScreen;
 import net.minecraft.client.renderer.Rect2i;
@@ -57,6 +56,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -74,7 +74,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 @JeiPlugin
 public class JeiDebugPlugin implements IModPlugin {
@@ -103,6 +102,32 @@ public class JeiDebugPlugin implements IModPlugin {
 	@Override
 	public void registerExtraIngredients(IExtraIngredientRegistration registration) {
 		registration.addExtraIngredients(DebugIngredient.TYPE, DebugIngredientListFactory.create(0, 10));
+		registration.addExtraItemStacks(createDamageBarTestIngredients());
+	}
+
+	private static List<ItemStack> createDamageBarTestIngredients() {
+		return List.of(
+			createDamageBarTestIngredient(Items.WOODEN_SWORD, 10),
+			createDamageBarTestIngredient(Items.STONE_SWORD, 25),
+			createDamageBarTestIngredient(Items.IRON_SWORD, 40),
+			createDamageBarTestIngredient(Items.GOLDEN_SWORD, 55),
+			createDamageBarTestIngredient(Items.DIAMOND_SWORD, 75),
+			createDamageBarTestIngredient(Items.NETHERITE_SWORD, 90),
+			createDamageBarTestIngredient(Items.WOODEN_PICKAXE, 10),
+			createDamageBarTestIngredient(Items.STONE_PICKAXE, 25),
+			createDamageBarTestIngredient(Items.IRON_PICKAXE, 40),
+			createDamageBarTestIngredient(Items.GOLDEN_PICKAXE, 55),
+			createDamageBarTestIngredient(Items.DIAMOND_PICKAXE, 75),
+			createDamageBarTestIngredient(Items.NETHERITE_PICKAXE, 90)
+		);
+	}
+
+	private static ItemStack createDamageBarTestIngredient(Item item, int damagePercent) {
+		ItemStack itemStack = new ItemStack(item);
+		int damageValue = itemStack.getMaxDamage() * damagePercent / 100;
+		itemStack.setDamageValue(damageValue);
+		itemStack.set(DataComponents.CUSTOM_NAME, Component.literal("JEI Debug Damage Bar (" + damagePercent + "% Damaged)"));
+		return itemStack;
 	}
 
 	@Override
@@ -220,7 +245,8 @@ public class JeiDebugPlugin implements IModPlugin {
 
 		registration.addRecipes(DebugRecipeCategory.TYPE, List.of(
 			new DebugRecipe(),
-			new DebugRecipe()
+			new DebugRecipe(),
+			DebugRecipe.createLargeIngredientList(registration.getIngredientManager())
 		));
 
 		registration.addRecipes(DebugFocusRecipeCategory.TYPE, List.of(
@@ -270,15 +296,6 @@ public class JeiDebugPlugin implements IModPlugin {
 				);
 			}
 
-			@Override
-			public Optional<? extends IClickableIngredient<?>> getClickableIngredientUnderMouse(IClickableIngredientFactory factory, BrewingStandScreen containerScreen, double mouseX, double mouseY) {
-				Rect2i area = new Rect2i(0, 0, 10, 10);
-				if (MathUtil.contains(area, mouseX, mouseY)) {
-					return factory.createBuilder(new ItemStack(Items.BOW))
-						.buildWithArea(area);
-				}
-				return Optional.empty();
-			}
 		});
 
 		registration.addGhostIngredientHandler(BrewingStandScreen.class, new DebugGhostIngredientHandler<>(ingredientManager));
@@ -337,6 +354,13 @@ public class JeiDebugPlugin implements IModPlugin {
 
 		registration.addTypedRecipeManagerPlugin(RecipeTypes.CRAFTING, new DebugSimpleRecipeManagerPlugin(jeiHelpers));
 
+		if (DebugConfig.isDebugRecipeButtonsEnabled()) {
+			registerDebugRecipeButtons(registration);
+		}
+	}
+
+	private static void registerDebugRecipeButtons(IAdvancedRegistration registration) {
+		IDrawable debugButtonIcon = registration.getJeiHelpers().getGuiHelper().createDrawableItemStack(new ItemStack(Items.OAK_SAPLING));
 		IRecipeButtonControllerFactory debugButton = new IRecipeButtonControllerFactory() {
 			@Override
 			public <T> IIconButtonController createButtonController(IRecipeLayoutDrawable<T> recipeLayoutDrawable) {

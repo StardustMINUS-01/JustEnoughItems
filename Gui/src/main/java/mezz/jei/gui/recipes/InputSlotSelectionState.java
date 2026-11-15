@@ -288,6 +288,12 @@ public final class InputSlotSelectionState {
 	}
 
 	private Optional<ITypedIngredient<?>> findByKey(IRecipeSlotView slot, int inputSlotIndex, BookmarkIngredientKey key) {
+		if (slot instanceof IRecipeSlotCandidateView view) {
+			Optional<ITypedIngredient<?>> selected = view.getSelectedCandidate();
+			if (selected.isPresent() && key.equals(key(selected.get()))) {
+				return selected;
+			}
+		}
 		return streamCandidates(slot, inputSlotIndex)
 			.filter(candidate -> key.equals(key(candidate)))
 			.findFirst();

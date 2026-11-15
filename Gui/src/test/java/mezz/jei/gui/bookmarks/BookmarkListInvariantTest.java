@@ -13,9 +13,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.gui.JeiTooltip;
-import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.bookmarks.BookmarkGroupingPlan;
@@ -1125,11 +1123,6 @@ public class BookmarkListInvariantTest {
 		@Override
 		public boolean isVisible() {
 			return true;
-		}
-
-		@Override
-		public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
-			return false;
 		}
 
 		@Override

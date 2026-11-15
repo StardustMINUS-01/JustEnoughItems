@@ -1,19 +1,17 @@
 package mezz.jei.gui;
 
-import mezz.jei.api.gui.inputs.IJeiUserInput;
-import mezz.jei.common.Internal;
-import mezz.jei.common.gui.JeiGuiColors;
-import mezz.jei.common.gui.JeiGuiColors.GuiColor;
-import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.common.util.MathUtil;
 import mezz.jei.api.gui.buttons.IButtonState;
 import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.api.gui.inputs.IJeiUserInput;
+import mezz.jei.common.Internal;
+import mezz.jei.common.gui.JeiGuiColors.GuiColor;
+import mezz.jei.common.gui.JeiGuiColors;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.handlers.InputGroup;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.common.util.MathUtil;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.input.IPaged;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.handlers.CombinedInputHandler;
-import mezz.jei.gui.input.handlers.NullInputHandler;
-import mezz.jei.gui.input.handlers.ProxyInputHandler;
 import org.jetbrains.annotations.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -28,7 +26,7 @@ public class PageNavigation {
 	private String pageNumDisplayString = "1/1";
 	private ImmutableRect2i area = ImmutableRect2i.EMPTY;
 	private @Nullable IconButton extraButton;
-	private IUserInputHandler extraInput = NullInputHandler.INSTANCE;
+	private IInputTarget extraInput = new InputGroup("ExtraButton");
 	private boolean leadingContent;
 	private ImmutableRect2i leadingArea = ImmutableRect2i.EMPTY;
 
@@ -107,6 +105,10 @@ public class PageNavigation {
 		}
 	}
 
+	public boolean isMouseOver(double mouseX, double mouseY) {
+		return isVisible() && area.contains(mouseX, mouseY);
+	}
+
 	public void updatePageNumber() {
 		int pageNum = this.paged.getPageNumber();
 		int pageCount = this.paged.getPageCount();
@@ -150,6 +152,11 @@ public class PageNavigation {
 		}
 	}
 
+	public void setForcePressed(boolean nextButton, boolean backButton) {
+		this.nextButton.setForcePressed(nextButton);
+		this.backButton.setForcePressed(backButton);
+	}
+
 	public ImmutableRect2i getNextButtonArea() {
 		return nextButton.getArea();
 	}
@@ -158,12 +165,26 @@ public class PageNavigation {
 		return backButton.getArea();
 	}
 
-	public IUserInputHandler createInputHandler() {
-		return new CombinedInputHandler(
+	public IInputTarget createInputHandler() {
+		return new InputGroup(
 			"PageNavigation",
-			new ProxyInputHandler(() -> isVisible() ? extraInput : NullInputHandler.INSTANCE),
-			this.nextButton.createInputHandler(),
-			this.backButton.createInputHandler()
+			new InputGroup.Child(this::isVisible, new IInputTarget() {
+				@Override
+				public java.util.Optional<mezz.jei.common.input.interaction.IInputInteraction> beginInput(
+					net.minecraft.client.gui.screens.Screen screen,
+					mezz.jei.common.input.UserInput input,
+					mezz.jei.common.input.IInternalKeyMappings keys
+				) {
+					return extraInput.beginInput(screen, input, keys);
+				}
+
+				@Override
+				public void resetInput() {
+					extraInput.resetInput();
+				}
+			}),
+			new InputGroup.Child(this::isVisible, this.nextButton.createInputHandler()),
+			new InputGroup.Child(this::isVisible, this.backButton.createInputHandler())
 		);
 	}
 

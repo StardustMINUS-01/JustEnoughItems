@@ -4,8 +4,11 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.IGuiInputLayer;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.ConsumedInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -18,7 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 
-public final class RecipeFilterMenu implements mezz.jei.gui.input.IGuiInputLayer {
+public final class RecipeFilterMenu implements IGuiInputLayer {
 	private static final List<RecipeFilterMode> MODES = List.of(RecipeFilterMode.DEFAULT, RecipeFilterMode.PREFERRED, RecipeFilterMode.NOT_PREFERRED, RecipeFilterMode.DISABLED, RecipeFilterMode.ALL);
 	private static final int WIDTH = 126, ROW_HEIGHT = 20;
 	private final RecipeFilterSettings settings;
@@ -55,7 +58,7 @@ public final class RecipeFilterMenu implements mezz.jei.gui.input.IGuiInputLayer
 	public boolean isMouseOver(double x, double y) { return open; }
 
 	@Override
-	public void unfocus() { open = false; }
+	public void resetInput() { open = false; }
 
 	private void expand(int section) {
 		this.section = section;
@@ -104,14 +107,14 @@ public final class RecipeFilterMenu implements mezz.jei.gui.input.IGuiInputLayer
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
 		double x = input.getMouseX(), y = input.getMouseY();
 		if (input.getKey().getType() != InputConstants.Type.MOUSE) {
 			if (!open)
 				return Optional.empty();
-			if (!input.isSimulate() && input.getKey().getValue() == GLFW.GLFW_KEY_ESCAPE)
-				open = false;
-			return Optional.of(this);
+			if (input.getKey().getValue() == GLFW.GLFW_KEY_ESCAPE)
+				return Optional.of(InputAction.run(this::resetInput));
+			return Optional.of(ConsumedInput.INSTANCE);
 		}
 		if (!open) {
 			if (input.getKey().getValue() != InputConstants.MOUSE_BUTTON_RIGHT)
@@ -119,14 +122,15 @@ public final class RecipeFilterMenu implements mezz.jei.gui.input.IGuiInputLayer
 			var hovered = categoryAt.apply(x, y);
 			if (hovered.isEmpty())
 				return Optional.empty();
-			if (!input.isSimulate()) {
+			return Optional.of(InputAction.run(() -> {
 				category = hovered.get().getRecipeType().getUid();
 				show((int) x, (int) y);
-			}
-			return Optional.of(this);
+			}));
 		}
-		if (input.isSimulate())
-			return Optional.of(this);
+		return Optional.of(new InputAction(release -> select(release.getMouseX(), release.getMouseY())).when(this::isOpen));
+	}
+
+	private void select(double x, double y) {
 		if (main.contains(x, y)) {
 			int row = (int) (y - main.y()) / ROW_HEIGHT;
 			if (category != null) {
@@ -145,11 +149,10 @@ public final class RecipeFilterMenu implements mezz.jei.gui.input.IGuiInputLayer
 			apply.run();
 		} else
 			open = false;
-		return Optional.of(this);
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleMouseScrolled(double x, double y, double dx, double dy) {
-		return open ? Optional.of(this) : Optional.empty();
+	public boolean scroll(double x, double y, double dx, double dy) {
+		return open;
 	}
 }

@@ -1,5 +1,6 @@
 package mezz.jei.library.recipes;
 
+import mezz.jei.common.recipes.IRecipeVisibility;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -32,11 +33,12 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public class RecipeManager implements IRecipeManager, IRecipeMaterialCacheInternal {
+public class RecipeManager implements IRecipeManager, IRecipeVisibility, IRecipeMaterialCacheInternal {
 	private final RecipeManagerInternal internal;
 	private final IIngredientManager ingredientManager;
 	private final ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
@@ -52,6 +54,15 @@ public class RecipeManager implements IRecipeManager, IRecipeMaterialCacheIntern
 		this.ingredientManager = ingredientManager;
 		this.recipeCategoryDecorators = recipeCategoryDecorators;
 		this.recipeButtonControllerFactories = recipeButtonControllerFactories;
+	}
+
+	public void onRuntimeStopped() {
+		internal.onRuntimeStopped();
+	}
+
+	@Override
+	public <T> boolean isRecipeVisible(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focuses) {
+		return internal.isRecipeVisible(recipeCategory, recipe, focuses);
 	}
 
 	@Override
@@ -189,7 +200,7 @@ public class RecipeManager implements IRecipeManager, IRecipeMaterialCacheIntern
 
 	@Override
 	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
-		return internal.getRecipeIngredients(recipeCategory, recipe);
+		return getRecipeIngredients(recipeCategory, recipe, EnumSet.allOf(RecipeIngredientRole.class));
 	}
 
 	@Override
@@ -197,8 +208,9 @@ public class RecipeManager implements IRecipeManager, IRecipeMaterialCacheIntern
 		internal.invalidateRecipeMaterials();
 	}
 
-	public void onRuntimeStopped() {
-		internal.clearRecipeMaterials();
+	@Override
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe, Set<RecipeIngredientRole> roles) {
+		return internal.getRecipeIngredients(recipeCategory, recipe, roles);
 	}
 
 	@Override

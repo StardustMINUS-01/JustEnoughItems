@@ -1,86 +1,109 @@
 package mezz.jei.common.config;
 
-import mezz.jei.api.runtime.config.IJeiConfigValue;
+import net.mezzdev.config.api.value.IConfigValue;
 
 import java.util.List;
 
 public interface IClientConfig {
+	IConfigValue<Boolean> quantityFieldEnabled();
+
+	IConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode();
+
+	IConfigValue<Integer> bookmarkAmountFontScale();
+
+	IConfigValue<Boolean> showRecipeHandlerIconEnabled();
+
+	IConfigValue<Integer> favoriteTreeDepth();
+
+	IConfigValue<Boolean> copyFullComponentsEnabled();
+
+	int minRecipeGuiWidth = 198;
 	int minRecipeGuiHeight = 175;
 	int defaultRecipeGuiHeight = 350;
 	int maximumRecipeGuiHeight = 7680;
 	boolean defaultCenterSearchBar = false;
 
-	IJeiConfigValue<Boolean> centerSearchBarEnabled();
+	IConfigValue<Boolean> overlaysEnabled();
 
-	IJeiConfigValue<Boolean> quantityFieldEnabled();
+	IConfigValue<SearchBarPosition> searchBarPosition();
 
-	IJeiConfigValue<Integer> configScreenTransparency();
+	IConfigValue<Integer> maxRecipeGuiHeight();
 
-	IJeiConfigValue<Integer> maxRecipeGuiHeight();
+	IConfigValue<Integer> recipeGuiWidth();
 
-	IJeiConfigValue<Boolean> toastReflowEnabled();
+	IConfigValue<Integer> maxRecipeGuiColumns();
 
-	IJeiConfigValue<GiveMode> giveMode();
+	IConfigValue<RecipeGuiNavigationMode> recipeGuiNavigationMode();
 
-	IJeiConfigValue<Boolean> cheatToHotbarUsingHotkeysEnabled();
+	IConfigValue<Boolean> toastReflowEnabled();
 
-	IJeiConfigValue<Boolean> showHiddenIngredients();
+	IConfigValue<Boolean> compactInventoryEffects();
 
-	IJeiConfigValue<Boolean> showTagRecipesEnabled();
+	IConfigValue<Boolean> hideIngredientsWhenNotSearching();
 
-	IJeiConfigValue<Boolean> addBookmarksToFrontEnabled();
+	IConfigValue<GiveMode> giveMode();
 
-	IJeiConfigValue<Boolean> bookmarkOutputAsRecipe();
+	IConfigValue<Boolean> cheatToHotbarUsingHotkeysEnabled();
 
-	IJeiConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode();
+	IConfigValue<Boolean> showHiddenIngredients();
 
-	IJeiConfigValue<Integer> bookmarkAmountFontScale();
+	IConfigValue<BookmarkAddPosition> bookmarkAddPosition();
 
-	IJeiConfigValue<Boolean> showRecipeHandlerIconEnabled();
+	IConfigValue<Boolean> bookmarkOutputAsRecipe();
 
-	IJeiConfigValue<Integer> favoriteTreeDepth();
+	IConfigValue<Boolean> bookmarkTooltipPreviewEnabled();
 
-	IJeiConfigValue<List<BookmarkTooltipFeature>> bookmarkTooltipFeatures();
+	IConfigValue<Boolean> bookmarkTooltipIngredientsEnabled();
 
-	IJeiConfigValue<Boolean> holdShiftToShowBookmarkTooltipFeaturesEnabled();
+	IConfigValue<Boolean> holdShiftToShowBookmarkTooltipFeaturesEnabled();
 
-	IJeiConfigValue<Boolean> dragToRearrangeBookmarksEnabled();
+	IConfigValue<Boolean> dragToRearrangeBookmarksEnabled();
 
-	IJeiConfigValue<Boolean> lookupHistoryEnabled();
+	IConfigValue<Boolean> lookupHistoryEnabled();
 
-	IJeiConfigValue<Integer> maxLookupHistoryRows();
+	IConfigValue<Integer> maxLookupHistoryRows();
 
-	IJeiConfigValue<Integer> maxLookupHistoryIngredients();
+	IConfigValue<Integer> maxLookupHistoryColumns();
 
-	IJeiConfigValue<HistoryDisplaySide> lookupHistoryDisplaySide();
+	IConfigValue<Integer> maxLookupHistoryIngredients();
 
-	IJeiConfigValue<Boolean> ingredientsSummaryEnabled();
+	IConfigValue<HistoryDisplaySide> lookupHistoryDisplaySide();
 
-	IJeiConfigValue<Boolean> lowMemorySlowSearchEnabled();
+	IConfigValue<Boolean> ingredientsSummaryEnabled();
 
-	IJeiConfigValue<Boolean> catchRenderErrorsEnabled();
+	IConfigValue<Boolean> showTagRecipesEnabled();
 
-	IJeiConfigValue<Boolean> recipeSyncWarningEnabled();
+	IConfigValue<Boolean> catchRenderErrorsEnabled();
 
-	IJeiConfigValue<Boolean> lookupFluidContentsEnabled();
+	IConfigValue<Boolean> recipeSyncWarningEnabled();
 
-	IJeiConfigValue<Boolean> lookupBlockTagsEnabled();
+	IConfigValue<Boolean> lookupFluidContentsEnabled();
 
-	IJeiConfigValue<Boolean> showCreativeTabNamesEnabled();
+	IConfigValue<Boolean> lookupBlockTagsEnabled();
 
-	IJeiConfigValue<Integer> dragDelayMs();
+	IConfigValue<Boolean> showCreativeTabNamesEnabled();
 
-	IJeiConfigValue<Integer> smoothScrollRate();
+	IConfigValue<Boolean> guiResizeEnabled();
 
-	IJeiConfigValue<Boolean> recipeSlotCyclingEnabled();
+	IConfigValue<Integer> dragDelayMs();
 
-	IJeiConfigValue<Boolean> copyFullComponentsEnabled();
+	IConfigValue<Boolean> smoothScrollingEnabled();
 
-	IJeiConfigValue<List<IngredientSortStage>> ingredientSorterStages();
+	IConfigValue<Integer> smoothScrollRate();
 
-	IJeiConfigValue<List<RecipeSorterStage>> recipeSorterStages();
+	IConfigValue<Boolean> searchCompletionEnabled();
 
-	IJeiConfigValue<Boolean> tagContentTooltipEnabled();
+	IConfigValue<Integer> maxSearchCompletionRows();
 
-	IJeiConfigValue<Boolean> hideSingleTagContentTooltipEnabled();
+	IConfigValue<Boolean> recipeSlotCyclingEnabled();
+
+	IConfigValue<List<IngredientSortStage>> ingredientSorterStages();
+
+	IConfigValue<Boolean> recipeSortingBookmarksEnabled();
+
+	IConfigValue<Boolean> recipeSortingCraftableEnabled();
+
+	IConfigValue<Boolean> tagContentTooltipEnabled();
+
+	IConfigValue<Boolean> hideSingleTagContentTooltipEnabled();
 }

@@ -25,8 +25,8 @@ import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeRequest;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeRequestFactory;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeCategory;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeLayout;
@@ -52,6 +52,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.lwjgl.glfw.GLFW;
 
@@ -60,6 +62,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import java.util.function.Function;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.ingredientManager;
@@ -425,13 +428,13 @@ public class PatternEncodingTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = InputType.class, names = {"SIMULATE", "EXECUTE"})
-	public void sendsOnExecution(InputType inputType) {
+	@MethodSource("inputEvents")
+	public void sendsOnlyWhenInputExecutes(InputConstants.Key key, InputPhase phase, boolean execute) {
 		TestBridge bridge = new TestBridge(true, true);
-		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
+		TestKeyMapping keyMapping = new TestKeyMapping(key);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handle(
-				input(inputType),
+				new UserInput(key, 0, 0, GLFW.GLFW_MOD_CONTROL, phase),
 				keyMapping,
 				new TestMenu(),
 				Optional.of("group"),
@@ -450,8 +453,18 @@ public class PatternEncodingTest {
 			.orElseThrow();
 
 		Assertions.assertTrue(result.handled());
-		Assertions.assertEquals(inputType == InputType.EXECUTE, result.sent());
-		Assertions.assertEquals(inputType == InputType.EXECUTE ? 1 : 0, bridge.sentRequests.size());
+		Assertions.assertEquals(execute, result.sent());
+		Assertions.assertEquals(execute ? 1 : 0, bridge.sentRequests.size());
+	}
+
+	private static Stream<Arguments> inputEvents() {
+		InputConstants.Key mouse = InputConstants.Type.MOUSE.getOrCreate(3);
+		InputConstants.Key keyboard = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q);
+		return Stream.of(
+			Arguments.of(mouse, InputPhase.PRESS, false),
+			Arguments.of(mouse, InputPhase.RELEASE, true),
+			Arguments.of(keyboard, InputPhase.PRESS, true)
+		);
 	}
 
 	@Test
@@ -460,7 +473,7 @@ public class PatternEncodingTest {
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handle(
-				input(InputType.EXECUTE),
+				input(),
 				keyMapping,
 				new TestMenu(),
 				Optional.of("group"),
@@ -497,7 +510,7 @@ public class PatternEncodingTest {
 		);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handleSingleRecipe(
-				input(InputType.EXECUTE),
+				input(),
 				keyMapping,
 				new TestMenu(),
 				bridge,
@@ -533,7 +546,7 @@ public class PatternEncodingTest {
 		);
 
 		RecipeChainPatternEncodeController.HandleResult result = RecipeChainPatternEncodeController.handleSingleRecipe(
-				input(InputType.EXECUTE),
+				input(),
 				keyMapping,
 				new TestMenu(),
 				bridge,
@@ -556,7 +569,7 @@ public class PatternEncodingTest {
 	public void requiresCompatibleTerminal() {
 		TestKeyMapping keyMapping = new TestKeyMapping(GLFW.GLFW_KEY_Q);
 		Assertions.assertTrue(RecipeChainPatternEncodeController.handle(
-				input(InputType.EXECUTE),
+				input(),
 				keyMapping,
 				new TestMenu(),
 				Optional.of("group"),
@@ -571,7 +584,7 @@ public class PatternEncodingTest {
 			)
 			.isEmpty());
 		Assertions.assertTrue(RecipeChainPatternEncodeController.handle(
-				input(InputType.EXECUTE),
+				input(),
 				keyMapping,
 				new TestMenu(),
 				Optional.of("group"),
@@ -591,8 +604,8 @@ public class PatternEncodingTest {
 		return recipeUid -> Optional.of(layout);
 	}
 
-	private static UserInput input(InputType inputType) {
-		return new UserInput(InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q), 0, 0, GLFW.GLFW_MOD_CONTROL, inputType);
+	private static UserInput input() {
+		return new UserInput(InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q), 0, 0, GLFW.GLFW_MOD_CONTROL, InputPhase.PRESS);
 	}
 
 	private static RecipeChainInput input(int index, BookmarkItemMetadata metadata) {
@@ -724,15 +737,19 @@ public class PatternEncodingTest {
 	}
 
 	private static final class TestKeyMapping implements IJeiKeyMapping {
-		private final int key;
+		private final InputConstants.Key key;
 
 		private TestKeyMapping(int key) {
+			this(InputConstants.Type.KEYSYM.getOrCreate(key));
+		}
+
+		private TestKeyMapping(InputConstants.Key key) {
 			this.key = key;
 		}
 
 		@Override
 		public boolean isActiveAndMatches(InputConstants.Key key) {
-			return key.getType() == InputConstants.Type.KEYSYM && key.getValue() == this.key;
+			return this.key.equals(key);
 		}
 
 		@Override

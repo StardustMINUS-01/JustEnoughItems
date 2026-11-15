@@ -3,8 +3,8 @@ package mezz.jei.gui.overlay.elements;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class RecipeBookmarkElementCheatPriorityTest {
 
 	@Test
 	public void cheatGiveSkipsRecipeBookmarkTransfer() {
-		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputType.SIMULATE);
+		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputPhase.PRESS);
 		IInternalKeyMappings keyMappings = keyMappings(new TestKeyMapping(LEFT_MOUSE));
 
 		assertTrue(RecipeBookmarkElement.shouldSkipTransferForCheatGive(input, keyMappings, true, true, false));
@@ -26,7 +26,7 @@ public class RecipeBookmarkElementCheatPriorityTest {
 
 	@Test
 	public void cheatDisabledKeepsRecipeBookmarkTransfer() {
-		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputType.SIMULATE);
+		UserInput input = new UserInput(LEFT_MOUSE, 0, 0, 0, InputPhase.PRESS);
 		IInternalKeyMappings keyMappings = keyMappings(new TestKeyMapping(LEFT_MOUSE));
 
 		assertFalse(RecipeBookmarkElement.shouldSkipTransferForCheatGive(input, keyMappings, false, true, false));

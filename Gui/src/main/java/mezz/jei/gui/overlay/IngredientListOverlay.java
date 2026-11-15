@@ -4,45 +4,60 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientListOverlay;
 import mezz.jei.api.runtime.IScreenHelper;
+import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientGridConfig;
+import mezz.jei.common.gui.InventoryEffectRenderer;
+import mezz.jei.common.input.IInputTarget;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.MouseUtil;
+import mezz.jei.common.input.handlers.InputGroup.Child;
+import mezz.jei.common.input.handlers.InputGroup;
+import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.filter.IFilterTextSource;
+import mezz.jei.gui.input.DragSource;
 import mezz.jei.gui.input.GuiTextFieldFilter;
-import mezz.jei.gui.input.ICharTypedHandler;
+import mezz.jei.gui.input.focus.GuiKeyboardFocus;
 import mezz.jei.gui.input.IClickableIngredientInternal;
-import mezz.jei.gui.input.IDragHandler;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.input.IRecipeFocusSource;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.MouseUtil;
-import mezz.jei.gui.input.handlers.CombinedDragHandler;
-import mezz.jei.gui.input.handlers.CombinedInputHandler;
-import mezz.jei.gui.input.handlers.NullDragHandler;
-import mezz.jei.gui.input.handlers.NullInputHandler;
-import mezz.jei.gui.input.handlers.ProxyDragHandler;
-import mezz.jei.gui.input.handlers.ProxyInputHandler;
+import mezz.jei.gui.input.InputArea;
+import mezz.jei.gui.input.InputCommands;
+import mezz.jei.gui.input.handlers.SearchInputLayer;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
+import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.ingredients.IIngredientListOverlayContents;
+import mezz.jei.gui.overlay.ingredients.IngredientGridBackgroundRenderer;
+import mezz.jei.gui.search.ISearchCompletionProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFocusSource, ICharTypedHandler {
+public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFocusSource {
+	private final ConfigButtonController configButtonController;
 	private final IconButton configButton;
 	private final IIngredientListOverlayContents contents;
 	private final LookupHistoryOverlay lookupHistoryOverlay;
 	private final IClientToggleState toggleState;
+	private final IClientConfig clientConfig;
+	private final GuiPropertiesCache<Screen> guiPropertiesCache;
+	private final IngredientGridBackgroundRenderer backgroundRenderer;
 	private final GuiTextFieldFilter searchField;
+	private final GuiKeyboardFocus keyboardFocus = new GuiKeyboardFocus();
+	private final GuiEventListener keyboardNavigation;
+	private final SearchInputLayer searchInputLayer;
 	private final IngredientListOverlayController controller;
 	private boolean screenPropertiesDirty;
 
@@ -52,23 +67,34 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		IScreenHelper screenHelper,
 		IIngredientListOverlayContents contents,
 		LookupHistoryOverlay lookupHistoryOverlay,
+		IngredientGridBackgroundRenderer backgroundRenderer,
 		IIngredientGridConfig ingredientGridConfig,
 		IClientConfig clientConfig,
 		IClientToggleState toggleState,
-		IInternalKeyMappings keyBindings
+		IInternalKeyMappings keyBindings,
+		ISearchCompletionProvider searchCompletionProvider
 	) {
-		GuiPropertiesCache<Screen> guiPropertiesCache = new GuiPropertiesCache<>(
+		this.guiPropertiesCache = new GuiPropertiesCache<>(
 			screen -> screenHelper.getGuiProperties(screen)
 				.orElse(null)
 		);
 		this.contents = contents;
 		this.lookupHistoryOverlay = lookupHistoryOverlay;
+		this.backgroundRenderer = backgroundRenderer;
 		this.toggleState = toggleState;
+		this.clientConfig = clientConfig;
 
-		this.searchField = new GuiTextFieldFilter(contents::isEmpty);
-		this.configButton = new IconButton(new ConfigButtonController(this::isListDisplayed, toggleState, keyBindings));
+		this.searchField = new GuiTextFieldFilter(contents::isEmpty, clientConfig, searchCompletionProvider, keyboardFocus);
+		this.keyboardNavigation = contents.createKeyboardNavigation(this::isListDisplayed);
+		this.searchInputLayer = new SearchInputLayer(this.searchField, this::isSearchDisplayed, () -> {
+			if (!contents.isEmpty()) {
+				keyboardFocus.focus(keyboardNavigation);
+			}
+		});
+		this.configButtonController = new ConfigButtonController(this::isSearchDisplayed, this::isListHiddenWhenNotSearching, clientConfig.hideIngredientsWhenNotSearching(), toggleState, keyBindings);
+		this.configButton = new IconButton(configButtonController);
 		this.controller = IngredientListOverlayController.create(
-			guiPropertiesCache,
+			this.guiPropertiesCache,
 			clientConfig,
 			toggleState,
 			keyBindings,
@@ -83,12 +109,14 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		this.searchField.setResponder(filterTextSource::setFilterText);
 
 		ingredientGridSource.addSourceListChangedListener(this::markScreenPropertiesDirty);
+		lookupHistoryOverlay.getLookupHistory().addSourceListChangedListener(this::markScreenPropertiesDirty);
 
-		clientConfig.centerSearchBarEnabled().addListener(v -> markScreenPropertiesDirty());
-		clientConfig.quantityFieldEnabled().addListener(v -> markScreenPropertiesDirty());
-		clientConfig.lookupHistoryEnabled().addListener(v -> markScreenPropertiesDirty());
-		clientConfig.maxLookupHistoryRows().addListener(v -> markScreenPropertiesDirty());
-		clientConfig.lookupHistoryDisplaySide().addListener(v -> markScreenPropertiesDirty());
+		Internal.registerRuntimeListenerRemoval(clientConfig.searchBarPosition().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(clientConfig.lookupHistoryEnabled().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(clientConfig.maxLookupHistoryRows().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(clientConfig.maxLookupHistoryColumns().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(clientConfig.lookupHistoryDisplaySide().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(clientConfig.quantityFieldEnabled().addListener(v -> markScreenPropertiesDirty()));
 		addGridConfigListeners(ingredientGridConfig);
 	}
 
@@ -98,23 +126,57 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		return this.controller.isListDisplayed();
 	}
 
+	/** Returns whether automatic compacting is enabled and full effect bars would overlap this overlay. */
+	public boolean shouldRenderCompactInventoryEffects(AbstractContainerScreen<?> screen) {
+		updateScreenPropertiesIfDirty();
+		return this.clientConfig.compactInventoryEffects().get() &&
+			InventoryEffectRenderer.getEffectAreas(screen, false).stream().anyMatch(this::intersects);
+	}
+
+	private boolean intersects(ImmutableRect2i area) {
+		if (isListDisplayed() && this.contents.getBackgroundArea().intersects(area)) {
+			return true;
+		}
+		if (isSearchDisplayed() && this.searchField.getArea().intersects(area)) {
+			return true;
+		}
+		if (this.controller.hasValidScreen()) {
+			if (this.configButton.isVisible() && this.configButton.getArea().intersects(area)) {
+				return true;
+			}
+			if (this.toggleState.isOverlayEnabled() && this.lookupHistoryOverlay.isListDisplayed()) {
+				return this.lookupHistoryOverlay.getBackgroundArea().intersects(area);
+			}
+		}
+		return false;
+	}
+
+	private boolean isSearchDisplayed() {
+		updateScreenPropertiesIfDirty();
+		return this.controller.isSearchDisplayed();
+	}
+
+	private boolean isListHiddenWhenNotSearching() {
+		return this.controller.isListHiddenWhenNotSearching();
+	}
+
 	private void markScreenPropertiesDirty() {
 		this.screenPropertiesDirty = true;
 	}
 
 	private void addGridConfigListeners(IIngredientGridConfig gridConfig) {
-		gridConfig.maxColumns().addListener(v -> markScreenPropertiesDirty());
-		gridConfig.maxRows().addListener(v -> markScreenPropertiesDirty());
-		gridConfig.drawBackground().addListener(v -> markScreenPropertiesDirty());
-		gridConfig.horizontalAlignment().addListener(v -> markScreenPropertiesDirty());
-		gridConfig.verticalAlignment().addListener(v -> markScreenPropertiesDirty());
-		gridConfig.navigationVisibility().addListener(v -> markScreenPropertiesDirty());
+		Internal.registerRuntimeListenerRemoval(gridConfig.maxColumns().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.maxRows().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.backgroundStyle().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.layoutMode().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.navigationMode().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.horizontalAlignment().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.verticalAlignment().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.navigationVisibility().addListener(v -> markScreenPropertiesDirty()));
+		Internal.registerRuntimeListenerRemoval(gridConfig.shrinkToFit().addListener(v -> markScreenPropertiesDirty()));
 	}
 
 	private void updateScreenPropertiesIfDirty() {
-		if (Minecraft.getInstance().screen instanceof mezz.jei.gui.config.screen.JeiConfigScreen) {
-			return;
-		}
 		if (this.screenPropertiesDirty) {
 			this.screenPropertiesDirty = false;
 			Minecraft minecraft = Minecraft.getInstance();
@@ -133,25 +195,50 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		return controller.getQuantityArea();
 	}
 
+	public SearchInputLayer getSearchInputLayer() {
+		return this.searchInputLayer;
+	}
+
 	public void drawScreen(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		drawBackground(guiGraphics);
 		drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
 	}
 
 	public void drawBackground(GuiGraphics guiGraphics) {
-		if (isListDisplayed()) {
+		updateScreenPropertiesIfDirty();
+		boolean contentsDisplayed = isListDisplayed();
+		List<IngredientGridBackgroundRenderer.Panel> backgroundPanels = new ArrayList<>(2);
+		if (isSearchDisplayed()) {
 			this.searchField.drawBackground(guiGraphics);
-			this.contents.drawBackground(guiGraphics);
 		}
-		if (this.controller.hasValidScreen() && toggleState.isOverlayEnabled()) {
-			this.lookupHistoryOverlay.drawBackground(guiGraphics);
+		if (contentsDisplayed && this.contents.isBackgroundEnabled()) {
+			backgroundPanels.add(new IngredientGridBackgroundRenderer.Panel(
+				this.contents.getBackgroundArea(),
+				this.contents.getSlotBackgroundArea()
+			));
 		}
+		boolean lookupHistoryDisplayed = this.controller.hasValidScreen() &&
+			toggleState.isOverlayEnabled() &&
+			this.lookupHistoryOverlay.isListDisplayed();
+		if (lookupHistoryDisplayed && this.lookupHistoryOverlay.isBackgroundEnabled()) {
+			backgroundPanels.add(new IngredientGridBackgroundRenderer.Panel(
+				this.lookupHistoryOverlay.getBackgroundArea(),
+				this.lookupHistoryOverlay.getSlotBackgroundArea()
+			));
+		}
+		this.backgroundRenderer.draw(
+			guiGraphics,
+			backgroundPanels,
+			this.guiPropertiesCache.getGuiExclusionAreas()
+		);
 	}
 
 	public void drawForeground(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		if (isListDisplayed()) {
-			this.searchField.drawForeground(guiGraphics, mouseX, mouseY, partialTicks);
 			this.contents.drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
+		}
+		if (isSearchDisplayed()) {
+			this.searchField.drawForeground(guiGraphics, mouseX, mouseY, partialTicks);
 		}
 		if (this.controller.hasValidScreen()) {
 			this.configButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
@@ -206,6 +293,32 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	}
 
 	@Override
+	public Stream<IClickableIngredientInternal<?>> getKeyboardFocusedIngredients() {
+		if (isListDisplayed()) {
+			return this.contents.getKeyboardFocusedIngredients();
+		}
+		return Stream.empty();
+	}
+
+	@Override
+	public boolean isMouseOver(double mouseX, double mouseY) {
+		updateScreenPropertiesIfDirty();
+		if (!this.controller.hasValidScreen()) {
+			return false;
+		}
+		if (this.configButton.isMouseOver(mouseX, mouseY)) {
+			return true;
+		}
+		if (isListDisplayed() && this.contents.isMouseOver(mouseX, mouseY)) {
+			return true;
+		}
+		if (isSearchDisplayed() && this.searchField.isMouseOver(mouseX, mouseY)) {
+			return true;
+		}
+		return toggleState.isOverlayEnabled() && this.lookupHistoryOverlay.isMouseOver(mouseX, mouseY);
+	}
+
+	@Override
 	public Stream<IDraggableIngredientInternal<?>> getDraggableIngredientUnderMouse(double mouseX, double mouseY) {
 		updateScreenPropertiesIfDirty();
 		if (isListDisplayed()) {
@@ -217,60 +330,69 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		return Stream.empty();
 	}
 
-	public IUserInputHandler createInputHandler() {
-		final IUserInputHandler displayedInputHandler = new CombinedInputHandler(
+	public GuiKeyboardFocus getKeyboardFocus() {
+		return keyboardFocus;
+	}
+
+	/** Remembers the active ingredient selection for returning from the recipe screen. */
+	public Runnable captureKeyboardSelection() {
+		IElement<?> selected = contents.getKeyboardFocusedIngredients()
+			.findFirst()
+			.map(IClickableIngredientInternal::getElement)
+			.orElse(null);
+		return () -> {
+			if (selected != null && isListDisplayed() && contents.selectKeyboardIngredient(selected)) {
+				keyboardFocus.focus(keyboardNavigation);
+			}
+		};
+	}
+
+	/** Creates this overlay's controls, shortcuts, and ingredient drag sources. */
+	public InputArea createInputArea(IInternalKeyMappings keys) {
+		InputCommands commands = new InputCommands();
+		registerInputCommands(commands, keys);
+		return InputArea.builder("Ingredients", this)
+			.blockUnhandledMouseInput()
+			.controls(createInputHandler(keys))
+			.keyboardNavigation(keyboardNavigation)
+			.commands(commands)
+			.dragSources(createDragSources())
+			.build();
+	}
+
+	private void registerInputCommands(InputCommands commands, IInternalKeyMappings keys) {
+		configButtonController.registerInputCommands(commands, configButton::isMouseOver);
+		contents.registerInputCommands(commands, keys, this::isListDisplayed);
+		lookupHistoryOverlay.registerInputCommands(commands, keys, this::isHistoryDisplayed);
+	}
+
+	private boolean isHistoryDisplayed() {
+		updateScreenPropertiesIfDirty();
+		return controller.hasValidScreen() && toggleState.isOverlayEnabled() && lookupHistoryOverlay.isListDisplayed();
+	}
+
+	private IInputTarget createInputHandler(IInternalKeyMappings keys) {
+		return new InputGroup(
 			"IngredientListOverlay",
-			this.searchField.createInputHandler(),
-			this.configButton.createInputHandler(),
-			this.contents.createInputHandler()
+			new Child(this::isHistoryDisplayed, lookupHistoryOverlay.getResizeInputHandler()),
+			new Child(this::isListDisplayed, contents.getResizeInputHandler()),
+			new Child(this::isListDisplayed, contents.createDeleteItemInputHandler()),
+			new Child(controller::hasValidScreen, configButton.createInputHandler(input -> input.is(keys.getToggleCheatModeConfigButton()))),
+			new Child(this::isListDisplayed, contents.createInputHandler()),
+			new Child(this::isHistoryDisplayed, lookupHistoryOverlay.createInputHandler())
 		);
-
-		final IUserInputHandler configButtonInputHandler = this.configButton.createInputHandler();
-
-		return new ProxyInputHandler(() -> {
-			if (isListDisplayed()) {
-				return displayedInputHandler;
-			}
-			if (this.controller.hasValidScreen()) {
-				return configButtonInputHandler;
-			}
-			return NullInputHandler.INSTANCE;
-		});
 	}
 
-	public IUserInputHandler createDeleteItemInputHandler() {
-		final IUserInputHandler deleteItemInputHandler = this.contents.createDeleteItemInputHandler();
-
-		return new ProxyInputHandler(() -> {
-			if (isListDisplayed()) {
-				return deleteItemInputHandler;
-			}
-			return NullInputHandler.INSTANCE;
-		});
-	}
-
-	public IDragHandler createDragHandler() {
-		final IDragHandler combinedDragHandlers = new CombinedDragHandler(
-			this.contents.createDragHandler(),
-			this.lookupHistoryOverlay.createDragHandler()
+	private List<DragSource> createDragSources() {
+		return List.of(
+			new DragSource(this::isListDisplayed, contents::beginDrag),
+			new DragSource(this::isHistoryDisplayed, lookupHistoryOverlay::beginDrag)
 		);
-
-		return new ProxyDragHandler(() -> {
-			if (isListDisplayed()) {
-				return combinedDragHandlers;
-			}
-			return NullDragHandler.INSTANCE;
-		});
 	}
 
 	@Override
 	public boolean hasKeyboardFocus() {
-		return isListDisplayed() && this.searchField.isFocused();
-	}
-
-	@Override
-	public boolean onCharTyped(char codePoint, int modifiers) {
-		return searchField.charTyped(codePoint, modifiers);
+		return isSearchDisplayed() && this.searchField.isFocused();
 	}
 
 	@Override

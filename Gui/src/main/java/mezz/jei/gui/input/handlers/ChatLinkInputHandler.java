@@ -1,6 +1,5 @@
 package mezz.jei.gui.input.handlers;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DynamicOps;
@@ -20,34 +19,30 @@ import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.gui.config.BookmarkConfigEntry;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.input.InputType;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.ConsumedInput;
+import mezz.jei.gui.input.InputArea;
+import net.minecraft.client.Minecraft;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
 
-public class ChatLinkInputHandler {
+public class ChatLinkInputHandler implements IInputTarget {
 	private final IRecipesGui recipesGui;
 	private final FocusUtil focusUtil;
 	private final IScreenHelper screenHelper;
 	private final BookmarkList bookmarkList;
 	private final Codec<BookmarkConfigEntry> bookmarkEntryCodec;
 	private final DynamicOps<JsonElement> bookmarkRegistryOps;
-
-	@Nullable
-	private PendingInput pendingInput;
-	private @Nullable PendingRecipe pendingRecipe;
-	@Nullable
-	private InputConstants.Key pendingGroupKey;
-	@Nullable
-	private String pendingGroupSnapshot;
 
 	public ChatLinkInputHandler(
 		IRecipesGui recipesGui,
@@ -65,192 +60,74 @@ public class ChatLinkInputHandler {
 		this.bookmarkRegistryOps = bookmarkRegistryOps;
 	}
 
-	public boolean handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public InputArea createInputArea() {
+		return InputArea.builder("JEIU chat links", (x, y) -> Minecraft.getInstance().screen instanceof ChatScreen)
+			.controls(this)
+			.build();
+	}
+
+	@Override
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (!(screen instanceof ChatScreen chatScreen)) {
-			this.pendingInput = null;
-			this.pendingRecipe = null;
-			clearPendingGroupInput();
-			return false;
+			return Optional.empty();
 		}
 		var preview = ChatRecipeTooltip.INSTANCE;
-		if (preview.handleTags(screen, input, keyBindings)) {
-			return true;
-		}
 		if (preview.isPinned()) {
-			pendingInput = null;
-			pendingRecipe = null;
-			clearPendingGroupInput();
-			UserInput previewInput = new UserInput(input.getKey(), input.getMouseX(), input.getMouseY(), input.getModifiers(), input.getInputType()) {
+			UserInput previewInput = new UserInput(input.getKey(), input.getMouseX(), input.getMouseY(), input.getModifiers(), input.getPhase()) {
 				@Override
 				public boolean is(IJeiKeyMapping mapping) {
-					if (getKey().getType() != InputConstants.Type.MOUSE && mapping instanceof IJeiKeyMappingWithExtraModifiers key) {
+					if (isKeyboardInput() && mapping instanceof IJeiKeyMappingWithExtraModifiers key) {
 						return key.isActiveAndMatchesAllowingExtraModifiers(getKey());
 					}
 					return super.is(mapping);
 				}
 			};
-			var ingredient = getHoveredIngredient(chatScreen, input);
+			Optional<ITypedIngredient<?>> ingredient = getHoveredIngredient(chatScreen, input);
 			if (ingredient.isPresent() && preview.copy(ingredient.get(), previewInput, keyBindings)) {
-				return true;
+				return Optional.of(input.isKeyboardInput() ? ConsumedInput.INSTANCE : new InputAction(release -> preview.copy(ingredient.get(), release, keyBindings)));
 			}
-			if (input.getInputType() == InputType.IMMEDIATE && handleImmediateInput(chatScreen, previewInput, keyBindings)) {
-				return true;
+			if (input.isKeyboardInput() && ingredient.isPresent()) {
+				Optional<Action> action = getAction(previewInput, keyBindings);
+				if (action.isPresent()) {
+					return Optional.of(InputAction.run(() -> executeAction(ingredient.get(), action.get())));
+				}
 			}
-			// The preview owns mouse input while pinned, including blank areas above chat links.
-			return input.getKey().getType() == InputConstants.Type.MOUSE;
+			return input.isMouseInput() ? Optional.of(ConsumedInput.INSTANCE) : Optional.empty();
 		}
-		if (handleRecipeInput(chatScreen, input, keyBindings) || handleBookmarkGroupInput(chatScreen, input, keyBindings)) {
-			return true;
+		var style = JeiChatItemLinkHover.getHoveredStyle(chatScreen, input.getMouseX(), input.getMouseY());
+		Optional<RecipeLink> recipe = style.flatMap(JeiChatRecipeLinks::parse);
+		boolean leftClick = input.is(keyBindings.getLeftClick());
+		if (recipe.isPresent() && (input.isKeyboardInput() ? input.is(keyBindings.getShowRecipe()) : leftClick)) {
+			return Optional.of(new InputAction(release -> ChatRecipeTooltip.resolve(recipe.get()).ifPresent(this::showRecipe),
+				release -> release.isKeyboardInput() || JeiChatItemLinkHover.getHoveredStyle(chatScreen, release.getMouseX(), release.getMouseY())
+					.flatMap(JeiChatRecipeLinks::parse).filter(recipe.get()::equals).isPresent()));
 		}
-
-		return switch (input.getInputType()) {
-			case IMMEDIATE -> handleImmediateInput(chatScreen, input, keyBindings);
-			case SIMULATE -> handleSimulateInput(chatScreen, input, keyBindings);
-			case EXECUTE -> handleExecuteInput(chatScreen, input);
-		};
+		Optional<String> groupSnapshot = style.flatMap(JeiChatItemLinkHover::getBookmarkGroupSnapshot);
+		if (leftClick && groupSnapshot.isPresent()) {
+			return Optional.of(new InputAction(release -> importBookmarkGroup(groupSnapshot.get()),
+				release -> getHoveredBookmarkGroupSnapshot(chatScreen, release).filter(groupSnapshot.get()::equals).isPresent()));
+		}
+		if (leftClick && style.flatMap(SharedChatIngredient::getSnapshot).isPresent()) {
+			return getHoveredIngredient(chatScreen, input)
+				.map(ingredient -> new InputAction(release -> executeAction(ingredient, Action.SHOW_RECIPE),
+					release -> JeiChatItemLinkHover.getHoveredStyle(chatScreen, release.getMouseX(), release.getMouseY()).equals(style)));
+		}
+		// Ordinary chat ingredients use the upstream ChatCommands area.
+		return Optional.empty();
 	}
 
-	public void handleGuiChange() {
+	@Override
+	public boolean scroll(double mouseX, double mouseY, double scrollX, double scrollY) {
+		return ChatRecipeTooltip.INSTANCE.scroll(mouseX, mouseY, scrollX, scrollY);
+	}
+
+	@Override
+	public void resetInput() {
 		ChatRecipeTooltip.INSTANCE.clear();
-		this.pendingInput = null;
-		this.pendingRecipe = null;
-		clearPendingGroupInput();
-	}
-
-	private boolean handleRecipeInput(ChatScreen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		Optional<RecipeLink> recipe = JeiChatItemLinkHover.getHoveredStyle(screen, input.getMouseX(), input.getMouseY())
-			.flatMap(JeiChatRecipeLinks::parse);
-		return switch (input.getInputType()) {
-			case IMMEDIATE -> {
-				if (recipe.isEmpty() || !input.is(keyBindings.getShowRecipe())) {
-					yield false;
-				}
-				ChatRecipeTooltip.resolve(recipe.get()).ifPresent(this::showRecipe);
-				yield true;
-			}
-			case SIMULATE -> {
-				pendingRecipe = null;
-				if (recipe.isEmpty() || !input.is(keyBindings.getLeftClick())) {
-					yield false;
-				}
-				pendingInput = null;
-				clearPendingGroupInput();
-				pendingRecipe = new PendingRecipe(input.getKey(), recipe.get());
-				yield true;
-			}
-			case EXECUTE -> {
-				PendingRecipe pending = pendingRecipe;
-				pendingRecipe = null;
-				if (pending == null || !pending.key().equals(input.getKey()) || recipe.filter(pending.recipe()::equals).isEmpty()) {
-					yield false;
-				}
-				ChatRecipeTooltip.resolve(pending.recipe()).ifPresent(this::showRecipe);
-				yield true;
-			}
-		};
 	}
 
 	private <R> void showRecipe(IRecipeLayoutDrawable<R> layout) {
 		recipesGui.showRecipes(layout.getRecipeCategory(), List.of(layout.getRecipe()), List.of());
-	}
-
-	private boolean handleImmediateInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {
-		Optional<Action> optionalAction = getAction(input, keyBindings);
-		if (optionalAction.isEmpty()) {
-			return false;
-		}
-
-		Optional<ITypedIngredient<?>> optionalIngredient = getHoveredIngredient(chatScreen, input);
-		if (optionalIngredient.isEmpty()) {
-			return false;
-		}
-
-		Action action = optionalAction.get();
-		ITypedIngredient<?> typedIngredient = optionalIngredient.get();
-		executeAction(typedIngredient, action);
-		return true;
-	}
-
-	private boolean handleSimulateInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {
-		this.pendingInput = null;
-
-		Optional<Action> optionalAction = getAction(input, keyBindings);
-		if (input.is(keyBindings.getLeftClick()) && JeiChatItemLinkHover.getHoveredStyle(chatScreen, input.getMouseX(), input.getMouseY())
-			.flatMap(SharedChatIngredient::getSnapshot).isPresent()
-		) {
-			optionalAction = Optional.of(Action.SHOW_RECIPE);
-		}
-		if (optionalAction.isEmpty()) {
-			return false;
-		}
-
-		Optional<ITypedIngredient<?>> optionalIngredient = getHoveredIngredient(chatScreen, input);
-		if (optionalIngredient.isEmpty()) {
-			return false;
-		}
-
-		Action action = optionalAction.get();
-		ITypedIngredient<?> typedIngredient = optionalIngredient.get();
-		this.pendingInput = new PendingInput(input.getKey(), typedIngredient, action);
-		return true;
-	}
-
-	private boolean handleExecuteInput(ChatScreen chatScreen, UserInput input) {
-		PendingInput pendingInput = this.pendingInput;
-		this.pendingInput = null;
-		if (pendingInput == null) {
-			return false;
-		}
-		if (!pendingInput.key().equals(input.getKey())) {
-			return false;
-		}
-
-		Optional<ITypedIngredient<?>> optionalIngredient = getHoveredIngredient(chatScreen, input);
-		if (optionalIngredient.isEmpty()) {
-			return false;
-		}
-
-		ITypedIngredient<?> typedIngredient = optionalIngredient.get();
-		if (typedIngredient != pendingInput.typedIngredient()) {
-			return false;
-		}
-
-		executeAction(typedIngredient, pendingInput.action());
-		return true;
-	}
-
-	private boolean handleBookmarkGroupInput(ChatScreen chatScreen, UserInput input, IInternalKeyMappings keyBindings) {
-		return switch (input.getInputType()) {
-			case IMMEDIATE -> false;
-			case SIMULATE -> {
-				clearPendingGroupInput();
-				if (!input.is(keyBindings.getLeftClick())) {
-					yield false;
-				}
-				Optional<String> snapshot = getHoveredBookmarkGroupSnapshot(chatScreen, input);
-				if (snapshot.isEmpty()) {
-					yield false;
-				}
-				this.pendingInput = null;
-				this.pendingGroupKey = input.getKey();
-				this.pendingGroupSnapshot = snapshot.get();
-				yield true;
-			}
-			case EXECUTE -> {
-				InputConstants.Key pendingKey = this.pendingGroupKey;
-				String pendingSnapshot = this.pendingGroupSnapshot;
-				clearPendingGroupInput();
-				if (pendingKey == null ||
-					pendingSnapshot == null ||
-					!pendingKey.equals(input.getKey()) ||
-					getHoveredBookmarkGroupSnapshot(chatScreen, input).filter(pendingSnapshot::equals).isEmpty()
-				) {
-					yield false;
-				}
-				importBookmarkGroup(pendingSnapshot);
-				yield true;
-			}
-		};
 	}
 
 	private Optional<String> getHoveredBookmarkGroupSnapshot(ChatScreen chatScreen, UserInput input) {
@@ -264,11 +141,6 @@ public class ChatLinkInputHandler {
 		) {
 			JeiClientSoundUtil.playClickSound();
 		}
-	}
-
-	private void clearPendingGroupInput() {
-		this.pendingGroupKey = null;
-		this.pendingGroupSnapshot = null;
 	}
 
 	private Optional<ITypedIngredient<?>> getHoveredIngredient(ChatScreen chatScreen, UserInput input) {
@@ -313,9 +185,4 @@ public class ChatLinkInputHandler {
 		BOOKMARK
 	}
 
-	private record PendingInput(InputConstants.Key key, ITypedIngredient<?> typedIngredient, Action action) {
-	}
-
-	private record PendingRecipe(InputConstants.Key key, RecipeLink recipe) {
-	}
 }

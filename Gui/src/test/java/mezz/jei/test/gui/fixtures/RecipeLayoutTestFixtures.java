@@ -208,6 +208,11 @@ public final class RecipeLayoutTestFixtures {
 		}
 
 		@Override
+		public List<ResourceLocation> getSourceRecipeIds() {
+			return category.getSourceRecipeIds(recipe);
+		}
+
+		@Override
 		public IJeiInputHandler getInputHandler() {
 			return () -> ScreenRectangle.empty();
 		}

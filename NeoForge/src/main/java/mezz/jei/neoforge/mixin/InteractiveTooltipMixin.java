@@ -27,7 +27,7 @@ public abstract class InteractiveTooltipMixin implements ITooltipStackAccessInte
 		((GuiGraphics) (Object) this).renderTooltipInternal(font, components, x, y, positioner);
 	}
 	@Unique
-	private final Deque<ScreenRectangle> jei$clips = new ArrayDeque<>();
+	private Deque<ScreenRectangle> jei$clips;
 	@Shadow(remap = false)
 	private ItemStack tooltipStack;
 	@Override
@@ -36,6 +36,15 @@ public abstract class InteractiveTooltipMixin implements ITooltipStackAccessInte
 	public void jei$setTooltipStack(ItemStack stack) { tooltipStack = stack; }
 	@Override
 	public @Nullable ScreenRectangle jei$getTooltipClip() { return jei$clips.peekLast(); }
+
+	// R8 can rewrite field initializers into instructions that Mixin cannot transplant.
+	@Inject(
+		method = "<init>",
+		at = @At("RETURN")
+	)
+	private void initializeTooltipClipStack(CallbackInfo callback) {
+		jei$clips = new ArrayDeque<>();
+	}
 
 	@Inject(
 		method = "enableScissor",

@@ -1,14 +1,11 @@
 package mezz.jei.neoforge.platform;
 
-import mezz.jei.common.Internal;
-import mezz.jei.gui.config.screen.JeiConfigScreen;
-import mezz.jei.neoforge.input.ConfigKeyBinding;
 import mezz.jei.common.platform.IPlatformConfigHelper;
-import mezz.jei.common.util.ErrorUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.client.ClientHooks;
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.Optional;
@@ -21,10 +18,10 @@ public class ConfigHelper implements IPlatformConfigHelper {
 	}
 
 	@Override
-	public Optional<Screen> getConfigScreen() {
-		Minecraft minecraft = Minecraft.getInstance();
-		ErrorUtil.checkNotNull(minecraft.screen, "minecraft.screen");
-		return Optional.of(new JeiConfigScreen(Internal.getJeiRuntime().getConfigManager(), ConfigKeyBinding.create(),
-			screen -> ClientHooks.pushGuiLayer(minecraft, screen), () -> ClientHooks.popGuiLayer(minecraft)));
+	public Optional<Screen> getConfigScreen(String modId, @Nullable Screen parent) {
+		return ModList.get()
+			.getModContainerById(modId)
+			.flatMap(modContainer -> modContainer.getCustomExtension(IConfigScreenFactory.class)
+				.map(factory -> factory.createScreen(modContainer, parent)));
 	}
 }

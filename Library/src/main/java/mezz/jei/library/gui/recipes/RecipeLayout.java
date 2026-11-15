@@ -15,6 +15,8 @@ import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.gui.placement.IPlaceable;
 import mezz.jei.api.gui.widgets.IDrawableWidget;
+import mezz.jei.api.gui.widgets.IButtonWidget;
+import mezz.jei.api.gui.widgets.ICycleButtonWidget;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.gui.widgets.IScrollBoxWidget;
@@ -34,6 +36,9 @@ import mezz.jei.common.gui.elements.DrawableCombined;
 import mezz.jei.common.gui.elements.DrawableRecipeWidget;
 import mezz.jei.common.gui.elements.OffsetDrawable;
 import mezz.jei.common.gui.elements.TextWidget;
+import mezz.jei.common.gui.elements.AbstractRecipeButtonWidget;
+import mezz.jei.common.gui.elements.RecipeButtonWidget;
+import mezz.jei.common.gui.elements.RecipeCycleButtonWidget;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
@@ -49,6 +54,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenPosition;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.FormattedText;
+import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,12 +69,12 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasBuilder {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final LimitedLogger LIMITED_LOGGER = new LimitedLogger(LOGGER, Duration.ofSeconds(10));
 
-	private static final int DEFAULT_RECIPE_BORDER_PADDING = 4;
 	public static final int RECIPE_BUTTON_SIZE = 13;
 	public static final int RECIPE_BUTTON_SPACING = 2;
 
@@ -89,6 +95,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	private final IFocusGroup focuses;
 	private final List<IRecipeWidget> allWidgets;
 	private final R recipe;
+	private final List<ResourceLocation> sourceRecipeIds;
 	private final IScalableDrawable recipeBackground;
 	private final int recipeBorderPadding;
 	private final ImmutableRect2i recipeTransferButtonArea;
@@ -104,39 +111,15 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		Collection<IRecipeCategoryDecorator<T>> decorators,
 		T recipe,
 		IFocusGroup focuses,
-		IIngredientManager ingredientManager
-	) {
-		IScalableDrawable recipeBackground = Internal.getTextures().getRecipeBackground();
-		return create(
-			recipeCategory,
-			decorators,
-			recipe,
-			focuses,
-			ingredientManager,
-			recipeBackground,
-			DEFAULT_RECIPE_BORDER_PADDING
-		);
-	}
-
-	public static <T> Optional<IRecipeLayoutDrawable<T>> create(
-		IRecipeCategory<T> recipeCategory,
-		Collection<IRecipeCategoryDecorator<T>> decorators,
-		T recipe,
-		IFocusGroup focuses,
 		IIngredientManager ingredientManager,
 		IScalableDrawable recipeBackground,
 		int recipeBorderPadding
 	) {
-		RecipeLayoutBuilder<T> builder = new RecipeLayoutBuilder<>(recipeCategory, recipe, ingredientManager);
 		try {
+			RecipeLayoutBuilder<T> builder = new RecipeLayoutBuilder<>(recipeCategory, decorators, recipe, ingredientManager);
 			recipeCategory.setRecipe(builder, recipe, focuses);
-			RecipeLayout<T> recipeLayout = builder.buildRecipeLayout(
-				focuses,
-				decorators,
-				recipeBackground,
-				recipeBorderPadding
-			);
-			return Optional.of(recipeLayout);
+			return builder.buildRecipeLayout(focuses, decorators, recipeBackground, recipeBorderPadding)
+				.map(layout -> layout);
 		} catch (RuntimeException | LinkageError e) {
 			String recipeInfo = ErrorUtil.getRecipeInfo(recipeCategory, recipe);
 			LOGGER.error("Recipe crashed during Recipe Layout creation:\n{}", recipeInfo, e);
@@ -148,6 +131,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		IRecipeCategory<R> recipeCategory,
 		Collection<IRecipeCategoryDecorator<R>> recipeCategoryDecorators,
 		R recipe,
+		List<ResourceLocation> sourceRecipeIds,
 		IScalableDrawable recipeBackground,
 		int recipeBorderPadding,
 		@Nullable ShapelessIcon shapelessIcon,
@@ -158,6 +142,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 		IFocusGroup focuses
 	) {
 		this.recipeCategory = recipeCategory;
+		this.sourceRecipeIds = List.copyOf(sourceRecipeIds);
 		this.recipeCategoryDecorators = recipeCategoryDecorators;
 		this.drawables = new ArrayList<>();
 		this.slottedWidgets = new ArrayList<>();
@@ -427,16 +412,6 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
-	public Rect2i getRecipeTransferButtonArea() {
-		return getSideButtonArea(0);
-	}
-
-	@Override
-	public Rect2i getRecipeBookmarkButtonArea() {
-		return getSideButtonArea(1);
-	}
-
-	@Override
 	public IRecipeSlotsView getRecipeSlotsView() {
 		return recipeSlotsView;
 	}
@@ -450,6 +425,11 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	@Override
 	public R getRecipe() {
 		return recipe;
+	}
+
+	@Override
+	public List<ResourceLocation> getSourceRecipeIds() {
+		return sourceRecipeIds;
 	}
 
 	@Override
@@ -530,6 +510,25 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
+	public IButtonWidget<?> addButton(int width, int height, Runnable onPress) {
+		RecipeButtonWidget widget = new RecipeButtonWidget(width, height, onPress);
+		registerButton(widget);
+		return widget;
+	}
+
+	@Override
+	public <T> ICycleButtonWidget<T> addCycleButton(List<T> values, T initialValue, int width, int height, Consumer<T> onValueChanged) {
+		RecipeCycleButtonWidget<T> widget = new RecipeCycleButtonWidget<>(values, initialValue, width, height, onValueChanged);
+		registerButton(widget);
+		return widget;
+	}
+
+	private void registerButton(AbstractRecipeButtonWidget<?> widget) {
+		addWidget(widget);
+		addInputHandler(widget);
+	}
+
+	@Override
 	public void addWidget(IRecipeWidget widget) {
 		this.allWidgets.add(widget);
 		if (widget instanceof ISlottedRecipeWidget slottedWidget) {
@@ -564,7 +563,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 
 	@Override
 	public IScrollGridWidget addScrollGridWidget(List<IRecipeSlotDrawable> slots, int columns, int visibleRows) {
-		ScrollGridRecipeWidget widget = ScrollGridRecipeWidget.create(slots, columns, visibleRows);
+		ScrollGridRecipeWidget widget = ScrollGridRecipeWidget.create(slots, columns, visibleRows, this.recipeCategorySlots::removeAll);
 		addSlottedWidget(widget, slots);
 		addInputHandler(widget);
 		return widget;

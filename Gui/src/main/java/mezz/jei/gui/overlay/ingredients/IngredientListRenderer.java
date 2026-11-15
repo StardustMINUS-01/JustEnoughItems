@@ -23,7 +23,7 @@ import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.collapsible.CollapsedGroupElement;
-import mezz.jei.gui.input.MouseUtil;
+import mezz.jei.common.input.MouseUtil;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -386,7 +386,7 @@ public class IngredientListRenderer {
 	}
 
 	private static void drawTopLeftText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
-		float scale = Internal.getClientConfigs().getClientConfig().bookmarkAmountFontScale().getValue() / 100f;
+		float scale = Internal.getClientConfigs().getClientConfig().bookmarkAmountFontScale().get() / 100f;
 		drawScaledText(guiGraphics, font, text, area.getX() + 1, area.getY() + 1, color, scale);
 	}
 
@@ -401,7 +401,7 @@ public class IngredientListRenderer {
 	}
 
 	private static void drawBottomRightText(GuiGraphics guiGraphics, Font font, ImmutableRect2i area, String text, int color) {
-		float scale = Internal.getClientConfigs().getClientConfig().bookmarkAmountFontScale().getValue() / 100f;
+		float scale = Internal.getClientConfigs().getClientConfig().bookmarkAmountFontScale().get() / 100f;
 		int x = area.getX() + area.getWidth() - Math.round(font.width(text) * scale);
 		int y = area.getY() + area.getHeight() - Math.round(font.lineHeight * scale);
 		drawScaledText(guiGraphics, font, text, x, y, color, scale);

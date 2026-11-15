@@ -8,6 +8,7 @@ import mezz.jei.test.lib.JUnitXmlTestReporter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.GameRules;
@@ -152,6 +153,42 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 		);
 	}
 
+	private static void assertRecipeUpdatesReplaceRecipesOnSameConnection() {
+		List<RecipeHolder<?>> updatedRecipes = ClientTestUtil.computeOnClient(client -> {
+			List<RecipeHolder<?>> syncedRecipes = Internal.getClientSyncedRecipes();
+			List<RecipeHolder<?>> recipes = syncedRecipes.stream()
+				.filter(recipe -> !recipe.id().equals(CRAFTING_TABLE_RECIPE_ID))
+				.toList();
+			if (recipes.size() == syncedRecipes.size()) {
+				throw new AssertionError("Expected the synced recipes to contain the crafting table recipe before the update.");
+			}
+			return recipes;
+		});
+
+		// A proxy can replace recipes without changing the client connection.
+		Object initialRuntime = ClientTestUtil.computeOnClient(client -> Internal.getJeiRuntime());
+		ClientTestUtil.runOnClient(client -> client.getConnection().handleUpdateRecipes(new ClientboundUpdateRecipesPacket(updatedRecipes)));
+		ClientTestUtil.waitUntil(
+			() -> ClientTestUtil.computeOnClient(client -> Internal.hasClientSyncedRecipes() &&
+				!hasVanillaRecipes(Internal.getClientSyncedRecipes()) &&
+				Internal.getJeiRuntime() != initialRuntime),
+			ASSERTION_TIMEOUT,
+			() -> "Expected JEI to replace synced recipes after an update on the same connection. " + describeRecipeState()
+		);
+
+		// Unlike newer Minecraft versions, vanilla 1.21.1 always sends recipes. An empty
+		// update must clear the previous recipes instead of keeping them or loading fallback recipes.
+		Object updatedRuntime = ClientTestUtil.computeOnClient(client -> Internal.getJeiRuntime());
+		ClientTestUtil.runOnClient(client -> client.getConnection().handleUpdateRecipes(new ClientboundUpdateRecipesPacket(List.of())));
+		ClientTestUtil.waitUntil(
+			() -> ClientTestUtil.computeOnClient(client -> Internal.hasClientSyncedRecipes() &&
+				Internal.getClientSyncedRecipes().isEmpty() &&
+				Internal.getJeiRuntime() != updatedRuntime),
+			ASSERTION_TIMEOUT,
+			() -> "Expected JEI to preserve an explicitly synchronized empty recipe list. " + describeRecipeState()
+		);
+	}
+
 	private static boolean hasVanillaRecipes(List<RecipeHolder<?>> recipes) {
 		return !recipes.isEmpty() &&
 			recipes.stream().anyMatch(recipe -> recipe.id().equals(CRAFTING_TABLE_RECIPE_ID));
@@ -248,14 +285,21 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 		SINGLEPLAYER("singleplayer", "NeoForge singleplayer") {
 			@Override
 			public void run() {
-				runSingleplayerTestCase(displayName(), JeiNeoForgeClientRecipeSyncTests::assertSyncedRecipesFromSingleplayer);
+				runSingleplayerTestCase(displayName(), () -> {
+					assertSyncedRecipesFromSingleplayer();
+					JeiNeoForgeClientTextInputTests.run();
+					JeiNeoForgeClientChatTooltipTests.run();
+				});
 			}
 		},
 		NEOFORGE_SERVER_WITH_JEI("neoforgeServerWithJei", "NeoForge server with JEI") {
 			@Override
 			public void run() {
 				try (NeoForgeExternalTestServer server = NeoForgeExternalTestServer.startNeoForgeWithJei()) {
-					runTestCase(displayName(), server, JeiNeoForgeClientRecipeSyncTests::assertSyncedRecipesFromJeiServer);
+					runTestCase(displayName(), server, () -> {
+						assertSyncedRecipesFromJeiServer();
+						assertRecipeUpdatesReplaceRecipesOnSameConnection();
+					});
 				}
 			}
 		},

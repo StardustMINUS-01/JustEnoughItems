@@ -283,6 +283,7 @@ class BookmarkSelectionTest {
 				case "getAllIngredients" -> original.stream();
 				case "getDisplayedIngredient" -> Optional.ofNullable(displayed);
 				case "getCandidateIngredients" -> candidates.stream();
+				case "getSelectedCandidate" -> java.lang.reflect.InvocationHandler.invokeDefault(proxy, method, args);
 				case "setSelectedCandidate" -> {
 					displayed = (ITypedIngredient<?>) args[0];
 					yield null;

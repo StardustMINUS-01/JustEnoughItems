@@ -4,7 +4,6 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -23,17 +22,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import java.util.function.BiPredicate;
 import java.util.stream.IntStream;
 
 final class RecipeSearchTraversal {
 	private static final int RECIPES_PER_BATCH = 64;
 	private final IRecipeManager recipeManager;
-	private final IIngredientManager ingredientManager;
 	private final RecipeFilterMode mode;
 	private final RecipeSearchQuery query;
 	private final RecipeCategoryPreferences.State categoryPreferences = RecipeCategoryPreferences.get();
 	private final Supplier<IRecipeSearchTextMatcher> matcherFactory;
-	private final IRecipeSearchTextMatcher displayMatcher;
+	private final BiPredicate<ITypedIngredient<?>, String> ingredientMatcher;
 	private final List<Batch<?>> batches = new ArrayList<>();
 	private final AtomicReferenceArray<List<?>> results;
 	private volatile boolean cancelled;
@@ -43,14 +42,14 @@ final class RecipeSearchTraversal {
 	private final List<IFocusedRecipes<?>> completedResults = new ArrayList<>();
 	private final List<Object> categoryResults = new ArrayList<>();
 
-	RecipeSearchTraversal(IRecipeManager recipeManager, IIngredientManager ingredientManager,
-		ILookupState state, RecipeFilterMode mode, RecipeSearchQuery query, Supplier<IRecipeSearchTextMatcher> matcherFactory) {
+	RecipeSearchTraversal(IRecipeManager recipeManager,
+		ILookupState state, RecipeFilterMode mode, RecipeSearchQuery query, Supplier<IRecipeSearchTextMatcher> matcherFactory,
+		BiPredicate<ITypedIngredient<?>, String> ingredientMatcher) {
 		this.recipeManager = recipeManager;
-		this.ingredientManager = ingredientManager;
 		this.mode = mode;
 		this.query = query;
 		this.matcherFactory = matcherFactory;
-		this.displayMatcher = matcherFactory.get();
+		this.ingredientMatcher = ingredientMatcher;
 		// Capture the lookup state on the client thread; workers only traverse these fixed recipe lists.
 		for (IRecipeCategory<?> category : state.getRecipeCategories())
 			if (categoryPreferences.allows(category.getRecipeType().getUid(), mode))
@@ -108,7 +107,7 @@ final class RecipeSearchTraversal {
 			checkCancelled();
 			var id = batch.category().getRegistryName(recipe);
 			if (id != null) {
-				var materials = recipeManager.getRecipeIngredients(batch.category(), recipe);
+				var materials = recipeManager.getRecipeIngredients(batch.category(), recipe, Set.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.OUTPUT));
 				candidates.add(new RecipePreferenceCandidate(new FocusedRecipe(batch.category().getRecipeType().getUid(), id),
 					createMatchInfo(materials.getIngredients(RecipeIngredientRole.INPUT)), createMatchInfo(materials.getIngredients(RecipeIngredientRole.OUTPUT))));
 			}
@@ -128,8 +127,8 @@ final class RecipeSearchTraversal {
 				if (selected != (mode == RecipeFilterMode.PREFERRED))
 					continue;
 			}
-			if (query.matches(category, recipe, recipeManager, ingredientManager,
-				() -> catalysts.computeIfAbsent(category, c -> recipeManager.createRecipeCatalystLookup(c.getRecipeType()).get().toList()), matcher))
+			if (query.matches(category, recipe, recipeManager,
+				() -> catalysts.computeIfAbsent(category, c -> recipeManager.createRecipeCatalystLookup(c.getRecipeType()).get().toList()), matcher, ingredientMatcher))
 				matches.add(recipe);
 		}
 		return List.copyOf(matches);
@@ -159,8 +158,8 @@ final class RecipeSearchTraversal {
 		return matchCount;
 	}
 
-	public IRecipeSearchTextMatcher getMatcher() {
-		return displayMatcher;
+	public BiPredicate<ITypedIngredient<?>, String> getIngredientMatcher() {
+		return ingredientMatcher;
 	}
 
 	public List<IFocusedRecipes<?>> getResults() {

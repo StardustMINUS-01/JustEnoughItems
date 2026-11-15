@@ -1,5 +1,12 @@
 package mezz.jei.test.gui.favorites;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+import net.minecraft.network.chat.Component;
+
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -90,6 +97,46 @@ public class FavoriteGridSourceTest {
 
 		state.clearSortDragHiddenElements();
 		Assertions.assertTrue(source.getElements(4).getFirst().isVisible());
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void bookmarkRemovalWaitsForCompletionAndHonorsCancellation(boolean complete) {
+		FavoriteRecipeStore store = store("gear", RECIPE);
+		FavoriteRecipeGridSource source = source(store, new FavoriteRecipePanelState(), new CountingInputsResolver());
+		FavoriteRecipeElement<?> element = (FavoriteRecipeElement<?>) source.getElements().getFirst();
+		InputConstants.Key mouse = InputConstants.Type.MOUSE.getOrCreate(3);
+		UserInput press = new UserInput(mouse, 0, 0, 0, InputPhase.PRESS);
+
+		var interaction = element.prepareAction(press, bookmarkKeys(mouse)).orElseThrow();
+
+		Assertions.assertTrue(store.getManualEntry(RECIPE).isPresent());
+		if (complete) {
+			interaction.complete(new UserInput(mouse, 0, 0, 0, InputPhase.RELEASE));
+		} else {
+			interaction.cancel();
+		}
+		Assertions.assertEquals(!complete, store.getManualEntry(RECIPE).isPresent());
+	}
+
+	private static IInternalKeyMappings bookmarkKeys(InputConstants.Key key) {
+		IJeiKeyMappingWithExtraModifiers bookmark = new IJeiKeyMappingWithExtraModifiers() {
+			@Override
+			public boolean isActiveAndMatches(InputConstants.Key input) { return key.equals(input); }
+			@Override
+			public boolean isActiveAndMatchesAllowingExtraModifiers(InputConstants.Key input) { return key.equals(input); }
+			@Override
+			public boolean isUnbound() { return false; }
+			@Override
+			public Component getTranslatedKeyMessage() { return Component.empty(); }
+		};
+		return (IInternalKeyMappings) Proxy.newProxyInstance(FavoriteGridSourceTest.class.getClassLoader(),
+			new Class<?>[]{IInternalKeyMappings.class}, (proxy, method, args) -> {
+				if (method.getName().equals("getBookmark")) {
+					return bookmark;
+				}
+				throw new UnsupportedOperationException(method.getName());
+			});
 	}
 
 	private static FavoriteRecipeGridSource source(

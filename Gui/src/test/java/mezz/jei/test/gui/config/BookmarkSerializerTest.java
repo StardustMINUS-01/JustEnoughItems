@@ -10,10 +10,15 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.api.ingredients.IIngredientType;
+import mezz.jei.common.ingredients.TypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
+import mezz.jei.gui.bookmarks.BookmarkFactory;
+import mezz.jei.gui.bookmarks.BookmarkManager;
 import mezz.jei.common.chat.JeiChatItemLinks;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
@@ -31,10 +36,17 @@ import mezz.jei.gui.config.BookmarkJsonSerializer;
 import mezz.jei.gui.config.BookmarkConfigEntry;
 import mezz.jei.gui.config.BookmarkConfigEntryCodec;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeCategory;
+import mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures;
+import mezz.jei.test.gui.lib.ConfigTestFixtures;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
+import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.SharedConstants;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.Assertions;
@@ -51,6 +63,7 @@ import java.nio.file.Path;
 import java.io.IOException;
 import java.util.function.Function;
 import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -67,6 +80,136 @@ public class BookmarkSerializerTest {
 	public static void setup() {
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
+	}
+
+	@Test
+	public void uiAndManagerShareIdentityAfterReload(@TempDir Path directory) {
+		BookmarkFactory factory = new BookmarkFactory(createCodecHelper(itemStackCodec()), RegistryAccess.EMPTY, INGREDIENT_MANAGER);
+		var clientConfig = ConfigTestFixtures.createClientConfigs(directory.resolve("client.ini")).getClientConfig();
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, clientConfig, null);
+		BookmarkManager manager = new BookmarkManager(bookmarks, factory, null, null, INGREDIENT_MANAGER, null);
+		ITypedIngredient<ItemStack> glass = typed(new ItemStack(Items.GLASS, 32));
+
+		Assertions.assertTrue(bookmarks.onElementBookmarked(new IngredientElement<>(glass), BookmarkHotkeyAction.ADD_BOOKMARK));
+		Assertions.assertEquals(1, bookmarks.getBookmarks().getFirst().getElement().getTypedIngredient().getItemStack().orElseThrow().getCount());
+		Assertions.assertTrue(manager.contains(glass));
+		Assertions.assertFalse(manager.add(glass));
+
+		BookmarkList reloaded = reloadBookmarks(bookmarks, INGREDIENT_MANAGER);
+		BookmarkManager reloadedManager = new BookmarkManager(reloaded, factory, null, null, INGREDIENT_MANAGER, null);
+		Assertions.assertTrue(reloadedManager.contains(glass));
+		Assertions.assertTrue(reloadedManager.remove(glass));
+		Assertions.assertTrue(reloaded.getBookmarks().isEmpty());
+		Assertions.assertTrue(manager.remove(glass));
+		Assertions.assertTrue(bookmarks.getBookmarks().isEmpty());
+		Assertions.assertTrue(manager.add(glass));
+		Assertions.assertFalse(bookmarks.addIngredientBookmark(glass, false));
+		Assertions.assertTrue(bookmarks.onElementBookmarked(new IngredientElement<>(glass), BookmarkHotkeyAction.ADD_BOOKMARK_WITH_COUNT));
+		Assertions.assertTrue(manager.remove(glass));
+		var counted = IngredientBookmark.createWithAmount(glass, 32, INGREDIENT_MANAGER);
+		Assertions.assertEquals(List.of(counted), bookmarks.getBookmarks());
+		BookmarkList countedReloaded = reloadBookmarks(bookmarks, INGREDIENT_MANAGER);
+		Assertions.assertTrue(countedReloaded.contains(counted));
+		Assertions.assertTrue(countedReloaded.remove(counted));
+		Assertions.assertTrue(countedReloaded.getBookmarks().isEmpty());
+	}
+
+	@ParameterizedTest
+	@CsvSource({"1, 0", "4, 0", "1, 2", "4, 2"})
+	public void roundTripsComponentAmountAndScopeIdentity(int amount, int groupId) {
+		ItemStack stack = new ItemStack(Items.GLASS, amount);
+		stack.set(DataComponents.CUSTOM_NAME, Component.literal("Named glass"));
+		IngredientBookmark<ItemStack> bookmark = IngredientBookmark.createPreservingAmount(typed(stack), INGREDIENT_MANAGER);
+		if (groupId != 0) {
+			bookmark = bookmark.withEqualityScope(groupId);
+		}
+		Codec<BookmarkConfigEntry> codec = createEntryCodec(INGREDIENT_MANAGER, itemStackCodec());
+		var ops = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY).createSerializationContext(JsonOps.INSTANCE);
+		var entry = BookmarkConfigEntry.bookmark(bookmark, BookmarkItemMetadata.defaultForGroup(groupId));
+		JsonElement encoded = codec.encodeStart(ops, entry).getOrThrow();
+		IBookmark decoded = codec.parse(ops, encoded).getOrThrow().bookmark();
+
+		Assertions.assertEquals(bookmark, decoded);
+		Assertions.assertEquals(bookmark.hashCode(), decoded.hashCode());
+		Set<IBookmark> bookmarks = new HashSet<>(List.of(bookmark));
+		Assertions.assertTrue(bookmarks.contains(decoded));
+		Assertions.assertFalse(bookmarks.add(decoded));
+		Assertions.assertTrue(bookmarks.remove(decoded));
+		Assertions.assertTrue(ItemStack.matches(stack, decoded.getElement().getTypedIngredient().getItemStack().orElseThrow()));
+		if (groupId != 0) {
+			Assertions.assertNotEquals(IngredientBookmark.createPreservingAmount(typed(stack), INGREDIENT_MANAGER), decoded);
+		}
+	}
+
+	@Test
+	public void ingredientIdentitySurvivesStackMutation() {
+		ItemStack stack = new ItemStack(Items.GLASS, 4);
+		stack.set(DataComponents.CUSTOM_NAME, Component.literal("Before"));
+		var bookmark = IngredientBookmark.createPreservingAmount(typed(stack), INGREDIENT_MANAGER);
+		var equivalent = IngredientBookmark.createWithAmount(typed(stack.copy()), 4, INGREDIENT_MANAGER);
+		Set<IBookmark> bookmarks = new HashSet<>(List.of(bookmark));
+		int hashCode = bookmark.hashCode();
+
+		stack.setCount(2);
+		stack.set(DataComponents.CUSTOM_NAME, Component.literal("After"));
+		bookmark.getIngredient().getIngredient().set(DataComponents.DAMAGE, 3);
+
+		Assertions.assertEquals(hashCode, bookmark.hashCode());
+		Assertions.assertEquals(equivalent, bookmark);
+		Assertions.assertTrue(bookmarks.contains(equivalent));
+		Assertions.assertFalse(bookmarks.add(equivalent));
+		Assertions.assertEquals(equivalent.withEqualityScope(2), bookmark.withEqualityScope(2));
+		Assertions.assertNotEquals(IngredientBookmark.createPreservingAmount(typed(stack), INGREDIENT_MANAGER), bookmark);
+		Assertions.assertTrue(bookmarks.remove(equivalent));
+	}
+
+	@Test
+	public void preservesDistinctComponentsAmountsAndScopes() {
+		var plain = typed(new ItemStack(Items.GLASS));
+		ItemStack namedStack = new ItemStack(Items.GLASS);
+		namedStack.set(DataComponents.CUSTOM_NAME, Component.literal("Glass"));
+		var named = typed(namedStack);
+		var factory = new BookmarkFactory(createCodecHelper(itemStackCodec()), RegistryAccess.EMPTY, INGREDIENT_MANAGER);
+		var ordinary = IngredientBookmark.create(plain, INGREDIENT_MANAGER);
+		var counted = IngredientBookmark.createWithAmount(plain, 4, INGREDIENT_MANAGER);
+		Set<IBookmark> bookmarks = new HashSet<>(List.of(ordinary, counted, IngredientBookmark.create(named, INGREDIENT_MANAGER), ordinary.withEqualityScope(2), ordinary.withEqualityScope(3)));
+
+		Assertions.assertEquals(5, bookmarks.size());
+		Assertions.assertFalse(bookmarks.add(factory.create(plain)));
+		Assertions.assertFalse(bookmarks.add(factory.create(named)));
+		Assertions.assertFalse(bookmarks.add(IngredientBookmark.createPreservingAmount(typed(new ItemStack(Items.GLASS, 4)), INGREDIENT_MANAGER)));
+		Assertions.assertEquals(5, bookmarks.size());
+	}
+
+	@Test
+	public void separatesIngredientTypesWithTheSameHelperUid() {
+		IIngredientType<String> firstType = () -> String.class;
+		IIngredientType<String> secondType = () -> String.class;
+		@SuppressWarnings("unchecked")
+		IIngredientHelper<String> helper = (IIngredientHelper<String>) Proxy.newProxyInstance(
+			getClass().getClassLoader(), new Class<?>[]{IIngredientHelper.class},
+			(proxy, method, args) -> switch (method.getName()) {
+				case "getUniqueId" -> args[0];
+				default -> throw new UnsupportedOperationException(method.getName());
+			});
+		IIngredientManager manager = ItemStackIngredientTestFixtures.ingredientManager(firstType, helper);
+		var ingredient = TypedIngredient.createUnvalidated(firstType, "same_uid");
+		var first = IngredientBookmark.create(ingredient, manager);
+		var second = IngredientBookmark.create(TypedIngredient.createUnvalidated(secondType, "same_uid"),
+			ItemStackIngredientTestFixtures.ingredientManager(secondType, helper));
+		MapCodec<ITypedIngredient<?>> codec = Codec.STRING.<ITypedIngredient<?>>xmap(
+				value -> TypedIngredient.createUnvalidated(firstType, value), value -> (String) value.getIngredient()
+			)
+			.fieldOf("ingredient");
+		var factory = new BookmarkFactory(createCodecHelper(codec), RegistryAccess.EMPTY, manager);
+		Set<IBookmark> bookmarks = new HashSet<>(List.of(first, second));
+
+		Assertions.assertEquals(2, bookmarks.size());
+		Assertions.assertNotEquals(first, second);
+		Assertions.assertEquals(first.hashCode(), factory.create(ingredient).hashCode());
+		Assertions.assertFalse(bookmarks.add(factory.create(ingredient)));
+		Assertions.assertTrue(bookmarks.remove(factory.create(ingredient)));
+		Assertions.assertTrue(bookmarks.contains(second));
 	}
 
 	@Test
@@ -393,7 +536,18 @@ public class BookmarkSerializerTest {
 					.forGetter(ingredient -> ingredient.getItemStack().orElseThrow().getCount())
 			)
 			.apply(instance, (type, id, count) -> typed(new ItemStack(BuiltInRegistries.ITEM.get(id), count))));
-		ICodecHelper codecHelper = (ICodecHelper) Proxy.newProxyInstance(
+		return createEntryCodec(manager, typedIngredientCodec);
+	}
+
+	private static MapCodec<ITypedIngredient<?>> itemStackCodec() {
+		return ItemStack.CODEC.<ITypedIngredient<?>>xmap(
+				stack -> typed(stack), ingredient -> ingredient.getItemStack().orElseThrow()
+			)
+			.fieldOf("ingredient");
+	}
+
+	private static ICodecHelper createCodecHelper(MapCodec<ITypedIngredient<?>> typedIngredientCodec) {
+		return (ICodecHelper) Proxy.newProxyInstance(
 			BookmarkSerializerTest.class.getClassLoader(),
 			new Class<?>[]{ICodecHelper.class},
 			(proxy, method, args) -> switch (method.getName()) {
@@ -401,11 +555,16 @@ public class BookmarkSerializerTest {
 				default -> throw new UnsupportedOperationException(method.getName());
 			}
 		);
+	}
+
+	private static Codec<BookmarkConfigEntry> createEntryCodec(IIngredientManager manager, MapCodec<ITypedIngredient<?>> typedIngredientCodec) {
+		ICodecHelper codecHelper = createCodecHelper(typedIngredientCodec);
+		BookmarkFactory factory = new BookmarkFactory(codecHelper, RegistryAccess.EMPTY, manager);
 		MapCodec<IBookmark> bookmarkCodec = RecordCodecBuilder.mapCodec(instance -> instance.group(
 				Codec.STRING.fieldOf("bookmarkType").forGetter(bookmark -> bookmark.getType().name()),
 				typedIngredientCodec.forGetter(bookmark -> bookmark.getElement().getTypedIngredient())
 			)
-			.apply(instance, (type, ingredient) -> BookmarkType.valueOf(type) == BookmarkType.RECIPE ? new RecipeBookmark<>(new TestRecipeCategory(RECIPE_TYPE, RECIPE_UID), new Object(), RECIPE_UID, ingredient, RecipeIngredientRole.OUTPUT) : IngredientBookmark.create(ingredient, manager)));
+			.apply(instance, (type, ingredient) -> BookmarkType.valueOf(type) == BookmarkType.RECIPE ? new RecipeBookmark<>(new TestRecipeCategory(RECIPE_TYPE, RECIPE_UID), new Object(), RECIPE_UID, ingredient, RecipeIngredientRole.OUTPUT) : factory.create(ingredient)));
 		return BookmarkConfigEntryCodec.create(codecHelper, manager, bookmarkCodec.codec());
 	}
 

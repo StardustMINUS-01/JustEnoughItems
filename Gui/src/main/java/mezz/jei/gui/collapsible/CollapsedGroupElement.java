@@ -12,7 +12,8 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.util.FocusUtil;
@@ -132,18 +133,17 @@ public class CollapsedGroupElement<T> implements IElement<T> {
 	}
 
 	@Override
-	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<InputAction> prepareAction(UserInput input, IInternalKeyMappings keyBindings) {
 		if (!allowToggle || !InputModifiers.hasAlt(input)) {
-			return false;
+			return Optional.empty();
 		}
 		InputConstants.Key key = input.getKey();
 		if (key.getType() != InputConstants.Type.MOUSE || key.getValue() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-			return false;
+			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
+		return Optional.of(InputAction.run(() -> {
 			manager.toggleGroup(group.id());
 			JeiClientSoundUtil.playClickSound();
-		}
-		return true;
+		}));
 	}
 }

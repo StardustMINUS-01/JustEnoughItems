@@ -10,6 +10,7 @@ import mezz.jei.common.config.file.JsonArrayFileHelper;
 import mezz.jei.common.util.PathUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -35,15 +36,27 @@ public final class BookmarkJsonSerializer {
 
 	public static void migrate(Path path, int version, Optional<Path> legacyPath, List<BookmarkConfigEntry> entries,
 		Codec<BookmarkConfigEntry> codec, DynamicOps<JsonElement> ops) throws IOException {
+		migrate(path, version, legacyPath, entries, codec, ops, null);
+	}
+
+	static void migrate(Path path, int version, Optional<Path> legacyPath, List<BookmarkConfigEntry> entries,
+		Codec<BookmarkConfigEntry> codec, DynamicOps<JsonElement> ops, @Nullable JsonConfigFileGuard guard) throws IOException {
+		if (guard != null && !guard.canWrite(path)) {
+			return;
+		}
 		if (Files.exists(path)) {
 			Path backup = path.resolveSibling(path.getFileName() + ".bak");
 			Files.copy(path, backup, StandardCopyOption.REPLACE_EXISTING);
 			LOGGER.info("Backed up legacy json compressed bookmarks config file to '{}'", backup);
 		}
 		// Abort the atomic write on any encoding error before retiring the legacy source.
-		JsonArrayFileHelper.write(path, version, entries, codec, ops,
-			error -> { throw new IllegalStateException(error.message()); },
-			(entry, exception) -> { throw exception; });
+		if (guard == null) {
+			JsonArrayFileHelper.write(path, version, entries, codec, ops,
+				error -> { throw new IllegalStateException(error.message()); },
+				(entry, exception) -> { throw exception; });
+		} else if (!guard.write(path, version, entries, codec, ops)) {
+			return;
+		}
 		if (legacyPath.isPresent() && Files.exists(legacyPath.get())) {
 			Path backup = legacyPath.get().resolveSibling(legacyPath.get().getFileName() + ".bak");
 			PathUtil.moveAtomicReplace(legacyPath.get(), backup);

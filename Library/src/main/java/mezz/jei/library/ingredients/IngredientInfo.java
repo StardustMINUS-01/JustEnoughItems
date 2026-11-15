@@ -10,6 +10,7 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.library.load.registration.LegacyUidCodec;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
@@ -25,6 +26,8 @@ public class IngredientInfo<T> {
 	private final IIngredientHelper<T> ingredientHelper;
 	private final IIngredientRenderer<T> ingredientRenderer;
 	private final Codec<T> ingredientCodec;
+	@Nullable
+	private final ResourceLocation registeringPluginUid;
 	private final RegisteredIngredientIndex<T> ingredientIndex;
 	private final ListMultiMap<Object, String> aliases;
 	private final ListMultiMap<Object, String> baseAliases;
@@ -34,7 +37,8 @@ public class IngredientInfo<T> {
 		Collection<ITypedIngredient<T>> ingredients,
 		IIngredientHelper<T> ingredientHelper,
 		IIngredientRenderer<T> ingredientRenderer,
-		@Nullable Codec<T> ingredientCodec
+		@Nullable Codec<T> ingredientCodec,
+		@Nullable ResourceLocation registeringPluginUid
 	) {
 		if (ingredientCodec == null) {
 			//noinspection deprecation
@@ -45,6 +49,7 @@ public class IngredientInfo<T> {
 		this.ingredientHelper = ingredientHelper;
 		this.ingredientRenderer = ingredientRenderer;
 		this.ingredientCodec = ingredientCodec;
+		this.registeringPluginUid = registeringPluginUid;
 
 		this.ingredientIndex = new RegisteredIngredientIndex<>(ingredientHelper);
 		this.ingredientIndex.addAll(ingredients);
@@ -69,6 +74,10 @@ public class IngredientInfo<T> {
 		return ingredientCodec;
 	}
 
+	public Optional<ResourceLocation> getRegisteringPluginUid() {
+		return Optional.ofNullable(registeringPluginUid);
+	}
+
 	@Unmodifiable
 	public Collection<ITypedIngredient<T>> getAllTypedIngredients() {
 		return ingredientIndex.getAllIngredients();
@@ -86,6 +95,11 @@ public class IngredientInfo<T> {
 
 	public void removeIngredients(Collection<ITypedIngredient<T>> ingredients) {
 		this.ingredientIndex.removeAll(ingredients);
+	}
+
+	@Nullable
+	public ITypedIngredient<T> getIngredientByUid(Object uid) {
+		return ingredientIndex.getIngredientByUid(uid);
 	}
 
 	@Unmodifiable

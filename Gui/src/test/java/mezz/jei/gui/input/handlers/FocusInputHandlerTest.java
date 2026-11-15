@@ -6,24 +6,24 @@ import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.gui.input.ClickableIngredientInternal;
-import mezz.jei.gui.input.CombinedRecipeFocusSource;
+import mezz.jei.gui.input.IngredientFocusSource;
 import mezz.jei.gui.input.IClickableIngredientInternal;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.lang.reflect.Proxy;
 import java.util.stream.Stream;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FocusInputHandlerTest {
 	@BeforeAll
@@ -32,15 +32,21 @@ public class FocusInputHandlerTest {
 		Bootstrap.bootStrap();
 	}
 
-	@Test
-	public void terminalSearchUsesCombinedFocusSource() {
-		InputConstants.Key searchKey = InputConstants.Type.KEYSYM.getOrCreate(1);
+	@ParameterizedTest
+	@CsvSource({
+		"KEYSYM, true, false, 1",
+		"MOUSE, true, false, 1",
+		"MOUSE, false, false, 0",
+		"MOUSE, true, true, 0"
+	})
+	public void terminalSearchExecutesOnlyWhenInteractionCompletes(InputConstants.Type type, boolean inside, boolean cancel, int expectedSearches) {
+		InputConstants.Key searchKey = type.getOrCreate(1);
 		ITypedIngredient<?> ingredient = item(Items.DIAMOND);
-		CombinedRecipeFocusSource focusSource = new CombinedRecipeFocusSource() {
+		IngredientFocusSource focusSource = new IngredientFocusSource(null) {
 			@Override
-			public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(UserInput input, IInternalKeyMappings keyBindings) {
+			public Stream<IClickableIngredientInternal<?>> getIngredientForInput(UserInput input, IInternalKeyMappings keyBindings) {
 				IngredientElement<?> element = new IngredientElement<>(ingredient);
-				return Stream.of(new ClickableIngredientInternal<>(element, (x, y) -> true, false, false));
+				return Stream.of(new ClickableIngredientInternal<>(element, (x, y) -> x >= 0 && x < 18 && y >= 0 && y < 18, false, false));
 			}
 		};
 		IJeiKeyMapping matching = createKeyMapping(searchKey);
@@ -50,19 +56,27 @@ public class FocusInputHandlerTest {
 			new Class<?>[]{IInternalKeyMappings.class},
 			(proxy, method, args) -> method.getName().equals("getSearchIngredientInTerminal") ? matching : noMatch
 		);
-		FocusInputHandler handler = new IngredientShortcutInputHandler(
+		IngredientShortcutInputHandler handler = new IngredientShortcutInputHandler(
 			focusSource, null, null, null, null, null, null
 		);
 		int[] searches = {0};
 		ExternalIngredientSearchHandlerRegistry.register((screen, searchedIngredient, simulate) -> {
-			searches[0]++;
+			if (!simulate) {
+				searches[0]++;
+			}
 			return searchedIngredient == ingredient;
 		});
 
 		try {
-			UserInput input = new UserInput(searchKey, 0, 0, 0, InputType.IMMEDIATE);
-			assertTrue(handler.handleUserInput(null, input, keyMappings).isPresent());
-			assertEquals(1, searches[0]);
+			UserInput input = new UserInput(searchKey, 8, 8, 0, InputPhase.PRESS);
+			var interaction = handler.beginInput(null, input, keyMappings).orElseThrow();
+			assertEquals(0, searches[0]);
+			if (cancel) {
+				interaction.cancel();
+			} else {
+				interaction.complete(input.isKeyboardInput() ? input : new UserInput(searchKey, inside ? 8 : 24, 8, 0, InputPhase.RELEASE));
+			}
+			assertEquals(expectedSearches, searches[0]);
 		} finally {
 			ExternalIngredientSearchHandlerRegistry.register((screen, searchedIngredient, simulate) -> false);
 		}

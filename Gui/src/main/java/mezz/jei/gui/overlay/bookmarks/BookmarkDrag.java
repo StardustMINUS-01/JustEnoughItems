@@ -1,50 +1,52 @@
 package mezz.jei.gui.overlay.bookmarks;
 
+import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.MathUtil;
+import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.gui.bookmarks.IBookmark;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.input.IPaged;
+import mezz.jei.gui.overlay.bookmarks.PageFlipHover.Direction;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.phys.Vec2;
 
 import java.util.List;
 
 public class BookmarkDrag<T> {
-	private static final int PREVIEW_ACCEPT_COLOR = 0x553399FF;
-	private static final int PREVIEW_REJECT_COLOR = 0x55FF3333;
-
 	private final BookmarkOverlay bookmarkOverlay;
-	private final List<IBookmarkDragTarget> targets;
-	private final BookmarkDragSelection selection;
+	private final IIngredientRenderer<T> ingredientRenderer;
+	private final ITypedIngredient<T> ingredient;
 	private final double mouseStartX;
 	private final double mouseStartY;
 	private final IBookmark bookmark;
 	private final ImmutableRect2i origin;
 	private final long dragCanStartTime;
+	private final PageFlipHover pageFlipHover = new PageFlipHover(System::currentTimeMillis);
+	private final BookmarkDragScroll dragScroll = new BookmarkDragScroll(System::nanoTime);
 
 	public BookmarkDrag(
 		BookmarkOverlay bookmarkOverlay,
-		List<IBookmarkDragTarget> targets,
+		IIngredientRenderer<T> ingredientRenderer,
+		ITypedIngredient<T> ingredient,
 		IBookmark bookmark,
-		BookmarkDragSelection selection,
 		double mouseX,
 		double mouseY,
 		ImmutableRect2i origin
 	) {
 		this.bookmarkOverlay = bookmarkOverlay;
-		this.targets = targets;
+		this.ingredientRenderer = ingredientRenderer;
+		this.ingredient = ingredient;
 		this.bookmark = bookmark;
-		this.selection = selection;
 		this.origin = origin;
 		this.mouseStartX = mouseX;
 		this.mouseStartY = mouseY;
 		IClientConfig clientConfig = Internal.getClientConfigs().getClientConfig();
-		this.dragCanStartTime = System.currentTimeMillis() + clientConfig.dragDelayMs().getValue();
+		this.dragCanStartTime = System.currentTimeMillis() + clientConfig.dragDelayMs().get();
 	}
 
 	public static boolean canStart(BookmarkDrag<?> drag, double mouseX, double mouseY) {
@@ -76,12 +78,29 @@ public class BookmarkDrag<T> {
 			return;
 		}
 
-		for (IBookmark selectedBookmark : selection.bookmarks()) {
-			selectedBookmark.setVisible(false);
-		}
+		bookmark.setVisible(false);
 		bookmarkOverlay.getScreenPropertiesUpdater()
 			.updateMouseExclusionArea(new ImmutablePoint2i(mouseX, mouseY))
 			.update();
+		bookmarkOverlay.scrollDuringDrag(dragScroll, mouseX, mouseY);
+
+		Direction hoveredDirection = bookmarkOverlay.getHoveredPageEdge(mouseX, mouseY);
+		Direction flipDirection = pageFlipHover.update(hoveredDirection);
+		if (flipDirection != null) {
+			IPaged pageDelegate = bookmarkOverlay.getPageDelegate();
+			switch (flipDirection) {
+				case NEXT -> pageDelegate.nextPage();
+				case PREVIOUS -> pageDelegate.previousPage();
+			}
+		}
+		bookmarkOverlay.setPageButtonsForcePressed(
+			hoveredDirection == Direction.NEXT,
+			hoveredDirection == Direction.PREVIOUS
+		);
+	}
+
+	public boolean isDragging() {
+		return !bookmark.isVisible();
 	}
 
 	public boolean drawItem(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -89,65 +108,29 @@ public class BookmarkDrag<T> {
 			return false;
 		}
 
-		drawPreview(guiGraphics, mouseX, mouseY);
-		drawDraggedSelection(guiGraphics, mouseX, mouseY);
+		SafeIngredientUtil.render(guiGraphics, ingredientRenderer, ingredient, mouseX - 8, mouseY - 8);
 		return true;
 	}
 
-	private void drawDraggedSelection(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		for (BookmarkDragSelection.PreviewSlot slot : selection.previewSlots()) {
-			ITypedIngredient<?> typedIngredient = slot.bookmark().getElement().getTypedIngredient();
-			BookmarkSortDragState.drawIngredient(guiGraphics, ingredientManager, typedIngredient, mouseX - 8 + slot.relativeX(), mouseY - 8 + slot.relativeY());
-		}
-	}
-
-	private void drawPreview(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		for (IBookmarkDragTarget target : targets) {
-			ImmutableRect2i area = target.getArea();
-			if (MathUtil.contains(area, mouseX, mouseY)) {
-				target.getPreview(bookmark, mouseX, mouseY)
-					.ifPresent(preview -> {
-						ImmutableRect2i previewArea = preview.area();
-						int color = preview.rejected() ? PREVIEW_REJECT_COLOR : PREVIEW_ACCEPT_COLOR;
-						guiGraphics.fill(
-							previewArea.getX(),
-							previewArea.getY(),
-							previewArea.getX() + previewArea.getWidth(),
-							previewArea.getY() + previewArea.getHeight(),
-							color
-						);
-					});
-				return;
-			}
-		}
-	}
-
-	public boolean onClick(UserInput input) {
+	public void complete(UserInput input) {
 		if (bookmark.isVisible()) {
-			return false;
+			return;
 		}
 
-		for (IBookmarkDragTarget target : targets) {
-			ImmutableRect2i area = target.getArea();
+		List<BookmarkDragTarget> targets = bookmarkOverlay.createBookmarkDragTargets(bookmark);
+		for (BookmarkDragTarget target : targets) {
+			ImmutableRect2i area = target.area();
 			if (MathUtil.contains(area, input.getMouseX(), input.getMouseY())) {
-				if (!input.isSimulate()) {
-					target.accept(bookmark, input.getMouseX(), input.getMouseY());
-					stop();
-					return true;
-				}
+				bookmarkOverlay.moveBookmark(bookmark, target.index());
+				break;
 			}
 		}
-		if (!input.isSimulate()) {
-			stop();
-		}
-		return false;
+		stop();
 	}
 
 	public void stop() {
-		for (IBookmark selectedBookmark : selection.bookmarks()) {
-			selectedBookmark.setVisible(true);
-		}
+		bookmarkOverlay.setPageButtonsForcePressed(false, false);
+		bookmark.setVisible(true);
 		bookmarkOverlay.getScreenPropertiesUpdater()
 			.updateMouseExclusionArea(null)
 			.update();

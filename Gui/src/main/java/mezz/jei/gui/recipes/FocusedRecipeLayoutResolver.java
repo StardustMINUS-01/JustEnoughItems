@@ -5,9 +5,9 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.common.recipes.RecipeIdentifierLookup;
 import mezz.jei.gui.input.FocusedRecipe;
 
-import java.util.Objects;
 import java.util.Optional;
 
 public final class FocusedRecipeLayoutResolver {
@@ -24,11 +24,9 @@ public final class FocusedRecipeLayoutResolver {
 			return Optional.empty();
 		}
 		IRecipeCategory recipeCategory = recipeManager.getRecipeCategory((RecipeType) recipeType.get());
-		return recipeManager.createRecipeLookup(recipeCategory.getRecipeType())
-			.limitFocus(focuses.getAllFocuses())
-			.get()
-			.filter(candidate -> Objects.equals(recipeCategory.getRegistryName(candidate), focusedRecipe.recipeUid()))
-			.findFirst()
+		var recipeLookup = recipeManager.createRecipeLookup(recipeCategory.getRecipeType())
+			.limitFocus(focuses.getAllFocuses());
+		return RecipeIdentifierLookup.findRecipe(recipeCategory, recipeLookup, focusedRecipe.recipeUid(), recipeManager)
 			.flatMap(candidate -> recipeManager.createRecipeLayoutDrawable(recipeCategory, candidate, focuses))
 			.map(layout -> (IRecipeLayoutDrawable<?>) layout);
 	}

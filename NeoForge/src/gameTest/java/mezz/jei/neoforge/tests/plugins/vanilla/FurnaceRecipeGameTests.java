@@ -6,7 +6,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.library.plugins.vanilla.VanillaRecipeFactory;
 import mezz.jei.library.plugins.vanilla.cooking.FurnaceRecipeMaker;
-import mezz.jei.library.plugins.vanilla.cooking.FurnaceRecipeTransferInfo;
+import mezz.jei.library.plugins.vanilla.cooking.CookingRecipeTransferInfo;
 import mezz.jei.library.plugins.vanilla.cooking.FurnaceSmeltingCategory;
 import mezz.jei.library.plugins.vanilla.cooking.JeiSmeltingRecipe;
 import mezz.jei.library.util.IngredientSupplierHelper;
@@ -19,6 +19,7 @@ import mezz.jei.neoforge.tests.recipe.transfer.RecipeTransferTestHelper;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.FurnaceMenu;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -33,6 +34,7 @@ import net.neoforged.testframework.gametest.EmptyTemplate;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 @ForEachTest(groups = "furnace_recipes")
 public final class FurnaceRecipeGameTests {
@@ -46,7 +48,7 @@ public final class FurnaceRecipeGameTests {
 		VanillaRecipeFactory recipeFactory = TestIngredientManagers.createVanillaRecipeFactory();
 		RecipeManager recipeManager = helper.getLevel().getServer().getRecipeManager();
 		ResourceLocation spongeRecipeId = ResourceLocation.withDefaultNamespace("sponge");
-		ResourceLocation spongeWithBucketRecipeId = ResourceLocation.withDefaultNamespace("sponge_with_bucket");
+		ResourceLocation spongeWithBucketRecipeId = ResourceLocation.withDefaultNamespace("/sponge_with_bucket");
 		List<RecipeHolder<SmeltingRecipe>> vanillaRecipes = recipeManager.getAllRecipesFor(RecipeType.SMELTING);
 
 		List<RecipeHolder<SmeltingRecipe>> recipes = FurnaceRecipeMaker.getRecipes(recipeFactory, recipeManager, helper.getLevel().registryAccess());
@@ -81,6 +83,7 @@ public final class FurnaceRecipeGameTests {
 
 		IIngredientManager ingredientManager = TestIngredientManagers.createVanillaItemStackIngredientManager(helper.getLevel());
 		FurnaceSmeltingCategory recipeCategory = new FurnaceSmeltingCategory(TestGuiHelper.INSTANCE);
+		helper.assertEquals(List.of(spongeRecipeId), recipeCategory.getSourceRecipeIds(recipeHolder), "Underlying sponge recipe ID");
 		IIngredientSupplier ingredients = IngredientSupplierHelper.getIngredientSupplier(
 			recipeHolder,
 			recipeCategory,
@@ -99,15 +102,11 @@ public final class FurnaceRecipeGameTests {
 			"Indexed outputs"
 		);
 
-		FurnaceMenu menu = helper.openMenu(FurnaceMenu::new);
-		FurnaceRecipeTransferInfo transferInfo = new FurnaceRecipeTransferInfo();
-		helper.assertEquals(2, transferInfo.getRecipeSlots(menu, recipeHolder).size(), "Special smelting transfer slot count");
-
 		TransferRecipe<RecipeHolder<SmeltingRecipe>> transferRecipe = new TransferRecipe<>(
 			recipeHolder,
 			List.of(TestRecipeSlotView.item(Items.WET_SPONGE), TestRecipeSlotView.item(Items.BUCKET))
 		);
-		menu = helper.openMenu(FurnaceMenu::new, new ItemStack(Items.WET_SPONGE), new ItemStack(Items.BUCKET));
+		FurnaceMenu menu = helper.openMenu(FurnaceMenu::new, new ItemStack(Items.WET_SPONGE), new ItemStack(Items.BUCKET));
 		var transferResult = helper.transfer(RecipeTypes.SMELTING, transferRecipe, menu);
 		helper.assertSuccessfulTransfer(
 			transferResult,
@@ -119,7 +118,7 @@ public final class FurnaceRecipeGameTests {
 
 	@GameTest
 	@EmptyTemplate
-	@TestHolder(description = "API-created smelting recipes use all furnace fuels by default.")
+	@TestHolder(description = "API-created smelting recipes display all furnace fuels without indexing them.")
 	public static void smeltingRecipeDefaultsToAllFuels(JeiGameTestHelper helper) {
 		VanillaRecipeFactory recipeFactory = TestIngredientManagers.createVanillaRecipeFactory();
 		RecipeHolder<SmeltingRecipe> recipeHolder = recipeFactory.createSmeltingRecipe(
@@ -142,17 +141,22 @@ public final class FurnaceRecipeGameTests {
 		IIngredientSupplier ingredients = IngredientSupplierHelper.getIngredientSupplier(
 			recipeHolder,
 			recipeCategory,
-			ingredientManager
+			ingredientManager,
+			Set.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.OUTPUT)
 		);
+		helper.assertTrue(ingredients.getIngredients(RecipeIngredientRole.RENDER_ONLY).isEmpty(), "Fuel display must not be indexed");
+		assertStacks(helper, List.of(new ItemStack(Items.COBBLESTONE)), getItemStacks(ingredients, RecipeIngredientRole.INPUT), "Indexed inputs");
+		assertStacks(helper, List.of(new ItemStack(Items.STONE)), getItemStacks(ingredients, RecipeIngredientRole.OUTPUT), "Indexed outputs");
+		IIngredientSupplier displayIngredients = IngredientSupplierHelper.getIngredientSupplier(recipeHolder, recipeCategory, ingredientManager);
 		assertStacks(
 			helper,
 			furnaceFuels,
-			getItemStacks(ingredients, RecipeIngredientRole.RENDER_ONLY),
+			getItemStacks(displayIngredients, RecipeIngredientRole.RENDER_ONLY),
 			"Default fuel-slot inputs"
 		);
 
 		FurnaceMenu menu = helper.openMenu(FurnaceMenu::new);
-		FurnaceRecipeTransferInfo transferInfo = new FurnaceRecipeTransferInfo();
+		var transferInfo = new CookingRecipeTransferInfo<>(FurnaceMenu.class, MenuType.FURNACE, RecipeTypes.SMELTING, holder -> recipeCategory.getFuel(holder.value()));
 		helper.assertEquals(1, transferInfo.getRecipeSlots(menu, recipeHolder).size(), "Normal smelting transfer slot count");
 
 		helper.succeed();

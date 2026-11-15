@@ -2,6 +2,7 @@ package mezz.jei.gui.recipes.lookups;
 
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.gui.recipes.RecipeGuiScrollState;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.util.MathUtil;
 
@@ -11,6 +12,7 @@ public class SingleCategoryLookupState implements ILookupState {
 	private final IFocusedRecipes<?> focusedRecipes;
 	private final IFocusGroup focusGroup;
 	private int recipesPerPage = 1;
+	private final RecipeGuiScrollState scrollState = new RecipeGuiScrollState();
 	private int recipeIndex;
 
 	public SingleCategoryLookupState(IFocusedRecipes<?> focusedRecipes, IFocusGroup focusGroup) {
@@ -40,12 +42,18 @@ public class SingleCategoryLookupState implements ILookupState {
 	}
 
 	@Override
-	public int getRecipeIndex() {
-		return recipeIndex;
+	public RecipeGuiScrollState getScrollState() {
+		return scrollState;
 	}
 
-	void setRecipeIndex(int recipeIndex) {
+	@Override
+	public void setRecipeIndex(int recipeIndex) {
 		this.recipeIndex = recipeIndex;
+	}
+
+	@Override
+	public int getRecipeIndex() {
+		return recipeIndex;
 	}
 
 	@Override
@@ -76,13 +84,14 @@ public class SingleCategoryLookupState implements ILookupState {
 	@Override
 	public void goToFirstPage() {
 		this.recipeIndex = 0;
+		this.scrollState.scrollToRecipe(0);
 	}
 
 	@Override
 	public boolean nextPage() {
-		int oldIndex = this.recipeIndex;
+		int oldIndex = this.recipeIndex - this.recipeIndex % recipesPerPage;
 		int recipeCount = recipeCount();
-		this.recipeIndex = recipeIndex + recipesPerPage;
+		this.recipeIndex = oldIndex + recipesPerPage;
 		if (recipeIndex >= recipeCount) {
 			this.recipeIndex = 0;
 		}
@@ -91,8 +100,8 @@ public class SingleCategoryLookupState implements ILookupState {
 
 	@Override
 	public boolean previousPage() {
-		int oldIndex = this.recipeIndex;
-		this.recipeIndex = recipeIndex - recipesPerPage;
+		int oldIndex = this.recipeIndex - this.recipeIndex % recipesPerPage;
+		this.recipeIndex = oldIndex - recipesPerPage;
 		if (recipeIndex < 0) {
 			final int pageCount = pageCount();
 			this.recipeIndex = (pageCount - 1) * recipesPerPage;

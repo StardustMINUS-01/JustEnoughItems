@@ -4,8 +4,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 import mezz.jei.gui.bookmarks.tree.RecipeTreeInput;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
 import org.lwjgl.glfw.GLFW;
@@ -48,7 +48,7 @@ class TreeInputTest {
 	}
 
 	private static UserInput input(int key, int modifiers) {
-		return new UserInput(InputConstants.Type.KEYSYM.getOrCreate(key), 0, 0, modifiers, InputType.IMMEDIATE);
+		return new UserInput(InputConstants.Type.KEYSYM.getOrCreate(key), 0, 0, modifiers, InputPhase.PRESS);
 	}
 
 	private static IInternalKeyMappings keys(int recipeKey) {

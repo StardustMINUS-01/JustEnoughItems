@@ -22,11 +22,13 @@ public class BookmarkOverlayScrollStepAreaTest {
 		BookmarkOverlay.LayoutAreas layoutAreas = BookmarkOverlay.calculateLayoutAreas(
 			new ImmutableRect2i(0, 0, 200, 300),
 			true,
-			3
+			54
 		);
 		ImmutableRect2i historyArea = layoutAreas.historyArea().orElseThrow();
 
-		assertEquals(13, historyArea.getX());
-		assertEquals(194, historyArea.getX() + historyArea.getWidth());
+		assertEquals(7, historyArea.getX());
+		assertEquals(200, historyArea.getX() + historyArea.getWidth());
+		assertEquals(54, historyArea.getHeight());
+		assertEquals(270, layoutAreas.contentsBottomLimit().orElseThrow() + historyArea.getHeight());
 	}
 }

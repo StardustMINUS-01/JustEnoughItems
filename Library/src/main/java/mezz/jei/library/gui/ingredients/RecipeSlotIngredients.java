@@ -11,12 +11,12 @@ import mezz.jei.library.ingredients.DisplayIngredientAcceptor;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 /**
  * Owns focus, visibility, cycling, and display overrides for a recipe slot.
@@ -30,6 +30,7 @@ public final class RecipeSlotIngredients {
 	 */
 	@Unmodifiable
 	private final List<@Nullable ITypedIngredient<?>> allIngredients;
+	private final @Nullable List<@Nullable ITypedIngredient<?>> focusedIngredients;
 
 	/**
 	 * Displayed ingredients, taking focus and visibility into account.
@@ -40,6 +41,7 @@ public final class RecipeSlotIngredients {
 
 	private @Nullable List<ITypedIngredient<?>> filteredCandidates;
 	private @Nullable List<ITypedIngredient<?>> selectedCandidate;
+	private @Nullable Boolean selectedCandidateInScope;
 	private @Nullable DisplayIngredientAcceptor displayOverrides;
 	private final Runnable displayOverridesChangedListener;
 
@@ -49,7 +51,7 @@ public final class RecipeSlotIngredients {
 		Runnable displayOverridesChangedListener
 	) {
 		this.allIngredients = Collections.unmodifiableList(allIngredients);
-		this.displayIngredients = focusedIngredients;
+		this.focusedIngredients = focusedIngredients;
 		this.displayOverridesChangedListener = displayOverridesChangedListener;
 	}
 
@@ -80,8 +82,14 @@ public final class RecipeSlotIngredients {
 	}
 
 	public Stream<ITypedIngredient<?>> getDisplayedIngredients() {
-		return getDisplayIngredients().stream()
-			.filter(Objects::nonNull);
+		List<@Nullable ITypedIngredient<?>> candidates = allIngredients;
+		if (displayOverrides != null) {
+			candidates = displayOverrides.getAllIngredients();
+		}
+		IIngredientVisibility visibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
+		return candidates.stream()
+			.filter(Objects::nonNull)
+			.filter(ingredient -> visibility.isIngredientVisible(ingredient, UidContext.Recipe));
 	}
 
 	private List<@Nullable ITypedIngredient<?>> getDisplayIngredients() {
@@ -89,7 +97,15 @@ public final class RecipeSlotIngredients {
 			this.displayOverrides.getAllIngredients().contains(this.selectedCandidate.getFirst()))) {
 			return this.selectedCandidate;
 		}
-		return getCandidateList();
+		if (this.displayIngredients == null) {
+			if (this.displayOverrides == null && this.filteredCandidates == null && this.focusedIngredients == null) {
+				this.displayIngredients = calculateDisplayIngredients(this.allIngredients);
+			} else {
+				List<@Nullable ITypedIngredient<?>> candidates = getCandidateList();
+				this.displayIngredients = candidates.size() > MAX_DISPLAYED_INGREDIENTS ? candidates.subList(0, MAX_DISPLAYED_INGREDIENTS) : candidates;
+			}
+		}
+		return this.displayIngredients;
 	}
 
 	private List<@Nullable ITypedIngredient<?>> getCandidateList() {
@@ -99,10 +115,7 @@ public final class RecipeSlotIngredients {
 		if (this.filteredCandidates != null) {
 			return this.filteredCandidates;
 		}
-		if (this.displayIngredients == null) {
-			this.displayIngredients = calculateDisplayIngredients(this.allIngredients);
-		}
-		return this.displayIngredients;
+		return this.focusedIngredients == null ? this.allIngredients : this.focusedIngredients;
 	}
 
 	public <T> List<T> getVisibleIngredients(IIngredientType<T> ingredientType) {
@@ -116,10 +129,14 @@ public final class RecipeSlotIngredients {
 
 	public void setDisplayedCandidates(@Nullable List<ITypedIngredient<?>> candidates) {
 		this.filteredCandidates = candidates;
-		displayOverridesChangedListener.run();
+		onDisplayOverridesChanged();
 	}
 
 	public Stream<ITypedIngredient<?>> getCandidateIngredients() {
+		// Explicit focus and filtering constrain candidates; the cycling fallback never does.
+		if (this.displayOverrides != null || (this.filteredCandidates == null && this.focusedIngredients == null)) {
+			return getDisplayedIngredients();
+		}
 		return getCandidateList().stream().filter(Objects::nonNull);
 	}
 
@@ -128,14 +145,36 @@ public final class RecipeSlotIngredients {
 			return;
 		}
 		this.selectedCandidate = candidate == null ? null : List.of(candidate);
+		this.selectedCandidateInScope = null;
 		displayOverridesChangedListener.run();
+	}
+
+	public Optional<ITypedIngredient<?>> getSelectedCandidate() {
+		if (selectedCandidate == null) {
+			return Optional.empty();
+		}
+		ITypedIngredient<?> selected = selectedCandidate.getFirst();
+		// Candidate lists change through the setters; visibility may change independently.
+		if (selectedCandidateInScope == null) {
+			selectedCandidateInScope = getCandidateList().contains(selected);
+		}
+		if (!selectedCandidateInScope) {
+			return Optional.empty();
+		}
+		if (displayOverrides != null || (filteredCandidates == null && focusedIngredients == null)) {
+			IIngredientVisibility visibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
+			if (!visibility.isIngredientVisible(selected, UidContext.Recipe)) {
+				return Optional.empty();
+			}
+		}
+		return Optional.of(selected);
 	}
 
 	public void clearDisplayOverrides() {
 		boolean changed = this.displayOverrides != null;
 		this.displayOverrides = null;
 		if (changed) {
-			displayOverridesChangedListener.run();
+			onDisplayOverridesChanged();
 		}
 	}
 
@@ -146,49 +185,36 @@ public final class RecipeSlotIngredients {
 	public IIngredientConsumer createDisplayOverrides() {
 		if (this.displayOverrides == null) {
 			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-			this.displayOverrides = new DisplayIngredientAcceptor(ingredientManager, displayOverridesChangedListener);
-			displayOverridesChangedListener.run();
+			this.displayOverrides = new DisplayIngredientAcceptor(ingredientManager, this::onDisplayOverridesChanged);
+			onDisplayOverridesChanged();
 		}
 		return this.displayOverrides;
 	}
 
+	private void onDisplayOverridesChanged() {
+		this.displayIngredients = null;
+		this.selectedCandidateInScope = null;
+		displayOverridesChangedListener.run();
+	}
+
 	private static List<@Nullable ITypedIngredient<?>> calculateDisplayIngredients(List<@Nullable ITypedIngredient<?>> allIngredients) {
-		if (allIngredients.isEmpty()) {
-			return List.of();
-		}
+		IIngredientVisibility visibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
+		return filterVisibleIngredients(allIngredients, ingredient -> visibility.isIngredientVisible(ingredient, UidContext.Recipe), MAX_DISPLAYED_INGREDIENTS);
+	}
 
-		List<@Nullable ITypedIngredient<?>> visibleIngredients = List.of();
-		boolean hasInvisibleIngredients = false;
-
-		// Hide invisible ingredients if there are any.
-		// Try scanning through all the ingredients without building the list of visible ingredients.
-		// If an invisible ingredient is found, start building the list of visible ingredients.
-		IIngredientVisibility ingredientVisibility = Internal.getJeiRuntime().getJeiHelpers().getIngredientVisibility();
-		for (int i = 0; i < allIngredients.size() && visibleIngredients.size() < MAX_DISPLAYED_INGREDIENTS; i++) {
-			ITypedIngredient<?> ingredient = allIngredients.get(i);
-			boolean visible = ingredient == null || ingredientVisibility.isIngredientVisible(ingredient, UidContext.Recipe);
-			if (visible) {
-				if (hasInvisibleIngredients) {
-					visibleIngredients.add(ingredient);
-				}
-			} else if (!hasInvisibleIngredients) {
-				hasInvisibleIngredients = true;
-				// `i` is the first invisible ingredient, start putting visible ingredients into visibleIngredients.
-				visibleIngredients = new ArrayList<>(allIngredients.subList(0, i));
-			}
+	public static List<@Nullable ITypedIngredient<?>> filterVisibleIngredients(
+		List<@Nullable ITypedIngredient<?>> ingredients,
+		Predicate<ITypedIngredient<?>> isVisible,
+		int limit
+	) {
+		List<@Nullable ITypedIngredient<?>> visible = ingredients.stream()
+			.filter(ingredient -> ingredient == null || isVisible.test(ingredient))
+			.limit(limit)
+			.toList();
+		if (!visible.isEmpty()) {
+			return visible;
 		}
-
-		if (!visibleIngredients.isEmpty()) {
-			// Some ingredients have been successfully hidden, and some are still visible.
-			return visibleIngredients;
-		}
-
-		// Either everything is visible or everything is invisible.
-		// If everything is invisible, show them all anyway so that the recipe slot is not blank.
-		if (allIngredients.size() < MAX_DISPLAYED_INGREDIENTS) {
-			// Reuse allIngredients to save some memory.
-			return allIngredients;
-		}
-		return allIngredients.subList(0, MAX_DISPLAYED_INGREDIENTS);
+		// If every ingredient is invisible, show them anyway so the recipe slot is not blank.
+		return ingredients.stream().limit(limit).toList();
 	}
 }

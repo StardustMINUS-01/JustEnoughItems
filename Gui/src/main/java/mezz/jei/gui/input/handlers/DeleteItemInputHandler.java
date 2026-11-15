@@ -5,12 +5,16 @@ import mezz.jei.common.config.GiveMode;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.common.ingredients.TypedIngredientUtil;
+import mezz.jei.common.input.IInputTarget;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
 import mezz.jei.common.util.ServerCommandUtil;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.overlay.ingredients.IIngredientGrid;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -22,7 +26,7 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.Optional;
 
-public class DeleteItemInputHandler implements IUserInputHandler {
+public class DeleteItemInputHandler implements IInputTarget {
 	private final IIngredientGrid ingredientGrid;
 	private final IClientToggleState toggleState;
 	private final IClientConfig clientConfig;
@@ -44,7 +48,7 @@ public class DeleteItemInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput userInput, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput userInput, IInternalKeyMappings keyBindings) {
 		if (!userInput.is(keyBindings.getLeftClick())) {
 			return Optional.empty();
 		}
@@ -65,12 +69,13 @@ public class DeleteItemInputHandler implements IUserInputHandler {
 		if (itemStack.isEmpty()) {
 			return Optional.empty();
 		}
-		if (!userInput.isSimulate()) {
+		return Optional.of(new InputAction(release -> {
 			player.containerMenu.setCarried(ItemStack.EMPTY);
-			var packet = new PacketDeletePlayerItem(itemStack);
-			serverConnection.sendPacketToServer(packet);
-		}
-		return Optional.of(this);
+			if (!(minecraft.screen instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen)) {
+				serverConnection.sendPacketToServer(new PacketDeletePlayerItem(itemStack));
+			}
+		}, release -> player.containerMenu.getCarried() == itemStack && shouldDeleteItemOnClick(minecraft, release.getMouseX(), release.getMouseY()))
+			.within(ingredientGrid::isMouseOver));
 	}
 
 	@SuppressWarnings("MethodMayBeStatic")
@@ -92,11 +97,12 @@ public class DeleteItemInputHandler implements IUserInputHandler {
 		if (itemStack.isEmpty()) {
 			return false;
 		}
-		GiveMode giveMode = this.clientConfig.giveMode().getValue();
+		GiveMode giveMode = this.clientConfig.giveMode().get();
 		if (giveMode == GiveMode.MOUSE_PICKUP) {
 			return this.ingredientGrid.getIngredientUnderMouse(mouseX, mouseY)
 				.findFirst()
-				.map(c -> c.getCheatItemStack(ingredientManager))
+				.filter(IClickableIngredientInternal::canClickToCheat)
+				.map(c -> TypedIngredientUtil.getCheatItemStack(ingredientManager, c.getTypedIngredient()))
 				.map(i -> !ServerCommandUtil.canStack(itemStack, i))
 				.orElse(true);
 		}

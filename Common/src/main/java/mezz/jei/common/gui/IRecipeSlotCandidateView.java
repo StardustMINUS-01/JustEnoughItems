@@ -5,11 +5,16 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @ApiStatus.Internal
 public interface IRecipeSlotCandidateView {
 	Stream<ITypedIngredient<?>> getCandidateIngredients();
+
+	default Optional<ITypedIngredient<?>> getSelectedCandidate() {
+		return Optional.empty();
+	}
 
 	void setDisplayedCandidates(List<ITypedIngredient<?>> candidates);
 

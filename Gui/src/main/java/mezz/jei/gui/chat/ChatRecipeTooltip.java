@@ -2,6 +2,7 @@ package mezz.jei.gui.chat;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.builder.IClickableIngredientFactory;
+import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IJeiRuntime;
@@ -9,18 +10,20 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.chat.JeiChatItemLinkHover;
 import mezz.jei.common.chat.JeiChatRecipeLinks;
 import mezz.jei.common.chat.JeiChatRecipeLinks.RecipeLink;
+import mezz.jei.gui.chat.ChatIngredientTooltip.IngredientTooltipData;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.gui.input.IPinnedTooltipHolder;
+import mezz.jei.gui.input.PinnedTooltipManager;
 import mezz.jei.gui.input.handlers.IngredientShortcutInputHandler;
-import mezz.jei.gui.input.handlers.UserInputRouter;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.common.platform.Services;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.renderer.Rect2i;
 import org.joml.Vector2i;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.network.chat.Style;
 import org.jetbrains.annotations.Nullable;
@@ -28,7 +31,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 import java.util.Optional;
 
-public final class ChatRecipeTooltip {
+public final class ChatRecipeTooltip implements IPinnedTooltipHolder {
 	public static final ChatRecipeTooltip INSTANCE = new ChatRecipeTooltip();
 	private @Nullable Style style;
 	private @Nullable IJeiRuntime runtime;
@@ -40,20 +43,15 @@ public final class ChatRecipeTooltip {
 	private boolean pinned;
 	private int anchorX;
 	private int anchorY;
+	private @Nullable ClientTooltipPositioner ingredientPositioner;
 	private @Nullable IngredientShortcutInputHandler shortcuts;
-	private @Nullable UserInputRouter tagInputs;
 
 	public void setShortcuts(IngredientShortcutInputHandler shortcuts) {
 		this.shortcuts = shortcuts;
-		tagInputs = new UserInputRouter("Chat tags", shortcuts.getTagSelectionTooltip());
 	}
 
 	public boolean hasTags() {
 		return source instanceof ChatScreen && shortcuts != null && shortcuts.getTagSelectionTooltip().hasKeyboardFocus();
-	}
-
-	public boolean handleTags(Screen screen, UserInput input, IInternalKeyMappings keys) {
-		return hasTags() && tagInputs != null && tagInputs.handleUserInput(screen, input, keys);
 	}
 
 	public boolean copy(ITypedIngredient<?> ingredient, UserInput input, IInternalKeyMappings keys) {
@@ -61,8 +59,8 @@ public final class ChatRecipeTooltip {
 	}
 
 	public boolean scroll(double x, double y, double dx, double dy) {
-		if (hasTags() && tagInputs != null) {
-			return tagInputs.handleMouseScrolled(x, y, dx, dy);
+		if (hasTags()) {
+			return shortcuts.getTagSelectionTooltip().scroll(x, y, dx, dy);
 		}
 		return isPinned();
 	}
@@ -73,6 +71,10 @@ public final class ChatRecipeTooltip {
 
 	public boolean isVisible() {
 		return layout != null || ingredient != null;
+	}
+
+	public boolean isUnpinnedIngredient() {
+		return layout == null && ingredient != null && !isPinned();
 	}
 
 	public void update(Screen screen, double mouseX, double mouseY) {
@@ -90,11 +92,20 @@ public final class ChatRecipeTooltip {
 			return;
 		}
 		source = screen;
-		if (isVisible() && Screen.hasShiftDown()) {
-			pinned = true;
+		IPinnedTooltipHolder active = PinnedTooltipManager.getActiveHolder();
+		if (active != null && active != this) {
+			hide();
 			return;
 		}
-		pinned = false;
+		if (isVisible() && Screen.hasShiftDown()) {
+			pinned = true;
+			PinnedTooltipManager.opened(this);
+			return;
+		}
+		if (pinned) {
+			pinned = false;
+			PinnedTooltipManager.closed(this);
+		}
 		anchorX = (int) mouseX;
 		anchorY = (int) mouseY;
 		Style hovered = JeiChatItemLinkHover.getHoveredStyle(screen, mouseX, mouseY).orElse(null);
@@ -105,11 +116,23 @@ public final class ChatRecipeTooltip {
 		runtime = currentRuntime;
 		layout = null;
 		ingredient = null;
+		ingredientPositioner = null;
+		area = new Rect2i(0, 0, 0, 0);
 		if (currentRuntime != null) {
 			layout = JeiChatRecipeLinks.parse(hovered).flatMap(ChatRecipeTooltip::resolve).orElse(null);
-			ingredient = ChatIngredientTooltip.getTooltipForHoveredText(hovered)
-				.map(ChatIngredientTooltip.IngredientTooltipData::typedIngredient).orElse(null);
+			ingredient = ChatIngredientTooltip.getIngredientForHoveredText(hovered).orElse(null);
 		}
+		if (isVisible() && Screen.hasShiftDown()) {
+			pinned = true;
+			PinnedTooltipManager.opened(this);
+		}
+	}
+
+	public Optional<IngredientTooltipData<?>> getIngredientTooltip() {
+		if (ingredient == null || runtime == null) {
+			return Optional.empty();
+		}
+		return Optional.of(ChatIngredientTooltip.createTooltipData(ingredient, runtime.getIngredientManager()));
 	}
 
 	public Optional<? extends IClickableIngredient<?>> getIngredient(IClickableIngredientFactory factory, double x, double y) {
@@ -138,7 +161,8 @@ public final class ChatRecipeTooltip {
 		if (hasTags()) {
 			return false;
 		}
-		if (!isVisible()) {
+		// Ordinary item links are drawn from RenderTooltipEvent.Pre on NeoForge.
+		if (!isVisible() || isUnpinnedIngredient()) {
 			return false;
 		}
 		var pose = graphics.pose();
@@ -170,7 +194,7 @@ public final class ChatRecipeTooltip {
 	}
 
 	private Vector2i position(int screenWidth, int screenHeight, int width, int height) {
-		Vector2i pos = isPinned() ? new Vector2i(area.getX(), area.getY()) : new Vector2i(DefaultTooltipPositioner.INSTANCE.positionTooltip(screenWidth, screenHeight, anchorX, anchorY, width, height));
+		Vector2i pos = isPinned() && area.getWidth() > 0 ? new Vector2i(area.getX(), area.getY()) : new Vector2i(DefaultTooltipPositioner.INSTANCE.positionTooltip(screenWidth, screenHeight, anchorX, anchorY, width, height));
 		pos.x = Math.max(4, Math.min(pos.x, screenWidth - width - 4));
 		pos.y = Math.max(4, Math.min(pos.y, screenHeight - height - 4));
 		area = new Rect2i(pos.x, pos.y, width, height);
@@ -178,14 +202,37 @@ public final class ChatRecipeTooltip {
 	}
 
 	private <T> void drawIngredient(GuiGraphics graphics, ITypedIngredient<T> value) {
-		var data = ChatIngredientTooltip.createTooltipData(value, runtime.getIngredientManager());
-		var render = data.tooltip().prepareForIngredientTooltip(value, data.ingredientRenderer(), data.ingredientManager());
-		Services.PLATFORM.getRenderHelper().renderTooltip(graphics, data.tooltip().getLines(), anchorX, anchorY, render.font(), render.itemStack(),
-			(sw, sh, x, y, w, h) -> {
-				Vector2i pos = position(sw, sh, w + 8, h + 8);
-				icon = new Rect2i(pos.x + 5, pos.y + 5, data.ingredientRenderer().getWidth(), data.ingredientRenderer().getHeight());
-				return new Vector2i(pos.x + 4, pos.y + 4);
-			});
+		drawIngredient(graphics, ChatIngredientTooltip.createTooltipData(value, runtime.getIngredientManager()));
+	}
+
+	public <T> void drawIngredientTooltip(GuiGraphics graphics, IngredientTooltipData<T> data) {
+		var pose = graphics.pose();
+		pose.pushPose();
+		try {
+			pose.translate(0, 0, 400);
+			drawIngredient(graphics, data);
+		} finally {
+			pose.popPose();
+		}
+	}
+
+	private <T> void drawIngredient(GuiGraphics graphics, IngredientTooltipData<T> data) {
+		if (ingredientPositioner == null) {
+			// The interactive host identifies an attached tooltip by its positioner.
+			ingredientPositioner = createIngredientPositioner(data.ingredientRenderer());
+		}
+		ITypedIngredient<?> sourceIngredient = ingredient;
+		IJeiRuntime sourceRuntime = runtime;
+		data.tooltip().setInteractionSource(() -> ingredient == sourceIngredient && runtime == sourceRuntime && isVisible());
+		data.tooltip().draw(graphics, anchorX, anchorY, data.typedIngredient(), data.ingredientRenderer(), data.ingredientManager(), ingredientPositioner);
+	}
+
+	ClientTooltipPositioner createIngredientPositioner(IIngredientRenderer<?> renderer) {
+		return (sw, sh, x, y, w, h) -> {
+			Vector2i pos = position(sw, sh, w + 8, h + 8);
+			icon = new Rect2i(pos.x + 5, pos.y + 5, renderer.getWidth(), renderer.getHeight());
+			return new Vector2i(pos.x + 4, pos.y + 4);
+		};
 	}
 
 	public void tick() {
@@ -203,19 +250,26 @@ public final class ChatRecipeTooltip {
 	public void onRuntimeStopped() {
 		clear();
 		shortcuts = null;
-		tagInputs = null;
 	}
 
 	public void clear() {
-		if (tagInputs != null) {
-			tagInputs.handleGuiChange();
+		if (shortcuts != null) {
+			shortcuts.getTagSelectionTooltip().resetInput();
 		}
 		ChatIngredientTooltip.clearSharedIngredient();
-		style = null;
 		runtime = null;
+		source = null;
+		hide();
+	}
+
+	@Override
+	public void hide() {
+		// Replacing the preview with the tag picker must not reset the new owner.
+		style = null;
 		layout = null;
 		ingredient = null;
-		source = null;
+		ingredientPositioner = null;
 		pinned = false;
+		PinnedTooltipManager.closed(this);
 	}
 }

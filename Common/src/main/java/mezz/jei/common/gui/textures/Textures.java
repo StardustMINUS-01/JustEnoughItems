@@ -6,10 +6,11 @@ import mezz.jei.api.gui.drawable.IDrawableStatic;
 import mezz.jei.common.gui.elements.DrawableSprite;
 import mezz.jei.common.gui.elements.HighResolutionDrawable;
 import mezz.jei.common.gui.elements.ScalableDrawable;
+import net.minecraft.client.gui.GuiSpriteManager;
 import net.minecraft.resources.ResourceLocation;
 
 public class Textures {
-	private final JeiGuiSpriteManager guiSpriteManager;
+	private final GuiSpriteManager guiSpriteManager;
 
 	private final IDrawableStatic slot;
 	private final IDrawableStatic outputSlot;
@@ -31,6 +32,7 @@ public class Textures {
 	private final ScalableDrawable interactiveIngredientTooltipBackground;
 	private final ScalableDrawable recipePreviewBackground;
 	private final ScalableDrawable searchBackground;
+	private final ScalableDrawable completionOverlayBackground;
 	private final ScalableDrawable scrollbarBackground;
 	private final ScalableDrawable scrollbarMarker;
 
@@ -66,7 +68,7 @@ public class Textures {
 	private final IDrawableStatic brewingStandBubbles;
 	private final IDrawableStatic brewingStandArrow;
 
-	public Textures(JeiGuiSpriteManager guiSpriteManager) {
+	public Textures(GuiSpriteManager guiSpriteManager) {
 		this.guiSpriteManager = guiSpriteManager;
 
 		this.slot = createGuiSprite("slot", 18, 18);
@@ -93,11 +95,12 @@ public class Textures {
 		this.scrollbarMarker = createScalableGuiSprite("scrollbar_marker_v2");
 		this.catalystTab = createScalableGuiSprite("catalyst_tab_v2");
 		this.recipeOptionsTab = createScalableGuiSprite("recipe_options_tab_v2");
+		this.completionOverlayBackground = createScalableGuiSprite("completion_overlay_background");
 		this.recipeArrow = createGuiSprite("recipe_arrow", 22, 16);
 		this.recipeArrowFilled = createGuiSprite("recipe_arrow_filled", 22, 16);
 		this.recipePlusSign = createGuiSprite("recipe_plus_sign", 13, 13);
 
-		this.brewingStandBackground = createGuiSprite("brewing_stand_background", 64, 60);
+		this.brewingStandBackground = createGuiSprite("brewing_stand_background_v2", 64, 60);
 		this.brewingStandBlazeHeat = createGuiSprite("brewing_stand_blaze_heat", 18, 4);
 		this.brewingStandBubbles = createGuiSprite("brewing_stand_bubbles", 11, 28);
 		this.brewingStandArrow = createGuiSprite("brewing_stand_arrow", 7, 27);
@@ -230,10 +233,6 @@ public class Textures {
 		return buttonEnabled;
 	}
 
-	public JeiGuiSpriteManager getAtlasManager() {
-		return guiSpriteManager;
-	}
-
 	public ScalableDrawable getRecipeGuiBackground() {
 		return recipeGuiBackground;
 	}
@@ -264,6 +263,10 @@ public class Textures {
 
 	public ScalableDrawable getSearchBackground() {
 		return searchBackground;
+	}
+
+	public ScalableDrawable getCompletionOverlayBackground() {
+		return completionOverlayBackground;
 	}
 
 	public IDrawableStatic getInfoIcon() {
@@ -348,9 +351,5 @@ public class Textures {
 
 	public IDrawableStatic getBrewingStandArrow() {
 		return brewingStandArrow;
-	}
-
-	public JeiGuiSpriteManager getGuiSpriteManager() {
-		return guiSpriteManager;
 	}
 }

@@ -91,6 +91,25 @@ public final class TooltipInteractionSession {
 		}
 	}
 
+	public boolean isMouseOver(double x, double y) {
+		return active && hit(x, y) != null;
+	}
+
+	public void clearFocus() {
+		focus(null);
+	}
+
+	public void cancelInteraction(int button) {
+		Entry entry = pressed.remove(button);
+		if (capturedButton == button) {
+			captured = null;
+			capturedButton = -1;
+		}
+		if (active && entry != null) {
+			entry.component.onInteractionCancelled(entry);
+		}
+	}
+
 	public boolean mousePressed(double x, double y, int button, int modifiers) {
 		updateMouse(x, y);
 		if (!active)

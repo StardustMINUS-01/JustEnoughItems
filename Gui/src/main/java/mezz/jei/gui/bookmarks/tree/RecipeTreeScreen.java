@@ -1,7 +1,16 @@
 package mezz.jei.gui.bookmarks.tree;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import mezz.jei.gui.input.handlers.UserInputRouter;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.interaction.ConsumedInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.gui.input.GuiInputController;
+import mezz.jei.gui.input.GuiInputScene;
+import mezz.jei.gui.input.InputArea;
+import mezz.jei.gui.input.InputCommands;
+import mezz.jei.gui.input.ITextInputHandler;
+import mezz.jei.gui.input.InteractiveTooltipController;
+import mezz.jei.gui.input.focus.GuiKeyboardFocus;
 import mezz.jei.gui.recipes.RecipesGui;
 
 import mezz.jei.api.gui.drawable.IDrawable;
@@ -30,8 +39,8 @@ import java.util.Set;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.overlay.bookmarks.PlayerInventoryRecipeChainTooltipInventoryProvider;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.ChatFormatting;
@@ -70,7 +79,7 @@ public final class RecipeTreeScreen extends Screen {
 	private final List<SummaryEntry> recipeDetails = new ArrayList<>();
 	private @Nullable RecipeTreeSidebarLayout<SummaryEntry> sidebarLayout;
 	private final BookmarkCandidateTooltipState candidateTooltips = new BookmarkCandidateTooltipState();
-	private final UserInputRouter candidateInputs;
+	private final GuiInputController candidateInputs;
 	private final RecipeTreeSidebarClick<ITypedIngredient<?>> sidebarClicks = new RecipeTreeSidebarClick<>();
 	private @Nullable RecipeTreeLayout.Node selected;
 	private @Nullable RecipeTreePreview preview;
@@ -103,7 +112,7 @@ public final class RecipeTreeScreen extends Screen {
 		this.ingredients = ingredients;
 		// This standalone screen has no overlay GUI properties, so global JEI input skips it.
 		var recipesGui = (RecipesGui) Internal.getJeiRuntime().getRecipesGui();
-		this.candidateInputs = new UserInputRouter("Recipe tree candidates", recipesGui.getForegroundInputLayer());
+		this.candidateInputs = createCandidateInputs(recipesGui);
 		bookmarks.getTreeViewState(groupId).ifPresent(state -> {
 			pendingViewState = state;
 			showBookmarks = state.bookmarksVisible();
@@ -118,8 +127,56 @@ public final class RecipeTreeScreen extends Screen {
 		this.sourceMenu = client.player == null ? null : client.player.containerMenu;
 	}
 
+	private GuiInputController createCandidateInputs(RecipesGui recipesGui) {
+		ITextInputHandler searchInput = new ITextInputHandler() {
+			@Override
+			public boolean hasKeyboardFocus() {
+				return searchBox != null && searchBox.isFocused();
+			}
+
+			@Override
+			public void focus() {
+				if (searchBox != null) {
+					setFocused(searchBox);
+				}
+			}
+
+			@Override
+			public void clearFocus() {
+				if (searchBox != null) {
+					searchBox.setFocused(false);
+					if (getFocused() == searchBox) {
+						setFocused(null);
+					}
+				}
+			}
+
+			@Override
+			public boolean onCharTyped(char codePoint, int modifiers) {
+				return hasKeyboardFocus() && searchBox.charTyped(codePoint, modifiers);
+			}
+
+			@Override
+			public boolean isMouseOver(double x, double y) {
+				return searchBox != null && searchBox.isMouseOver(x, y);
+			}
+
+			@Override
+			public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+				return hasKeyboardFocus() && input.ifKeyboardEvent(searchBox::keyPressed) ? Optional.of(ConsumedInput.INSTANCE) : Optional.empty();
+			}
+		};
+		var foreground = recipesGui.getForegroundInputLayer();
+		GuiInputScene scene = new GuiInputScene(new GuiKeyboardFocus(),
+			InteractiveTooltipController.INSTANCE.createInputArea(),
+			InputArea.builder("Recipe tree candidates", foreground).controls(foreground).blockUnhandledMouseInput().build(),
+			InputArea.builder("Recipe tree search", searchInput).controls(searchInput).build());
+		return new GuiInputController(scene, new InputCommands(), searchInput, Internal.getKeyMappings());
+	}
+
 	@Override
 	protected void init() {
+		candidateInputs.screenChanged();
 		sidebarClicks.reset();
 		prepareBookmarkPanel();
 		var back = addRenderableWidget(new Button(5, 6, 20, 20, Component.literal("<"), button -> onClose(), narration -> narration.get()) {
@@ -710,7 +767,7 @@ public final class RecipeTreeScreen extends Screen {
 	@Override
 	public boolean mouseClicked(double x, double y, int button) {
 		sidebarClicks.reset();
-		if (handleCandidateClick(x, y, button, InputType.SIMULATE)) {
+		if (handleCandidateClick(x, y, button, InputPhase.PRESS)) {
 			return true;
 		}
 		if (searchBox != null && !searchBox.isMouseOver(x, y)) {
@@ -772,7 +829,7 @@ public final class RecipeTreeScreen extends Screen {
 	@Override
 	public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
 		sidebarClicks.move(x, y);
-		if (candidateInputs.handleMouseDragged(x, y, InputConstants.Type.MOUSE.getOrCreate(button), dx, dy)) {
+		if (candidateInputs.mouseDragged(this, x, y, InputConstants.Type.MOUSE.getOrCreate(button), dx, dy)) {
 			return true;
 		}
 		if (button == 0 && showBookmarks && bookmarkPanel != null && bookmarkPanel.dragScrollbar(y)) {
@@ -788,7 +845,7 @@ public final class RecipeTreeScreen extends Screen {
 
 	@Override
 	public boolean mouseReleased(double x, double y, int button) {
-		if (handleCandidateClick(x, y, button, InputType.EXECUTE)) {
+		if (handleCandidateClick(x, y, button, InputPhase.RELEASE)) {
 			sidebarClicks.reset();
 			return true;
 		}
@@ -809,7 +866,7 @@ public final class RecipeTreeScreen extends Screen {
 	@Override
 	public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
 		sidebarClicks.cancel();
-		if (candidateInputs.handleMouseScrolled(x, y, horizontal, vertical)) {
+		if (candidateInputs.mouseScrolled(x, y, horizontal, vertical)) {
 			return true;
 		}
 		if (y < TOP) {
@@ -841,18 +898,21 @@ public final class RecipeTreeScreen extends Screen {
 	@Override
 	public boolean isPauseScreen() { return false; }
 
-	private boolean handleCandidateClick(double x, double y, int button, InputType type) {
-		return UserInput.fromVanilla(x, y, button, type)
-			.map(input -> candidateInputs.handleUserInput(this, input, Internal.getKeyMappings()))
+	private boolean handleCandidateClick(double x, double y, int button, InputPhase phase) {
+		return UserInput.fromVanilla(x, y, button, phase)
+			.map(input -> phase == InputPhase.PRESS ? candidateInputs.mousePressed(this, input) : candidateInputs.mouseReleased(this, input))
 			.orElse(false);
 	}
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+		UserInput input = UserInput.fromVanilla(keyCode, scanCode, modifiers);
+		if (candidateInputs.keyPressed(this, input).isPresent()) {
+			return true;
+		}
 		if (searchBox != null && searchBox.isFocused()) {
 			return super.keyPressed(keyCode, scanCode, modifiers);
 		}
-		UserInput input = UserInput.fromVanilla(keyCode, scanCode, modifiers, InputType.IMMEDIATE);
 		var action = RecipeTreeInput.key(input, Internal.getKeyMappings());
 		if (action.isEmpty()) {
 			return super.keyPressed(keyCode, scanCode, modifiers);
@@ -874,6 +934,11 @@ public final class RecipeTreeScreen extends Screen {
 			showIngredient(ingredient.get(), action.get());
 		}
 		return true;
+	}
+
+	@Override
+	public boolean charTyped(char codePoint, int modifiers) {
+		return candidateInputs.charTyped(codePoint, modifiers) || super.charTyped(codePoint, modifiers);
 	}
 
 	private void showIngredient(ITypedIngredient<?> ingredient, RecipeTreeInput action) {
@@ -910,7 +975,7 @@ public final class RecipeTreeScreen extends Screen {
 	@Override
 	public void removed() {
 		sidebarClicks.reset();
-		candidateInputs.handleGuiChange();
+		candidateInputs.screenChanged();
 		cacheViewState();
 		super.removed();
 	}

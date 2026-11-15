@@ -53,41 +53,9 @@ public final class RecipeTransferService {
 		return recipeTransferManager.getRecipeTransferHandler(container, recipeCategory).isPresent();
 	}
 
-	public <C extends AbstractContainerMenu> boolean transferRecipeWithSlotsView(
-		AbstractContainerScreen<C> screen,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player,
-		boolean maxTransfer
-	) {
-		return transferRecipeWithSlotsView(screen, recipeLayout, recipeSlotsView, player, maxTransfer, true)
-			.map(error -> error.getType().allowsTransfer)
-			.orElse(true);
-	}
-
-	public <C extends AbstractContainerMenu> Optional<IRecipeTransferError> getTransferRecipeErrorWithSlotsView(
-		AbstractContainerScreen<C> screen,
-		IRecipeLayoutDrawable<?> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
-		Player player
-	) {
-		return transferRecipeWithSlotsView(screen, recipeLayout, recipeSlotsView, player, false, false);
-	}
-
 	private <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipe(
 		AbstractContainerScreen<C> screen,
 		IRecipeLayoutDrawable<R> recipeLayout,
-		Player player,
-		boolean maxTransfer,
-		boolean doTransfer
-	) {
-		return transferRecipeWithSlotsView(screen, recipeLayout, recipeLayout.getRecipeSlotsView(), player, maxTransfer, doTransfer);
-	}
-
-	private <C extends AbstractContainerMenu, R> Optional<IRecipeTransferError> transferRecipeWithSlotsView(
-		AbstractContainerScreen<C> screen,
-		IRecipeLayoutDrawable<R> recipeLayout,
-		IRecipeSlotsView recipeSlotsView,
 		Player player,
 		boolean maxTransfer,
 		boolean doTransfer
@@ -104,6 +72,7 @@ public final class RecipeTransferService {
 		}
 
 		IRecipeTransferHandler<C, R> transferHandler = recipeTransferHandler.get();
+		IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
 		RecipeTransferContext<R, C> context = new RecipeTransferContext<>(
 			recipeTransferLifecycleManager.getNextTransferId(),
 			recipeLayout.getRecipe(),

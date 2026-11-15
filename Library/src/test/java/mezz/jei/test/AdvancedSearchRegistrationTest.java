@@ -1,27 +1,35 @@
 package mezz.jei.test;
 
+import mezz.jei.api.IModPlugin;
+import mezz.jei.api.registration.IAdvancedSearchRegistration;
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.api.search.ISearchStorageFactory;
-import mezz.jei.common.search.BakedSubstringIndexBuilder;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.LuceneSearchStorage;
 import mezz.jei.common.search.LimitedStringStorageBuilder;
 import mezz.jei.library.load.PluginLoader;
 import mezz.jei.library.load.registration.AdvancedSearchRegistration;
+import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class AdvancedSearchRegistrationTest {
 	@Test
-	public void defaultStorageUsesBakedSubstringIndexBuilder() {
+	public void defaultStorageUsesLuceneSearchStorageBuilder() {
 		ISearchStorageBuilder<String> searchStorageBuilder = PluginLoader.createSearchStorageFactory(List.of()).create();
 
-		Assertions.assertInstanceOf(BakedSubstringIndexBuilder.class, searchStorageBuilder);
+		Assertions.assertInstanceOf(LuceneSearchStorageBuilder.class, searchStorageBuilder);
 	}
 
 	@Test
@@ -29,7 +37,24 @@ public class AdvancedSearchRegistrationTest {
 		AdvancedSearchRegistration searchRegistration = new AdvancedSearchRegistration();
 		ISearchStorageBuilder<String> searchStorageBuilder = searchRegistration.getDefaultSearchStorageBuilderFactory().create();
 
-		Assertions.assertInstanceOf(BakedSubstringIndexBuilder.class, searchStorageBuilder);
+		Assertions.assertInstanceOf(LuceneSearchStorageBuilder.class, searchStorageBuilder);
+	}
+
+	@Test
+	public void defaultFactoryCanBeRegisteredWithoutWrapping() {
+		IModPlugin plugin = new IModPlugin() {
+			@Override
+			public ResourceLocation getPluginUid() {
+				return ResourceLocation.fromNamespaceAndPath("jei_test", "default_search_storage");
+			}
+
+			@Override
+			public void registerAdvancedSearch(IAdvancedSearchRegistration registration) {
+				registration.replaceSearchStorage(registration.getDefaultSearchStorageBuilderFactory());
+			}
+		};
+		ISearchStorageBuilder<String> builder = PluginLoader.createSearchStorageFactory(List.of(plugin)).create("names");
+		Assertions.assertInstanceOf(LuceneSearchStorageBuilder.class, builder);
 	}
 
 	@Test
@@ -51,6 +76,67 @@ public class AdvancedSearchRegistrationTest {
 
 		Assertions.assertEquals(1, createdStorages.size());
 		Assertions.assertSame(createdStorages.getFirst(), searchStorage);
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	public void usesNativeDeletionForBothRegistrationOverloads(boolean useBuilder) {
+		List<ISearchStorage<?>> registeredStorages = new ArrayList<>();
+		IModPlugin plugin = new IModPlugin() {
+			@Override
+			public ResourceLocation getPluginUid() {
+				return ResourceLocation.fromNamespaceAndPath("jei_test", "native_deletion");
+			}
+
+			@Override
+			public void registerAdvancedSearch(IAdvancedSearchRegistration registration) {
+				if (useBuilder) {
+					registration.replaceSearchStorage(new ISearchStorageBuilderFactory() {
+						@Override
+						public <T> ISearchStorageBuilder<T> create() {
+							return new LuceneSearchStorageBuilder<>() {
+								@Override
+								public ISearchStorage<T> build() {
+									ISearchStorage<T> storage = super.build();
+									registeredStorages.add(storage);
+									return storage;
+								}
+							};
+						}
+
+						@Override
+						public boolean supportsDeletion() {
+							return true;
+						}
+					});
+				} else {
+					registration.replaceSearchStorage(new ISearchStorageFactory() {
+						@Override
+						public <T> ISearchStorage<T> createSearchStorage() {
+							LuceneSearchStorage<T> storage = new LuceneSearchStorage<>();
+							registeredStorages.add(storage);
+							return storage;
+						}
+					});
+				}
+			}
+		};
+		ISearchStorageBuilder<String> builder = PluginLoader.createSearchStorageFactory(List.of(plugin)).create("names");
+		builder.put("old changed", "changed");
+		builder.put("old unchanged", "unchanged");
+		ISearchStorage<String> storage = builder.build();
+		Assertions.assertEquals(1, registeredStorages.size());
+		Assertions.assertSame(registeredStorages.getFirst(), storage);
+
+		Assertions.assertTrue(storage.removeAll(List.of("changed")));
+		registeredStorages.getFirst().getSearchResults("old changed", matches -> Assertions.assertTrue(matches.isEmpty()));
+		storage.put("new changed", "changed");
+		Set<String> results = new HashSet<>();
+		storage.getSearchResults("old", results::addAll);
+		Assertions.assertEquals(Set.of("unchanged"), results);
+		results.clear();
+		storage.getSearchResults("new", results::addAll);
+		Assertions.assertEquals(Set.of("changed"), results);
 	}
 
 	@Test

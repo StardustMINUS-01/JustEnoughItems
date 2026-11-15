@@ -1,9 +1,16 @@
 package mezz.jei.test.gui.recipes.filtering;
 
-import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.IIngredientType;
+import mezz.jei.api.ingredients.IIngredientSupplier;
+import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.gui.recipes.filtering.IRecipeSearchTextMatcher;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
+import mezz.jei.gui.recipes.filtering.RecipeSearchScope;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -11,120 +18,106 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 
-public class RecipeSearchQueryTest {
-	private static final SearchFixture PULVERIZING = new SearchFixture(
-		List.of(ingredient("Silver Ingot", "gtceu:silver_ingot", "c:ingots")),
-		List.of(ingredient("Silver Dust", "gtceu:silver_dust", "c:dusts")),
-		List.of(ingredient("Macerator", "gtceu:macerator", "c:machines"))
-	);
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
+class RecipeSearchQueryTest {
+	private static final IIngredientType<String> TYPE = () -> String.class;
+	private static final BiPredicate<ITypedIngredient<?>, String> MATCHER = (ingredient, token) -> ((String) ingredient.getIngredient()).contains(token);
 
 	@ParameterizedTest
 	@CsvSource({
-		"i:#c:ingots, true",
-		"o:#c:ingots, false",
-		"silver, true",
+		"i:silver i:copper o:dust, true",
+		"i:silver -i:copper, false",
+		"i:gold | i:silver, true",
+		"i:gold i:silver, false",
+		"o:ingot, false",
 		"c:macerator, true",
-		"@gtceu, true",
 		"r:&gtceu:macerator/silver_ingot, true",
-		"'\"silver ingot\" macerator', true",
-		"gold | silver -plate, true",
+		"r:&source:silver_processing, true",
+		"r:@source, true",
+		"r:&source:secondary_processing, true",
+		"r:#ingots, false",
+		"'i:\"silver ingot\"', true",
+		"'i:\"ingot silver\"', false",
 		"silver -macerator, false",
-		"gold silver, false",
-		"'\"ingot silver\"', false",
-		"ingot silver, true"
+		"i:missing | r:macerating, true"
 	})
-	public void matchesRecipe(String query, boolean expected) {
-		Assertions.assertEquals(expected, matchesDirect(query, new java.util.HashSet<>()));
-	}
-
-	@ParameterizedTest
-	@CsvSource({
-		"r:macerator, ''",
-		"r:#ingots, ''",
-		"i:@gtceu, INPUT+mod",
-		"o:&silver_dust, OUTPUT+id",
-		"i:#ingots, INPUT+tags",
-		"i:silver, INPUT+name",
-		"c:macerator, CATALYST+name",
-		"i:missing | r:macerator, INPUT+name+id+mod+tags"
-	})
-	public void directSearchReadsOnlyRequiredFields(String query, String fields) {
-		Set<String> accessed = new java.util.HashSet<>();
-		matchesDirect(query, accessed);
-		Set<String> expected = fields.isEmpty() ? Set.of() : Set.of(fields.split("\\+"));
-		Assertions.assertEquals(expected, accessed);
-	}
-
-	private static boolean matchesDirect(String text, Set<String> accessed) {
-		return matchesDirect(text, accessed, mezz.jei.gui.recipes.filtering.RecipeSearchScope.NONE);
+	void preservesRecipeScopesAndComposition(String query, boolean expected) {
+		assertEquals(expected, matches(RecipeSearchQuery.parse(query), new AtomicInteger()));
 	}
 
 	@Test
-	public void scopesUnqualifiedTermsWithoutOverridingExplicitTerms() {
-		Assertions.assertTrue(matchesDirect("ingot", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.INPUT));
-		Assertions.assertFalse(matchesDirect("ingot", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.OUTPUT));
-		Assertions.assertTrue(matchesDirect("i:ingot dust", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.OUTPUT));
-		Assertions.assertTrue(matchesDirect("missing | macerator", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.CATALYST));
-		Assertions.assertFalse(matchesDirect("-macerator", new java.util.HashSet<>(), mezz.jei.gui.recipes.filtering.RecipeSearchScope.RECIPE));
+	void scopesOnlyUnqualifiedTermsAndSkipsUnusedMaterialExtraction() {
+		assertTrue(matches(RecipeSearchQuery.parse("ingot").withDefaultScope(RecipeSearchScope.INPUT), new AtomicInteger()));
+		assertFalse(matches(RecipeSearchQuery.parse("ingot").withDefaultScope(RecipeSearchScope.OUTPUT), new AtomicInteger()));
+		assertTrue(matches(RecipeSearchQuery.parse("i:ingot dust").withDefaultScope(RecipeSearchScope.OUTPUT), new AtomicInteger()));
+		AtomicInteger extractions = new AtomicInteger();
+		assertTrue(matches(RecipeSearchQuery.parse("r:macerating"), extractions));
+		assertEquals(0, extractions.get());
+		assertTrue(matches(RecipeSearchQuery.parse("i:silver i:copper"), extractions));
+		assertEquals(1, extractions.get());
+		assertTrue(matches(RecipeSearchQuery.parse(""), extractions));
+		assertTrue(RecipeSearchQuery.parse("   ").isEmpty());
 	}
 
-	private static boolean matchesDirect(String text, Set<String> accessed, mezz.jei.gui.recipes.filtering.RecipeSearchScope scope) {
-		mezz.jei.api.ingredients.IIngredientType<RecipeSearchIngredient> type = () -> RecipeSearchIngredient.class;
-		var helper = proxy(mezz.jei.api.ingredients.IIngredientHelper.class, (method, args) -> {
-			RecipeSearchIngredient ingredient = (RecipeSearchIngredient) args[0];
-			return switch (method) {
-				case "getDisplayName" -> {
-					accessed.add("name");
-					yield ingredient.displayName();
-				}
-				case "getResourceLocation" -> {
-					accessed.add("id");
-					yield ResourceLocation.parse(ingredient.resourceLocation());
-				}
-				case "getDisplayModId" -> {
-					accessed.add("mod");
-					yield ingredient.modId();
-				}
-				case "getTagStream" -> {
-					accessed.add("tags");
-					yield ingredient.tags().stream().map(ResourceLocation::parse);
-				}
-				default -> throw new AssertionError(method);
-			};
-		});
-		var ingredients = proxy(mezz.jei.api.runtime.IIngredientManager.class, (method, args) -> {
-			if (method.equals("getIngredientHelper"))
-				return helper;
-			throw new AssertionError(method);
-		});
-		java.util.function.Function<RecipeSearchIngredient, mezz.jei.api.ingredients.ITypedIngredient<?>> typed = ingredient -> proxy(mezz.jei.api.ingredients.ITypedIngredient.class, (method, args) -> switch (method) {
-			case "getIngredient" -> ingredient;
-			case "getType" -> type;
-			default -> throw new AssertionError(method);
-		});
-		var recipes = proxy(mezz.jei.api.recipe.IRecipeManager.class, (method, args) -> {
+	@Test
+	void preservesMaterialFieldTokensAndEscaping() {
+		assertEquals(Set.of("#ingots/iron", "$voltage", "%tools", "^blue", "@gregtech", "&minecraft:iron_ingot"),
+			RecipeSearchQuery.parse("i:#ingots/iron o:$voltage %tools ^blue c:@gregtech &minecraft:iron_ingot r:ignored").getIngredientTokens());
+		assertEquals(Set.of("silver ingot", "@greg tech", "a|b", "-literal"),
+			RecipeSearchQuery.parse("i:\"silver ingot\" c:@\"greg tech\" i:a\\|b i:\"-literal\"").getIngredientTokens());
+		assertEquals(Set.of("-literal"), RecipeSearchQuery.parse("\\-literal").getIngredientTokens());
+	}
+
+	@Test
+	void usesTheSameMatcherForInputCandidates() {
+		var query = RecipeSearchQuery.parse("i:silver -i:plate o:dust");
+		assertTrue(query.hasInputTerms());
+		assertTrue(query.matchesInputCandidate(typed("silver ingot"), MATCHER));
+		assertFalse(query.matchesInputCandidate(typed("silver plate"), MATCHER));
+		assertFalse(query.matchesInputCandidate(typed("gold ingot"), MATCHER));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"o:silver c:macerator", "i:silver | o:gold"})
+	void keepsUnrestrictedCandidates(String text) {
+		var query = RecipeSearchQuery.parse(text);
+		assertFalse(query.hasInputTerms());
+		assertTrue(query.matchesInputCandidate(typed("gold"), MATCHER));
+	}
+
+	private static boolean matches(RecipeSearchQuery query, AtomicInteger extractions) {
+		IRecipeManager recipes = proxy(IRecipeManager.class, (method, args) -> {
 			if (method.equals("getRecipeIngredients")) {
-				return (mezz.jei.api.ingredients.IIngredientSupplier) role -> {
-					accessed.add(role.name());
-					return switch (role) {
-						case INPUT -> PULVERIZING.inputs().stream().map(typed).toList();
-						case OUTPUT -> PULVERIZING.outputs().stream().map(typed).toList();
-						default -> throw new AssertionError(role);
-					};
+				extractions.incrementAndGet();
+				return (IIngredientSupplier) role -> switch (role) {
+					case INPUT -> List.of(typed("silver ingot"), typed("copper ingot"));
+					case OUTPUT -> List.of(typed("silver dust"));
+					default -> throw new AssertionError(role);
 				};
 			}
 			throw new AssertionError(method);
 		});
-		mezz.jei.api.recipe.category.IRecipeCategory<String> category = proxy(mezz.jei.api.recipe.category.IRecipeCategory.class, (method, args) -> switch (method) {
-			case "getTitle" -> net.minecraft.network.chat.Component.literal("Macerating");
-			case "getRecipeType" -> mezz.jei.api.recipe.RecipeType.create("gtceu", "macerator", String.class);
+		IRecipeCategory<String> category = proxy(IRecipeCategory.class, (method, args) -> switch (method) {
+			case "getTitle" -> Component.literal("Macerating");
+			case "getRecipeType" -> RecipeType.create("gtceu", "macerator", String.class);
 			case "getRegistryName" -> ResourceLocation.parse("gtceu:macerator/silver_ingot");
+			case "getSourceRecipeIds" -> List.of(ResourceLocation.parse("source:silver_processing"), ResourceLocation.parse("source:secondary_processing"));
 			default -> throw new AssertionError(method);
 		});
-		return RecipeSearchQuery.parse(text).withDefaultScope(scope).matches(category, "recipe", recipes, ingredients, () -> {
-			accessed.add("CATALYST");
-			return PULVERIZING.catalysts().stream().map(typed).toList();
+		return query.matches(category, "recipe", recipes, () -> List.of(typed("macerator")), IRecipeSearchTextMatcher.DEFAULT, MATCHER);
+	}
+
+	private static ITypedIngredient<?> typed(String value) {
+		return proxy(ITypedIngredient.class, (method, args) -> switch (method) {
+			case "getIngredient" -> value;
+			case "getType" -> TYPE;
+			default -> throw new AssertionError(method);
 		});
 	}
 
@@ -132,44 +125,5 @@ public class RecipeSearchQueryTest {
 	private static <T> T proxy(Class<T> type, java.util.function.BiFunction<String, Object[], Object> handler) {
 		return (T) java.lang.reflect.Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type},
 			(instance, method, args) -> handler.apply(method.getName(), args));
-	}
-
-	@Test
-	public void matchesEmptyQuery() {
-		Assertions.assertTrue(matchesDirect("", new java.util.HashSet<>()));
-		Assertions.assertTrue(RecipeSearchQuery.parse("   ").isEmpty());
-	}
-
-	@ParameterizedTest
-	@CsvSource({
-		"i:silver -i:plate o:dust, false",
-		"silver, true"
-	})
-	public void filtersInputCandidates(String text, boolean matchesPlate) {
-		RecipeSearchQuery query = RecipeSearchQuery.parse(text);
-		Assertions.assertTrue(query.hasInputTerms());
-		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Silver Ingot", "gtceu:silver_ingot", "c:ingots")));
-		Assertions.assertEquals(matchesPlate, query.matchesInputCandidate(ingredient("Silver Plate", "gtceu:silver_plate", "c:plates")));
-		Assertions.assertFalse(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
-	}
-
-	@ParameterizedTest
-	@ValueSource(strings = {"o:silver_dust c:macerator", "i:silver | o:gold_dust"})
-	public void keepsUnrestrictedCandidates(String text) {
-		RecipeSearchQuery query = RecipeSearchQuery.parse(text);
-		Assertions.assertFalse(query.hasInputTerms());
-		Assertions.assertTrue(query.matchesInputCandidate(ingredient("Gold Ingot", "gtceu:gold_ingot", "c:ingots")));
-	}
-
-	private record SearchFixture(List<RecipeSearchIngredient> inputs, List<RecipeSearchIngredient> outputs, List<RecipeSearchIngredient> catalysts) {}
-
-	private static RecipeSearchIngredient ingredient(String name, String resourceId, String... tags) {
-		ResourceLocation id = ResourceLocation.parse(resourceId);
-		return new RecipeSearchIngredient(
-			name,
-			id,
-			id.getNamespace(),
-			Set.of(tags)
-		);
 	}
 }

@@ -1,9 +1,9 @@
 package mezz.jei.gui.overlay.elements;
 
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IDrawable;
-import mezz.jei.api.gui.drawable.IScalableDrawable;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.helpers.IModIdHelper;
@@ -25,8 +25,11 @@ import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.BookmarkTooltipFeature;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.common.util.SafeIngredientUtil;
@@ -35,10 +38,8 @@ import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayActivator;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
-import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
+import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.recipes.RecipeCategoryIconUtil;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.ChatFormatting;
@@ -54,6 +55,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -99,7 +101,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public IDrawable createRenderOverlay() {
-		boolean showRecipeHandlerIcon = getClientConfig().showRecipeHandlerIconEnabled().getValue();
+		boolean showRecipeHandlerIcon = getClientConfig().showRecipeHandlerIconEnabled().get();
 		if (!showRecipeHandlerIcon) {
 			return null;
 		}
@@ -108,15 +110,13 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	}
 
 	@Override
-	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<InputAction> prepareAction(UserInput input, IInternalKeyMappings keyBindings) {
 		if (BookmarkGhostOverlayActivator.isOverlayRecipeInput(input, keyBindings.getOverlayRecipe())) {
-			return handleGhostOverlay(input);
+			return prepareBookmarkAction(input, this::handleGhostOverlay);
 		}
-
 		if (BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems())) {
-			return handleAutoCrafting(input, keyBindings);
+			return prepareBookmarkAction(input, event -> handleAutoCrafting(event, keyBindings));
 		}
-
 		boolean transferOnce = input.is(keyBindings.getTransferRecipeBookmark());
 		boolean transferMax = input.is(keyBindings.getMaxTransferRecipeBookmark());
 		if (shouldSkipTransferForCheatGive(
@@ -126,7 +126,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			transferOnce,
 			transferMax
 		)) {
-			return false;
+			return Optional.empty();
 		}
 		if (transferOnce || transferMax) {
 			Minecraft minecraft = Minecraft.getInstance();
@@ -135,18 +135,23 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			if (player != null && screen instanceof AbstractContainerScreen<?> containerScreen) {
 				IRecipeLayoutDrawable<R> recipeLayout = getRecipeLayoutDrawable().orElse(null);
 				if (recipeLayout == null) {
-					return false;
+					return Optional.empty();
 				}
 
-				if (input.isSimulate()) {
-					IRecipeTransferError recipeTransferError = recipeTransferService.get().getTransferRecipeError(containerScreen, recipeLayout, player).orElse(null);
-					return recipeTransferError == null || recipeTransferError.getType().allowsTransfer;
-				} else {
-					return recipeTransferService.get().transferRecipe(containerScreen, recipeLayout, player, transferMax);
+				IRecipeTransferError error = recipeTransferService.get().getTransferRecipeError(containerScreen, recipeLayout, player).orElse(null);
+				if (error == null || error.getType().allowsTransfer) {
+					return Optional.of(InputAction.run(() -> recipeTransferService.get().transferRecipe(containerScreen, recipeLayout, player, transferMax)));
 				}
 			}
 		}
-		return false;
+		return Optional.empty();
+	}
+
+	private static Optional<InputAction> prepareBookmarkAction(UserInput input, java.util.function.Predicate<UserInput> action) {
+		if (input.isKeyboardInput()) {
+			return action.test(input) ? Optional.of(InputAction.run(() -> {})) : Optional.empty();
+		}
+		return action.test(input) ? Optional.of(new InputAction(action::test)) : Optional.empty();
 	}
 
 	static boolean shouldSkipTransferForCheatGive(
@@ -346,7 +351,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			return false;
 		}
 
-		if (!pinned && getClientConfig().holdShiftToShowBookmarkTooltipFeaturesEnabled().getValue()) {
+		if (!pinned && getClientConfig().holdShiftToShowBookmarkTooltipFeaturesEnabled().get()) {
 			IJeiKeyMappingInternal pauseRecipeCycling = Internal.getKeyMappings().getShowBookmarkTooltipFeatures();
 			if (pauseRecipeCycling.isUnbound()) {
 				return false;
@@ -366,7 +371,14 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 	}
 
 	private List<BookmarkTooltipFeature> getBookmarkTooltipFeatures() {
-		return getClientConfig().bookmarkTooltipFeatures().getValue();
+		List<BookmarkTooltipFeature> features = new ArrayList<>(2);
+		if (getClientConfig().bookmarkTooltipPreviewEnabled().get()) {
+			features.add(BookmarkTooltipFeature.PREVIEW);
+		}
+		if (getClientConfig().bookmarkTooltipIngredientsEnabled().get()) {
+			features.add(BookmarkTooltipFeature.INGREDIENTS);
+		}
+		return List.copyOf(features);
 	}
 
 	private IClientConfig getClientConfig() {
@@ -473,7 +485,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
 			IRecipeManager recipeManager = jeiRuntime.getRecipeManager();
 			IFocusFactory focusFactory = jeiRuntime.getJeiHelpers().getFocusFactory();
-			IScalableDrawable recipePreviewBackground = Internal.getTextures().getRecipePreviewBackground();
+			ScalableDrawable recipePreviewBackground = Internal.getTextures().getRecipePreviewBackground();
 			IFocus<?> focus = focusFactory.createFocus(recipeBookmark.getDisplayRole(), recipeBookmark.getDisplayIngredient());
 			IFocusGroup focusGroup = focusFactory.createFocusGroup(List.of(focus));
 

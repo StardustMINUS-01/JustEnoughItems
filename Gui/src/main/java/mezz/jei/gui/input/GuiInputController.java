@@ -1,0 +1,281 @@
+package mezz.jei.gui.input;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.common.config.DebugConfig;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.ConsumedInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.screens.Screen;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Sends input to JEI controls and shortcuts, keeping mouse interactions until release or cancellation.
+ * Focused text editing gets the first chance to handle keyboard input, followed by keyboard
+ * navigation. Controls in the selected input area are tried before shortcuts. Shortcut priority is the selected input area's
+ * shortcuts, then shared shortcuts, then other areas' shortcuts that work anywhere on the screen.
+ *
+ * <p>For example, a player editing "stone" presses Backspace. The search field removes
+ * the "e", even if Backspace is also bound to show or hide JEI.</p>
+ */
+public final class GuiInputController {
+	private static final Logger LOGGER = LogManager.getLogger();
+	/** Input areas from front to back, shared with ingredient lookup. */
+	private final GuiInputScene scene;
+	/** Remaining commands in priority order, including shared shortcuts and other areas' screen shortcuts. */
+	private final InputCommands commands;
+	private final ITextInputHandler editor;
+	private final IInternalKeyMappings keys;
+	/** Interactions and original screens for mouse buttons that are still held. */
+	private final Map<InputConstants.Key, MouseCapture> captures = new HashMap<>();
+	/** Detects screen changes even when a handler returns to the same screen before finishing. */
+	private int screenChangeCount;
+
+	public GuiInputController(GuiInputScene scene, InputCommands commands, ITextInputHandler editor, IInternalKeyMappings keys) {
+		this.scene = scene;
+		this.commands = commands;
+		this.editor = editor;
+		this.keys = keys;
+	}
+
+	public Optional<IInputInteraction> keyPressed(Screen screen, UserInput input) {
+		return scene.dispatch(input, () -> {
+			int initialScreenChangeCount = screenChangeCount;
+			Optional<IInputInteraction> action = resolve(screen, input);
+			if (!isScreenUnchanged(screen, initialScreenChangeCount)) {
+				action.ifPresent(IInputInteraction::cancel);
+				return Optional.of(ConsumedInput.INSTANCE);
+			}
+			action.ifPresent(interaction -> interaction.complete(input));
+			return action;
+		});
+	}
+
+	public boolean mousePressed(Screen screen, UserInput input) {
+		scene.clearKeyboardFocus();
+		for (InputArea area : scene.getInputAreas()) {
+			if (area.area() instanceof ITextInputHandler foregroundEditor && foregroundEditor != editor &&
+				!foregroundEditor.isMouseOver(input.getMouseX(), input.getMouseY())
+			) {
+				foregroundEditor.clearFocus();
+			}
+		}
+		MouseCapture previous = captures.get(input.getKey());
+		if (previous != null && previous.keepsCaptureOnRepeatedPress()) {
+			return true;
+		}
+		cancel(input.getKey());
+		return scene.dispatch(input, () -> {
+			InputArea target = scene.getTarget(input).orElse(null);
+			int initialScreenChangeCount = screenChangeCount;
+			IInputInteraction interaction = resolve(screen, input).orElse(null);
+			IInputInteraction ingredientDrag = null;
+			if (isScreenUnchanged(screen, initialScreenChangeCount) && input.isMouseInput() &&
+				(input.getKey().getValue() == InputConstants.MOUSE_BUTTON_LEFT || input.getKey().getValue() == InputConstants.MOUSE_BUTTON_RIGHT)
+			) {
+				ingredientDrag = scene.startDrag(screen, input).orElse(null);
+			}
+			if (interaction == null && ingredientDrag == null && target != null && target.blocksUnhandledMouseInput()) {
+				interaction = ConsumedInput.INSTANCE;
+			}
+			if (interaction == null && ingredientDrag == null) {
+				return false;
+			}
+			MouseCapture capture = new MouseCapture(screen, interaction, ingredientDrag);
+			if (isScreenUnchanged(screen, initialScreenChangeCount)) {
+				captures.put(input.getKey(), capture);
+			} else {
+				capture.cancel();
+			}
+			return true;
+		});
+	}
+
+	private Optional<IInputInteraction> resolve(Screen screen, UserInput input) {
+		InputArea target = scene.getTarget(input).orElse(null);
+		if (DebugConfig.isDebugInputsEnabled()) {
+			String targetName = "none";
+			if (target != null) {
+				targetName = target.name();
+			}
+			LOGGER.debug("JEI input {} targeting {}", input, targetName);
+		}
+		if (input.isKeyboardInput()) {
+			for (InputArea area : scene.getInputAreas()) {
+				if (area.area() instanceof ITextInputHandler foregroundEditor && foregroundEditor != editor && foregroundEditor.hasKeyboardPriority()) {
+					Optional<IInputInteraction> interaction = foregroundEditor.beginInput(screen, input, keys);
+					if (interaction.isPresent()) {
+						return interaction;
+					}
+				}
+			}
+		}
+		boolean editing = input.isKeyboardInput() && editor.hasKeyboardFocus();
+		if (editing) {
+			Optional<IInputInteraction> edit = editor.beginInput(screen, input, keys);
+			if (edit.isPresent()) {
+				return edit;
+			}
+		}
+		if (target != null) {
+			GuiEventListener navigation = target.keyboardNavigation();
+			boolean keyboardFocused = input.isKeyboardInput() && navigation != null && navigation.isFocused();
+			if (keyboardFocused) {
+				if (input.ifKeyboardEvent(navigation::keyPressed)) {
+					return Optional.of(ConsumedInput.INSTANCE);
+				}
+				if (input.ifKeyboardEvent((keyCode, scanCode, modifiers) -> keyCode == InputConstants.KEY_TAB)) {
+					return Optional.of(InputAction.run(editor::focus));
+				}
+			}
+			if (!keyboardFocused && (!editing || target.area() != editor)) {
+				Optional<IInputInteraction> control = target.controls().beginInput(screen, input, keys);
+				if (control.isPresent()) {
+					return control;
+				}
+			}
+			Optional<IInputInteraction> shortcut = target.commands().resolve(screen, input, !keyboardFocused);
+			if (shortcut.isPresent()) {
+				return shortcut;
+			}
+		}
+		return commands.resolve(screen, input, false);
+	}
+
+	public boolean mouseReleased(Screen screen, UserInput input) {
+		MouseCapture capture = captures.remove(input.getKey());
+		if (capture != null && capture.screen() != screen) {
+			capture.cancel();
+			return true;
+		}
+		InputArea target = scene.getTarget(input).orElse(null);
+		if (target == null || target.area() != editor) {
+			editor.clearFocus();
+		}
+		if (capture == null) {
+			return false;
+		}
+		int initialScreenChangeCount = screenChangeCount;
+		if (capture.interaction() != null) {
+			capture.interaction().complete(input);
+		}
+		if (capture.ingredientDrag() != null) {
+			if (isScreenUnchanged(screen, initialScreenChangeCount)) {
+				capture.ingredientDrag().complete(input);
+			} else {
+				capture.ingredientDrag().cancel();
+			}
+		}
+		return true;
+	}
+
+	public boolean mouseDragged(Screen screen, double mouseX, double mouseY, InputConstants.Key button, double dragX, double dragY) {
+		MouseCapture capture = captures.get(button);
+		if (capture == null) {
+			return scene.dragApiHandlers(mouseX, mouseY, button, dragX, dragY);
+		}
+		if (capture.screen() != screen) {
+			cancel(button);
+			return true;
+		}
+		int initialScreenChangeCount = screenChangeCount;
+		if (capture.interaction() != null) {
+			capture.interaction().drag(mouseX, mouseY, button, dragX, dragY);
+		}
+		if (capture.ingredientDrag() != null && isScreenUnchanged(screen, initialScreenChangeCount)) {
+			capture.ingredientDrag().drag(mouseX, mouseY, button, dragX, dragY);
+		}
+		if (isScreenUnchanged(screen, initialScreenChangeCount) && !capture.capturesMouseMovement()) {
+			scene.dragApiHandlers(mouseX, mouseY, button, dragX, dragY);
+		}
+		return true;
+	}
+
+	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		scene.clearKeyboardFocus();
+		return scene.dispatch(mouseX, mouseY, () -> {
+			InputArea target = scene.getTarget(mouseX, mouseY).orElse(null);
+			if (target == null) {
+				return false;
+			}
+			return target.controls().scroll(mouseX, mouseY, scrollX, scrollY) || target.blocksUnhandledMouseInput();
+		});
+	}
+
+	public boolean hasKeyboardFocus() {
+		return editor.hasKeyboardFocus() || scene.getInputAreas().stream()
+			.map(InputArea::area)
+			.filter(ITextInputHandler.class::isInstance)
+			.map(ITextInputHandler.class::cast)
+			.anyMatch(ITextInputHandler::hasKeyboardPriority);
+	}
+
+	public boolean charTyped(char codePoint, int modifiers) {
+		scene.updateKeyboardFocus();
+		for (InputArea area : scene.getInputAreas()) {
+			if (area.area() instanceof ITextInputHandler foregroundEditor && foregroundEditor != editor &&
+				foregroundEditor.hasKeyboardFocus() && foregroundEditor.onCharTyped(codePoint, modifiers)
+			) {
+				return true;
+			}
+		}
+		return (editor.hasKeyboardFocus() && editor.onCharTyped(codePoint, modifiers)) || scene.getKeyboardTarget().isPresent();
+	}
+
+	public void screenChanged() {
+		screenChangeCount++;
+		List<MouseCapture> pending = List.copyOf(captures.values());
+		captures.clear();
+		pending.forEach(MouseCapture::cancel);
+		scene.resetInput();
+	}
+
+	private boolean isScreenUnchanged(Screen screen, int initialScreenChangeCount) {
+		return screenChangeCount == initialScreenChangeCount && Minecraft.getInstance().screen == screen;
+	}
+
+	private void cancel(InputConstants.Key button) {
+		MouseCapture capture = captures.remove(button);
+		if (capture != null) {
+			capture.cancel();
+		}
+	}
+
+	/**
+	 * Pending interactions for one mouse button. A press can select both a click action
+	 * and an ingredient drag.
+	 *
+	 * @param screen screen where the press was accepted; a release on another screen cancels it
+	 * @param interaction interaction for the selected control or shortcut, or null if only a drag started
+	 * @param ingredientDrag interaction for an ingredient drag started by the same press, or null if none started
+	 */
+	private record MouseCapture(Screen screen, @Nullable IInputInteraction interaction, @Nullable IInputInteraction ingredientDrag) {
+		private void cancel() {
+			if (interaction != null) {
+				interaction.cancel();
+			}
+			if (ingredientDrag != null) {
+				ingredientDrag.cancel();
+			}
+		}
+
+		private boolean capturesMouseMovement() {
+			return (interaction != null && interaction.capturesMouseMovement()) ||
+				(ingredientDrag != null && ingredientDrag.capturesMouseMovement());
+		}
+
+		private boolean keepsCaptureOnRepeatedPress() {
+			return (interaction != null && interaction.keepsCaptureOnRepeatedPress()) || (ingredientDrag != null && ingredientDrag.keepsCaptureOnRepeatedPress());
+		}
+	}
+}

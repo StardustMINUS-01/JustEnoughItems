@@ -8,9 +8,11 @@ import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
+import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.JeiGuiColors.GuiColor;
+import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.transfer.RecipeTransferErrorInternal;
 import mezz.jei.common.transfer.RecipeTransferService;
@@ -28,6 +30,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,12 +39,14 @@ import java.util.function.Supplier;
 
 public class RecipeTransferButtonController implements IIconButtonController {
 	private final IRecipeLayoutDrawable<?> recipeLayout;
+	private IRecipeLayoutDrawable<?> transferLayout;
 	private @Nullable RecipesGui recipesGui;
 	private @Nullable InputSlotSelectionState inputSlotSelectionState;
 	private final RecipeTransferService recipeTransferService;
 	private final Supplier<@Nullable AbstractContainerScreen<?>> screenSupplier;
 	private final BooleanSupplier maxTransferSupplier;
 	private final Runnable onSuccessfulTransfer;
+	private final boolean showButtonShortcuts;
 	private @Nullable IRecipeTransferError recipeTransferError;
 
 	public RecipeTransferButtonController(
@@ -54,7 +59,8 @@ public class RecipeTransferButtonController implements IIconButtonController {
 			recipeTransferService,
 			recipesGui::getParentContainerScreen,
 			Screen::hasShiftDown,
-			recipesGui::onClose
+			recipesGui::onClose,
+			true
 		);
 		this.recipesGui = recipesGui;
 	}
@@ -68,6 +74,9 @@ public class RecipeTransferButtonController implements IIconButtonController {
 		this(recipeLayout, recipesGui, recipeTransferService);
 		this.recipesGui = recipesGui;
 		this.inputSlotSelectionState = inputSlotSelectionState;
+		if (inputSlotSelectionState != null) {
+			this.transferLayout = new RecipeTransferLayout<>(recipeLayout, this::getRecipeSlotsView);
+		}
 	}
 
 	public static RecipeTransferButtonController createForPinnedRecipe(
@@ -80,7 +89,8 @@ public class RecipeTransferButtonController implements IIconButtonController {
 			recipeTransferService,
 			RecipeTransferButtonController::getCurrentContainerScreen,
 			transferState::shouldTransferMax,
-			transferState::onSuccessfulTransfer
+			transferState::onSuccessfulTransfer,
+			false
 		);
 	}
 
@@ -89,13 +99,16 @@ public class RecipeTransferButtonController implements IIconButtonController {
 		RecipeTransferService recipeTransferService,
 		Supplier<@Nullable AbstractContainerScreen<?>> screenSupplier,
 		BooleanSupplier maxTransferSupplier,
-		Runnable onSuccessfulTransfer
+		Runnable onSuccessfulTransfer,
+		boolean showButtonShortcuts
 	) {
 		this.recipeLayout = recipeLayout;
+		this.transferLayout = recipeLayout;
 		this.recipeTransferService = recipeTransferService;
 		this.screenSupplier = screenSupplier;
 		this.maxTransferSupplier = maxTransferSupplier;
 		this.onSuccessfulTransfer = onSuccessfulTransfer;
+		this.showButtonShortcuts = showButtonShortcuts;
 	}
 
 	private static @Nullable AbstractContainerScreen<?> getCurrentContainerScreen() {
@@ -127,22 +140,24 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public void updateState(IButtonState state) {
+		IRecipeTransferError recipeTransferError = updateRecipeTransferError();
+		updateStateForTransferError(state, recipeTransferError);
+	}
+
+	public @Nullable IRecipeTransferError updateRecipeTransferError() {
 		if (treeTarget().isPresent()) {
-			recipeTransferError = null;
-			state.setActive(true);
-			state.setVisible(true);
-			return;
+			this.recipeTransferError = null;
+			return null;
 		}
 		Player player = Minecraft.getInstance().player;
 		AbstractContainerScreen<?> parentScreen = screenSupplier.get();
 		if (parentScreen != null && player != null) {
-			this.recipeTransferError = recipeTransferService.getTransferRecipeErrorWithSlotsView(parentScreen, recipeLayout, getRecipeSlotsView(), player)
+			this.recipeTransferError = recipeTransferService.getTransferRecipeError(parentScreen, transferLayout, player)
 				.orElse(null);
 		} else {
 			this.recipeTransferError = RecipeTransferErrorInternal.INSTANCE;
 		}
-
-		updateStateForTransferError(state, recipeTransferError);
+		return this.recipeTransferError;
 	}
 
 	static void updateStateForTransferError(IButtonState state, @Nullable IRecipeTransferError recipeTransferError) {
@@ -160,47 +175,44 @@ public class RecipeTransferButtonController implements IIconButtonController {
 
 	@Override
 	public boolean onPress(IJeiUserInput input) {
+		boolean maxTransfer = maxTransferSupplier.getAsBoolean();
+		return transferRecipe(maxTransfer, input.isSimulate());
+	}
+
+	public boolean transferRecipe(boolean maxTransfer, boolean simulate) {
 		var tree = treeTarget();
 		if (tree.isPresent()) {
-			if (!input.isSimulate() && tree.get().addRecipe(recipeLayout,
+			if (!simulate && tree.get().addRecipe(recipeLayout,
 				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.selectedKeys(),
 				inputSlotSelectionState == null ? Map.of() : inputSlotSelectionState.filteredCandidates())
 			) {
-				recipesGui.onClose();
+				onSuccessfulTransfer.run();
 			}
 			return true;
 		}
-		if (!input.isSimulate()) {
-			boolean maxTransfer = maxTransferSupplier.getAsBoolean();
-			Minecraft minecraft = Minecraft.getInstance();
-			LocalPlayer player = minecraft.player;
-			AbstractContainerScreen<?> parentScreen = screenSupplier.get();
-			if (parentScreen != null && player != null) {
-				IRecipeSlotsView recipeSlotsView = getRecipeSlotsView();
-				boolean transferred = inputSlotSelectionState != null &&
-					inputSlotSelectionState.hasSelections() &&
-					Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge()
-						.transferSelectedCraftingRecipe(
-							parentScreen.getMenu(),
-							recipeLayout.getRecipe(),
-							recipeLayout.getRecipeCategory().getRecipeType(),
-							recipeSlotsView
-						);
-				if (!transferred) {
-					transferred = recipeTransferService.transferRecipeWithSlotsView(
-						parentScreen,
-						recipeLayout,
-						recipeSlotsView,
-						player,
-						maxTransfer
-					);
-				}
-				if (transferred) {
-					onSuccessfulTransfer.run();
-				}
-			}
+		LocalPlayer player = Minecraft.getInstance().player;
+		AbstractContainerScreen<?> parentScreen = screenSupplier.get();
+		if (parentScreen == null || player == null) {
+			return false;
 		}
-		return true;
+
+		if (simulate) {
+			IRecipeTransferError recipeTransferError = recipeTransferService.getTransferRecipeError(parentScreen, transferLayout, player)
+				.orElse(null);
+			return recipeTransferError == null || recipeTransferError.getType().allowsTransfer;
+		}
+
+		boolean transferred = inputSlotSelectionState != null && inputSlotSelectionState.hasSelections() &&
+			Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge().transferSelectedCraftingRecipe(
+				parentScreen.getMenu(), recipeLayout.getRecipe(), recipeLayout.getRecipeCategory().getRecipeType(), getRecipeSlotsView());
+		if (!transferred) {
+			transferred = recipeTransferService.transferRecipe(parentScreen, transferLayout, player, maxTransfer);
+		}
+		if (transferred) {
+			onSuccessfulTransfer.run();
+			return true;
+		}
+		return false;
 	}
 
 	@Override
@@ -210,6 +222,18 @@ public class RecipeTransferButtonController implements IIconButtonController {
 			return;
 		}
 		getTooltips(this.recipeTransferError, tooltip);
+		if (!showButtonShortcuts ||
+			(this.recipeTransferError != null && !this.recipeTransferError.getType().allowsTransfer)
+		) {
+			return;
+		}
+
+		IJeiKeyMapping leftClick = Internal.getKeyMappings().getLeftClick();
+		tooltip.addKeyUsageComponent("jei.tooltip.bookmarks.tooltips.transfer.usage", leftClick);
+		tooltip.add(JeiTooltip.createKeyUsageComponent(
+			"jei.tooltip.bookmarks.tooltips.transfer.max.usage",
+			Component.translatable("jei.key.combo.shift", leftClick.getTranslatedKeyMessage()).copy()
+		));
 	}
 
 	private Optional<RecipeTreeScreen> treeTarget() {
@@ -254,6 +278,10 @@ public class RecipeTransferButtonController implements IIconButtonController {
 		} finally {
 			poseStack.popPose();
 		}
+	}
+
+	public @Nullable IRecipeTransferError getRecipeTransferError() {
+		return this.recipeTransferError;
 	}
 
 	public int getMissingCountHint() {

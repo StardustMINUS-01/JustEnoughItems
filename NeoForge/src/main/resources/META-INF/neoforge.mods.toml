@@ -54,16 +54,26 @@ ${modDescription}
 
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.jei]]
+    modId="${configModId}" #mandatory
+    type="required" #mandatory
+    versionRange="${mezzConfigVersionRange}" #mandatory
+    # An ordering relationship for the dependency - BEFORE or AFTER required if the relationship is not mandatory
+    ordering="AFTER"
+    # Side this dependency is applied on - BOTH, CLIENT or SERVER
+    side="BOTH"
+
+[[dependencies.jei]]
+    modId="${configGuiModId}"
+    type="optional"
+    versionRange="${mezzConfigGuiVersionRange}"
+    ordering="AFTER"
+    side="CLIENT"
+
+[[dependencies.jei]]
     modId="neoforge" #mandatory
     type="required" #mandatory
     versionRange="${neoforgeVersionRange}" #mandatory
     # An ordering relationship for the dependency - BEFORE or AFTER required if the relationship is not mandatory
-
-[[mixins]]
-config = "jei-ae2.mixins.json"
-
-[[mixins]]
-config = "jei-tooltip.mixins.json"
 
     ordering="NONE"
     # Side this dependency is applied on - BOTH, CLIENT or SERVER
@@ -80,3 +90,9 @@ config = "jei-tooltip.mixins.json"
 
 [modproperties.jei]
     catalogueImageIcon="jei-icon.png"
+
+[[mixins]]
+config = "jei-ae2.mixins.json"
+
+[[mixins]]
+config = "jei-tooltip.mixins.json"

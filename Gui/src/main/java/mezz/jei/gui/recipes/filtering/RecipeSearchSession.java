@@ -1,7 +1,9 @@
 package mezz.jei.gui.recipes.filtering;
 
 import mezz.jei.api.recipe.IRecipeManager;
-import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.gui.ingredients.IngredientFilter;
+import mezz.jei.gui.search.IngredientSearchSnapshot;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
@@ -10,14 +12,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiPredicate;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 
 public final class RecipeSearchSession {
 	private final IRecipeManager recipeManager;
-	private final IIngredientManager ingredientManager;
 	private final ISearchStorageBuilderFactory searchStorageBuilderFactory;
+	private @Nullable IngredientFilter ingredientSearch;
+	private long ingredientSearchRevision;
+	private @Nullable IngredientSearchSnapshot ingredientSnapshot;
 	private @Nullable RecipeSearchTraversal traversal;
 	private @Nullable RecipePreferenceRules preferenceRules;
 	private RecipeFilterMode mode = RecipeFilterMode.ALL;
@@ -31,9 +36,8 @@ public final class RecipeSearchSession {
 	private long pendingRevision;
 	private RecipeCategoryPreferences.State categoryPreferences = RecipeCategoryPreferences.get();
 
-	public RecipeSearchSession(IRecipeManager recipeManager, IIngredientManager ingredientManager, ISearchStorageBuilderFactory searchStorageBuilderFactory) {
+	public RecipeSearchSession(IRecipeManager recipeManager, ISearchStorageBuilderFactory searchStorageBuilderFactory) {
 		this.recipeManager = recipeManager;
-		this.ingredientManager = ingredientManager;
 		this.searchStorageBuilderFactory = searchStorageBuilderFactory;
 	}
 
@@ -43,11 +47,29 @@ public final class RecipeSearchSession {
 		this.mode = mode;
 		this.query = query;
 		categoryPreferences = RecipeCategoryPreferences.get();
-		if (mode.isUnrestricted() && query.isEmpty())
+		if (mode.isUnrestricted() && query.isEmpty()) {
+			ingredientSnapshot = null;
 			return;
-		traversal = new RecipeSearchTraversal(recipeManager, ingredientManager, state, mode, query,
-			RecipeSearchTextMatcher.createFactory(searchStorageBuilderFactory, query));
+		}
 		started = System.nanoTime();
+		BiPredicate<ITypedIngredient<?>, String> ingredientMatcher = (ingredient, token) -> {
+			throw new IllegalStateException("Recipe ingredient search has not been configured");
+		};
+		if (ingredientSearch != null) {
+			ingredientSnapshot = ingredientSearch.createRecipeSearchSnapshot(query.getIngredientTokens(), ingredientSnapshot);
+			ingredientMatcher = ingredientSnapshot;
+			ingredientSearchRevision = ingredientSearch.getIngredientSearchRevision();
+		}
+		traversal = new RecipeSearchTraversal(recipeManager, state, mode, query,
+			RecipeSearchTextMatcher.createFactory(searchStorageBuilderFactory, query), ingredientMatcher);
+	}
+
+	public void setIngredientSearch(IngredientFilter ingredientSearch) {
+		this.ingredientSearch = ingredientSearch;
+	}
+
+	public boolean needsIngredientRefresh() {
+		return !query.isEmpty() && ingredientSearch != null && ingredientSearchRevision != ingredientSearch.getIngredientSearchRevision();
 	}
 
 	public boolean isSearching() {
@@ -108,7 +130,7 @@ public final class RecipeSearchSession {
 		if (complete || ticksSincePublication >= 10 && count != publishedMatchCount) {
 			publishedMatchCount = count;
 			ticksSincePublication = 0;
-			Result result = new Result(revision, query, traversal.getMatcher(), traversal.getResults());
+			Result result = new Result(revision, query, traversal.getIngredientMatcher(), traversal.getResults());
 			if (complete)
 				traversal = null;
 			return Optional.of(result);
@@ -127,6 +149,7 @@ public final class RecipeSearchSession {
 
 	public void clear() {
 		cancel();
+		ingredientSnapshot = null;
 		preferenceRules = null;
 		if (executor != null)
 			executor.shutdownNow();
@@ -134,5 +157,6 @@ public final class RecipeSearchSession {
 		pending = null;
 	}
 
-	public record Result(long revision, RecipeSearchQuery query, IRecipeSearchTextMatcher matcher, List<IFocusedRecipes<?>> recipes) {}
+	public record Result(long revision, RecipeSearchQuery query,
+		BiPredicate<ITypedIngredient<?>, String> ingredientMatcher, List<IFocusedRecipes<?>> recipes) {}
 }

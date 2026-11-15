@@ -5,7 +5,6 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.input.IUserInputHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -56,10 +55,6 @@ public class ScrollStepTextField extends EditBox {
 			}
 		}
 		updateColor();
-	}
-
-	public IUserInputHandler createInputHandler() {
-		return new ScrollStepFieldInputHandler(this);
 	}
 
 	@Override

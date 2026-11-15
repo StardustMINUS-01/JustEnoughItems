@@ -7,6 +7,8 @@ import mezz.jei.common.config.CollapsibleColorConfig;
 import mezz.jei.gui.match.IngredientMatchInfo;
 import net.minecraft.resources.ResourceLocation;
 import mezz.jei.gui.config.CollapsibleConfig;
+import mezz.jei.test.gui.lib.ConfigTestFixtures;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,6 +20,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CollapsibleConfigTest {
+	@BeforeEach
+	public void initializeClientConfig() {
+		ConfigTestFixtures.createClientConfigs(tempDir.resolve("jei-client.ini"));
+	}
+
 	@Test
 	public void reloadsRulesSelectively() throws Exception {
 		CollapsibleConfig config = new CollapsibleConfig(tempDir);
@@ -31,10 +38,10 @@ public class CollapsibleConfigTest {
 		var original = manager.rules();
 		manager.reload(load(config, "$ Changed comment", "item = minecraft:potion", "item = minecraft:*", "expandedColor = 0x11223344"));
 		Assertions.assertEquals(CollapsibleSettings.DEFAULT, manager.settings());
-		var serializer = CollapsibleColorConfig.getExpandedColor().getSerializer();
+		var serializer = CollapsibleColorConfig.getExpandedColor().getEditorInfo().getSerializer();
 		int color = serializer.deserialize("0xFF123456").getResult().orElseThrow();
 		Assertions.assertEquals("0xFF123456", serializer.serialize(color));
-		Assertions.assertFalse(serializer.deserialize("0x100000000").getErrors().isEmpty());
+		Assertions.assertFalse(serializer.deserialize("0x100000000").getDiagnostics().isEmpty());
 		manager.setSettings(new CollapsibleSettings(CollapsibleSettings.DEFAULT_COLLAPSED_COLOR, color));
 		Assertions.assertSame(original, manager.rules());
 		Assertions.assertEquals(color, manager.settings().expandedColor());

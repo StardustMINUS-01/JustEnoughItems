@@ -1,8 +1,9 @@
 package mezz.jei.gui.recipes;
 
-import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.common.recipes.IRecipeVisibility;
+import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
 import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
@@ -16,8 +17,10 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.config.RecipeSorterStage;
-import mezz.jei.common.search.BakedSubstringIndexBuilder;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.config.RecipeGuiNavigationMode;
 import mezz.jei.common.transfer.RecipeTransferService;
+import mezz.jei.common.util.ImmutableSize2i;
 import mezz.jei.common.util.MathUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
@@ -29,8 +32,7 @@ import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
 import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
-import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
-import mezz.jei.gui.recipes.filtering.IRecipeSearchTextMatcher;
+import mezz.jei.gui.ingredients.IngredientFilter;
 import mezz.jei.gui.recipes.filtering.RecipeSearchSession;
 import mezz.jei.gui.recipes.layouts.IRecipeLayoutList;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
@@ -42,7 +44,6 @@ import mezz.jei.gui.recipes.lookups.SingleCategoryLookupState;
 import mezz.jei.gui.recipes.navigation.RecipeNavigationEntry;
 import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import mezz.jei.gui.recipes.navigation.RecipeNavigationHistory;
-import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
@@ -54,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.Consumer;
+import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 
 public class RecipeGuiLogic implements IRecipeGuiLogic {
@@ -67,6 +69,8 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	private ILookupState state;
 	private ILookupState unfilteredState;
 	private final RecipeNavigationHistory<RecipeNavigationEntry> navigationHistory = new RecipeNavigationHistory<>();
+	private boolean scrolling;
+	private RecipeGuiGrid recipeGuiGrid = new RecipeGuiGrid(1, 1);
 	private final LookupHistory lookupHistory;
 	private final IFocusFactory focusFactory;
 	private final BookmarkFactory bookmarkFactory;
@@ -84,11 +88,12 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	public mezz.jei.gui.recipes.filtering.RecipeSearchScope getSearchScope() { return searchScope; }
 	private String searchQueryText = "";
 	private RecipeSearchQuery searchQuery = RecipeSearchQuery.parse("");
-	private IRecipeSearchTextMatcher searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+	private BiPredicate<ITypedIngredient<?>, String> searchIngredientMatcher = (ingredient, token) -> true;
 	private final RecipeSearchSession searchSession;
 	private RecipeSearchQuery displayedSearchQuery = searchQuery;
 	private long displayedSearchRevision = -1;
 	private @Nullable RecipeNavigationEntry pendingSearchPosition;
+	private @Nullable Double pendingScrollAnchor;
 	private @Nullable Boolean searchBlockTags;
 
 	public RecipeGuiLogic(
@@ -131,7 +136,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			focusFactory,
 			bookmarkFactory,
 			preferenceRulesSupplier,
-			BakedSubstringIndexBuilder::new
+			LuceneSearchStorageBuilder.FACTORY
 		);
 	}
 
@@ -152,7 +157,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		this.recipeTransferService = recipeTransferService;
 		this.stateListener = stateListener;
 		this.preferenceRulesSupplier = preferenceRulesSupplier;
-		this.searchSession = new RecipeSearchSession(recipeManager, ingredientManager, searchStorageBuilderFactory);
+		this.searchSession = new RecipeSearchSession(recipeManager, searchStorageBuilderFactory);
 		List<IRecipeCategory<?>> recipeCategories = recipeManager.createRecipeCategoryLookup()
 			.get()
 			.toList();
@@ -173,7 +178,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			cachedRecipeLayoutsWithButtons.tick();
 		}
 		Internal.getOptionalClientConfigs().ifPresent(configs -> {
-			boolean blockTags = configs.getClientConfig().lookupBlockTagsEnabled().getValue();
+			boolean blockTags = configs.getClientConfig().lookupBlockTagsEnabled().get();
 			if (searchBlockTags != null && searchBlockTags != blockTags) {
 				searchSession.clear();
 				rebuildDisplayedState();
@@ -181,7 +186,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			searchBlockTags = blockTags;
 		});
 		RecipePreferenceRules rules = preferenceRulesSupplier.get();
-		if (searchSession.needsPreferenceRefresh(rules)) {
+		if (searchSession.needsPreferenceRefresh(rules) || searchSession.needsIngredientRefresh()) {
 			rebuildDisplayedState();
 		}
 		Optional<RecipeSearchSession.Result> completed;
@@ -197,13 +202,16 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			IRecipeCategory<?> selected = state.getFocusedRecipes().getRecipeCategory();
 			int recipeIndex = state.getRecipeIndex();
 			int recipesPerPage = state.getRecipesPerPage();
-			this.searchTextMatcher = result.matcher();
+			double scrollAnchor = state.getScrollState().getRecipeAnchor();
+			this.searchIngredientMatcher = result.ingredientMatcher();
 			this.displayedSearchQuery = result.query();
 			this.state = new ProjectedLookupState(unfilteredState, result.recipes());
 			this.state.moveToRecipeCategory(selected);
 			this.state.setRecipesPerPage(recipesPerPage);
-			if (displayedSearchRevision == result.revision() && state.getFocusedRecipes().getRecipeCategory() == selected)
+			if (displayedSearchRevision == result.revision() && state.getFocusedRecipes().getRecipeCategory() == selected) {
 				LookupStatePositionUtil.restoreRecipeIndex(state, recipeIndex);
+				pendingScrollAnchor = scrollAnchor;
+			}
 			this.displayedSearchRevision = result.revision();
 			if (pendingSearchPosition != null && !searchSession.isSearching()) {
 				restorePosition(pendingSearchPosition);
@@ -240,6 +248,10 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public boolean showRecipes(IFocusedRecipes<?> focusedRecipes, IFocusGroup focuses) {
+		focusedRecipes = filterVisibleRecipes(focusedRecipes, focuses);
+		if (focusedRecipes.getRecipes().isEmpty()) {
+			return false;
+		}
 		var recipeBookmark = createRecipeBookmark(recipeManager, ingredientManager, recipeTransferService, focusedRecipes, focuses);
 		if (recipeBookmark != null) {
 			this.lookupHistory.add(recipeBookmark);
@@ -251,6 +263,17 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		}
 		ILookupState state = new SingleCategoryLookupState(focusedRecipes, focuses);
 		return setState(state, true);
+	}
+
+	private <T> IFocusedRecipes<T> filterVisibleRecipes(IFocusedRecipes<T> focusedRecipes, IFocusGroup focuses) {
+		if (!(recipeManager instanceof IRecipeVisibility recipeVisibility)) {
+			return focusedRecipes;
+		}
+		IRecipeCategory<T> recipeCategory = focusedRecipes.getRecipeCategory();
+		List<T> visibleRecipes = focusedRecipes.getRecipes().stream()
+			.filter(recipe -> recipeVisibility.isRecipeVisible(recipeCategory, recipe, focuses))
+			.toList();
+		return new StaticFocusedRecipes<>(recipeCategory, visibleRecipes);
 	}
 
 	private static <T> @Nullable RecipeBookmark<T, ?> createRecipeBookmark(
@@ -320,8 +343,12 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		return displayedSearchQuery.hasInputTerms();
 	}
 
-	boolean matchesInputCandidate(RecipeSearchIngredient ingredient) {
-		return displayedSearchQuery.matchesInputCandidate(ingredient, searchTextMatcher);
+	boolean matchesInputCandidate(ITypedIngredient<?> ingredient) {
+		return displayedSearchQuery.matchesInputCandidate(ingredient, searchIngredientMatcher);
+	}
+
+	void setIngredientSearch(IngredientFilter ingredientSearch) {
+		searchSession.setIngredientSearch(ingredientSearch);
 	}
 
 	@Override
@@ -340,10 +367,11 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		}
 		this.unfilteredState = state;
 		this.state = state;
+		this.pendingScrollAnchor = null;
 		this.searchSession.clear();
 		this.pendingSearchPosition = null;
 		this.displayedSearchQuery = RecipeSearchQuery.parse("");
-		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.searchIngredientMatcher = (ingredient, token) -> true;
 		rebuildDisplayedState();
 		clearLayoutCache();
 		if (saveHistory) {
@@ -385,7 +413,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		this.state = unfilteredState;
 		this.searchSession.clear();
 		this.displayedSearchQuery = RecipeSearchQuery.parse("");
-		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.searchIngredientMatcher = (ingredient, token) -> true;
 		rebuildDisplayedState();
 		restorePosition(entry);
 		this.pendingSearchPosition = searchSession.isSearching() ? entry : null;
@@ -399,6 +427,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		state.setRecipesPerPage(recipesPerPage);
 		state.moveToRecipeCategory(entry.getRecipeCategory());
 		LookupStatePositionUtil.restoreRecipeIndex(state, entry.getRecipeIndex());
+		pendingScrollAnchor = entry.getScrollAnchor();
 	}
 
 	private Component createNavigationTitle(ILookupState lookupState) {
@@ -422,7 +451,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		if (filterMode.isUnrestricted() && searchQuery.isEmpty()) {
 			this.displayedSearchQuery = searchQuery;
 			this.pendingSearchPosition = null;
-			this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+			this.searchIngredientMatcher = (ingredient, token) -> true;
 			this.state = unfilteredState;
 			this.state.moveToRecipeCategory(selectedCategory);
 			return;
@@ -443,6 +472,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	@Override
 	public void applyRecipeResultFilter(RecipeFilterMode mode, String query) {
 		this.pendingSearchPosition = null;
+		this.pendingScrollAnchor = null;
 		this.filterMode = mode;
 		this.searchQueryText = query;
 		this.searchQuery = RecipeSearchQuery.parse(query).withDefaultScope(searchScope);
@@ -456,8 +486,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	public void clearRecipeResultSnapshot() {
 		this.searchSession.clear();
 		this.pendingSearchPosition = null;
+		this.pendingScrollAnchor = null;
 		this.displayedSearchQuery = RecipeSearchQuery.parse("");
-		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.searchIngredientMatcher = (ingredient, token) -> true;
 		this.state = unfilteredState;
 		clearLayoutCache();
 	}
@@ -532,8 +563,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public List<IRecipeLayoutWithButtons<?>> getVisibleRecipeLayoutsWithButtons(
-		int availableHeight,
-		int minRecipePadding,
+		ImmutableSize2i availableSize,
 		@Nullable AbstractContainerMenu container,
 		BookmarkList bookmarkList,
 		RecipesGui recipesGui
@@ -570,21 +600,81 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			this.cachedContainerId = containerId;
 		}
 
-		final int recipeHeight = this.cachedRecipeLayoutsWithButtons.findFirst()
-			.map(IRecipeLayoutWithButtons::getRecipeLayout)
-			.map(IRecipeLayoutDrawable::getRectWithBorder)
-			.map(Rect2i::getHeight)
-			.orElseGet(recipeCategory::getHeight);
+		ImmutableSize2i recipeSizeWithButtons = this.cachedRecipeLayoutsWithButtons.findFirst()
+			.map(layout -> new ImmutableSize2i(layout.totalWidth(), layout.getRecipeLayout().getRectWithBorder().getHeight()))
+			.orElseGet(() -> new ImmutableSize2i(recipeCategory.getWidth(), recipeCategory.getHeight()));
 
-		final int recipesPerPage = Math.max(1, 1 + ((availableHeight - recipeHeight) / (recipeHeight + minRecipePadding)));
-		this.state.setRecipesPerPage(recipesPerPage);
+		this.recipeGuiGrid = RecipeGuiGrid.calculate(availableSize, recipeSizeWithButtons, clientConfig.maxRecipeGuiColumns().get());
+		this.state.setRecipesPerPage(recipeGuiGrid.recipesPerPage());
 
+		boolean scrolling = isScrolling();
+		RecipeGuiScrollState scrollState = getScrollState();
+		scrollState.update(recipeGuiGrid.columns(), recipeSizeWithButtons.height(), cachedRecipeLayoutsWithButtons.size(), availableSize.height());
+		if (this.scrolling != scrolling) {
+			if (scrolling) {
+				int pageStart = state.getRecipeIndex() - state.getRecipeIndex() % state.getRecipesPerPage();
+				scrollState.scrollToRecipe(pageStart);
+			} else {
+				state.setRecipeIndex(scrollState.getFirstRecipeIndex());
+			}
+			this.scrolling = scrolling;
+		}
+		if (pendingScrollAnchor != null) {
+			if (scrolling) {
+				scrollState.scrollToRecipeAnchor(pendingScrollAnchor);
+			}
+			pendingScrollAnchor = null;
+		}
+		if (scrolling) {
+			return this.cachedRecipeLayoutsWithButtons.subList(scrollState.getFirstRecipeIndex(), scrollState.getEndRecipeIndex());
+		}
 		return this.state.getVisible(this.cachedRecipeLayoutsWithButtons);
 	}
 
 	@Override
-	public int getRecipesPerPage() {
-		return this.state.getRecipesPerPage();
+	public boolean isScrolling() {
+		return Internal.getClientConfigs().getClientConfig().recipeGuiNavigationMode().get() == RecipeGuiNavigationMode.SCROLLING;
+	}
+
+	@Override
+	public RecipeGuiScrollState getScrollState() {
+		return state.getScrollState();
+	}
+
+	@Override
+	public boolean scrollRecipes(double pixels) {
+		if (getScrollState().scroll(pixels)) {
+			stateListener.onStateChange();
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public int getVisibleScrollAmount() {
+		return getScrollState().getVisibleHeight();
+	}
+
+	@Override
+	public int getHiddenScrollAmount() {
+		return getScrollState().getMaxScroll();
+	}
+
+	@Override
+	public float getScrollOffsetY() {
+		return getScrollState().getScrollOffset();
+	}
+
+	@Override
+	public void setScrollOffsetY(float scrollOffsetY) {
+		if (getScrollState().setScrollOffset(scrollOffsetY)) {
+			stateListener.onStateChange();
+		}
+	}
+
+	@Override
+	public RecipeGuiGrid getRecipeGuiGrid() {
+		return recipeGuiGrid;
 	}
 
 	@Override
@@ -626,6 +716,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public boolean nextPage() {
+		if (isScrolling()) {
+			return scrollRecipes(getScrollState().getVisibleHeight());
+		}
 		if (state.nextPage()) {
 			stateListener.onStateChange();
 			return true;
@@ -635,6 +728,9 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public boolean previousPage() {
+		if (isScrolling()) {
+			return scrollRecipes(-getScrollState().getVisibleHeight());
+		}
 		if (state.previousPage()) {
 			stateListener.onStateChange();
 			return true;

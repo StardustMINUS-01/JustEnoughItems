@@ -55,7 +55,7 @@ public final class RecipeTreeBookmarkPanel {
 			var mode = Screen.hasControlDown() ? BookmarkSlotDisplayMode.REAL : Screen.hasShiftDown() ? BookmarkSlotDisplayMode.SHIFT : BookmarkSlotDisplayMode.DEFAULT;
 			return entry == null ? Optional.empty() : BookmarkChainSlotVisuals.create(entry,
 				new BookmarkSlotVisualContext(mode, context.hoveredElement().map(entries::get).map(value -> (BookmarkDisplayEntry<?>) value),
-					context.rowIndex(), context.hoveredRowIndex(), Internal.getClientConfigs().getClientConfig().bookmarkRecipeMarkerMode().getValue()));
+					context.rowIndex(), context.hoveredRowIndex(), Internal.getClientConfigs().getClientConfig().bookmarkRecipeMarkerMode().get()));
 		});
 	}
 

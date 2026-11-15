@@ -6,7 +6,6 @@ import com.mojang.serialization.JsonOps;
 import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
-import mezz.jei.common.config.file.JsonArrayFileHelper;
 import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
@@ -14,8 +13,8 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.RegistryOps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +31,7 @@ public class FavoriteRecipeConfig {
 	private final Codec<FavoriteRecipeStore.Entry> entryCodec;
 	private final RegistryOps<JsonElement> registryOps;
 	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
+	private @Nullable JsonConfigFileGuard fileGuard;
 
 	public FavoriteRecipeConfig(
 		Path jeiConfigurationDir,
@@ -46,14 +46,19 @@ public class FavoriteRecipeConfig {
 
 	public FavoriteRecipeStore loadFavorites() {
 		Optional<Path> optionalPath = getPath();
-		if (optionalPath.isEmpty() || !Files.exists(optionalPath.get())) {
+		if (fileGuard != null) {
+			fileGuard.preventWrites();
+		}
+		fileGuard = null;
+		if (optionalPath.isEmpty()) {
 			return new FavoriteRecipeStore();
 		}
 
 		Path path = optionalPath.get();
-		try (BufferedReader reader = Files.newBufferedReader(path)) {
-			List<FavoriteRecipeStore.Entry> entries = JsonArrayFileHelper.read(
-				reader,
+		JsonConfigFileGuard guard = new JsonConfigFileGuard(path);
+		fileGuard = guard;
+		try {
+			List<FavoriteRecipeStore.Entry> entries = guard.read(
 				VERSION,
 				entryCodec,
 				registryOps,
@@ -62,28 +67,36 @@ public class FavoriteRecipeConfig {
 			);
 			FavoriteRecipeStore store = new FavoriteRecipeStore();
 			store.setFavorites(entries);
+			if (store.entries().size() != entries.size()) {
+				guard.preventLossyWrite();
+				LOGGER.warn("Favorite records in {} have conflicting keys. The original JSON will not be overwritten.", path);
+			}
 			return store;
 		} catch (RuntimeException | IOException e) {
+			guard.preventLossyWrite();
 			LOGGER.error("Failed to load favorite recipes from file {}", path, e);
 			return new FavoriteRecipeStore();
+		} finally {
+			guard.finishLoading();
 		}
 	}
 
 	public void saveFavorites(FavoriteRecipeStore store) {
 		List<FavoriteRecipeStore.Entry> entries = store.entries();
-		getPath().ifPresent(path -> delayedSave.run(() -> save(path, entries)));
+		JsonConfigFileGuard guard = fileGuard;
+		if (guard != null) {
+			getPath().filter(guard::canWrite).ifPresent(path -> delayedSave.run(() -> save(path, entries, guard)));
+		}
 	}
 
-	private void save(Path path, List<FavoriteRecipeStore.Entry> entries) {
+	private void save(Path path, List<FavoriteRecipeStore.Entry> entries, JsonConfigFileGuard guard) {
 		try {
-			JsonArrayFileHelper.write(
+			guard.write(
 				path,
 				VERSION,
 				entries,
 				entryCodec,
-				registryOps,
-				error -> LOGGER.error("Encountered an error when saving favorite recipes to file {}\n{}", path, error),
-				(entry, exception) -> LOGGER.error("Encountered an exception when saving favorite recipes to file {}\n{}", path, entry, exception)
+				registryOps
 			);
 		} catch (RuntimeException | IOException e) {
 			LOGGER.error("Failed to save favorite recipes to file {}", path, e);

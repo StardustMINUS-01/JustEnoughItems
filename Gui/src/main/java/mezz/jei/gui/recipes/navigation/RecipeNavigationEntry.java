@@ -21,6 +21,7 @@ public final class RecipeNavigationEntry {
 	private IRecipeCategory<?> recipeCategory;
 	private int recipeIndex;
 	private int recipesPerPage;
+	private double scrollAnchor;
 	private Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> inputSelections = Map.of();
 
 	public RecipeNavigationEntry(
@@ -41,6 +42,7 @@ public final class RecipeNavigationEntry {
 		this.recipeCategory = displayedState.getFocusedRecipes().getRecipeCategory();
 		this.recipeIndex = displayedState.getRecipeIndex();
 		this.recipesPerPage = displayedState.getRecipesPerPage();
+		this.scrollAnchor = displayedState.getScrollState().getRecipeAnchor();
 	}
 
 	public void updateInputSelections(Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> visibleSelections) {
@@ -73,6 +75,10 @@ public final class RecipeNavigationEntry {
 
 	public int getRecipesPerPage() {
 		return recipesPerPage;
+	}
+
+	public double getScrollAnchor() {
+		return scrollAnchor;
 	}
 
 	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> getInputSelections() {

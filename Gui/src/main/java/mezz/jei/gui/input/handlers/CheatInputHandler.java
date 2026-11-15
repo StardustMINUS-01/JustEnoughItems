@@ -9,9 +9,12 @@ import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.platform.Services;
-import mezz.jei.gui.input.CombinedRecipeFocusSource;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.input.IngredientFocusSource;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.ingredients.TypedIngredientUtil;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.util.CommandUtil;
 import mezz.jei.gui.util.GiveAmount;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
@@ -21,8 +24,8 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.Optional;
 
-public class CheatInputHandler implements IUserInputHandler {
-	private final CombinedRecipeFocusSource focusSource;
+public class CheatInputHandler implements IInputTarget {
+	private final IngredientFocusSource focusSource;
 	private final IIngredientManager ingredientManager;
 	private final IClientToggleState toggleState;
 	private final CommandUtil commandUtil;
@@ -30,7 +33,7 @@ public class CheatInputHandler implements IUserInputHandler {
 	private final ScrollStep scrollStep;
 
 	public CheatInputHandler(
-		CombinedRecipeFocusSource focusSource,
+		IngredientFocusSource focusSource,
 		IClientConfig clientConfig,
 		IIngredientManager ingredientManager,
 		IClientToggleState toggleState,
@@ -40,7 +43,7 @@ public class CheatInputHandler implements IUserInputHandler {
 	}
 
 	public CheatInputHandler(
-		CombinedRecipeFocusSource focusSource,
+		IngredientFocusSource focusSource,
 		IClientConfig clientConfig,
 		IIngredientManager ingredientManager,
 		IClientToggleState toggleState,
@@ -56,7 +59,7 @@ public class CheatInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (!toggleState.isCheatItemsEnabled() ||
 			!(screen instanceof AbstractContainerScreen<?>)
 		) {
@@ -64,7 +67,7 @@ public class CheatInputHandler implements IUserInputHandler {
 		}
 
 		if (input.is(keyBindings.getCheatItemStack())) {
-			Optional<IUserInputHandler> handler = handleGive(input, keyBindings, GiveAmount.MAX);
+			Optional<IInputInteraction> handler = handleGive(input, keyBindings, GiveAmount.MAX);
 			if (handler.isPresent()) {
 				return handler;
 			}
@@ -77,23 +80,21 @@ public class CheatInputHandler implements IUserInputHandler {
 		return Optional.empty();
 	}
 
-	private Optional<IUserInputHandler> handleGive(UserInput input, IInternalKeyMappings keyBindings, GiveAmount giveAmount) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
-			.<IUserInputHandler>mapMulti((clicked, consumer) -> {
-				ItemStack itemStack = clicked.getCheatItemStack(ingredientManager);
+	private Optional<IInputInteraction> handleGive(UserInput input, IInternalKeyMappings keyBindings, GiveAmount giveAmount) {
+		return focusSource.getIngredientForInput(input, keyBindings)
+			.filter(mezz.jei.gui.input.IClickableIngredientInternal::canClickToCheat)
+			.<IInputInteraction>mapMulti((clicked, consumer) -> {
+				ItemStack itemStack = TypedIngredientUtil.getCheatItemStack(ingredientManager, clicked.getTypedIngredient());
 				if (!itemStack.isEmpty()) {
-					if (!input.isSimulate()) {
-						IIngredientType<?> type = clicked.getTypedIngredient().getType();
-						var fluidHelper = Services.PLATFORM.getFluidHelper();
-						long bucketVolume = 0;
-						if (type.equals(fluidHelper.getFluidIngredientType())) {
-							bucketVolume = fluidHelper.bucketVolume();
-						}
-						int amount = resolveGiveAmount(clientConfig.giveMode().getValue(), giveAmount,
-							itemStack, clicked.getCheatGiveAmount(), scrollStep.getValue(), type, bucketVolume);
-						commandUtil.giveStack(itemStack, amount);
-					}
-					consumer.accept(new SameElementInputHandler(this, clicked::isMouseOver));
+					consumer.accept(InputAction.run(() -> {
+							IIngredientType<?> type = clicked.getTypedIngredient().getType();
+							var fluidHelper = Services.PLATFORM.getFluidHelper();
+							long bucketVolume = type.equals(fluidHelper.getFluidIngredientType()) ? fluidHelper.bucketVolume() : 0;
+							int amount = resolveGiveAmount(clientConfig.giveMode().get(), giveAmount,
+								itemStack, clicked.getCheatGiveAmount(), scrollStep.getValue(), type, bucketVolume);
+							commandUtil.giveStack(itemStack, amount);
+						})
+						.within(clicked::isMouseOver).when(() -> toggleState.isCheatItemsEnabled() && clicked.getElement().isVisible()));
 				}
 			})
 			.findFirst();

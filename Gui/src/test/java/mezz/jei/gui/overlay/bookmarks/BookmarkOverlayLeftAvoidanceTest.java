@@ -21,7 +21,7 @@ public class BookmarkOverlayLeftAvoidanceTest {
 	private static final int HEIGHT = IngredientGridLayout.INGREDIENT_HEIGHT;
 
 	@ParameterizedTest
-	@EnumSource(value = IngredientGridNavigationMode.class, names = {"SCROLLING", "SMOOTH_SCROLLING"})
+	@EnumSource(value = IngredientGridNavigationMode.class, names = {"SCROLLING"})
 	public void scrollbarNavigationUsesWholeRowAvoidance(IngredientGridNavigationMode navigationMode) {
 		for (NavigationVisibility navigationVisibility : NavigationVisibility.values()) {
 			assertTrue(BookmarkOverlay.shouldAvoidTopLeftExclusions(navigationMode, navigationVisibility));

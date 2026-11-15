@@ -20,14 +20,16 @@ public class IngredientBookmark<T> implements IBookmark {
 	private boolean visible = true;
 
 	public static <T> IngredientBookmark<T> create(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
-		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
 		typedIngredient = ingredientManager.normalizeTypedIngredient(typedIngredient);
-		String uniqueId = ingredientHelper.getUniqueId(typedIngredient.getIngredient(), UidContext.Ingredient);
-		return new IngredientBookmark<>(typedIngredient, uniqueId);
+		return createPreservingAmount(typedIngredient, ingredientManager);
 	}
 
 	public static <T> IngredientBookmark<T> createPreservingAmount(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
+		if (typedIngredient.getIngredient() instanceof ItemStack stack) {
+			return new IngredientBookmark<>(typedIngredient, new ItemStackIdentity(stack));
+		}
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+		// JsonElement is slow for hash/equals, so use the string representation as the uid
 		String uniqueId = ingredientHelper.getUniqueId(typedIngredient.getIngredient(), UidContext.Ingredient);
 		return new IngredientBookmark<>(typedIngredient, uniqueId);
 	}
@@ -99,7 +101,8 @@ public class IngredientBookmark<T> implements IBookmark {
 
 	@Override
 	public int hashCode() {
-		return equalityScope == null ? uid.hashCode() : Objects.hash(equalityScope, uid);
+		int hash = 31 * typedIngredient.getType().hashCode() + uid.hashCode();
+		return 31 * hash + Objects.hashCode(equalityScope);
 	}
 
 	@Override
@@ -108,15 +111,31 @@ public class IngredientBookmark<T> implements IBookmark {
 			return true;
 		}
 		if (obj instanceof IngredientBookmark<?> ingredientBookmark) {
-			if (!Objects.equals(ingredientBookmark.equalityScope, equalityScope)) {
-				return false;
-			}
-			if (typedIngredient.getIngredient() instanceof ItemStack stackA && ingredientBookmark.typedIngredient.getIngredient() instanceof ItemStack stackB) {
-				return ItemStack.matches(stackA, stackB);
-			}
-			return ingredientBookmark.uid.equals(uid) &&
-				ingredientBookmark.typedIngredient.getType().equals(typedIngredient.getType());
+			return ingredientBookmark.typedIngredient.getType().equals(typedIngredient.getType()) &&
+				Objects.equals(ingredientBookmark.equalityScope, equalityScope) &&
+				ingredientBookmark.uid.equals(uid);
 		}
 		return false;
+	}
+
+	// Keep the identity stack private so changes to the displayed ingredient cannot invalidate collection membership.
+	private static final class ItemStackIdentity {
+		private final ItemStack stack;
+		private final int hashCode;
+
+		private ItemStackIdentity(ItemStack stack) {
+			this.stack = stack.copy();
+			this.hashCode = 31 * ItemStack.hashItemAndComponents(this.stack) + this.stack.getCount();
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			return obj instanceof ItemStackIdentity other && ItemStack.matches(stack, other.stack);
+		}
+
+		@Override
+		public int hashCode() {
+			return hashCode;
+		}
 	}
 }

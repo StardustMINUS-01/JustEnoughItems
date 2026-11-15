@@ -1,0 +1,197 @@
+package mezz.jei.fabric.test;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.api.constants.RecipeTypes;
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.placement.VerticalAlignment;
+import mezz.jei.common.Internal;
+import mezz.jei.common.config.IngredientGridLayoutMode;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.test.client.ReflectionUtil;
+import mezz.jei.gui.input.GuiContainerWrapper;
+import mezz.jei.gui.input.GuiTextFieldFilter;
+import mezz.jei.gui.input.IRecipeFocusSource;
+import mezz.jei.gui.overlay.IngredientListOverlay;
+import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
+import mezz.jei.gui.overlay.ingredients.IIngredientListOverlayContents;
+import mezz.jei.gui.overlay.ingredients.IngredientGrid;
+import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
+import mezz.jei.gui.recipes.RecipeCatalysts;
+import mezz.jei.gui.recipes.RecipesGui;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+/** Checks focus occlusion against initialized screens and real ingredient-grid layouts. */
+@SuppressWarnings("UnstableApiUsage")
+final class RecipeFocusSourceClientTest {
+	private RecipeFocusSourceClientTest() {}
+
+	static void run(FabricClientTestContext context) {
+		context.runOnClient(client -> {
+			var runtime = Internal.getJeiRuntime();
+			var toggles = Internal.getClientToggleState();
+			boolean overlayEnabled = toggles.isOverlayEnabled();
+			boolean bookmarksEnabled = toggles.isBookmarkEnabled();
+			String filterText = runtime.getIngredientFilter().getFilterText();
+			var bookmark = runtime.getIngredientManager().getAllTypedIngredients(VanillaTypes.ITEM_STACK)
+				.stream().findFirst().orElseThrow();
+			boolean addedBookmark = runtime.getBookmarkManager().add(bookmark);
+			var gridConfig = Internal.getClientConfigs().getIngredientListConfig();
+			var layoutMode = gridConfig.layoutMode();
+			var originalLayoutMode = layoutMode.get();
+			var verticalAlignment = gridConfig.verticalAlignment();
+			var originalVerticalAlignment = verticalAlignment.get();
+			var shrinkToFit = gridConfig.shrinkToFit();
+			boolean originalShrinkToFit = shrinkToFit.get();
+			KeyMapping toggleKey = java.util.Arrays.stream(client.options.keyMappings).filter(candidate -> candidate.getName().equals("key.jei.toggleOverlay")).findFirst().orElseThrow();
+			Runnable restoreToggleKey = KeyMappingTestHelper.rebindUnmodified(toggleKey, InputConstants.Type.KEYSYM.getOrCreate(InputConstants.KEY_O));
+			try {
+				// An unbound toggle deliberately keeps the ingredient list visible.
+				toggles.setOverlayEnabled(true);
+				toggles.setBookmarkEnabled(true);
+				client.setScreen(new InventoryScreen(Objects.requireNonNull(client.player)));
+				IngredientListOverlay ingredients = (IngredientListOverlay) runtime.getIngredientListOverlay();
+				BookmarkOverlay bookmarks = (BookmarkOverlay) runtime.getBookmarkOverlay();
+				IngredientGridWithNavigation contents = contents(ingredients);
+				GuiTextFieldFilter searchField = new ReflectionUtil().getFieldWithClass(ingredients, GuiTextFieldFilter.class)
+					.findFirst().orElseThrow();
+				for (boolean shrink : new boolean[]{true, false}) {
+					shrinkToFit.set(shrink);
+					runtime.getIngredientFilter().setFilterText("jei_focus_test_no_matching_ingredient");
+					check(!ingredients.isListDisplayed() && contents.isEmpty(), "An empty ingredient list must be hidden");
+					ImmutableRect2i emptyArea = contents.getIngredientGridArea();
+					check(!emptyArea.isEmpty(), "Expected room for the ingredient grid");
+					assertBlocks(ingredients, emptyArea, false, "Empty hidden ingredient panel");
+					assertPointerBlocked(client.screen, emptyArea.x() + emptyArea.width() / 2.0,
+						emptyArea.y() + emptyArea.height() / 2.0, false);
+					int searchX = searchField.getX() + 1;
+					int searchY = searchField.getY() + 1;
+					check(ingredients.isMouseOver(searchX, searchY), "Search must remain visible with no results");
+					click(client.screen, searchX, searchY, InputConstants.MOUSE_BUTTON_LEFT);
+					check(ingredients.hasKeyboardFocus(), "Search must remain focusable with no results");
+					click(client.screen, searchX, searchY, InputConstants.MOUSE_BUTTON_RIGHT);
+					check(runtime.getIngredientFilter().getFilterText().isEmpty(), "Search input must clear a query with no results");
+					check(ingredients.isListDisplayed(), "Clearing search must restore the ingredient list");
+					searchField.clearFocus();
+				}
+				shrinkToFit.set(originalShrinkToFit);
+				ingredients.isListDisplayed();
+				ImmutableRect2i ingredientArea = contents.getIngredientGridArea();
+				ImmutableRect2i bookmarkArea = contents(bookmarks).getIngredientGridArea();
+				check(!ingredientArea.isEmpty() && !bookmarkArea.isEmpty(), "Expected both ingredient panels to have room");
+				assertBlocks(ingredients, ingredientArea, true, "Visible ingredient panel");
+				double ingredientX = ingredientArea.x() + ingredientArea.width() / 2.0;
+				double ingredientY = ingredientArea.y() + ingredientArea.height() / 2.0;
+				assertBlocks(bookmarks, bookmarkArea, true, "Visible bookmark panel");
+				check(!ingredients.isMouseOver(-1, -1) && !bookmarks.isMouseOver(-1, -1),
+					"Panels must not block outside their bounds");
+
+				toggles.setOverlayEnabled(false);
+				check(!ingredients.isListDisplayed() && !bookmarks.isListDisplayed(), "Expected both panels to be hidden");
+				assertBlocks(ingredients, ingredientArea, false, "Hidden ingredient panel");
+				assertBlocks(bookmarks, bookmarkArea, false, "Hidden bookmark panel");
+				assertPointerBlocked(client.screen, ingredientX, ingredientY, false);
+				toggles.setOverlayEnabled(true);
+				assertBlocks(ingredients, contents(ingredients).getIngredientGridArea(), true, "Reopened ingredient panel");
+
+				GuiContainerWrapper container = new GuiContainerWrapper(runtime.getScreenHelper());
+				var properties = runtime.getScreenHelper().getGuiProperties(client.screen).orElseThrow();
+				check(container.isMouseOver(properties.guiLeft() + 1, properties.guiTop() + 1),
+					"The container's blank border must block lookup");
+				check(!container.isMouseOver(-1, -1), "The container must not block outside its bounds");
+
+				// Keep a hole inside a real grid instead of moving the whole grid around the exclusion.
+				layoutMode.set(IngredientGridLayoutMode.MAXIMIZE_AVAILABLE_SPACE);
+				verticalAlignment.set(VerticalAlignment.TOP);
+				ingredients.isListDisplayed();
+				ImmutableRect2i available = new ImmutableRect2i(properties.guiRight(), 0,
+					properties.screenWidth() - properties.guiRight(), properties.screenHeight());
+				contents.updateBounds(available, Set.of(), null);
+				ImmutableRect2i gridArea = contents.getIngredientGridArea();
+				check(!gridArea.isEmpty(), "Expected the exclusion-test grid to have room");
+				ImmutableRect2i exclusion = new ImmutableRect2i(gridArea.x() + gridArea.width() / 2,
+					gridArea.y() + gridArea.height() / 2, 4, 4);
+				contents.updateBounds(available, Set.of(exclusion), null);
+				IngredientGrid grid = new ReflectionUtil().getFieldWithClass(contents, IngredientGrid.class).findFirst().orElseThrow();
+				check(grid.getArea().contains(exclusion.x() + 1, exclusion.y() + 1), "The excluded point must remain inside the grid");
+				assertBlocks(contents, exclusion, false, "Excluded navigation-grid region");
+				assertBlocks(grid, exclusion, false, "Excluded ingredient-grid region");
+				assertBlocks(ingredients, exclusion, false, "Excluded overlay region");
+				assertPointerBlocked(client.screen, exclusion.x() + 1, exclusion.y() + 1, false);
+				ImmutableRect2i visibleGrid = grid.getArea();
+				assertBlocks(grid, visibleGrid, true, "Visible grid beside the exclusion");
+				assertBlocks(contents, visibleGrid, true, "Visible navigation grid beside the exclusion");
+				contents.close();
+				assertBlocks(contents, visibleGrid, false, "Closed navigation grid");
+				assertBlocks(grid, visibleGrid, false, "Closed ingredient grid");
+
+				RecipesGui recipes = (RecipesGui) runtime.getRecipesGui();
+				recipes.showTypes(List.of(RecipeTypes.CRAFTING));
+				ImmutableRect2i recipeArea = recipes.getArea();
+				assertBlocks(recipes, recipeArea, true, "Blank recipe-panel border");
+				check(recipes.isMouseOver(recipeArea.x() + 3, recipeArea.y() - 1), "Recipe tabs must block lookup");
+				RecipeCatalysts stations = new ReflectionUtil().getFieldWithClass(recipes, RecipeCatalysts.class).findFirst().orElseThrow();
+				check(!stations.isEmpty(), "Expected the crafting-table station");
+				int stationX = recipeArea.x() - stations.getWidth() + 1;
+				int stationY = recipeArea.y() + 1;
+				check(stations.getIngredientUnderMouse(stationX, stationY).findAny().isEmpty(), "Expected blank crafting-station padding");
+				check(stations.isMouseOver(stationX, stationY) && recipes.isMouseOver(stationX, stationY),
+					"Crafting-station padding must block lookup through the recipe GUI");
+				check(!recipes.isMouseOver(-1, -1), "Recipe GUI must not block outside its bounds");
+				recipes.onClose();
+				assertBlocks(recipes, recipeArea, false, "Closed recipe GUI");
+				client.setScreen(null);
+				assertBlocks(container, recipeArea, false, "Closed container");
+			} finally {
+				client.setScreen(null);
+				restoreToggleKey.run();
+				layoutMode.set(originalLayoutMode);
+				verticalAlignment.set(originalVerticalAlignment);
+				shrinkToFit.set(originalShrinkToFit);
+				runtime.getIngredientFilter().setFilterText(filterText);
+				toggles.setOverlayEnabled(overlayEnabled);
+				toggles.setBookmarkEnabled(bookmarksEnabled);
+				if (addedBookmark) {
+					runtime.getBookmarkManager().remove(bookmark);
+				}
+			}
+		});
+	}
+
+	private static IngredientGridWithNavigation contents(Object overlay) {
+		return (IngredientGridWithNavigation) new ReflectionUtil().getFieldWithClass(overlay, IIngredientListOverlayContents.class)
+			.findFirst().orElseThrow();
+	}
+
+	private static void click(Screen screen, double x, double y, int button) {
+		check(!ScreenMouseEvents.allowMouseClick(screen).invoker().allowMouseClick(screen, x, y, button),
+			"Search must capture the click");
+		check(!ScreenMouseEvents.allowMouseRelease(screen).invoker().allowMouseRelease(screen, x, y, button),
+			"Search must handle the captured click");
+	}
+
+	static void assertPointerBlocked(Screen screen, double x, double y, boolean blocked) {
+		check(ScreenMouseEvents.allowMouseClick(screen).invoker().allowMouseClick(screen, x, y, InputConstants.MOUSE_BUTTON_LEFT) != blocked,
+			"Click propagation must match the visible input area at " + x + ", " + y);
+		check(ScreenMouseEvents.allowMouseRelease(screen).invoker().allowMouseRelease(screen, x, y, InputConstants.MOUSE_BUTTON_LEFT) != blocked,
+			"Click release must follow its captured input area");
+		check(ScreenMouseEvents.allowMouseScroll(screen).invoker().allowMouseScroll(screen, x, y, 0, -1) != blocked,
+			"Scroll propagation must match the visible input area");
+	}
+
+	private static void assertBlocks(IRecipeFocusSource source, ImmutableRect2i area, boolean expected, String description) {
+		check(source.isMouseOver(area.x() + 1, area.y() + 1) == expected, description + ": expected blocking=" + expected);
+	}
+
+	private static void check(boolean condition, String message) {
+		if (!condition) {
+			throw new AssertionError(message);
+		}
+	}
+}

@@ -70,7 +70,7 @@ public record IngredientMatchInfo(
 	}
 
 	private static boolean includeBlockTags() {
-		return Internal.getClientConfigs().getClientConfig().lookupBlockTagsEnabled().getValue();
+		return Internal.getClientConfigs().getClientConfig().lookupBlockTagsEnabled().get();
 	}
 
 	private static <T> Optional<IngredientMatchInfo> fromFluidIngredient(

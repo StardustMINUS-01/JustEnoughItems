@@ -22,10 +22,12 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
 import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
-import mezz.jei.gui.input.CombinedRecipeFocusSource;
-import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.IngredientFocusSource;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.gui.input.PinnedTooltipManager;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import mezz.jei.gui.recipes.RecipeIdClipboardHandler;
@@ -43,22 +45,22 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import java.util.List;
 import java.util.Optional;
 
-public class IngredientShortcutInputHandler extends FocusInputHandler {
-	private final CombinedRecipeFocusSource focusSource;
+public class IngredientShortcutInputHandler implements IInputTarget {
+	private final IngredientFocusSource focusSource;
 	private final RecipesGui recipesGui;
 	private final FocusUtil focusUtil;
 	private final IIngredientManager ingredientManager;
 	private final IRecipeManager recipeManager;
 	private final IFocusFactory focusFactory;
 	private final IClientConfig clientConfig;
-	private final IngredientTagSelectionTooltip tagSelectionTooltip = new IngredientTagSelectionTooltip();
+	private final IngredientTagSelectionTooltip tagSelectionTooltip;
 
 	public IngredientTagSelectionTooltip getTagSelectionTooltip() {
 		return tagSelectionTooltip;
 	}
 
 	public IngredientShortcutInputHandler(
-		CombinedRecipeFocusSource focusSource,
+		IngredientFocusSource focusSource,
 		RecipesGui recipesGui,
 		FocusUtil focusUtil,
 		IClientConfig clientConfig,
@@ -66,7 +68,20 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 		IRecipeManager recipeManager,
 		IFocusFactory focusFactory
 	) {
-		super(focusSource, recipesGui, focusUtil, ingredientManager);
+		this(focusSource, recipesGui, focusUtil, clientConfig, ingredientManager, recipeManager, focusFactory, new IngredientTagSelectionTooltip());
+	}
+
+	public IngredientShortcutInputHandler(
+		IngredientFocusSource focusSource,
+		RecipesGui recipesGui,
+		FocusUtil focusUtil,
+		IClientConfig clientConfig,
+		IIngredientManager ingredientManager,
+		IRecipeManager recipeManager,
+		IFocusFactory focusFactory,
+		IngredientTagSelectionTooltip tagSelectionTooltip
+	) {
+		this.tagSelectionTooltip = tagSelectionTooltip;
 		this.focusSource = focusSource;
 		this.recipesGui = recipesGui;
 		this.focusUtil = focusUtil;
@@ -77,18 +92,16 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (input.is(keyBindings.getShareToChat())) {
-			var ingredient = focusSource.getIngredientUnderMouse(input, keyBindings)
+			var ingredient = focusSource.getIngredientForInput(input, keyBindings)
 				.filter(clicked -> clicked.getElement().isVisible())
 				.filter(clicked -> clicked.getTypedIngredient().getType() == VanillaTypes.ITEM_STACK ||
 					clicked.getTypedIngredient().getType() == Services.PLATFORM.getFluidHelper().getFluidIngredientType())
 				.findFirst();
 			if (ingredient.isPresent()) {
-				if (!input.isSimulate()) {
-					shareIngredient(ingredient.get().getTypedIngredient());
-				}
-				return Optional.of(new SameElementInputHandler(this, ingredient.get()::isMouseOver));
+				return Optional.of(InputAction.run(() -> shareIngredient(ingredient.get().getTypedIngredient()))
+					.within(ingredient.get()::isMouseOver).when(ingredient.get().getElement()::isVisible));
 			}
 		}
 		if (input.is(keyBindings.getCopyIngredientComponents()) &&
@@ -96,7 +109,7 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 		) {
 			return Optional.empty();
 		}
-		return super.handleUserInput(screen, input, keyBindings);
+		return handleAdditionalInput(screen, input, keyBindings);
 	}
 
 	private static void shareIngredient(ITypedIngredient<?> ingredient) {
@@ -118,19 +131,18 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 		JeiClientSoundUtil.playClickSound();
 	}
 
-	@Override
-	protected Optional<IUserInputHandler> handleAdditionalInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		Optional<IUserInputHandler> handledRecipeId = handleOutputRecipeIdShortcut(input, keyBindings);
+	private Optional<IInputInteraction> handleAdditionalInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		Optional<IInputInteraction> handledRecipeId = handleOutputRecipeIdShortcut(input, keyBindings);
 		if (handledRecipeId.isPresent()) {
 			return handledRecipeId;
 		}
 
-		Optional<IUserInputHandler> handledPatternEncode = handleSingleRecipePatternEncode(input, keyBindings);
+		Optional<IInputInteraction> handledPatternEncode = handleSingleRecipePatternEncode(input, keyBindings);
 		if (handledPatternEncode.isPresent()) {
 			return handledPatternEncode;
 		}
 
-		Optional<IUserInputHandler> handledIngredientShortcut = handleIngredientShortcut(input, keyBindings);
+		Optional<IInputInteraction> handledIngredientShortcut = handleIngredientShortcut(input, keyBindings);
 		if (handledIngredientShortcut.isPresent()) {
 			return handledIngredientShortcut;
 		}
@@ -146,12 +158,12 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 		return Optional.empty();
 	}
 
-	private Optional<IUserInputHandler> handleOutputRecipeIdShortcut(UserInput input, IInternalKeyMappings keyBindings) {
+	private Optional<IInputInteraction> handleOutputRecipeIdShortcut(UserInput input, IInternalKeyMappings keyBindings) {
 		if (!input.is(keyBindings.getCopyRecipeId())) {
 			return Optional.empty();
 		}
 
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.filter(clicked -> clicked.getElement().isVisible())
 			.findFirst()
 			.flatMap(clicked -> {
@@ -172,15 +184,12 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 					}
 					return Optional.empty();
 				}
-				if (!input.isSimulate()) {
-					copyRecipeIdsToClipboard(recipeIds);
-				}
-				IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-				return Optional.of(handler);
+				return Optional.of(InputAction.run(() -> copyRecipeIdsToClipboard(recipeIds))
+					.within(clicked::isMouseOver).when(clicked.getElement()::isVisible));
 			});
 	}
 
-	private Optional<IUserInputHandler> handleSingleRecipePatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
+	private Optional<IInputInteraction> handleSingleRecipePatternEncode(UserInput input, IInternalKeyMappings keyBindings) {
 		if (!input.is(keyBindings.getEncodeRecipeChainPatterns())) {
 			return Optional.empty();
 		}
@@ -189,45 +198,41 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 			return Optional.empty();
 		}
 		Optional<RecipeGuiLayouts.RecipeLayoutUnderMouse> recipeUnderMouse = recipesGui.getRecipeLayoutWithSlotUnderMouse(input.getMouseX(), input.getMouseY());
-		Optional<RecipeChainPatternEncodeController.HandleResult> result = RecipeChainPatternEncodeController.handleSingleRecipe(
-			input,
+		var bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
+		if (!bridge.isAvailable() || !bridge.isPatternEncodingTerminal(menu) || recipeUnderMouse.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(new InputAction(release -> RecipeChainPatternEncodeController.handleSingleRecipe(
+			release,
 			keyBindings.getEncodeRecipeChainPatterns(),
 			menu,
-			Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge(),
+			bridge,
 			recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::layout),
 			recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::slotUnderMouse)
 				.map(mezz.jei.api.gui.inputs.RecipeSlotUnderMouse::slot),
 			ingredientManager,
 			this::displayClientMessage
-		);
-		return result
-			.filter(RecipeChainPatternEncodeController.HandleResult::handled)
-			.map(ignored -> new SameElementInputHandler(this, (mouseX, mouseY) -> recipeUnderMouse
-				.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::slotUnderMouse)
-				.map(slotUnderMouse -> slotUnderMouse.isMouseOver(mouseX, mouseY))
-				.orElse(false)));
+		))
+			.within(recipeUnderMouse.get().slotUnderMouse()::isMouseOver));
 	}
 
-	private Optional<IUserInputHandler> handleIngredientShortcut(UserInput input, IInternalKeyMappings keyBindings) {
+	private Optional<IInputInteraction> handleIngredientShortcut(UserInput input, IInternalKeyMappings keyBindings) {
 		Optional<BookmarkHotkeyAction> action = getIngredientKeyboardAction(input, keyBindings);
 		if (action.isEmpty()) {
 			return Optional.empty();
 		}
 
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.filter(clicked -> clicked.getElement().isVisible())
 			.findFirst()
-			.flatMap(clicked -> {
-				if (!input.isSimulate()) {
+			.map(clicked -> InputAction.run(() -> {
 					if (action.get() == BookmarkHotkeyAction.COPY_OREDICT) {
 						tagSelectionTooltip.show(clicked.getTypedIngredient(), ingredientManager, input.getMouseX(), input.getMouseY());
 					} else {
 						executeIngredientKeyboardShortcut(clicked.getTypedIngredient(), action.get());
 					}
-				}
-				IUserInputHandler handler = new SameElementInputHandler(this, clicked::isMouseOver);
-				return Optional.of(handler);
-			});
+				})
+				.within(clicked::isMouseOver).when(clicked.getElement()::isVisible));
 	}
 
 	public boolean handlePreviewCopy(ITypedIngredient<?> ingredient, UserInput input, IInternalKeyMappings keys) {
@@ -268,7 +273,7 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 		Minecraft minecraft = Minecraft.getInstance();
 		String text = switch (action) {
 			case COPY_COMPONENTS -> typedIngredient.getItemStack()
-				.flatMap(stack -> IngredientClipboardText.getComponentRule(stack, minecraft.level.registryAccess().createSerializationContext(NbtOps.INSTANCE), clientConfig.copyFullComponentsEnabled().getValue()))
+				.flatMap(stack -> IngredientClipboardText.getComponentRule(stack, minecraft.level.registryAccess().createSerializationContext(NbtOps.INSTANCE), clientConfig.copyFullComponentsEnabled().get()))
 				.orElse("");
 			case COPY_NAME -> IngredientClipboardText.getIngredientName(typedIngredient, ingredientManager);
 			case COPY_ID -> IngredientClipboardText.getIngredientId(typedIngredient, ingredientManager);
@@ -308,27 +313,28 @@ public class IngredientShortcutInputHandler extends FocusInputHandler {
 		}
 	}
 
-	private Optional<IUserInputHandler> handleShowRecipe(UserInput input, IInternalKeyMappings keyBindings) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+	private Optional<IInputInteraction> handleShowRecipe(UserInput input, IInternalKeyMappings keyBindings) {
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.filter(clicked -> clicked.getElement().isVisible())
 			.findFirst()
-			.map(clicked -> {
-				IElement<?> element = clicked.getElement();
-				boolean handled = element instanceof ProjectedBookmarkElement<?> projectedElement &&
-					projectedElement.handleShowRecipeClick(input, keyBindings, recipesGui, focusUtil);
-				if (!handled && !input.isSimulate()) {
-					clicked.show(recipesGui, focusUtil, List.of(RecipeIngredientRole.OUTPUT));
-				}
-				return new SameElementInputHandler(this, clicked::isMouseOver);
-			});
+			.map(clicked -> new InputAction(release -> {
+					IElement<?> element = clicked.getElement();
+					boolean handled = element instanceof ProjectedBookmarkElement<?> projectedElement &&
+						projectedElement.handleShowRecipeClick(release, keyBindings, recipesGui, focusUtil);
+					if (!handled) {
+						clicked.show(recipesGui, focusUtil, List.of(RecipeIngredientRole.OUTPUT));
+					}
+				})
+				.within(clicked::isMouseOver).when(clicked.getElement()::isVisible));
 	}
 
-	private Optional<IUserInputHandler> handleSearchIngredientInTerminal(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		return focusSource.getIngredientUnderMouse(input, keyBindings)
+	private Optional<IInputInteraction> handleSearchIngredientInTerminal(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		return focusSource.getIngredientForInput(input, keyBindings)
 			.filter(clicked -> clicked.getElement().isVisible())
 			.findFirst()
-			.filter(clicked -> ExternalIngredientSearchHandlerRegistry.search(screen, clicked.getTypedIngredient(), input.isSimulate()))
-			.map(clicked -> new SameElementInputHandler(this, clicked::isMouseOver));
+			.filter(clicked -> ExternalIngredientSearchHandlerRegistry.search(screen, clicked.getTypedIngredient(), true))
+			.map(clicked -> InputAction.run(() -> ExternalIngredientSearchHandlerRegistry.search(screen, clicked.getTypedIngredient(), false))
+				.within(clicked::isMouseOver).when(clicked.getElement()::isVisible));
 	}
 
 }

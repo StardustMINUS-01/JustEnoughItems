@@ -18,8 +18,8 @@ import mezz.jei.gui.bookmarks.BookmarkItemType;
 import mezz.jei.gui.bookmarks.BookmarkViewMode;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItemType;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
@@ -79,7 +79,7 @@ public class ProjectedBookmarkElementTest {
 		ProjectedBookmarkElement<String> projected = projected(recordingElement(delegateShowCalled), type);
 
 		boolean handled = projected.handleShowRecipeClick(
-			new UserInput(key, 0, 0, 0, InputType.EXECUTE),
+			new UserInput(key, 0, 0, 0, InputPhase.RELEASE),
 			keyMappings(),
 			null,
 			null

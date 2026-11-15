@@ -1,6 +1,7 @@
 package mezz.jei.gui.overlay;
 
 import mezz.jei.api.gui.handlers.IGuiProperties;
+import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -64,16 +65,21 @@ class IngredientListOverlayController {
 		return new Config() {
 			@Override
 			public boolean isQuantityFieldEnabled() {
-				return clientConfig.quantityFieldEnabled().getValue();
+				return clientConfig.quantityFieldEnabled().get();
 			}
 			@Override
 			public boolean isCenterSearchBarEnabled() {
-				return clientConfig.centerSearchBarEnabled().getValue();
+				return clientConfig.searchBarPosition().get().isCentered();
 			}
 
 			@Override
 			public boolean isLookupHistoryEnabled() {
-				return clientConfig.lookupHistoryEnabled().getValue();
+				return clientConfig.lookupHistoryEnabled().get();
+			}
+
+			@Override
+			public boolean isHideIngredientsWhenNotSearchingEnabled() {
+				return clientConfig.hideIngredientsWhenNotSearching().get();
 			}
 		};
 	}
@@ -104,11 +110,19 @@ class IngredientListOverlayController {
 
 	void init() {
 		this.searchField.setValue(this.filterTextSource.getFilterText());
-		this.searchField.setFocused(false);
+		this.searchField.clearFocus();
 		this.filterTextSource.addListener(this::onFilterTextChanged);
 	}
 
 	boolean isListDisplayed() {
+		return isSearchDisplayed() && !isListHiddenWhenNotSearching() && !contentsView.isEmpty();
+	}
+
+	boolean isListHiddenWhenNotSearching() {
+		return config.isHideIngredientsWhenNotSearchingEnabled() && filterTextSource.getFilterText().isBlank();
+	}
+
+	boolean isSearchDisplayed() {
 		return (overlayEnabled.getAsBoolean() || toggleOverlayUnbound.getAsBoolean()) &&
 			hasValidScreen &&
 			contentsView.hasRoom();
@@ -147,7 +161,7 @@ class IngredientListOverlayController {
 			);
 		} catch (RuntimeException e) {
 			LOGGER.error("Failed to update JEI bounds for screen with properties : {}", guiProperties, e);
-			clearScreenAfterUpdateError();
+			clearScreen();
 		}
 	}
 
@@ -159,12 +173,8 @@ class IngredientListOverlayController {
 	void clearScreen() {
 		this.hasValidScreen = false;
 		this.contentsView.close();
-		this.searchField.setFocused(false);
-	}
-
-	void clearScreenAfterUpdateError() {
-		clearScreen();
 		this.lookupHistory.close();
+		this.searchField.clearFocus();
 	}
 
 	private void updateBounds(IGuiProperties guiProperties, Set<ImmutableRect2i> guiExclusionAreas) {
@@ -183,8 +193,13 @@ class IngredientListOverlayController {
 
 		layout.lookupHistoryArea()
 			.ifPresent(lookupHistoryArea -> {
-				this.lookupHistory.updateBounds(alignLookupHistoryArea(lookupHistoryArea), guiExclusionAreas, null);
+				this.lookupHistory.updateBounds(lookupHistoryArea, guiExclusionAreas, null);
 				this.lookupHistory.updateLayout();
+				ImmutableRect2i resizeArea = new ImmutableRect2i(
+					layout.displayArea().x(), layout.displayArea().y(), layout.displayArea().width(),
+					lookupHistoryArea.y() + lookupHistoryArea.height() - layout.displayArea().y()
+				);
+				this.lookupHistory.setResizeBounds(resizeArea, VerticalAlignment.BOTTOM);
 			});
 
 		IngredientListOverlayLayout.SearchAndConfigAreas searchAndConfigAreas = layout.getSearchAndConfigAreas(
@@ -197,19 +212,13 @@ class IngredientListOverlayController {
 		this.quantityArea = config.isQuantityFieldEnabled() ? layout.getQuantityArea(contentsView.hasRoom(), contentsView.getBackgroundArea()) : ImmutableRect2i.EMPTY;
 	}
 
-	private ImmutableRect2i alignLookupHistoryArea(ImmutableRect2i lookupHistoryArea) {
-		ImmutableRect2i ingredientGridArea = this.contentsView.getIngredientGridArea();
-		if (ingredientGridArea.isEmpty()) {
-			return lookupHistoryArea;
-		}
-		return lookupHistoryArea.matchWidthAndX(ingredientGridArea);
-	}
-
 	interface Config {
 		boolean isQuantityFieldEnabled();
 		boolean isCenterSearchBarEnabled();
 
 		boolean isLookupHistoryEnabled();
+
+		boolean isHideIngredientsWhenNotSearchingEnabled();
 	}
 
 }

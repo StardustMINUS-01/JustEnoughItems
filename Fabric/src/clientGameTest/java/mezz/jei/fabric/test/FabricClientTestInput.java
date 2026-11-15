@@ -1,10 +1,9 @@
 package mezz.jei.fabric.test;
 
 import mezz.jei.test.client.ClientTestUtil;
-
+import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.input.keys.JeiKeyModifier;
 import mezz.jei.fabric.test.mixin.KeyboardHandlerAccessor;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
@@ -18,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class FabricClientTestInput {
 	private static final Map<Integer, Boolean> KEY_STATES = new ConcurrentHashMap<>();
+	private static boolean injectingCursorMove;
+	private static volatile boolean scriptedCursor;
 
 	private FabricClientTestInput() {
 
@@ -33,10 +34,27 @@ public final class FabricClientTestInput {
 
 	public static void clear() {
 		KEY_STATES.clear();
+		injectingCursorMove = false;
+		scriptedCursor = false;
+	}
+
+	static void moveCursor(Runnable movement) {
+		scriptedCursor = true;
+		injectingCursorMove = true;
+		try {
+			movement.run();
+		} finally {
+			injectingCursorMove = false;
+		}
+	}
+
+	/** Keeps desktop cursor callbacks from replacing positions controlled by a client test. */
+	public static boolean shouldIgnoreCursorMove() {
+		return scriptedCursor && !injectingCursorMove;
 	}
 
 	public static void pressKey(KeyMapping keyMapping) {
-		var key = KeyBindingHelper.getBoundKeyOf(keyMapping);
+		var key = InputConstants.getKey(keyMapping.saveString());
 		if (key.getType() != com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM) {
 			throw new IllegalArgumentException("Expected a keyboard mapping, got: " + key.getName());
 		}
@@ -48,6 +66,16 @@ public final class FabricClientTestInput {
 			invokeKeyPress(client, key, GLFW.GLFW_PRESS);
 			invokeKeyPress(client, key, GLFW.GLFW_RELEASE);
 		});
+	}
+
+	public static void holdKey(int key) {
+		setKey(key, true);
+		ClientTestUtil.runOnClient(client -> invokeKeyPress(client, key, GLFW.GLFW_PRESS));
+	}
+
+	public static void releaseKey(int key) {
+		setKey(key, false);
+		ClientTestUtil.runOnClient(client -> invokeKeyPress(client, key, GLFW.GLFW_RELEASE));
 	}
 
 	public static void typeChar(char codepoint) {
@@ -76,7 +104,7 @@ public final class FabricClientTestInput {
 		}
 	}
 
-	private static void setKey(int key, boolean pressed) {
+	static void setKey(int key, boolean pressed) {
 		if (pressed) {
 			KEY_STATES.put(key, true);
 		} else {

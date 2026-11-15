@@ -4,7 +4,14 @@ import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.api.registration.IRuntimeRegistration;
+import mezz.jei.api.runtime.IJeiRuntime;
+import mezz.jei.common.Internal;
+import mezz.jei.gui.input.handlers.WorldInputHandler;
+import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
+import mezz.jei.gui.util.FocusUtil;
 import mezz.jei.api.runtime.IJeiFeatures;
+import mezz.jei.gui.config.JeiGuiSortingConfigData;
+import mezz.jei.gui.config.JeiGuiSortingConfigRegistration;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import mezz.jei.gui.startup.JeiGuiStarter;
 import mezz.jei.gui.startup.ResourceReloadHandler;
@@ -23,6 +30,7 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static @Nullable ResourceReloadHandler resourceReloadHandler;
 
+	private final JeiGuiSortingConfigData sortingConfigData = JeiGuiSortingConfigRegistration.get();
 	private @Nullable IJeiFeatures jeiFeatures;
 	private final RuntimeEventSubscriptions runtimeSubscriptions = new RuntimeEventSubscriptions(NeoForge.EVENT_BUS);
 
@@ -47,10 +55,22 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 			runtimeSubscriptions.clear();
 		}
 
-		JeiEventHandlers eventHandlers = JeiGuiStarter.start(registration);
+		JeiEventHandlers eventHandlers = JeiGuiStarter.start(registration, sortingConfigData);
 		resourceReloadHandler = eventHandlers.resourceReloadHandler();
 
 		EventRegistration.registerEvents(runtimeSubscriptions, eventHandlers);
+	}
+
+	@Override
+	public void onRuntimeAvailable(IJeiRuntime runtime) {
+		// Other GUI plugins may replace the bookmark overlay during runtime registration.
+		if (!isJeiGuiEnabled() || !(runtime.getBookmarkOverlay() instanceof BookmarkOverlay bookmarkOverlay)) {
+			return;
+		}
+		FocusUtil focusUtil = new FocusUtil(runtime.getJeiHelpers().getFocusFactory(),
+			Internal.getClientConfigs().getClientConfig(), runtime.getIngredientManager());
+		EventRegistration.registerWorldInputHandler(runtimeSubscriptions,
+			new WorldInputHandler(bookmarkOverlay, runtime.getRecipesGui(), focusUtil, runtime.getIngredientManager()));
 	}
 
 	@Override

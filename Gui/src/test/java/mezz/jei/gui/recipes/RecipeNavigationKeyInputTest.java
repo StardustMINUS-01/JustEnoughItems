@@ -1,8 +1,8 @@
 package mezz.jei.gui.recipes;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.InputPhase;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import org.junit.jupiter.api.Test;
 import org.lwjgl.glfw.GLFW;
@@ -49,7 +49,7 @@ public class RecipeNavigationKeyInputTest {
 			0,
 			0,
 			modifiers,
-			InputType.IMMEDIATE
+			InputPhase.PRESS
 		);
 	}
 }

@@ -59,12 +59,18 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	private final @Nullable IDrawable overlay;
 	private final @Nullable String slotName;
 	private final LazySupplier<Optional<TagKey<?>>> tagKey;
+	// Snapshot visibility when the tooltip is first prepared.
+	private @Nullable List<ITypedIngredient<?>> visibleCandidates;
+	private @Nullable TooltipData tooltipData;
+	private @Nullable Boolean hasCandidates;
 	private Runnable displayOverridesChangedListener = () -> {};
 	private ImmutableRect2i rect;
+	private ImmutableRect2i hoverBounds;
 
 	public RecipeSlot(
 		RecipeIngredientRole role,
 		ImmutableRect2i rect,
+		ImmutableRect2i hoverBounds,
 		ICycler cycler,
 		List<IRecipeSlotRichTooltipCallback> tooltipCallbacks,
 		List<@Nullable ITypedIngredient<?>> allIngredients,
@@ -85,6 +91,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		this.rendererOverrides = rendererOverrides;
 		this.role = role;
 		this.rect = rect;
+		this.hoverBounds = hoverBounds;
 		this.cycler = cycler;
 		this.tooltipCallbacks = tooltipCallbacks;
 		this.tagKey = new LazySupplier<>(this::calculateTagKey);
@@ -109,7 +116,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	@Override
 	public Optional<ITypedIngredient<?>> getDisplayedIngredient() {
 		IClientConfig clientConfig = Internal.getClientConfigs().getClientConfig();
-		if (!clientConfig.recipeSlotCyclingEnabled().getValue()) {
+		if (!clientConfig.recipeSlotCyclingEnabled().get()) {
 			return ingredients.getFirstDisplayedIngredient();
 		}
 		return ingredients.getDisplayedIngredient(cycler);
@@ -117,6 +124,9 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 
 	@Override
 	public Stream<ITypedIngredient<?>> getDisplayedIngredients() {
+		if (visibleCandidates != null) {
+			return visibleCandidates.stream();
+		}
 		return ingredients.getDisplayedIngredients();
 	}
 
@@ -153,12 +163,12 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		IIngredientType<T> ingredientType = typedIngredient.getType();
 		IIngredientRenderer<T> ingredientRenderer = getIngredientRenderer(ingredientType);
-		List<ITypedIngredient<?>> visibleCandidates = getVisibleCandidates();
+		TooltipData tooltipData = getTooltipData(ingredientManager);
 
 		SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient);
-		addTagNameTooltip(tooltip, ingredientManager, typedIngredient, visibleCandidates);
-		addIngredientGridToTooltip(tooltip, ingredientManager, visibleCandidates);
-		if (visibleCandidates.size() > 1) {
+		addTagNameTooltip(tooltip, tooltipData);
+		addIngredientGridToTooltip(tooltip, tooltipData);
+		if (tooltipData.candidates().size() > 1) {
 			var pauseRecipeCycling = Internal.getKeyMappings().getPauseRecipeCycling();
 			if (!pauseRecipeCycling.isUnbound() && !pauseRecipeCycling.isDown()) {
 				tooltip.add(new RecipeSlotOptionsTooltipComponent(pauseRecipeCycling));
@@ -185,31 +195,26 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		IIngredientType<T> ingredientType = typedIngredient.getType();
 		IIngredientRenderer<T> ingredientRenderer = getIngredientRenderer(ingredientType);
-		List<ITypedIngredient<?>> visibleCandidates = getVisibleCandidates();
+		TooltipData tooltipData = getTooltipData(ingredientManager);
 
 		JeiTooltip tooltip = new JeiTooltip();
 		SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, typedIngredient);
-		addTagNameTooltip(tooltip, ingredientManager, typedIngredient, visibleCandidates);
+		addTagNameTooltip(tooltip, tooltipData);
 
 		return tooltip.getLegacyComponents();
 	}
 
-	private static <T> void addTagNameTooltip(
-		ITooltipBuilder tooltip,
-		IIngredientManager ingredientManager,
-		ITypedIngredient<T> displayedIngredient,
-		List<ITypedIngredient<?>> visibleCandidates
-	) {
-		if (visibleCandidates.isEmpty()) {
+	private static void addTagNameTooltip(ITooltipBuilder tooltip, TooltipData tooltipData) {
+		if (tooltipData.candidates().isEmpty()) {
 			return;
 		}
 
 		IClientConfig clientConfig = Internal.getClientConfigs().getClientConfig();
-		if (clientConfig.hideSingleTagContentTooltipEnabled().getValue() && visibleCandidates.size() == 1) {
+		if (clientConfig.hideSingleTagContentTooltipEnabled().get() && tooltipData.candidates().size() == 1) {
 			return;
 		}
 
-		getTagKeyEquivalent(ingredientManager, visibleCandidates, displayedIngredient)
+		tooltipData.tagKey().get()
 			.ifPresent(tagKeyEquivalent -> {
 				String registryName = tagKeyEquivalent.registry().location().getPath()
 					.replace('_', ' ');
@@ -263,36 +268,46 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		return ingredientHelper.getTagKeyEquivalent(values);
 	}
 
-	private static void addIngredientGridToTooltip(
-		ITooltipBuilder tooltip,
-		IIngredientManager ingredientManager,
-		List<ITypedIngredient<?>> visibleCandidates
-	) {
+	private static void addIngredientGridToTooltip(ITooltipBuilder tooltip, TooltipData tooltipData) {
 		IClientConfig clientConfig = Internal.getClientConfigs().getClientConfig();
-		if (clientConfig.tagContentTooltipEnabled().getValue() && visibleCandidates.size() > 1) {
-			List<ITypedIngredient<?>> normalizedCandidates = visibleCandidates.stream()
-				.<ITypedIngredient<?>>map(ingredient -> normalizeTypedIngredient(ingredientManager, ingredient))
-				.toList();
-			tooltip.add(new TagContentTooltipComponent(ingredientManager, normalizedCandidates));
+		if (clientConfig.tagContentTooltipEnabled().get() && tooltipData.candidates().size() > 1) {
+			tooltip.add(tooltipData.grid().get());
 		}
 	}
 
-	private static ITypedIngredient<?> normalizeTypedIngredient(
-		IIngredientManager ingredientManager,
-		ITypedIngredient<?> ingredient
-	) {
-		return ingredientManager.normalizeTypedIngredient(ingredient);
+	private TooltipData getTooltipData(IIngredientManager ingredientManager) {
+		if (tooltipData == null) {
+			List<ITypedIngredient<?>> candidates = getVisibleCandidates();
+			tooltipData = new TooltipData(
+				candidates,
+				new LazySupplier<>(() -> getTagKeyEquivalent(ingredientManager, candidates)),
+				new LazySupplier<>(() -> new TagContentTooltipComponent(ingredientManager, candidates))
+			);
+		}
+		return tooltipData;
 	}
 
 	private List<ITypedIngredient<?>> getVisibleCandidates() {
-		return ingredients.getCandidateIngredients()
-			.toList();
+		if (visibleCandidates == null) {
+			visibleCandidates = ingredients.getCandidateIngredients().toList();
+		}
+		return visibleCandidates;
+	}
+
+	private record TooltipData(
+		List<ITypedIngredient<?>> candidates,
+		LazySupplier<Optional<TagKey<?>>> tagKey,
+		LazySupplier<TagContentTooltipComponent> grid
+	) {
 	}
 
 	private boolean hasCandidates() {
-		return ingredients.getCandidateIngredients()
-			.limit(2)
-			.count() > 1;
+		if (hasCandidates == null) {
+			hasCandidates = ingredients.getCandidateIngredients()
+				.limit(2)
+				.count() > 1;
+		}
+		return hasCandidates;
 	}
 
 	@SuppressWarnings("removal")
@@ -428,12 +443,18 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 
 	@Override
 	public boolean isMouseOver(double mouseX, double mouseY) {
-		return this.rect.contains(mouseX, mouseY);
+		return this.hoverBounds.contains(mouseX, mouseY);
 	}
 
 	@Override
 	public void setPosition(int x, int y) {
+		if (this.rect.x() == x && this.rect.y() == y) {
+			return;
+		}
+		int xOffset = x - this.rect.x();
+		int yOffset = y - this.rect.y();
 		this.rect = this.rect.setPosition(x, y);
+		this.hoverBounds = this.hoverBounds.addOffset(xOffset, yOffset);
 	}
 
 	@Override
@@ -451,6 +472,9 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	}
 
 	private void onDisplayOverridesChanged() {
+		visibleCandidates = null;
+		tooltipData = null;
+		hasCandidates = null;
 		invalidateTagKey();
 		displayOverridesChangedListener.run();
 	}
@@ -474,6 +498,11 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		ingredients.setSelectedCandidate(candidate);
 	}
 
+	@Override
+	public Optional<ITypedIngredient<?>> getSelectedCandidate() {
+		return ingredients.getSelectedCandidate();
+	}
+
 	@SuppressWarnings("removal")
 	@Override
 	public Rect2i getRect() {
@@ -491,6 +520,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	public String toString() {
 		return "RecipeSlot{" +
 			"rect=" + rect +
+			", hoverBounds=" + hoverBounds +
 			'}';
 	}
 }

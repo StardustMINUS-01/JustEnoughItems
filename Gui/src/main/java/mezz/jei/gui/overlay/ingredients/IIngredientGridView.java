@@ -11,6 +11,11 @@ import java.util.Set;
  */
 public interface IIngredientGridView {
 	/**
+	 * Returns true when there are no ingredients in the grid's source.
+	 */
+	boolean isEmpty();
+
+	/**
 	 * Returns true when the grid has enough space to render ingredients.
 	 */
 	boolean hasRoom();
@@ -31,7 +36,12 @@ public interface IIngredientGridView {
 	ImmutableRect2i getBackgroundArea();
 
 	/**
-	 * Returns the exact area used for ingredient slots.
+	 * Returns the area behind the ingredient slots.
 	 */
-	ImmutableRect2i getIngredientGridArea();
+	ImmutableRect2i getSlotBackgroundArea();
+
+	/**
+	 * Returns whether this grid uses a panel background.
+	 */
+	boolean isBackgroundEnabled();
 }

@@ -2,21 +2,22 @@ package mezz.jei.gui.input;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.common.Internal;
+import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.TextHistory;
-import mezz.jei.gui.input.focus.ScreenFocusHandler;
-import mezz.jei.gui.input.handlers.TextFieldInputHandler;
+import mezz.jei.gui.input.focus.GuiKeyboardFocus;
 import mezz.jei.gui.overlay.ISearchField;
+import mezz.jei.gui.search.ISearchCompletionProvider;
+import mezz.jei.gui.search.SearchCompletionOverlay;
+import mezz.jei.gui.search.SearchSyntaxHighlighter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -24,28 +25,40 @@ import java.util.function.BooleanSupplier;
 public class GuiTextFieldFilter extends EditBox implements ISearchField {
 	private static final int maxSearchLength = 128;
 	private static final TextHistory history = new TextHistory();
+
 	private final BooleanSupplier filterEmpty;
+	private final IClientConfig clientConfig;
 
 	private ImmutableRect2i area;
 	private final ScalableDrawable background;
 	private ImmutableRect2i backgroundBounds;
 
-	private @Nullable ScreenFocusHandler screenUnfocusHandler;
+	private final GuiKeyboardFocus keyboardFocus;
 
-	public GuiTextFieldFilter(BooleanSupplier filterEmpty) {
-		this(filterEmpty, Component.translatable("gui.jei.search"));
+	private final SearchCompletionOverlay completionOverlay;
+
+	public GuiTextFieldFilter(BooleanSupplier filterEmpty, IClientConfig clientConfig, ISearchCompletionProvider searchCompletionProvider, GuiKeyboardFocus keyboardFocus) {
+		this(filterEmpty, clientConfig, searchCompletionProvider, keyboardFocus, Component.translatable("gui.jei.search"));
 	}
 
-	public GuiTextFieldFilter(BooleanSupplier filterEmpty, Component message) {
+	public GuiTextFieldFilter(BooleanSupplier filterEmpty, IClientConfig clientConfig, ISearchCompletionProvider searchCompletionProvider, GuiKeyboardFocus keyboardFocus, Component message) {
 		super(Minecraft.getInstance().font, 0, 0, 0, 0, message);
 		this.filterEmpty = filterEmpty;
+		this.clientConfig = clientConfig;
+		this.keyboardFocus = keyboardFocus;
 
 		setMaxLength(maxSearchLength);
 		this.area = ImmutableRect2i.EMPTY;
 		Textures textures = Internal.getTextures();
 		this.background = textures.getSearchBackground();
+		this.completionOverlay = new SearchCompletionOverlay(
+			searchCompletionProvider,
+			textures.getCompletionOverlayBackground(),
+			() -> clientConfig.maxSearchCompletionRows().get()
+		);
 		this.backgroundBounds = ImmutableRect2i.EMPTY;
 		setBordered(false);
+		setFormatter(new SearchSyntaxHighlighter(filterEmpty, this::getValue, searchCompletionProvider)::format);
 	}
 
 	@Override
@@ -53,9 +66,14 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 		this.backgroundBounds = area;
 		setX(area.getX() + 4);
 		setY(area.getY() + (area.getHeight() - 8) / 2);
-		this.width = area.getWidth() - 12;
+		this.width = Math.max(0, area.getWidth() - 12);
 		this.height = area.getHeight();
 		this.area = area;
+		this.completionOverlay.updateBounds(area);
+	}
+
+	public ImmutableRect2i getArea() {
+		return this.area;
 	}
 
 	@Override
@@ -80,34 +98,21 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 		return area.contains(mouseX, mouseY);
 	}
 
-	public IUserInputHandler createInputHandler() {
-		return new TextFieldInputHandler(this);
+	/** Selects this search field for typing. */
+	public void focus() {
+		keyboardFocus.focus(this);
 	}
 
 	@Override
-	public void setFocused(boolean keyboardFocus) {
-		final boolean previousFocus = isFocused();
-		super.setFocused(keyboardFocus);
+	public void clearFocus() {
+		keyboardFocus.clear(this);
+	}
 
-		if (previousFocus != keyboardFocus) {
-			Minecraft minecraft = Minecraft.getInstance();
-			if (keyboardFocus) {
-				Screen screen = minecraft.screen;
-				if (screen != null) {
-					screenUnfocusHandler = ScreenFocusHandler.create(screen, this);
-					if (screenUnfocusHandler != null) {
-						screenUnfocusHandler.unFocus();
-					}
-				}
-			} else {
-				if (screenUnfocusHandler != null) {
-					screenUnfocusHandler.focus();
-					screenUnfocusHandler = null;
-				}
-			}
-
-			String text = getValue();
-			history.add(text);
+	@Override
+	public void setFocused(boolean focused) {
+		if (isFocused() != focused) {
+			super.setFocused(focused);
+			history.add(getValue());
 		}
 	}
 
@@ -126,5 +131,50 @@ public class GuiTextFieldFilter extends EditBox implements ISearchField {
 
 	public void drawForeground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		super.renderWidget(guiGraphics, mouseX, mouseY, partialTicks);
+	}
+
+	public void updateCompletion(int mouseX, int mouseY) {
+		if (clientConfig.searchCompletionEnabled().get() && isFocused()) {
+			completionOverlay.update(getValue(), getCursorPosition());
+			completionOverlay.updateLayout(mouseX, mouseY);
+		} else {
+			completionOverlay.close();
+		}
+	}
+
+	public void drawCompletion(GuiGraphics guiGraphics) {
+		completionOverlay.draw(guiGraphics);
+	}
+
+	public void hideCompletion() {
+		completionOverlay.close();
+	}
+
+	public boolean isCompletionVisible() {
+		return isFocused() && completionOverlay.isVisible();
+	}
+
+	public void moveCompletion(int delta) {
+		completionOverlay.moveSelection(delta);
+	}
+
+	public void scrollCompletion(int delta) {
+		completionOverlay.scroll(delta);
+	}
+
+	public void acceptCompletion() {
+		completionOverlay.accept(this);
+	}
+
+	public void closeCompletion() {
+		completionOverlay.dismiss(getValue(), getCursorPosition());
+	}
+
+	public boolean handleCompletionClick(double mouseX, double mouseY) {
+		return completionOverlay.handleMouseClicked(mouseX, mouseY, this);
+	}
+
+	public boolean isCompletionMouseOver(double mouseX, double mouseY) {
+		return completionOverlay.isMouseOver(mouseX, mouseY);
 	}
 }

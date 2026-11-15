@@ -8,6 +8,10 @@ import mezz.jei.gui.recipes.lookups.ILookupState;
 import mezz.jei.gui.recipes.lookups.LookupStatePositionUtil;
 import mezz.jei.gui.recipes.lookups.ProjectedLookupState;
 import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
+import mezz.jei.gui.recipes.RecipeGuiScrollState;
+import mezz.jei.gui.recipes.navigation.RecipeNavigationEntry;
+import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
+import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures.TestRecipeCategory;
@@ -70,6 +74,43 @@ public class ProjectedLookupStateTest {
 		Assertions.assertEquals(4, state.getRecipeIndex());
 	}
 
+	@Test
+	public void projectedScrollingIsIndependentAndNavigationCapturesItsAnchor() {
+		TestRecipeCategory first = new TestRecipeCategory(RecipeType.create("test", "first", String.class), ResourceLocation.parse("test:first"));
+		TestRecipeCategory second = new TestRecipeCategory(RecipeType.create("test", "second", String.class), ResourceLocation.parse("test:second"));
+		List<Object> values = java.util.stream.IntStream.range(0, 100).mapToObj(i -> (Object) Integer.toString(i)).toList();
+		IFocusedRecipes<Object> recipes = new StaticFocusedRecipes<>(first, values);
+		ILookupState original = new TestLookupState(recipes, emptyFocusGroup());
+		ProjectedLookupState projected = new ProjectedLookupState(original, List.of(recipes, new StaticFocusedRecipes<>(second, values)));
+		projected.getScrollState().update(2, 50, 100, 158);
+		projected.getScrollState().scrollToRecipe(20);
+		projected.getScrollState().scroll(13.5);
+		RecipeNavigationEntry entry = new RecipeNavigationEntry(original, Component.literal("first"), RecipeFilterMode.ALL, "i:test", projected);
+
+		Assertions.assertEquals(20.5, entry.getScrollAnchor());
+		Assertions.assertEquals(0, original.getScrollState().getRecipeAnchor());
+		Assertions.assertTrue(projected.nextRecipeCategory());
+		Assertions.assertEquals(0, projected.getScrollState().getRecipeAnchor());
+		Assertions.assertEquals(20.5, entry.getScrollAnchor());
+		projected.getScrollState().scrollToRecipe(10);
+		projected.goToFirstPage();
+		Assertions.assertEquals(0, projected.getScrollState().getRecipeAnchor());
+	}
+
+	@Test
+	public void pageNavigationAlignsAnIndexRestoredFromScrolling() {
+		TestRecipeCategory category = new TestRecipeCategory(RecipeType.create("test", "category", String.class), ResourceLocation.parse("test:recipe"));
+		IFocusedRecipes<Object> recipes = new StaticFocusedRecipes<>(category, List.of("one", "two", "three", "four", "five"));
+		ProjectedLookupState projected = new ProjectedLookupState(new TestLookupState(recipes, emptyFocusGroup()), List.of(recipes));
+		projected.setRecipesPerPage(2);
+		projected.setRecipeIndex(1);
+		Assertions.assertTrue(projected.nextPage());
+		Assertions.assertEquals(2, projected.getRecipeIndex());
+		projected.setRecipeIndex(3);
+		Assertions.assertTrue(projected.previousPage());
+		Assertions.assertEquals(0, projected.getRecipeIndex());
+	}
+
 	@SuppressWarnings("unchecked")
 	private static IFocusGroup emptyFocusGroup() {
 		return (IFocusGroup) Proxy.newProxyInstance(
@@ -89,6 +130,7 @@ public class ProjectedLookupStateTest {
 		private final IFocusGroup focuses;
 		private int recipeIndex;
 		private int recipesPerPage = 1;
+		private final RecipeGuiScrollState scrollState = new RecipeGuiScrollState();
 
 		private TestLookupState(IFocusedRecipes<?> focusedRecipes, IFocusGroup focuses) {
 			this.focusedRecipes = focusedRecipes;
@@ -118,6 +160,16 @@ public class ProjectedLookupStateTest {
 		@Override
 		public int getRecipeIndex() {
 			return recipeIndex;
+		}
+
+		@Override
+		public void setRecipeIndex(int recipeIndex) {
+			this.recipeIndex = recipeIndex;
+		}
+
+		@Override
+		public RecipeGuiScrollState getScrollState() {
+			return scrollState;
 		}
 
 		@Override

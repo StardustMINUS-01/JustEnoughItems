@@ -78,7 +78,7 @@ public final class CollapsibleGridSource implements IIngredientGridSource {
 	}
 
 	private void updateIfDirty() {
-		boolean includeBlockTags = Internal.getClientConfigs().getClientConfig().lookupBlockTagsEnabled().getValue();
+		boolean includeBlockTags = Internal.getClientConfigs().getClientConfig().lookupBlockTagsEnabled().get();
 		if (this.includeBlockTags != includeBlockTags) {
 			this.includeBlockTags = includeBlockTags;
 			invalidateGroups();

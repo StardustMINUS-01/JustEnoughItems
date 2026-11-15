@@ -6,22 +6,23 @@ import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.handlers.InputGroup;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.ReleaseInsideBounds;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.FocusedRecipeCandidate;
 import mezz.jei.gui.input.IClickableIngredientInternal;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.input.handlers.CombinedInputHandler;
-import mezz.jei.gui.input.handlers.NullInputHandler;
-import mezz.jei.gui.input.handlers.ProxyInputHandler;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -34,69 +35,84 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public class RecipeGuiLayouts {
+public class RecipeGuiLayouts implements IInputTarget {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	private final RecipeSlotClickTargetFactory clickTargetFactory;
 	private final List<IRecipeLayoutWithButtons<?>> recipeLayoutsWithButtons = new ArrayList<>();
 	@Nullable
-	private IUserInputHandler cachedInputHandler;
+	private IInputTarget cachedInputHandler;
+	private @Nullable ImmutableRect2i viewport;
 
 	RecipeGuiLayouts(RecipeSlotClickTargetFactory clickTargetFactory) {
 		this.clickTargetFactory = clickTargetFactory;
-		this.cachedInputHandler = NullInputHandler.INSTANCE;
 	}
 
-	public void updateLayout(ImmutableRect2i recipeLayoutsArea, final int recipesPerPage) {
+	public void updateLayout(ImmutableRect2i recipeLayoutsArea, RecipeGuiGrid grid, @Nullable RecipeGuiScrollState scrollState) {
+		this.viewport = null;
+		if (scrollState != null) {
+			this.viewport = recipeLayoutsArea;
+		}
 		if (this.recipeLayoutsWithButtons.isEmpty()) {
 			return;
 		}
 		IRecipeLayoutWithButtons<?> firstLayout = this.recipeLayoutsWithButtons.getFirst();
 		ImmutableRect2i layoutAreaWithBorder = new ImmutableRect2i(firstLayout.getRecipeLayout().getRectWithBorder());
-		final int recipeXOffset = getRecipeXOffset(layoutAreaWithBorder, recipeLayoutsArea);
-
-		final int recipeHeight = layoutAreaWithBorder.getHeight();
-		final int availableHeight = Math.max(recipeLayoutsArea.getHeight(), recipeHeight);
-		final int remainingHeight = availableHeight - (recipesPerPage * recipeHeight);
-		final int recipeSpacing = remainingHeight / (recipesPerPage + 1);
-
-		final int spacingY = recipeHeight + recipeSpacing;
-		int recipeYOffset = recipeLayoutsArea.getY() + recipeSpacing;
-		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
-			recipeLayoutWithButtons.updateBounds(recipeXOffset, recipeYOffset);
-			recipeYOffset += spacingY;
-		}
-	}
-
-	private int getRecipeXOffset(ImmutableRect2i layoutRect, ImmutableRect2i layoutsArea) {
-		if (recipeLayoutsWithButtons.isEmpty()) {
-			return layoutsArea.getX();
-		}
-
-		final int recipeWidth = layoutRect.getWidth();
-		final int recipeWidthWithButtons = getWidth();
-		final int buttonSpace = recipeWidthWithButtons - recipeWidth;
-
-		final int availableArea = layoutsArea.getWidth();
-		if (availableArea > recipeWidth + (2 * buttonSpace)) {
-			// we have enough room to nicely draw the recipe centered with the buttons off to the side
-			return layoutsArea.getX() + (layoutsArea.getWidth() - recipeWidth) / 2;
-		} else {
-			// we can just barely fit, center the recipe and buttons all together in the available area
-			return layoutsArea.getX() + (layoutsArea.getWidth() - recipeWidthWithButtons) / 2;
-		}
-	}
-
-	public IUserInputHandler createInputHandler() {
-		return new ProxyInputHandler(() -> {
-			if (cachedInputHandler == null) {
-				List<IUserInputHandler> handlers = this.recipeLayoutsWithButtons.stream()
-					.map(IRecipeLayoutWithButtons::createUserInputHandler)
-					.toList();
-				cachedInputHandler = new CombinedInputHandler("RecipeGuiLayouts", handlers);
+		for (int i = 0; i < recipeLayoutsWithButtons.size(); i++) {
+			IRecipeLayoutWithButtons<?> recipeLayoutWithButtons = recipeLayoutsWithButtons.get(i);
+			ImmutableRect2i recipeArea = grid.getRecipeArea(i, recipeLayoutsArea, layoutAreaWithBorder.getSize(), recipeLayoutWithButtons.totalWidth());
+			int y = recipeArea.y();
+			if (scrollState != null) {
+				y = recipeLayoutsArea.y() + scrollState.getRecipeY(i);
 			}
-			return cachedInputHandler;
-		});
+			recipeLayoutWithButtons.updateBounds(recipeArea.x(), y);
+		}
+	}
+
+	private IInputTarget getRecipeInputHandler() {
+		if (cachedInputHandler == null) {
+			List<IInputTarget> handlers = this.recipeLayoutsWithButtons.stream()
+				.map(IRecipeLayoutWithButtons::createUserInputHandler)
+				.toList();
+			cachedInputHandler = new InputGroup("RecipeGuiLayouts", handlers);
+		}
+		return cachedInputHandler;
+	}
+
+	@Override
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (!isInsideViewport(input.getMouseX(), input.getMouseY())) {
+			return Optional.empty();
+		}
+		return getRecipeInputHandler().beginInput(screen, input, keyBindings)
+			.map(interaction -> new ReleaseInsideBounds(interaction, this::isInsideViewport));
+	}
+
+	/**
+	 * Routes otherwise unhandled input to the hovered recipe's deprecated category callback.
+	 * Mouse callbacks run only when released inside the original recipe and the visible viewport.
+	 */
+	public Optional<IInputInteraction> beginLegacyCategoryInput(UserInput input) {
+		return getRecipeLayoutUnderMouse(input.getMouseX(), input.getMouseY())
+			.flatMap(layout -> layout.beginLegacyCategoryInput(input))
+			.map(interaction -> new ReleaseInsideBounds(interaction, this::isInsideViewport));
+	}
+
+	@Override
+	public boolean scroll(double mouseX, double mouseY, double scrollX, double scrollY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return false;
+		}
+		return getRecipeInputHandler().scroll(mouseX, mouseY, scrollX, scrollY);
+	}
+
+	@Override
+	public void resetInput() {
+		getRecipeInputHandler().resetInput();
+	}
+
+	public boolean isInsideViewport(double mouseX, double mouseY) {
+		return viewport == null || viewport.contains(mouseX, mouseY);
 	}
 
 	public void tick() {
@@ -134,12 +150,18 @@ public class RecipeGuiLayouts {
 	}
 
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return Stream.empty();
+		}
 		return this.recipeLayoutsWithButtons.stream()
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
 			.flatMap(recipeLayout -> clickTargetFactory.create(recipeLayout, mouseX, mouseY).stream());
 	}
 
 	public Optional<IRecipeLayoutWithButtons<?>> getRecipeLayoutUnderMouse(double mouseX, double mouseY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
 			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
 			if (recipeLayout.isMouseOver(mouseX, mouseY)) {
@@ -150,6 +172,9 @@ public class RecipeGuiLayouts {
 	}
 
 	public Optional<RecipeLayoutUnderMouse> getRecipeLayoutWithSlotUnderMouse(double mouseX, double mouseY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
 			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
 			if (!recipeLayout.isMouseOver(mouseX, mouseY)) {
@@ -165,6 +190,9 @@ public class RecipeGuiLayouts {
 	}
 
 	public Optional<FocusedRecipeCandidate> getFocusedRecipeCandidateUnderMouse(double mouseX, double mouseY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		return this.recipeLayoutsWithButtons.stream()
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
 			.filter(recipeLayout -> recipeLayout.isMouseOver(mouseX, mouseY))
@@ -174,6 +202,9 @@ public class RecipeGuiLayouts {
 	}
 
 	public Optional<FocusedRecipeCandidate> getRecipeTooltipCandidateUnderMouse(double mouseX, double mouseY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return Optional.empty();
+		}
 		return this.recipeLayoutsWithButtons.stream()
 			.map(IRecipeLayoutWithButtons::getRecipeLayout)
 			.filter(recipeLayout -> recipeLayout.isMouseOver(mouseX, mouseY))
@@ -186,6 +217,9 @@ public class RecipeGuiLayouts {
 	public boolean bookmarkRecipeUnderMouse(UserInput input, boolean preserveAmount) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return false;
+		}
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
 			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
 			if (recipeLayout.isMouseOver(mouseX, mouseY) && isOutputSlotUnderMouse(recipeLayout, mouseX, mouseY)) {
@@ -233,25 +267,24 @@ public class RecipeGuiLayouts {
 	public record RecipeLayoutUnderMouse(IRecipeLayoutDrawable<?> layout, RecipeSlotUnderMouse slotUnderMouse) {
 	}
 
-	public boolean mouseDragged(double mouseX, double mouseY, InputConstants.Key input, double dragX, double dragY) {
-		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
-			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
-			if (mouseDragged(recipeLayout, mouseX, mouseY, input, dragX, dragY)) {
+	/** Offers movement to public recipe handlers under the pointer, in layout order. */
+	public boolean handleApiMouseDragged(double mouseX, double mouseY, InputConstants.Key button, double dragX, double dragY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return false;
+		}
+		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
+			IRecipeLayoutDrawable<?> recipe = layout.getRecipeLayout();
+			if (recipe.isMouseOver(mouseX, mouseY) && recipe.getInputHandler().handleMouseDragged(mouseX, mouseY, button, dragX, dragY)) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	private <R> boolean mouseDragged(IRecipeLayoutDrawable<R> recipeLayout, double mouseX, double mouseY, InputConstants.Key input, double dragX, double dragY) {
-		if (recipeLayout.isMouseOver(mouseX, mouseY)) {
-			IJeiInputHandler inputHandler = recipeLayout.getInputHandler();
-			return inputHandler.handleMouseDragged(mouseX, mouseY, input, dragX, dragY);
-		}
-		return false;
-	}
-
 	public void mouseMoved(double mouseX, double mouseY) {
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return;
+		}
 		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
 			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
 			if (recipeLayout.isMouseOver(mouseX, mouseY)) {
@@ -262,6 +295,21 @@ public class RecipeGuiLayouts {
 	}
 
 	public Optional<IRecipeLayoutDrawable<?>> draw(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (viewport == null) {
+			return drawContents(guiGraphics, mouseX, mouseY);
+		}
+		guiGraphics.enableScissor(viewport.x(), viewport.y(), viewport.x() + viewport.width(), viewport.y() + viewport.height());
+		try {
+			if (!isInsideViewport(mouseX, mouseY)) {
+				return drawContents(guiGraphics, Integer.MIN_VALUE, Integer.MIN_VALUE);
+			}
+			return drawContents(guiGraphics, mouseX, mouseY);
+		} finally {
+			guiGraphics.disableScissor();
+		}
+	}
+
+	private Optional<IRecipeLayoutDrawable<?>> drawContents(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		IRecipeLayoutDrawable<?> hoveredLayout = null;
 
 		Minecraft minecraft = Minecraft.getInstance();
@@ -296,7 +344,9 @@ public class RecipeGuiLayouts {
 	}
 
 	public void drawTooltips(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		safeCallOnRecipeLayouts(r -> r.drawTooltips(guiGraphics, mouseX, mouseY));
+		if (isInsideViewport(mouseX, mouseY)) {
+			safeCallOnRecipeLayouts(r -> r.drawTooltips(guiGraphics, mouseX, mouseY));
+		}
 	}
 
 	public int getWidth() {

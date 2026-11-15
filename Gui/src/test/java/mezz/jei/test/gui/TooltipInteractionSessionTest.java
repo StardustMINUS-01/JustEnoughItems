@@ -51,6 +51,44 @@ class TooltipInteractionSessionTest {
 	}
 
 	@Test
+	void controllerCancellationPreservesSessionAndSwallowsRelease() {
+		Component component = new Component();
+		var session = session(component, true);
+		draw(session, 20, 30);
+		assertTrue(session.isMouseOver(25, 35));
+		assertTrue(session.mousePressed(25, 35, 0, 0));
+
+		session.cancelInteraction(0);
+		session.cancelInteraction(0);
+
+		assertTrue(session.isActive());
+		assertFalse(session.hasCapture());
+		assertEquals(1, component.cancelled);
+		assertEquals(0, component.closed);
+		assertTrue(session.mouseReleased(200, 200, 0, 0));
+		assertFalse(session.mouseReleased(200, 200, 0, 0));
+		assertEquals(0, component.releases);
+		session.close(TooltipCloseReason.SCREEN_CHANGED);
+		assertEquals(1, component.cancelled);
+	}
+
+	@Test
+	void clearingFocusDoesNotClosePinnedTooltip() {
+		Component component = new Component();
+		var session = session(component, true);
+		draw(session, 20, 30);
+		session.keyPressed(258, 0, 0);
+		assertTrue(session.hasFocus());
+
+		session.clearFocus();
+
+		assertFalse(session.hasFocus());
+		assertTrue(session.isActive());
+		assertFalse(session.charTyped('x', 0));
+		assertEquals(0, component.characters);
+	}
+
+	@Test
 	void focusNavigationAndCharacterInputAreIsolated() {
 		Component first = new Component(), second = new Component();
 		var session = new TooltipInteractionSession(List.of(first, second), null, true);

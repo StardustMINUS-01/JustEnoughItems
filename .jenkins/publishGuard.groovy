@@ -101,7 +101,7 @@ def getChangedFilesFromGit() {
         return []
     }
 
-    def changedFiles = sh(script: "git diff --name-only ${previousCommit} ${currentCommit}", returnStdout: true)
+    def changedFiles = sh(script: "git diff --name-only --no-renames ${previousCommit} ${currentCommit}", returnStdout: true)
     return getChangedFilesFromText(changedFiles)
 }
 

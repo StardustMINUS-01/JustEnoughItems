@@ -1,6 +1,7 @@
 package mezz.jei.gui.overlay;
 
 import mezz.jei.api.gui.handlers.IGuiProperties;
+import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -65,7 +66,7 @@ public class IngredientListOverlayControllerTest {
 		Fixture fixture = Fixture.create();
 		fixture.config.lookupHistoryEnabled = true;
 		fixture.lookupHistory.displayedOnThisSide = true;
-		fixture.lookupHistory.displayHeight = LookupHistoryOverlayLayout.getDisplayHeight(2, false);
+		fixture.lookupHistory.displayHeight = LookupHistoryOverlayLayout.getDisplayHeight(2, false, false);
 		fixture.contents.backgroundArea = new ImmutableRect2i(160, 8, 40, 40);
 		fixture.controller.init();
 		IGuiProperties guiProperties = guiProperties(50, 20, 100, 50, 200, 100);
@@ -96,6 +97,29 @@ public class IngredientListOverlayControllerTest {
 	}
 
 	@Test
+	public void screenUpdateKeepsLookupHistoryAtBottomWithIndependentWidth() {
+		Fixture fixture = Fixture.create();
+		fixture.config.lookupHistoryEnabled = true;
+		fixture.lookupHistory.displayedOnThisSide = true;
+		fixture.lookupHistory.backgroundEnabled = true;
+		fixture.contents.backgroundEnabled = true;
+		fixture.contents.backgroundArea = new ImmutableRect2i(160, 20, 40, 80);
+		fixture.controller.init();
+
+		fixture.updateScreen(guiProperties(50, 20, 100, 50, 220, 240));
+
+		assertEquals(1, fixture.lookupHistory.layoutUpdates);
+		ImmutableRect2i historyArea = fixture.lookupHistory.availableAreas.getFirst();
+		assertEquals(new ImmutableRect2i(150, 144, 70, 70), historyArea);
+		assertTrue(fixture.lookupHistory.backgroundArea.y() > bottom(fixture.contents.backgroundArea));
+		assertTrue(fixture.lookupHistory.backgroundArea.width() > fixture.contents.backgroundArea.width());
+
+		fixture.contents.backgroundArea = new ImmutableRect2i(170, 20, 30, 120);
+		fixture.updateScreen(guiProperties(50, 20, 100, 50, 220, 240));
+		assertEquals(historyArea, fixture.lookupHistory.availableAreas.getLast());
+	}
+
+	@Test
 	public void screenUpdateKeepsPageAnchorVisibleAfterBoundsChange() {
 		// Setup: the grid has a page anchor before bounds are recalculated, but updating bounds clears it.
 		Fixture fixture = Fixture.create();
@@ -119,7 +143,7 @@ public class IngredientListOverlayControllerTest {
 		Fixture fixture = Fixture.create();
 		fixture.config.lookupHistoryEnabled = true;
 		fixture.lookupHistory.displayedOnThisSide = true;
-		fixture.lookupHistory.displayHeight = LookupHistoryOverlayLayout.getDisplayHeight(1, false);
+		fixture.lookupHistory.displayHeight = LookupHistoryOverlayLayout.getDisplayHeight(1, false, false);
 		Set<ImmutableRect2i> guiExclusionAreas = Set.of(new ImmutableRect2i(170, 10, 10, 10));
 		fixture.guiPropertiesCache.guiProperties = guiProperties(50, 20, 100, 50, 200, 100);
 		fixture.guiPropertiesCache.guiExclusionAreas = guiExclusionAreas;
@@ -398,6 +422,7 @@ public class IngredientListOverlayControllerTest {
 		public boolean isQuantityFieldEnabled() { return false; }
 		boolean centerSearchBarEnabled = false;
 		boolean lookupHistoryEnabled = false;
+		boolean hideIngredientsWhenNotSearchingEnabled = false;
 
 		@Override
 		public boolean isCenterSearchBarEnabled() {
@@ -407,6 +432,11 @@ public class IngredientListOverlayControllerTest {
 		@Override
 		public boolean isLookupHistoryEnabled() {
 			return lookupHistoryEnabled;
+		}
+
+		@Override
+		public boolean isHideIngredientsWhenNotSearchingEnabled() {
+			return hideIngredientsWhenNotSearchingEnabled;
 		}
 	}
 
@@ -436,9 +466,14 @@ public class IngredientListOverlayControllerTest {
 		@Nullable
 		IElement<?> layoutPageAnchorElement;
 		ImmutableRect2i backgroundArea = ImmutableRect2i.EMPTY;
-		ImmutableRect2i ingredientGridArea = ImmutableRect2i.EMPTY;
+		boolean backgroundEnabled = false;
 		@Nullable
 		ImmutableRect2i availableArea;
+
+		@Override
+		public boolean isEmpty() {
+			return false;
+		}
 
 		@Override
 		public boolean hasRoom() {
@@ -484,16 +519,24 @@ public class IngredientListOverlayControllerTest {
 		}
 
 		@Override
-		public ImmutableRect2i getIngredientGridArea() {
-			return ingredientGridArea;
+		public ImmutableRect2i getSlotBackgroundArea() {
+			return ImmutableRect2i.EMPTY;
+		}
+
+		@Override
+		public boolean isBackgroundEnabled() {
+			return backgroundEnabled;
 		}
 	}
 
 	private static class TestLookupHistory implements ILookupHistoryOverlay {
 		boolean displayedOnThisSide = false;
-		int displayHeight = LookupHistoryOverlayLayout.getDisplayHeight(2, false);
+		int displayHeight = LookupHistoryOverlayLayout.getDisplayHeight(2, false, false);
 		int closeCount = 0;
 		int layoutUpdates = 0;
+		boolean backgroundEnabled = false;
+		ImmutableRect2i backgroundArea = ImmutableRect2i.EMPTY;
+		final List<ImmutableRect2i> availableAreas = new ArrayList<>();
 		Set<ImmutableRect2i> guiExclusionAreas = Set.of();
 		@Nullable
 		ImmutableRect2i availableArea;
@@ -504,8 +547,22 @@ public class IngredientListOverlayControllerTest {
 		}
 
 		@Override
+		public void setResizeBounds(ImmutableRect2i area, VerticalAlignment verticalAlignment) {
+		}
+
+		@Override
 		public int getDisplayHeight() {
 			return displayHeight;
+		}
+
+		@Override
+		public boolean isBackgroundEnabled() {
+			return backgroundEnabled;
+		}
+
+		@Override
+		public ImmutableRect2i getBackgroundArea() {
+			return backgroundArea;
 		}
 
 		@Override
@@ -516,6 +573,8 @@ public class IngredientListOverlayControllerTest {
 		@Override
 		public void updateBounds(ImmutableRect2i availableArea, Set<ImmutableRect2i> guiExclusionAreas, @Nullable ImmutablePoint2i mouseExclusionPoint) {
 			this.availableArea = availableArea;
+			this.availableAreas.add(availableArea);
+			this.backgroundArea = availableArea.insetBy(6);
 			this.guiExclusionAreas = guiExclusionAreas;
 		}
 
@@ -537,8 +596,8 @@ public class IngredientListOverlayControllerTest {
 		}
 
 		@Override
-		public void setFocused(boolean focused) {
-			focusValues.add(focused);
+		public void clearFocus() {
+			focusValues.add(false);
 		}
 
 		@Override

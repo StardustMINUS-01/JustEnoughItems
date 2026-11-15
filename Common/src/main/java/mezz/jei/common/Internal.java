@@ -6,8 +6,6 @@ import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.config.ClientToggleState;
-import mezz.jei.common.config.file.FileWatcher;
-import mezz.jei.common.gui.textures.JeiGuiSpriteManager;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
@@ -15,7 +13,6 @@ import net.mezzdev.deduplicatingrunner.DelayedExecutor;
 import net.mezzdev.deduplicatingrunner.DelayedTaskScheduler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.Connection;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -42,7 +39,17 @@ public final class Internal {
 	@Nullable
 	private static IJeiRuntime jeiRuntime;
 	@Nullable
-	private static FileWatcher fileWatcher;
+	private static Runnable restartJeiRunnable;
+	@Nullable
+	private static mezz.jei.common.config.file.FileWatcher ruleFileWatcher;
+
+	public static mezz.jei.common.config.file.FileWatcher getRuleFileWatcher() {
+		if (ruleFileWatcher == null) {
+			ruleFileWatcher = new mezz.jei.common.config.file.FileWatcher("JEIU Rule File Watcher");
+			ruleFileWatcher.start();
+		}
+		return ruleFileWatcher;
+	}
 	@Nullable
 	private static ClientRecipes clientRecipes = null;
 	private static final JeiFeatures jeiFeatures = new JeiFeatures();
@@ -55,9 +62,7 @@ public final class Internal {
 	public static Textures getTextures() {
 		if (textures == null) {
 			Minecraft minecraft = Minecraft.getInstance();
-			TextureManager textureManager = minecraft.getTextureManager();
-			JeiGuiSpriteManager spriteUploader = new JeiGuiSpriteManager(textureManager);
-			textures = new Textures(spriteUploader);
+			textures = new Textures(minecraft.getGuiSprites());
 		}
 		return textures;
 	}
@@ -82,7 +87,7 @@ public final class Internal {
 
 	public static IClientToggleState getClientToggleState() {
 		if (toggleState == null) {
-			toggleState = new ClientToggleState();
+			toggleState = new ClientToggleState(getClientConfigs().getClientConfig().overlaysEnabled());
 		}
 		return toggleState;
 	}
@@ -100,13 +105,8 @@ public final class Internal {
 		Internal.jeiClientConfigs = jeiClientConfigs;
 	}
 
-	public static FileWatcher getFileWatcher() {
-		Preconditions.checkState(fileWatcher != null, "JEI File Watcher has not been created yet.");
-		return fileWatcher;
-	}
-
-	public static void setFileWatcher(FileWatcher fileWatcher) {
-		Internal.fileWatcher = fileWatcher;
+	public static void registerRuntimeListenerRemoval(Runnable listenerRemoval) {
+		getClientConfigs().registerRuntimeListenerRemoval(listenerRemoval);
 	}
 
 	public static JeiFeatures getJeiFeatures() {
@@ -129,6 +129,15 @@ public final class Internal {
 
 	public static Optional<IJeiRuntime> getOptionalJeiRuntime() {
 		return Optional.ofNullable(jeiRuntime);
+	}
+
+	public static void setRestartJeiRunnable(Runnable restartJeiRunnable) {
+		Internal.restartJeiRunnable = restartJeiRunnable;
+	}
+
+	public static void restartJei() {
+		Preconditions.checkState(restartJeiRunnable != null, "JEI restart handler has not been created yet.");
+		restartJeiRunnable.run();
 	}
 
 	@Nullable
@@ -197,10 +206,8 @@ public final class Internal {
 
 	public static void onRuntimeStopped() {
 		closeRecipeGuiIfOpen();
-		if (fileWatcher != null) {
-			fileWatcher.clearRuntimeCallbacks();
-		}
-
+		if (ruleFileWatcher != null)
+			ruleFileWatcher.clearRuntimeCallbacks();
 		if (clientRecipes != null) {
 			var connectionId = getRemoteConnectionId();
 			if (!clientRecipes.connectionId().equals(connectionId)) {
@@ -238,6 +245,7 @@ public final class Internal {
 
 	public static void onClientStopping() {
 		onRuntimeStopped();
+		restartJeiRunnable = null;
 		delayedExecutor.shutdown();
 	}
 

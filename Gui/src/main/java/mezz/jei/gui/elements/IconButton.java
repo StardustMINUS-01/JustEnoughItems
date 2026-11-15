@@ -2,15 +2,17 @@ package mezz.jei.gui.elements;
 
 import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.common.input.IInputTarget;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.Optional;
+import java.util.function.Predicate;
 
 public final class IconButton {
 	private final InternalIconButton button;
@@ -33,6 +35,10 @@ public final class IconButton {
 		this.area = area;
 	}
 
+	public void setForcePressed(boolean forcePressed) {
+		this.button.setForcePressed(forcePressed);
+	}
+
 	public ImmutableRect2i getArea() {
 		return area;
 	}
@@ -50,8 +56,13 @@ public final class IconButton {
 		return this.button.visible && this.area.contains(mouseX, mouseY);
 	}
 
-	public IUserInputHandler createInputHandler() {
-		return new UserInputHandler(button, controller);
+	public IInputTarget createInputHandler() {
+		return createInputHandler(input -> false);
+	}
+
+	/** Accepts a button-specific shortcut in addition to ordinary left clicks. */
+	public IInputTarget createInputHandler(Predicate<UserInput> shortcut) {
+		return new ButtonInputHandler(button, controller, shortcut);
 	}
 
 	public void tick() {
@@ -90,45 +101,61 @@ public final class IconButton {
 		return area.getHeight();
 	}
 
-	private static class UserInputHandler implements IUserInputHandler {
+	private static class ButtonInputHandler implements IInputTarget {
 		private final InternalIconButton button;
 		private final IIconButtonController controller;
+		private final Predicate<UserInput> shortcut;
 
-		public UserInputHandler(InternalIconButton button, IIconButtonController controller) {
+		public ButtonInputHandler(InternalIconButton button, IIconButtonController controller, Predicate<UserInput> shortcut) {
 			this.button = button;
 			this.controller = controller;
+			this.shortcut = shortcut;
 		}
 
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-			this.button.setPressed(false);
-
-			double mouseX = input.getMouseX();
-			double mouseY = input.getMouseY();
-			if (!this.button.active || !this.button.visible || !this.button.isMouseOver(mouseX, mouseY)) {
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+			boolean hit = button.isActive() && button.isMouseOver(input.getMouseX(), input.getMouseY()) &&
+				(input.ifMouseEvent((mouseX, mouseY, mouseButton) -> button.isValidClickButton(mouseButton)) || shortcut.test(input));
+			if (!hit) {
 				return Optional.empty();
 			}
-			if (!this.button.isValidClickButton(input.getKey().getValue())) {
-				return Optional.empty();
+			button.setPressed(true);
+			if (input.isSimulate()) {
+				controller.onPress(input);
 			}
-			boolean flag = this.button.clicked(mouseX, mouseY);
-			if (!flag) {
-				return Optional.empty();
-			}
-			if (!input.isSimulate()) {
-				this.button.playDownSound(Minecraft.getInstance().getSoundManager());
-			} else {
-				this.button.setPressed(true);
-			}
-			if (this.controller.onPress(input) && !input.isSimulate()) {
-				this.controller.updateState(this.button);
-			}
-			return Optional.of(this);
+			return Optional.of(new ButtonPress(button, controller));
 		}
 
 		@Override
-		public void unfocus() {
+		public void resetInput() {
 			this.button.setPressed(false);
 		}
 	}
+
+	/**
+	 * Keeps the button looking pressed until release or cancellation, and runs its action
+	 * only if the mouse button is released over it while the control is still enabled.
+	 *
+	 * @param button the button to check and update on release
+	 * @param controller the button's public API handler, called on release to run the action
+	 */
+	private record ButtonPress(InternalIconButton button, IIconButtonController controller) implements IInputInteraction {
+		@Override
+		public void complete(UserInput input) {
+			button.setPressed(false);
+			if (!button.isActive() || !button.isMouseOver(input.getMouseX(), input.getMouseY())) {
+				return;
+			}
+			button.playDownSound(Minecraft.getInstance().getSoundManager());
+			if (controller.onPress(input)) {
+				controller.updateState(button);
+			}
+		}
+
+		@Override
+		public void cancel() {
+			button.setPressed(false);
+		}
+	}
+
 }

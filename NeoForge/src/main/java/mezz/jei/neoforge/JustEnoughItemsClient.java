@@ -6,7 +6,7 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.RecipeSlotOptionsTooltipComponent;
 import mezz.jei.common.gui.IngredientTooltipComponent;
-import mezz.jei.common.gui.textures.Textures;
+import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.gui.bookmarks.chain.BookmarkExternalStorageSnapshots;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAvailableStacksProviders;
@@ -18,6 +18,8 @@ import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent;
 import mezz.jei.gui.input.handlers.IngredientTagSelectionTooltip;
 import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
+import mezz.jei.library.config.JeiConfigData;
+import mezz.jei.library.config.JeiConfigRegistration;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
 import mezz.jei.library.plugins.vanilla.cooking.JeiSmeltingRecipe;
 import mezz.jei.library.recipes.RecipeSerializers;
@@ -65,17 +67,20 @@ public class JustEnoughItemsClient {
 		PermanentEventSubscriptions subscriptions
 	) {
 		this.subscriptions = subscriptions;
+		JeiConfigData configData = JeiConfigRegistration.register();
 		IConnectionToServer serverConnection = networkHandler.getConnectionToServer();
 
 		List<IModPlugin> plugins = ForgePluginFinder.getModPlugins();
 		StartData startData = new StartData(
 			plugins,
-			serverConnection
+			serverConnection,
+			configData
 		);
 
 		this.jeiStarter = new JeiStarter(startData);
 
 		StartEventObserver startEventObserver = new StartEventObserver(this.jeiStarter::start, this.jeiStarter::stop);
+		Internal.setRestartJeiRunnable(startEventObserver::restart);
 		startEventObserver.register(subscriptions);
 	}
 
@@ -125,14 +130,11 @@ public class JustEnoughItemsClient {
 
 	private void onRecipesUpdatedEvent(RecipesUpdatedEvent event) {
 		List<RecipeHolder<?>> recipes = List.copyOf(event.getRecipeManager().getRecipes());
-		if (!recipes.isEmpty()) {
-			Internal.setClientSyncedRecipes(recipes);
-		}
+		// Every recipe update is authoritative in 1.21.1, including an empty recipe list.
+		Internal.setClientSyncedRecipes(recipes);
 	}
 
 	private void onRegisterReloadListenerEvent(RegisterClientReloadListenersEvent event) {
-		Textures textures = Internal.getTextures();
-		event.registerReloadListener(textures.getGuiSpriteManager());
 		event.registerReloadListener(createReloadListener());
 	}
 

@@ -4,15 +4,26 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
+import mezz.jei.api.gui.widgets.ScrollbarVisibility;
 import mezz.jei.common.Internal;
+import mezz.jei.common.config.NavigationVisibility;
 import mezz.jei.common.gui.elements.Scrollbar;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.MouseDrag;
 import mezz.jei.common.util.ImmutableRect2i;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenPosition;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.util.Mth;
 
-public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHandler {
+import java.util.Objects;
+import java.util.Optional;
+
+public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHandler, IInputTarget {
 	private static final int SCROLLBAR_PADDING = 2;
 
 	public static int getScrollBoxScrollbarExtraWidth() {
@@ -32,6 +43,7 @@ public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHa
 	protected final ImmutableRect2i contentsArea;
 
 	private final Scrollbar scrollbar;
+	private ScrollbarVisibility scrollbarVisibility = ScrollbarVisibility.DEFAULT;
 	/**
 	 * Amount scrolled in percent, (0 = top, 1 = bottom)
 	 */
@@ -56,29 +68,68 @@ public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHa
 		return scrollOffsetY;
 	}
 
+	public AbstractScrollWidget setScrollbarVisibility(ScrollbarVisibility visibility) {
+		this.scrollbarVisibility = Objects.requireNonNull(visibility);
+		if (!isScrollbarVisible()) {
+			scrollbar.stopDrag();
+		}
+		return this;
+	}
+
+	protected final boolean isScrollbarVisible() {
+		NavigationVisibility visibility = switch (scrollbarVisibility) {
+			case DEFAULT -> Internal.getClientConfigs().getIngredientListConfig().navigationVisibility().get();
+			case ENABLED -> NavigationVisibility.ENABLED;
+			case AUTO_HIDE -> NavigationVisibility.AUTO_HIDE;
+			case DISABLED -> NavigationVisibility.DISABLED;
+		};
+		return switch (visibility) {
+			case ENABLED -> true;
+			case AUTO_HIDE -> getHiddenAmount() > 0;
+			case DISABLED -> false;
+		};
+	}
+
+	protected final void resetScroll() {
+		scrollOffsetY = 0;
+		scrollbar.stopDrag();
+	}
+
+	protected ImmutableRect2i getWidgetArea() {
+		return area;
+	}
+
 	@Override
 	public final ScreenRectangle getArea() {
-		return area.toScreenRectangle();
+		return getWidgetArea().toScreenRectangle();
 	}
 
 	@Override
 	public final ScreenPosition getPosition() {
-		return area.getScreenPosition();
+		return getWidgetArea().getScreenPosition();
 	}
 
 	@Override
 	public ScreenRectangle getScreenRectangle() {
-		return area.toScreenRectangle();
+		return getArea();
 	}
 
 	@Override
 	public final void drawWidget(GuiGraphics guiGraphics, double mouseX, double mouseY) {
-		this.scrollbar.draw(guiGraphics, getVisibleAmount(), getHiddenAmount(), scrollOffsetY);
+		if (isScrollbarVisible()) {
+			this.scrollbar.draw(guiGraphics, getVisibleAmount(), getHiddenAmount(), scrollOffsetY);
+		} else {
+			this.scrollbar.stopDrag();
+		}
 		drawContents(guiGraphics, mouseX, mouseY, scrollOffsetY);
 	}
 
 	@Override
 	public final boolean handleInput(double mouseX, double mouseY, IJeiUserInput userInput) {
+		if (!isScrollbarVisible()) {
+			scrollbar.stopDrag();
+			return false;
+		}
 		if (!userInput.is(Internal.getKeyMappings().getLeftClick())) {
 			return false;
 		}
@@ -107,6 +158,19 @@ public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHa
 	}
 
 	@Override
+	public final Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+		if (!isScrollbarVisible() || !input.isMouseInput() || !input.is(keys.getLeftClick()) || getHiddenAmount() == 0) {
+			return Optional.empty();
+		}
+		Scrollbar.ScrollResult result = scrollbar.startDrag(input.getMouseX(), input.getMouseY(), getVisibleAmount(), getHiddenAmount(), scrollOffsetY);
+		if (!result.handled()) {
+			return Optional.empty();
+		}
+		scrollOffsetY = result.scrollOffsetY();
+		return Optional.of(MouseDrag.forWidget(this::handleMouseDragged, scrollbar::stopDrag));
+	}
+
+	@Override
 	public final boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		if (getHiddenAmount() > 0) {
 			scrollOffsetY -= calculateScrollAmount(scrollDeltaY);
@@ -119,6 +183,10 @@ public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHa
 
 	@Override
 	public final boolean handleMouseDragged(double mouseX, double mouseY, InputConstants.Key mouseKey, double dragX, double dragY) {
+		if (!isScrollbarVisible() || getHiddenAmount() == 0) {
+			scrollbar.stopDrag();
+			return false;
+		}
 		if (mouseKey.getValue() != InputConstants.MOUSE_BUTTON_LEFT) {
 			return false;
 		}

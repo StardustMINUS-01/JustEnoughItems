@@ -19,7 +19,7 @@ import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.IPaged;
-import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPanelProjection.GroupPanelSlot;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -75,15 +75,15 @@ public class BookmarkOverlayRenderer {
 		@Nullable GroupPanelDrag groupPanelDrag,
 		@Nullable BookmarkSortDragState sortDragState
 	) {
-		BookmarkOverlayLayout.PanelSnapshot panelSnapshot = overlay.getGroupPanelSnapshotForRendering();
+		BookmarkPanelProjection.PanelSnapshot panelSnapshot = overlay.getGroupPanelSnapshotForRendering();
 		List<GroupPanelSlot> sourcePanelSlots = panelSnapshot.groupPanelSlots();
 		List<GroupPanelSlot> panelSlots = sourcePanelSlots;
 		if (groupPanelDrag != null) {
 			panelSlots = groupPanelDrag.getPreviewGroupPanelSlots(panelSlots);
 		}
-		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkOverlayLayout.toRowSlots(panelSlots);
+		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkPanelProjection.toRowSlots(panelSlots);
 		boolean hasDragPreview = panelSlots != sourcePanelSlots || sortDragState != null && sortDragState.isActive();
-		BookmarkOverlayLayout.BoundaryConnections boundaryConnections = !hasDragPreview ? panelSnapshot.boundaryConnections() : BookmarkOverlayLayout.BoundaryConnections.NONE;
+		BookmarkPanelProjection.BoundaryConnections boundaryConnections = !hasDragPreview ? panelSnapshot.boundaryConnections() : BookmarkPanelProjection.BoundaryConnections.NONE;
 		if (groupPanelDrag != null && panelSlots != sourcePanelSlots) {
 			boundaryConnections = groupPanelDrag.boundaries(panelSlots);
 		}

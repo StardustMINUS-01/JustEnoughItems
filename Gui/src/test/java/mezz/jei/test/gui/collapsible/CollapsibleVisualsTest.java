@@ -9,10 +9,14 @@ import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
+import mezz.jei.test.gui.lib.ConfigTestFixtures;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,6 +26,14 @@ import static mezz.jei.test.gui.collapsible.CollapsibleTestFixtures.group;
 import static mezz.jei.test.gui.collapsible.CollapsibleTestFixtures.element;
 
 public class CollapsibleVisualsTest {
+	@TempDir
+	Path tempDir;
+
+	@BeforeEach
+	public void initializeClientConfig() {
+		ConfigTestFixtures.createClientConfigs(tempDir.resolve("jei-client.ini"));
+	}
+
 	@Test
 	public void updatesColorsWithoutRescan() {
 		IngredientListSlot slot = new IngredientListSlot(0, 0, 18, 18, 1);
@@ -34,8 +46,8 @@ public class CollapsibleVisualsTest {
 		}, settings::get);
 		var context = new IngredientListSlotContext(slot.getElement(), Optional.empty(), 0, -1, 0, -1, 1, 1, 1);
 		var count = mezz.jei.common.config.CollapsibleColorConfig.getShowGroupSize();
-		Assertions.assertFalse(count.getDefaultValue());
-		boolean previous = count.getValue();
+		Assertions.assertFalse(count.getEditorInfo().getDefaultValue());
+		boolean previous = count.get();
 		try {
 			count.set(true);
 			Assertions.assertTrue(provider.apply(context).orElseThrow().amountText().isPresent());

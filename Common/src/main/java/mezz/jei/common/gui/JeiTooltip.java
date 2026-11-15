@@ -97,7 +97,7 @@ public class JeiTooltip implements ITooltipBuilder {
 		return createKeyUsageComponent(translationKey, keyMapping.getTranslatedKeyMessage().copy());
 	}
 
-	private static MutableComponent createKeyUsageComponent(String translationKey, MutableComponent keyMapping) {
+	public static MutableComponent createKeyUsageComponent(String translationKey, MutableComponent keyMapping) {
 		Component boldKeyMapping = keyMapping.withStyle(ChatFormatting.BOLD);
 		return Component.translatable(translationKey, boldKeyMapping)
 			.withStyle(ChatFormatting.ITALIC)
@@ -221,7 +221,7 @@ public class JeiTooltip implements ITooltipBuilder {
 		draw(guiGraphics, x, y, typedIngredient, ingredientRenderer, ingredientManager, null);
 	}
 
-	private <T> void draw(
+	public <T> void draw(
 		GuiGraphics guiGraphics,
 		int x,
 		int y,

@@ -44,7 +44,7 @@ public final class PinnedTooltipManager {
 	}
 
 	public static boolean hasKeyboardFocus() {
-		return InteractiveTooltipController.INSTANCE.hasKeyboardFocus() || active instanceof ICharTypedHandler handler && handler.hasKeyboardFocus();
+		return InteractiveTooltipController.INSTANCE.hasKeyboardFocus() || active instanceof ITextInputHandler handler && handler.hasKeyboardFocus();
 	}
 
 	public static boolean matchesInput(

@@ -24,12 +24,12 @@ import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientToggleState;
-import mezz.jei.common.config.IIngredientFilterConfig;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.recipes.BrewingExtensionHelper;
-import mezz.jei.common.search.BakedSubstringIndexBuilder;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.RemovalFallbackSearchStorage;
 import mezz.jei.common.util.LoggedTimer;
 import mezz.jei.common.util.StackHelper;
 import mezz.jei.library.config.EditModeConfig;
@@ -84,26 +84,17 @@ public final class PluginLoader {
 		return new SubtypeManager(subtypeInterpreters);
 	}
 
-	public static IngredientManager registerIngredients(StartData data, SubtypeManager subtypeManager, IColorHelper colorHelper, IIngredientFilterConfig ingredientFilterConfig) {
+	public static IngredientManager registerIngredients(StartData data, SubtypeManager subtypeManager, IColorHelper colorHelper) {
 		List<IModPlugin> plugins = data.plugins();
 		IngredientManagerBuilder ingredientManagerBuilder = new IngredientManagerBuilder(subtypeManager, colorHelper);
-		PluginCaller.callOnPlugins("Registering ingredients", plugins, p -> p.registerIngredients(ingredientManagerBuilder));
+		PluginCaller.callOnPlugins("Registering ingredients", plugins, ingredientManagerBuilder::registerIngredients);
 		PluginCaller.callOnPlugins("Registering extra ingredients", plugins, p -> p.registerExtraIngredients(ingredientManagerBuilder));
-
-		if (ingredientFilterConfig.searchIngredientAliases().getValue()) {
-			PluginCaller.callOnPlugins("Registering search ingredient aliases", plugins, p -> p.registerIngredientAliases(ingredientManagerBuilder));
-		}
+		PluginCaller.callOnPlugins("Registering search ingredient aliases", plugins, p -> p.registerIngredientAliases(ingredientManagerBuilder));
 		return ingredientManagerBuilder.build();
 	}
 
-	public static ImmutableSetMultimap<String, String> registerModAliases(
-		StartData data,
-		IIngredientFilterConfig ingredientFilterConfig
-	) {
+	public static ImmutableSetMultimap<String, String> registerModAliases(StartData data) {
 		List<IModPlugin> plugins = data.plugins();
-		if (!ingredientFilterConfig.searchModAliases().getValue()) {
-			return ImmutableSetMultimap.of();
-		}
 		ModInfoRegistration modInfoRegistration = new ModInfoRegistration();
 		PluginCaller.callOnPlugins("Registering Mod Info", plugins, p -> p.registerModInfo(modInfoRegistration));
 		return modInfoRegistration.getModAliases();
@@ -163,10 +154,22 @@ public final class PluginLoader {
 			.orElseThrow(() -> new NullPointerException("vanilla smithing category"));
 		BrewingExtensionHelper brewingExtensionHelper = vanillaPlugin.getBrewingExtensionHelper()
 			.orElseThrow(() -> new NullPointerException("vanilla brewing extension helper"));
+		var smeltingCategory = vanillaPlugin.getSmeltingCategory()
+			.orElseThrow(() -> new NullPointerException("vanilla smelting category"));
+		var blastingCategory = vanillaPlugin.getBlastingCategory()
+			.orElseThrow(() -> new NullPointerException("vanilla blasting category"));
+		var smokingCategory = vanillaPlugin.getSmokingCategory()
+			.orElseThrow(() -> new NullPointerException("vanilla smoking category"));
+		var campfireCookingCategory = vanillaPlugin.getCampfireCookingCategory()
+			.orElseThrow(() -> new NullPointerException("vanilla campfire cooking category"));
 		VanillaCategoryExtensionRegistration vanillaCategoryExtensionRegistration = new VanillaCategoryExtensionRegistration(
 			craftingCategory,
 			smithingCategory,
 			brewingExtensionHelper,
+			smeltingCategory,
+			blastingCategory,
+			smokingCategory,
+			campfireCookingCategory,
 			jeiHelpers
 		);
 		PluginCaller.callOnPlugins("Registering vanilla category extensions", plugins, p -> p.registerVanillaCategoryExtensions(vanillaCategoryExtensionRegistration));
@@ -188,17 +191,19 @@ public final class PluginLoader {
 		IStackHelper stackHelper = jeiHelpers.getStackHelper();
 		CraftingRecipeCategory craftingCategory = vanillaPlugin.getCraftingCategory()
 			.orElseThrow(() -> new NullPointerException("vanilla crafting category"));
-		IRecipeTransferHandlerHelper handlerHelper = new RecipeTransferHandlerHelper(stackHelper, craftingCategory, connectionToServer);
+		IIngredientManager ingredientManager = jeiHelpers.getIngredientManager();
+		IRecipeTransferHandlerHelper handlerHelper = new RecipeTransferHandlerHelper(stackHelper, ingredientManager, craftingCategory, connectionToServer);
 		RecipeTransferRegistration recipeTransferRegistration = new RecipeTransferRegistration(stackHelper, handlerHelper, jeiHelpers, connectionToServer);
 		PluginCaller.callOnPlugins("Registering recipes transfer handlers", plugins, p -> p.registerRecipeTransferHandlers(recipeTransferRegistration));
 		return recipeTransferRegistration.createRecipeTransferManager();
 	}
 
 	public static ISearchStorageBuilderFactory createSearchStorageFactory(List<IModPlugin> plugins) {
-		ISearchStorageBuilderFactory defaultSearchStorageBuilderFactory = BakedSubstringIndexBuilder::new;
+		ISearchStorageBuilderFactory defaultSearchStorageBuilderFactory = LuceneSearchStorageBuilder.FACTORY;
 		AdvancedSearchRegistration searchRegistration = new AdvancedSearchRegistration(defaultSearchStorageBuilderFactory);
 		PluginCaller.callOnPlugins("Registering advanced search", plugins, p -> p.registerAdvancedSearch(searchRegistration));
 		return searchRegistration.getSearchStorageBuilderFactoryOverride()
+			.map(RemovalFallbackSearchStorage::wrap)
 			.orElse(defaultSearchStorageBuilderFactory);
 	}
 

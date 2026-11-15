@@ -41,10 +41,12 @@ public final class ChatIngredientTooltip {
 			clearSharedIngredient();
 			sharedStyle = style;
 			sharedRuntime = runtime;
-			var player = Minecraft.getInstance().player;
-			if (runtime != null && player != null) {
+			if (runtime != null) {
 				sharedIngredient = SharedChatIngredient.getSnapshot(style)
-					.flatMap(snapshot -> SharedChatIngredient.decode(snapshot, player.registryAccess()))
+					.flatMap(snapshot -> {
+						var player = Minecraft.getInstance().player;
+						return player == null ? Optional.<SharedChatIngredient>empty() : SharedChatIngredient.decode(snapshot, player.registryAccess());
+					})
 					.flatMap(shared -> shared.resolve(runtime.getIngredientManager()));
 			}
 		}
@@ -87,9 +89,14 @@ public final class ChatIngredientTooltip {
 	}
 
 	public static Optional<IngredientTooltipData<?>> getTooltipForHoveredText(@Nullable Style hoveredStyle) {
+		return getIngredientForHoveredText(hoveredStyle)
+			.map(ingredient -> createTooltipData(ingredient, Internal.getJeiRuntime().getIngredientManager()));
+	}
+
+	public static Optional<ITypedIngredient<?>> getIngredientForHoveredText(@Nullable Style hoveredStyle) {
 		Optional<ITypedIngredient<?>> shared = getSharedIngredient(hoveredStyle);
 		if (shared.isPresent()) {
-			return shared.map(ingredient -> createTooltipData(ingredient, Internal.getJeiRuntime().getIngredientManager()));
+			return shared;
 		}
 		Optional<IngredientLink> optionalLink = JeiChatItemLinkHover.getIngredientLink(hoveredStyle);
 		if (optionalLink.isEmpty()) {
@@ -104,14 +111,7 @@ public final class ChatIngredientTooltip {
 		IJeiRuntime jeiRuntime = optionalRuntime.get();
 		IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 		IngredientLink link = optionalLink.get();
-		Optional<ITypedIngredient<?>> optionalTypedIngredient = JeiChatItemLinks.resolveTypedIngredient(link, ingredientManager);
-		if (optionalTypedIngredient.isEmpty()) {
-			return Optional.empty();
-		}
-
-		ITypedIngredient<?> typedIngredient = optionalTypedIngredient.get();
-		IngredientTooltipData<?> tooltipData = createTooltipData(typedIngredient, ingredientManager);
-		return Optional.of(tooltipData);
+		return JeiChatItemLinks.resolveTypedIngredient(link, ingredientManager);
 	}
 
 	public static <T> IngredientTooltipData<T> createTooltipData(

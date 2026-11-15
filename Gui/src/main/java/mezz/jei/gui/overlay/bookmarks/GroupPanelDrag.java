@@ -9,9 +9,9 @@ import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.ghost.GhostIngredientDrag;
-import mezz.jei.gui.input.MouseUtil;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
+import mezz.jei.common.input.MouseUtil;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPanelProjection.GroupPanelSlot;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.Rect2i;
 import org.jetbrains.annotations.Nullable;
@@ -105,15 +105,15 @@ class GroupPanelDrag {
 		return released.contains(item) ? BookmarkGroupManager.DEFAULT_GROUP_ID : groupId;
 	}
 
-	BookmarkOverlayLayout.BoundaryConnections boundaries(List<GroupPanelSlot> visible) {
+	BookmarkPanelProjection.BoundaryConnections boundaries(List<GroupPanelSlot> visible) {
 		if (plan == null || visible.isEmpty()) {
-			return BookmarkOverlayLayout.BoundaryConnections.NONE;
+			return BookmarkPanelProjection.BoundaryConnections.NONE;
 		}
 		int first = globalRow(visible.getFirst()).area().getY();
 		int last = globalRow(visible.getLast()).area().getY();
 		var before = slots.stream().filter(slot -> slot.area().getY() < first).reduce((a, b) -> b);
 		var after = slots.stream().filter(slot -> slot.area().getY() > last).findFirst();
-		return new BookmarkOverlayLayout.BoundaryConnections(
+		return new BookmarkPanelProjection.BoundaryConnections(
 			visible.getFirst().groupId() != BookmarkGroupManager.DEFAULT_GROUP_ID && before
 				.map(slot -> previewGroup(slot.item(), slot.groupId()) == visible.getFirst().groupId()).orElse(false),
 			visible.getLast().groupId() != BookmarkGroupManager.DEFAULT_GROUP_ID && after
@@ -241,8 +241,8 @@ class GroupPanelDrag {
 		var end = globalRow(currentEndSlot);
 		long elapsedMillis = System.currentTimeMillis() - startedAtMillis;
 		if (end.area().getY() != start.area().getY() || BookmarkPanelLayout.shouldUpdateDragEnd(
-			BookmarkOverlayLayout.toRowSlot(startSlot),
-			this.endSlot == null ? null : BookmarkOverlayLayout.toRowSlot(this.endSlot),
+			BookmarkPanelProjection.toRowSlot(startSlot),
+			this.endSlot == null ? null : BookmarkPanelProjection.toRowSlot(this.endSlot),
 			mouseY,
 			elapsedMillis,
 			GROUP_PANEL_DRAG_THRESHOLD_MS
@@ -271,7 +271,7 @@ class GroupPanelDrag {
 
 	void scroll(double deltaX, double deltaY, double mouseY) {
 		var area = overlay.getContents().getIngredientGridArea();
-		overlay.getContents().createInputHandler().handleMouseScrolled(area.getX() + 1, area.getY() + 1, deltaX, deltaY);
+		overlay.getContents().createInputHandler().scroll(area.getX() + 1, area.getY() + 1, deltaX, deltaY);
 		updateEndSlot(mouseY);
 	}
 }

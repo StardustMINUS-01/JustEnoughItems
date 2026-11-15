@@ -10,7 +10,7 @@ import mezz.jei.common.network.packets.PlayToServerPacket;
 import mezz.jei.common.util.JeiClientSoundUtil;
 import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;

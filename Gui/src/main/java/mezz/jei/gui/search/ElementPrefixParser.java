@@ -1,24 +1,28 @@
 package mezz.jei.gui.search;
 
+import it.unimi.dsi.fastutil.chars.Char2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.chars.Char2ObjectMap;
-import it.unimi.dsi.fastutil.chars.Char2ObjectOpenHashMap;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.config.IIngredientFilterConfig;
+import mezz.jei.common.config.SearchMode;
 import mezz.jei.common.search.LimitedStringStorageBuilder;
 import mezz.jei.common.search.PrefixInfo;
-import mezz.jei.common.config.SearchMode;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class ElementPrefixParser {
-	private final Char2ObjectMap<PrefixInfo<IListElementInfo<?>, IListElement<?>>> map = new Char2ObjectOpenHashMap<>();
+	private final Char2ObjectMap<PrefixInfo<IListElementInfo<?>, IListElement<?>>> map = new Char2ObjectLinkedOpenHashMap<>();
+	private final Map<ElementSearchIndex, PrefixInfo<IListElementInfo<?>, IListElement<?>>> prefixInfoBySearchIndex = new EnumMap<>(ElementSearchIndex.class);
 	private final PrefixInfo<IListElementInfo<?>, IListElement<?>> noPrefix;
 
 	public ElementPrefixParser(
@@ -32,50 +36,65 @@ public class ElementPrefixParser {
 		this.noPrefix = new PrefixInfo<>(
 			"unprefixed",
 			'\0',
+			Component.empty(),
+			true,
 			() -> SearchMode.ENABLED,
 			IListElementInfo::getNames,
 			searchStorageBuilderFactory
 		);
+		this.prefixInfoBySearchIndex.put(ElementSearchIndex.NAMES_AND_ALIASES, noPrefix);
 
-		addPrefix(new PrefixInfo<>(
+		addPrefix(ElementSearchIndex.MOD_NAMES, new PrefixInfo<>(
 			"mod_names",
 			'@',
-			config.modNameSearchMode()::getValue,
+			Component.translatable("jei.search.completion.prefix.modName"),
+			true,
+			config.modNameSearchMode()::get,
 			info -> info.getModNames(config),
 			limitedStringStorageBuilderFactory
 		));
-		addPrefix(new PrefixInfo<>(
+		addPrefix(ElementSearchIndex.TAGS, new PrefixInfo<>(
 			"tags",
 			'#',
-			config.tagSearchMode()::getValue,
+			Component.translatable("jei.search.completion.prefix.tag"),
+			true,
+			config.tagSearchMode()::get,
 			e -> e.getTagStrings(ingredientManager),
 			limitedStringStorageBuilderFactory
 		));
-		addPrefix(new PrefixInfo<>(
+		addPrefix(ElementSearchIndex.TOOLTIPS, new PrefixInfo<>(
 			"tooltips",
 			'$',
-			config.tooltipSearchMode()::getValue,
+			Component.translatable("jei.search.completion.prefix.tooltip"),
+			false,
+			config.tooltipSearchMode()::get,
 			e -> e.getTooltipStrings(config, ingredientManager),
 			searchStorageBuilderFactory
 		));
-		addPrefix(new PrefixInfo<>(
+		addPrefix(ElementSearchIndex.CREATIVE_TABS, new PrefixInfo<>(
 			"creative_tabs",
 			'%',
-			config.creativeTabSearchMode()::getValue,
+			Component.translatable("jei.search.completion.prefix.creativeTab"),
+			true,
+			config.creativeTabSearchMode()::get,
 			e -> e.getCreativeTabsStrings(ingredientManager),
 			limitedStringStorageBuilderFactory
 		));
-		addPrefix(new PrefixInfo<>(
+		addPrefix(ElementSearchIndex.COLORS, new PrefixInfo<>(
 			"colors",
 			'^',
-			config.colorSearchMode()::getValue,
+			Component.translatable("jei.search.completion.prefix.color"),
+			true,
+			config.colorSearchMode()::get,
 			e -> e.getColorNames(ingredientManager, colorHelper),
 			limitedStringStorageBuilderFactory
 		));
-		addPrefix(new PrefixInfo<>(
+		addPrefix(ElementSearchIndex.IDENTIFIERS, new PrefixInfo<>(
 			"identifiers",
 			'&',
-			config.resourceLocationSearchMode()::getValue,
+			Component.translatable("jei.search.completion.prefix.identifier"),
+			true,
+			config.resourceLocationSearchMode()::get,
 			element -> List.of(element.getResourceLocation().toString()),
 			searchStorageBuilderFactory
 		));
@@ -94,16 +113,27 @@ public class ElementPrefixParser {
 			public <T> LimitedStringStorageBuilder<T> create(String id) {
 				return new LimitedStringStorageBuilder<>(searchStorageBuilderFactory, id);
 			}
+
+			@Override
+			public boolean supportsDeletion() {
+				return searchStorageBuilderFactory.supportsDeletion();
+			}
 		};
 	}
 
-	private void addPrefix(PrefixInfo<IListElementInfo<?>, IListElement<?>> info) {
+	private void addPrefix(ElementSearchIndex searchIndex, PrefixInfo<IListElementInfo<?>, IListElement<?>> info) {
 		this.map.put(info.getPrefix(), info);
+		this.prefixInfoBySearchIndex.put(searchIndex, info);
+	}
+
+	PrefixInfo<IListElementInfo<?>, IListElement<?>> getPrefixInfo(ElementSearchIndex searchIndex) {
+		return prefixInfoBySearchIndex.get(searchIndex);
 	}
 
 	public Collection<PrefixInfo<IListElementInfo<?>, IListElement<?>>> allPrefixInfos() {
-		Collection<PrefixInfo<IListElementInfo<?>, IListElement<?>>> values = new ArrayList<>(map.values());
+		Collection<PrefixInfo<IListElementInfo<?>, IListElement<?>>> values = new ArrayList<>();
 		values.add(noPrefix);
+		values.addAll(map.values());
 		return values;
 	}
 
@@ -127,5 +157,4 @@ public class ElementPrefixParser {
 		}
 		return Optional.of(new TokenInfo(token.substring(1), prefixInfo));
 	}
-
 }

@@ -20,10 +20,13 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.codecs.EnumCodec;
 import mezz.jei.common.codecs.TupleCodec;
 import mezz.jei.common.codecs.TypedIngredientCodecs;
+import mezz.jei.common.recipes.RecipeIdentifierLookup;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.FireworkStarFadeRecipe;
+import net.minecraft.world.item.crafting.FireworkStarRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import org.jetbrains.annotations.Nullable;
@@ -32,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class CodecHelper implements ICodecHelper {
 	private static final Codec<RecipeHolder<?>> RECIPE_HOLDER_CODEC = Codec.lazyInitialized(() -> {
@@ -59,7 +63,10 @@ public class CodecHelper implements ICodecHelper {
 							ResourceLocation recipeHolderId = pair.getFirst();
 							Recipe<?> recipe = pair.getSecond();
 							if (recipe == null) {
-								return DataResult.error(() -> "Could not find recipe for key: " + recipeHolderId);
+								return DataResult.error(() -> "Could not find recipe for key: " + pair.getFirst());
+							}
+							if (recipeManager.byKey(recipeHolderId).isEmpty() && isLegacySyntheticRecipeId(recipeHolderId, recipe)) {
+								recipeHolderId = recipeHolderId.withPrefix("/");
 							}
 							RecipeHolder<?> recipeHolder = new RecipeHolder<>(recipeHolderId, recipe);
 							return DataResult.success(recipeHolder);
@@ -78,29 +85,38 @@ public class CodecHelper implements ICodecHelper {
 			);
 	});
 
-	private final IIngredientManager ingredientManager;
+	private static boolean isLegacySyntheticRecipeId(ResourceLocation id, Recipe<?> recipe) {
+		String path = id.getPath();
+		return path.startsWith("jei.shield.decoration.") ||
+			path.startsWith("jei.tipped.arrow.") ||
+			id.equals(ResourceLocation.withDefaultNamespace("sponge_with_bucket")) ||
+			(!path.startsWith("/") && path.contains("/jei_samples/") &&
+				(recipe instanceof FireworkStarRecipe || recipe instanceof FireworkStarFadeRecipe));
+	}
+
+	private final TypedIngredientCodecs typedIngredientCodecs;
 	private final IFocusFactory focusFactory;
 	private final Map<RecipeType<?>, Codec<?>> defaultRecipeCodecs = new HashMap<>();
 	private @Nullable Codec<RecipeType<?>> recipeTypeCodec;
 
 	public CodecHelper(IIngredientManager ingredientManager, IFocusFactory focusFactory) {
-		this.ingredientManager = ingredientManager;
+		this.typedIngredientCodecs = new TypedIngredientCodecs(ingredientManager);
 		this.focusFactory = focusFactory;
 	}
 
 	@Override
 	public Codec<IIngredientType<?>> getIngredientTypeCodec() {
-		return TypedIngredientCodecs.getIngredientTypeCodec(ingredientManager);
+		return typedIngredientCodecs.getIngredientTypeCodec();
 	}
 
 	@Override
 	public MapCodec<ITypedIngredient<?>> getTypedIngredientCodec() {
-		return TypedIngredientCodecs.getIngredientCodec(ingredientManager);
+		return typedIngredientCodecs.getIngredientCodec();
 	}
 
 	@Override
 	public <T> Codec<ITypedIngredient<T>> getTypedIngredientCodec(IIngredientType<T> ingredientType) {
-		return TypedIngredientCodecs.getIngredientCodec(ingredientType, ingredientManager);
+		return typedIngredientCodecs.getIngredientCodec(ingredientType);
 	}
 
 	@Override
@@ -142,11 +158,9 @@ public class CodecHelper implements ICodecHelper {
 
 				RecipeType<T> recipeType = recipeCategory.getRecipeType();
 
-				return recipeManager.createRecipeLookup(recipeType)
-					.limitFocus(List.of(focus))
-					.get()
-					.filter(recipe -> registryName.equals(recipeCategory.getRegistryName(recipe)))
-					.findFirst()
+				var recipeLookup = recipeManager.createRecipeLookup(recipeType)
+					.limitFocus(List.of(focus));
+				return RecipeIdentifierLookup.findRecipe(recipeCategory, recipeLookup, registryName, recipeManager)
 					.map(DataResult::success)
 					.orElseGet(() -> DataResult.error(() -> "No recipe found for registry name: " + registryName));
 			},
@@ -155,7 +169,7 @@ public class CodecHelper implements ICodecHelper {
 				if (registryName == null) {
 					return DataResult.error(() -> "No registry name for recipe");
 				}
-				IIngredientSupplier ingredients = recipeManager.getRecipeIngredients(recipeCategory, recipe);
+				IIngredientSupplier ingredients = recipeManager.getRecipeIngredients(recipeCategory, recipe, Set.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.OUTPUT));
 				List<ITypedIngredient<?>> outputs = ingredients.getIngredients(RecipeIngredientRole.OUTPUT);
 				if (!outputs.isEmpty()) {
 					Data result = new Data(registryName, outputs.getFirst(), RecipeIngredientRole.OUTPUT);
@@ -200,11 +214,9 @@ public class CodecHelper implements ICodecHelper {
 
 					RecipeType<T> recipeType = recipeCategory.getRecipeType();
 
-					return recipeManager.createRecipeLookup(recipeType)
-						.limitFocus(List.of(focus))
-						.get()
-						.filter(recipe -> registryName.equals(recipeCategory.getRegistryName(recipe)))
-						.findFirst()
+					var recipeLookup = recipeManager.createRecipeLookup(recipeType)
+						.limitFocus(List.of(focus));
+					return RecipeIdentifierLookup.findRecipe(recipeCategory, recipeLookup, registryName, recipeManager)
 						.map(DataResult::success)
 						.orElseGet(() -> DataResult.error(() -> "No recipe found for registry name: " + registryName));
 				},

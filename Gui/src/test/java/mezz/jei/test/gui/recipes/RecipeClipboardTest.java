@@ -38,9 +38,18 @@ public class RecipeClipboardTest {
 		IRecipeCategory<String> category = category("test:category", "current", "test:current_recipe");
 		IRecipeLayoutDrawable<String> layout = layout(category, "current");
 
-		Optional<String> recipeId = RecipeIdClipboardHandler.getRecipeId(layout);
+		assertEquals(List.of("test:current_recipe"), RecipeIdClipboardHandler.getRecipeIdsForCopy(layout, INGOT, unusedManager(), new TestFocusFactory()));
+	}
 
-		assertEquals(Optional.of("test:current_recipe"), recipeId);
+	@Test
+	public void copiesResolvedSourceIdsInsteadOfSyntheticDisplayIdentity() {
+		IRecipeCategory<String> category = category("test:category", "generated", "test:/generated");
+		List<ResourceLocation> sources = List.of(ResourceLocation.parse("test:original"), ResourceLocation.parse("extension:decorated"));
+		List<String> ids = RecipeIdClipboardHandler.getRecipeIdsForCopy(layout(category, "generated", sources), INGOT, unusedManager(), new TestFocusFactory());
+		assertEquals(List.of("test:original", "extension:decorated"), ids);
+		assertEquals("test:original\nextension:decorated", RecipeIdClipboardHandler.toClipboardText(ids));
+		assertEquals(ResourceLocation.parse("test:/generated"), category.getRegistryName("generated"));
+		assertTrue(RecipeIdClipboardHandler.getRecipeIdsForCopy(layout(category, "generated"), INGOT, unusedManager(), new TestFocusFactory()).isEmpty());
 	}
 
 	@Test
@@ -235,6 +244,7 @@ public class RecipeClipboardTest {
 			(proxy, method, args) -> switch (method.getName()) {
 				case "getRecipeType" -> recipeType;
 				case "getRegistryName" -> recipe.equals(args[0]) ? recipeUid : null;
+				case "getSourceRecipeIds" -> recipe.equals(args[0]) && recipeUid != null && !recipeUid.getPath().startsWith("/") ? List.of(recipeUid) : List.of();
 				default -> throw new UnsupportedOperationException(method.getName());
 			}
 		);
@@ -242,6 +252,10 @@ public class RecipeClipboardTest {
 	}
 
 	private static IRecipeLayoutDrawable<String> layout(IRecipeCategory<String> category, String recipe) {
+		return layout(category, recipe, category.getSourceRecipeIds(recipe));
+	}
+
+	private static IRecipeLayoutDrawable<String> layout(IRecipeCategory<String> category, String recipe, List<ResourceLocation> sourceIds) {
 		@SuppressWarnings("unchecked")
 		IRecipeLayoutDrawable<String> layout = (IRecipeLayoutDrawable<String>) Proxy.newProxyInstance(
 			RecipeClipboardTest.class.getClassLoader(),
@@ -249,6 +263,7 @@ public class RecipeClipboardTest {
 			(proxy, method, args) -> switch (method.getName()) {
 				case "getRecipeCategory" -> category;
 				case "getRecipe" -> recipe;
+				case "getSourceRecipeIds" -> sourceIds;
 				default -> throw new UnsupportedOperationException(method.getName());
 			}
 		);

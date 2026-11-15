@@ -25,17 +25,19 @@ public final class CommandUtil {
 		this.serverConnection = serverConnection;
 	}
 
-	/**
-	 * /give &lt;player&gt; &lt;item&gt; [amount]
-	 * <p>
-	 * {@link CreativeModeInventoryScreen} has special client-side handling for itemStacks, just give the item on the client
-	 */
 	public void giveStack(ItemStack itemStack, GiveAmount giveAmount) {
-		giveStack(itemStack, giveAmount.getAmountForStack(itemStack));
+		giveStack(itemStack, giveAmount, clientConfig.giveMode().get());
 	}
 
 	public void giveStack(ItemStack itemStack, int amount) {
-		final GiveMode giveMode = clientConfig.giveMode().getValue();
+		giveStackWithAmount(itemStack, amount, clientConfig.giveMode().get());
+	}
+
+	public void giveStack(ItemStack itemStack, GiveAmount giveAmount, GiveMode giveMode) {
+		giveStackWithAmount(itemStack, giveAmount.getAmountForStack(itemStack), giveMode);
+	}
+
+	private void giveStackWithAmount(ItemStack itemStack, int amount, GiveMode giveMode) {
 		Minecraft minecraft = Minecraft.getInstance();
 		LocalPlayer player = minecraft.player;
 		if (player == null) {

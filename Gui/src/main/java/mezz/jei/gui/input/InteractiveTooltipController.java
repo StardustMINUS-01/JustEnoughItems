@@ -4,6 +4,12 @@ import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.tooltip.IInteractiveClientTooltipComponent;
 import mezz.jei.api.gui.tooltip.TooltipCloseReason;
 import mezz.jei.common.Internal;
+import mezz.jei.common.input.IGuiInputLayer;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.MouseUtil;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import java.util.Optional;
 import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.ITooltipStackAccessInternal;
 import mezz.jei.common.gui.TooltipRenderScope;
@@ -22,8 +28,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Single client tooltip host. Platform hooks call this before ordinary input routing. */
-public final class InteractiveTooltipController implements IPinnedTooltipHolder {
+/** Single client tooltip host, with interactions captured by the GUI input controller. */
+public final class InteractiveTooltipController implements IPinnedTooltipHolder, IGuiInputLayer, ITextInputHandler {
 	public static final InteractiveTooltipController INSTANCE = new InteractiveTooltipController();
 	private @Nullable TooltipInteractionSession session;
 	private @Nullable Screen screen;
@@ -42,14 +48,133 @@ public final class InteractiveTooltipController implements IPinnedTooltipHolder 
 	private int width;
 	private int height;
 	private final Set<Integer> pendingReleases = new HashSet<>();
+	private final Set<Integer> routedButtons = new HashSet<>();
 	private final Set<Integer> pendingKeyReleases = new HashSet<>();
 
 	private InteractiveTooltipController() {}
 
 	public void install() { close(TooltipCloseReason.RUNTIME_STOPPED); enabled = true; }
 	public void stop() { close(TooltipCloseReason.RUNTIME_STOPPED); enabled = false; }
-	public boolean hasKeyboardFocus() { return session != null && session.hasFocus(); }
+	public boolean hasKeyboardFocus() { return session != null && (session.hasFocus() || session.hasCapture()); }
 	public boolean isRendering() { return rendering; }
+
+	@Override
+	public boolean hasKeyboardPriority() {
+		return session != null && session.isActive();
+	}
+
+	public InputArea createInputArea() {
+		return InputArea.builder("Interactive tooltip", this).controls(this).build();
+	}
+
+	@Override
+	public void update(double mouseX, double mouseY) {
+		update();
+	}
+
+	@Override
+	public boolean isMouseOver(double mouseX, double mouseY) {
+		return session != null && (session.hasCapture() || session.isMouseOver(mouseX, mouseY) || inside(mouseX, mouseY));
+	}
+
+	@Override
+	public void draw(GuiGraphics graphics, int mouseX, int mouseY) {
+		draw(graphics);
+	}
+
+	@Override
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+		update();
+		TooltipInteractionSession current = session;
+		if (current == null) {
+			return Optional.empty();
+		}
+		if (input.isKeyboardInput()) {
+			return input.ifKeyboardEvent(this::keyPressed) ? Optional.of(new IInputInteraction() {
+				@Override
+				public void complete(UserInput ignored) {
+				}
+
+				@Override
+				public boolean consumesCharacters() {
+					return !current.hasFocus();
+				}
+			}) : Optional.empty();
+		}
+		int button = input.getKey().getValue();
+		if (!mousePressed(input.getMouseX(), input.getMouseY(), button, getMouseModifiers(input))) {
+			return Optional.empty();
+		}
+		routedButtons.add(button);
+		return Optional.of(new IInputInteraction() {
+			@Override
+			public void complete(UserInput release) {
+				routedButtons.remove(button);
+				pendingReleases.remove(button);
+				update();
+				if (session == current) {
+					current.mouseReleased(release.getMouseX(), release.getMouseY(), button, getMouseModifiers(release));
+				}
+			}
+
+			@Override
+			public void drag(double x, double y, InputConstants.Key key, double dx, double dy) {
+				update();
+				if (session == current) {
+					current.mouseDragged(x, y, button, dx, dy);
+				}
+			}
+
+			@Override
+			public boolean capturesMouseMovement() {
+				return true;
+			}
+
+			@Override
+			public boolean keepsCaptureOnRepeatedPress() {
+				return true;
+			}
+
+			@Override
+			public void cancel() {
+				routedButtons.remove(button);
+				current.cancelInteraction(button);
+			}
+		});
+	}
+
+	private static int getMouseModifiers(UserInput input) {
+		return input.getModifiers() |
+			(Screen.hasShiftDown() ? GLFW.GLFW_MOD_SHIFT : 0) |
+			(Screen.hasControlDown() ? GLFW.GLFW_MOD_CONTROL : 0) |
+			(Screen.hasAltDown() ? GLFW.GLFW_MOD_ALT : 0);
+	}
+
+	@Override
+	public boolean scroll(double mouseX, double mouseY, double scrollX, double scrollY) {
+		return mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+	}
+
+	@Override
+	public void resetInput() {
+		close(TooltipCloseReason.SCREEN_CHANGED);
+	}
+
+	@Override
+	public void focus() {
+	}
+
+	@Override
+	public void clearFocus() {
+		if (session != null) {
+			session.clearFocus();
+		}
+	}
+
+	@Override
+	public boolean onCharTyped(char codePoint, int modifiers) {
+		return charTyped(codePoint, modifiers);
+	}
 
 	public boolean intercept(GuiGraphics graphics, Font font, List<ClientTooltipComponent> components, int x, int y, ClientTooltipPositioner positioner) {
 		if (!enabled || rendering || TooltipRenderScope.current() == null)
@@ -200,6 +325,18 @@ public final class InteractiveTooltipController implements IPinnedTooltipHolder 
 
 	private boolean inside(double x, double y) {
 		return session != null && attachedOwner == null && width > 0 && x >= left - 4 && x < left + width + 4 && y >= top - 4 && y < top + height + 4;
+	}
+
+	/** A standalone JEI screen may own this release instead of the global input controller. */
+	public boolean isMouseReleaseRouted(int button) {
+		return routedButtons.contains(button);
+	}
+
+	public boolean consumeStoppedRelease(InputConstants.Key key) {
+		if (enabled) {
+			return false;
+		}
+		return key.getType() == InputConstants.Type.MOUSE ? pendingReleases.remove(key.getValue()) : pendingKeyReleases.remove(key.getValue());
 	}
 
 	public boolean mousePressed(double x, double y, int button, int modifiers) {
