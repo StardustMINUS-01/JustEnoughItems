@@ -17,7 +17,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -41,7 +41,7 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Build with Gradle
-        run: ./gradlew assemble :Fabric:validateAccessWidener :FabricApi:validateAccessWidener --no-daemon
+        run: ./gradlew assemble verifyJarBytecode :Fabric:validateAccessWidener :FabricApi:validateAccessWidener --no-daemon
 
       - name: Copy together artifacts
         if: github.event_name == 'push'

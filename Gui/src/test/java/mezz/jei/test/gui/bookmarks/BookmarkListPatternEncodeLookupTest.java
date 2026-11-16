@@ -342,7 +342,7 @@ public class BookmarkListPatternEncodeLookupTest {
 		}
 	}
 
-	private static class TestRecipeCategory implements IRecipeCategory<String> {
+	static final class TestRecipeCategory implements IRecipeCategory<String> {
 		@Override
 		public RecipeType<String> getRecipeType() {
 			return RECIPE_TYPE;
@@ -369,6 +369,11 @@ public class BookmarkListPatternEncodeLookupTest {
 	}
 
 	private record TestRecipeLayout(String recipe) implements IRecipeLayoutDrawable<String> {
+		@Override
+		public java.util.List<net.minecraft.resources.ResourceLocation> getSourceRecipeIds() {
+			return java.util.List.of();
+		}
+
 		@Override
 		public void setPosition(int posX, int posY) {
 		}

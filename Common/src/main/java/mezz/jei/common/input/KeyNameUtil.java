@@ -1,18 +1,20 @@
 package mezz.jei.common.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-public class KeyNameUtil {
+public final class KeyNameUtil {
+	private KeyNameUtil() {
+
+	}
+
 	/**
 	 * The vanilla translation for left click is "LEFT BUTTON" and right click is "RIGHT BUTTON".
 	 * We want better names for these in tooltips, and so use our own localization.
 	 */
 	public static Component getKeyDisplayName(InputConstants.Key key) {
-		// The vanilla translation for left click is "LEFT BUTTON" and right click is "RIGHT BUTTON".
-		// We want better names for these in tooltips, and so use our own localization.
 		if (key.getType() == InputConstants.Type.MOUSE) {
 			int value = key.getValue();
 			if (value == InputConstants.MOUSE_BUTTON_LEFT) {

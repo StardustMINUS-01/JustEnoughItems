@@ -18,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 
 import java.util.Optional;
+import java.util.Objects;
 public class RecipeBookmark<R, I> implements IBookmark {
 	private final IElement<I> element;
 	private final IRecipeCategory<R> recipeCategory;
@@ -187,6 +188,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 	public int hashCode() {
 		return Objects.hash(
 			equalityScope,
+			recipeCategory.getRecipeType(),
 			recipeUid,
 			displayRole,
 			recipeOutput.getType(),
@@ -199,6 +201,7 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		if (obj instanceof RecipeBookmark<?, ?> recipeBookmark) {
 			return Objects.equals(recipeBookmark.equalityScope, equalityScope) &&
 				recipeBookmark.recipeUid.equals(recipeUid) &&
+				recipeBookmark.recipeCategory.getRecipeType().equals(recipeCategory.getRecipeType()) &&
 				recipeBookmark.displayRole == displayRole &&
 				recipeBookmark.recipeOutput.getType().equals(recipeOutput.getType()) &&
 				ingredientsEqual(recipeBookmark.recipeOutput.getIngredient(), recipeOutput.getIngredient());

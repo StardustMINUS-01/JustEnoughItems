@@ -6,10 +6,10 @@ import mezz.jei.api.constants.ModIds;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.builder.IClickableIngredientFactory;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.buttons.IButtonState;
 import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.handlers.IGuiContainerHandler;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -27,9 +27,9 @@ import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
-import mezz.jei.api.runtime.IClickableIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
+import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
@@ -37,7 +37,6 @@ import mezz.jei.common.platform.IPlatformRegistry;
 import mezz.jei.common.platform.IPlatformScreenHelper;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.common.util.MathUtil;
 import mezz.jei.debug.ingredients.DebugIngredient;
 import mezz.jei.debug.ingredients.DebugIngredientHelper;
 import mezz.jei.debug.ingredients.DebugIngredientListFactory;
@@ -47,6 +46,8 @@ import mezz.jei.debug.ingredients.ErrorIngredientHelper;
 import mezz.jei.debug.ingredients.ErrorIngredientListFactory;
 import mezz.jei.debug.ingredients.ErrorIngredientRenderer;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.BrewingStandScreen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.registries.Registries;
@@ -68,11 +69,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 @JeiPlugin
 public class JeiDebugPlugin implements IModPlugin {
 	private @Nullable DebugRecipeCategory<?> debugRecipeCategory;
+	private @Nullable IScreenHelper screenHelper;
 
 	@Override
 	public ResourceLocation getPluginUid() {
@@ -238,7 +239,8 @@ public class JeiDebugPlugin implements IModPlugin {
 
 		registration.addRecipes(DebugRecipeCategory.TYPE, List.of(
 			new DebugRecipe(),
-			new DebugRecipe()
+			new DebugRecipe(),
+			DebugRecipe.createLargeIngredientList(registration.getIngredientManager())
 		));
 
 		registration.addRecipes(DebugFocusRecipeCategory.TYPE, List.of(
@@ -290,19 +292,12 @@ public class JeiDebugPlugin implements IModPlugin {
 				);
 			}
 
-			@Override
-			public Optional<? extends IClickableIngredient<?>> getClickableIngredientUnderMouse(IClickableIngredientFactory factory, BrewingStandScreen containerScreen, double mouseX, double mouseY) {
-				Rect2i area = new Rect2i(0, 0, 10, 10);
-				if (MathUtil.contains(area, mouseX, mouseY)) {
-					return factory.createBuilder(new ItemStack(Items.BOW))
-						.buildWithArea(area);
-				}
-				return Optional.empty();
-			}
 		});
 
 		registration.addGhostIngredientHandler(BrewingStandScreen.class, new DebugGhostIngredientHandler<>(ingredientManager));
 		registration.addGhostIngredientHandler(BrewingStandScreen.class, new DebugGhostIngredientHandlerTwo<>(ingredientManager));
+
+		registration.addGlobalGuiHandler(new DebugExclusionAreaHandler(this::screenHasGuiProperties));
 	}
 
 	@Override
@@ -355,6 +350,13 @@ public class JeiDebugPlugin implements IModPlugin {
 
 		registration.addTypedRecipeManagerPlugin(RecipeTypes.CRAFTING, new DebugSimpleRecipeManagerPlugin());
 
+		if (DebugConfig.isDebugRecipeButtonsEnabled()) {
+			registerDebugRecipeButtons(registration);
+		}
+	}
+
+	private static void registerDebugRecipeButtons(IAdvancedRegistration registration) {
+		IDrawable debugButtonIcon = registration.getJeiHelpers().getGuiHelper().createDrawableItemStack(new ItemStack(Items.OAK_SAPLING));
 		IRecipeButtonControllerFactory debugButton = new IRecipeButtonControllerFactory() {
 			@Override
 			public <T> IIconButtonController createButtonController(IRecipeLayoutDrawable<T> recipeLayoutDrawable) {
@@ -384,10 +386,26 @@ public class JeiDebugPlugin implements IModPlugin {
 	@Override
 	public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
 		ErrorUtil.assertMainThread();
+		this.screenHelper = jeiRuntime.getScreenHelper();
 		if (debugRecipeCategory != null) {
 			debugRecipeCategory.setRuntime(jeiRuntime);
 		}
 		IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 		ingredientManager.addIngredientsAtRuntime(DebugIngredient.TYPE, DebugIngredientListFactory.create(10, 20));
+	}
+
+	@Override
+	public void onRuntimeUnavailable() {
+		this.screenHelper = null;
+	}
+
+	private boolean screenHasGuiProperties() {
+		IScreenHelper screenHelper = this.screenHelper;
+		if (screenHelper == null) {
+			return false;
+		}
+		Screen screen = Minecraft.getInstance().screen;
+		return screen != null && screenHelper.getGuiProperties(screen)
+			.isPresent();
 	}
 }

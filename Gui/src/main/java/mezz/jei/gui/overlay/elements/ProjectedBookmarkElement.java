@@ -17,7 +17,7 @@ import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.overlay.bookmarks.BookmarkAmountFormatter;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.util.FocusUtil;
 import org.jetbrains.annotations.Nullable;
@@ -46,6 +46,10 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 		this.bookmarks = Optional.ofNullable(bookmarks);
 		this.permutationTooltipState = bookmarks == null ? new BookmarkCandidateTooltipState() : bookmarks.getCandidateTooltipState();
 		this.permutationKeys = List.copyOf(displayEntry.metadata().permutations());
+	}
+
+	public static IElement<?> getSourceElement(IElement<?> element) {
+		return element instanceof ProjectedBookmarkElement<?> projected ? projected.delegate : element;
 	}
 
 	@Override
@@ -114,8 +118,8 @@ public class ProjectedBookmarkElement<T> implements IElement<T> {
 	}
 
 	@Override
-	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
-		return delegate.handleClick(input, keyBindings);
+	public Optional<mezz.jei.common.input.interaction.InputAction> prepareAction(UserInput input, IInternalKeyMappings keyBindings) {
+		return delegate.prepareAction(input, keyBindings);
 	}
 
 	@Override

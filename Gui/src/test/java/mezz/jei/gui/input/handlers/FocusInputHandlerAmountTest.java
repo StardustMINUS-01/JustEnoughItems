@@ -23,45 +23,45 @@ public class FocusInputHandlerAmountTest {
 
 	@Test
 	public void mousePickupKeepsGiveAmount() {
-		assertEquals(1, CheatInputHandler.resolveGiveAmount(
+		assertEquals(1, IngredientCommands.resolveGiveAmount(
 			GiveMode.MOUSE_PICKUP, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33
 		));
-		assertEquals(64, CheatInputHandler.resolveGiveAmount(
+		assertEquals(64, IngredientCommands.resolveGiveAmount(
 			GiveMode.MOUSE_PICKUP, GiveAmount.MAX, stack(Items.DIAMOND), Optional.of(8L), 33
 		));
 	}
 
 	@Test
 	public void inventoryUsesScrollStepValue() {
-		assertEquals(33, CheatInputHandler.resolveGiveAmount(
+		assertEquals(33, IngredientCommands.resolveGiveAmount(
 			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 33
 		));
 	}
 
 	@Test
 	public void inventoryUsesOneStackWhenScrollStepIsZero() {
-		assertEquals(64, CheatInputHandler.resolveGiveAmount(
+		assertEquals(64, IngredientCommands.resolveGiveAmount(
 			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 0
 		));
 	}
 
 	@Test
 	public void inventoryNonStackableUsesOneStackWhenScrollStepIsZero() {
-		assertEquals(1, CheatInputHandler.resolveGiveAmount(
+		assertEquals(1, IngredientCommands.resolveGiveAmount(
 			GiveMode.INVENTORY, GiveAmount.MAX, stack(Items.DIAMOND_SWORD), Optional.empty(), 0
 		));
 	}
 
 	@Test
 	public void inventoryBookmarkAmountTakesPriority() {
-		assertEquals(8, CheatInputHandler.resolveGiveAmount(
+		assertEquals(8, IngredientCommands.resolveGiveAmount(
 			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33
 		));
 	}
 
 	@Test
 	public void inventoryBookmarkAmountClampsToIntMax() {
-		assertEquals(Integer.MAX_VALUE, CheatInputHandler.resolveGiveAmount(
+		assertEquals(Integer.MAX_VALUE, IngredientCommands.resolveGiveAmount(
 			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(3_000_000_000L), 0
 		));
 	}

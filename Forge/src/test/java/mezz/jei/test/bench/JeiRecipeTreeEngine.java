@@ -63,7 +63,7 @@ public final class JeiRecipeTreeEngine {
 		IIngredientManager ingredientManager = builder.build();
 
 		Comparator<RecipeType<?>> recipeTypeComparator = Comparator.comparing(recipeType -> recipeType.getUid().toString());
-		RecipeMap inputRecipeMap = new RecipeMap(recipeTypeComparator, ingredientManager, RecipeIngredientRole.INPUT);
+		RecipeMap inputRecipeMap = new RecipeMap(ingredientManager, RecipeIngredientRole.INPUT);
 		for (TestRecipe recipe : recipes) {
 			inputRecipeMap.addRecipe(RECIPE_TYPE, recipe, role -> {
 				if (role != RecipeIngredientRole.INPUT) {

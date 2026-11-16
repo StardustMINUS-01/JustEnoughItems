@@ -1,6 +1,7 @@
 package mezz.jei.api.recipe.category;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
@@ -245,15 +246,20 @@ public interface IRecipeCategory<T> {
 	}
 
 	/**
-	 * Return the registry name of the recipe here.
-	 * With advanced tooltips on, this will show on the output item's tooltip.
+	 * Return a stable identifier for this JEI recipe display, unique within its recipe type.
+	 * Generated displays may use synthetic identifiers for bookmarking. Return underlying recipe
+	 * identifiers from {@link #getSourceRecipeIds(Object)} for advanced tooltips and copying recipe IDs.
 	 *
 	 * This will also show the modId when the recipe modId and output item modId do not match.
 	 * This lets the player know where the recipe came from.
 	 *
 	 * Since 15.5.0, this is also used for bookmarking recipes.
+	 * <p>
+	 * A generated display should use a synthetic identifier whose path starts with {@code /}.
+	 * Return its underlying recipe identifiers from {@link #getSourceRecipeIds(Object)}
+	 * for advanced tooltips and copying recipe IDs.
 	 *
-	 * @return the registry name of the recipe, or null if there is none
+	 * @return the JEI display identifier, or null if there is none
 	 *
 	 * @since 9.3.0
 	 */
@@ -263,5 +269,30 @@ public interface IRecipeCategory<T> {
 			return vanillaRecipe.getId();
 		}
 		return null;
+	}
+
+	/**
+	 * Return the identifiers of the underlying recipes represented by this JEI display.
+	 * These identifiers are shown in advanced tooltips and used when copying recipe IDs.
+	 * <p>
+	 * Return only actual recipe identifiers, excluding synthetic JEI display identifiers,
+	 * serializer identifiers, and auxiliary recipes consulted to calculate the display.
+	 * Return an empty list if the display has no underlying recipe.
+	 * The list and its elements must not be null, and identifiers must be distinct and in a stable order.
+	 * <p>
+	 * The default uses {@link #getRegistryName(Object)}, excluding {@code null} and synthetic identifiers
+	 * whose paths start with {@code /}. Override when the underlying recipe identifiers differ.
+	 * Source identifiers do not affect bookmarks.
+	 * Decorators may modify these IDs for a layout; use {@link IRecipeLayoutDrawable#getSourceRecipeIds()}
+	 * to get the resolved IDs for that layout.
+	 *
+	 * @since 15.70.0
+	 */
+	default List<ResourceLocation> getSourceRecipeIds(T recipe) {
+		ResourceLocation identifier = getRegistryName(recipe);
+		if (identifier == null || identifier.getPath().startsWith("/")) {
+			return List.of();
+		}
+		return List.of(identifier);
 	}
 }

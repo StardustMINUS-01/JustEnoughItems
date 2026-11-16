@@ -14,7 +14,22 @@ public final class RecipeSearchTextField extends GuiTextFieldFilter {
 	}
 
 	private RecipeSearchTextField(Component placeholder) {
-		super(() -> false, placeholder);
+		super(() -> false, mezz.jei.common.Internal.getClientConfigs().getClientConfig(), new mezz.jei.gui.search.ISearchCompletionProvider() {
+			@Override
+			public long getCompletionRevision() {
+				return 0;
+			}
+
+			@Override
+			public java.util.Collection<mezz.jei.common.search.PrefixInfo<mezz.jei.gui.ingredients.IListElementInfo<?>, mezz.jei.gui.ingredients.IListElement<?>>> getAllPrefixInfos() {
+				return java.util.List.of();
+			}
+
+			@Override
+			public java.util.Collection<mezz.jei.gui.ingredients.IListElementInfo<?>> getAllElementInfos() {
+				return java.util.List.of();
+			}
+		}, new mezz.jei.gui.input.focus.GuiKeyboardFocus());
 		this.placeholder = placeholder;
 		setTextColor(0xFFFFFFFF);
 	}

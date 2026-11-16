@@ -636,6 +636,11 @@ public class BookmarkListVirtualCircuitTest {
 		List<List<@Nullable ITypedIngredient<?>>> outputs
 	) implements IRecipeLayoutDrawable<Object> {
 		@Override
+		public java.util.List<net.minecraft.resources.ResourceLocation> getSourceRecipeIds() {
+			return java.util.List.of();
+		}
+
+		@Override
 		public void setPosition(int posX, int posY) {
 		}
 

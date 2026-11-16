@@ -6,7 +6,7 @@ import mezz.jei.gui.bookmarks.IBookmark;
 
 import java.util.Optional;
 
-class GroupPanelDragTarget implements IBookmarkDragTarget {
+class GroupPanelDragTarget implements BookmarkGroupDropTarget {
 	private final ImmutableRect2i area;
 	private final IBookmark targetBookmark;
 	private final int targetGroupId;

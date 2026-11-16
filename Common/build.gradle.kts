@@ -1,3 +1,4 @@
+import mezz.jei.gradle.gradleProperty
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
@@ -9,13 +10,21 @@ plugins {
     `maven-publish`
 }
 
+repositories {
+    maven("https://maven.blamejared.com/") {
+        content { includeGroup("net.mezzdev.config") }
+    }
+}
+
 // gradle.properties
-val jUnitVersion: String by extra
-val minecraftVersion: String by extra
-val modId: String by extra
-val modJavaVersion: String by extra
-val bakedSubstringIndexVersion: String by extra
-val suffixtreeVersion: String by extra
+val jUnitVersion = gradleProperty("jUnitVersion")
+val minecraftVersion = gradleProperty("minecraftVersion")
+val modId = gradleProperty("modId")
+val modJavaVersion = gradleProperty("modJavaVersion")
+val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
+val mezzConfigApiDependency: String by rootProject.extra
+val mezzConfigForgeDependency: String by rootProject.extra
+val luceneVersion = gradleProperty("luceneVersion")
 
 val baseArchivesName = "${modId}-${minecraftVersion}-common"
 base {
@@ -69,37 +78,15 @@ dependencies {
         version = "0.8.5"
     )
     implementation(
-        group = "com.google.guava",
-        name = "guava",
-        version = "31.1-jre"
-    )
-    implementation(
         group = "org.jetbrains",
         name = "annotations",
-        version = "23.0.0"
+        version = "26.1.0"
     )
-    implementation(
-        group = "it.unimi.dsi",
-        name = "fastutil",
-        version = "8.5.6"
-    )
-    implementation(
-        group = "org.apache.logging.log4j",
-        name = "log4j-api",
-        version = "2.17.0"
-    )
-    implementation(
-        group = "net.mezzdev",
-        name = "baked-substring-index",
-        version = bakedSubstringIndexVersion
-    ) {
+    implementation("net.mezzdev:deduplicating-runner:$deduplicatingRunnerVersion") {
         isTransitive = false
     }
-    implementation(
-        group = "net.mezzdev",
-        name = "suffixtree",
-        version = suffixtreeVersion
-    ) {
+    implementation(mezzConfigApiDependency)
+    implementation("org.apache.lucene:lucene-core:${luceneVersion}") {
         isTransitive = false
     }
     dependencyProjects.forEach {
@@ -112,6 +99,7 @@ dependencies {
         name = "junit-jupiter",
         version = jUnitVersion
     )
+    testImplementation(mezzConfigForgeDependency)
     testRuntimeOnly(
         group = "org.junit.platform",
         name = "junit-platform-launcher"
@@ -154,13 +142,20 @@ publishing {
             artifact(tasks.jar)
             artifact(tasks.named("sourcesJar"))
 
-            val dependencyInfos = dependencyProjects.map {
+            val mezzConfigApiDependencyInfo = dependencyInfo(mezzConfigApiDependency)
+            val dependencyInfos = listOf(mezzConfigApiDependencyInfo) + dependencyProjects.map {
                 mapOf(
                     "groupId" to it.group,
                     "artifactId" to it.base.archivesName.get(),
                     "version" to it.version
                 )
-            }
+            } + listOf(
+                mapOf(
+                    "groupId" to "net.mezzdev",
+                    "artifactId" to "deduplicating-runner",
+                    "version" to deduplicatingRunnerVersion
+                )
+            )
 
             pom.withXml {
                 val dependenciesNode = asNode().appendNode("dependencies")
@@ -179,6 +174,15 @@ publishing {
             maven(deployDir)
         }
     }
+}
+
+fun dependencyInfo(notation: String): Map<String, String> {
+    val (groupId, artifactId, version) = notation.split(":")
+    return mapOf(
+        "groupId" to groupId,
+        "artifactId" to artifactId,
+        "version" to version
+    )
 }
 
 idea {

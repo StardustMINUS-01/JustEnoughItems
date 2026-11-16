@@ -2,24 +2,23 @@ package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
-import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayActivator;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.ConsumedInput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
+
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class RecipeAutoCraftingInputHandler implements IUserInputHandler {
-	private static final Logger LOGGER = LogManager.getLogger();
+public class RecipeAutoCraftingInputHandler implements IInputTarget {
 	@FunctionalInterface
 	public interface Activator {
 		boolean activate(UserInput input, IRecipeLayoutDrawable<?> recipeLayout, @Nullable AbstractContainerMenu containerMenu, Runnable onActivated);
@@ -52,35 +51,34 @@ public class RecipeAutoCraftingInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
-		boolean isCraftKey = BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems());
-		boolean mouseOver = recipeLayout.isMouseOver(mouseX, mouseY);
-		boolean outputUnderMouse = isOutputSlotUnderMouse(mouseX, mouseY);
-		if (!isCraftKey || !mouseOver || !outputUnderMouse) {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] INPUT-REJECT screen={} craftKey={} mouseOver={} outputUnderMouse={}",
-					screen.getClass().getSimpleName(), isCraftKey, mouseOver, outputUnderMouse);
-			}
+		if (!BookmarkAutoCraftingActivator.isAutoCraftingInput(input, keyBindings.getCraftItems()) ||
+			!recipeLayout.isMouseOver(mouseX, mouseY) ||
+			!isOutputSlotUnderMouse(mouseX, mouseY)
+		) {
 			return Optional.empty();
 		}
-		if (!BookmarkAutoCraftingActivator.claimAutoCraftingInput(input, keyBindings.getCraftItems())) {
-			if (DebugConfig.isDebugModeEnabled()) {
-				LOGGER.info("[Bug6] INPUT-CLAIM-FAIL screen={}", screen.getClass().getSimpleName());
-			}
+		if (input.isKeyboardInput() && !BookmarkAutoCraftingActivator.claimAutoCraftingInput(input, keyBindings.getCraftItems())) {
 			return Optional.empty();
 		}
 
-		@Nullable
 		AbstractContainerMenu containerMenu = parentContainerMenu.apply(screen);
 		if (activator.activate(input, recipeLayout, containerMenu, () -> onActivated.accept(screen))) {
-			return Optional.of(this);
-		}
-		if (DebugConfig.isDebugModeEnabled()) {
-			LOGGER.info("[Bug6] INPUT-ACTIVATOR-FAIL screen={} menu={}",
-				screen.getClass().getSimpleName(),
-				containerMenu == null ? "null" : containerMenu.getClass().getSimpleName());
+			if (input.isMouseInput()) {
+				return Optional.of(new InputAction(release -> {
+						if (BookmarkAutoCraftingActivator.claimAutoCraftingInput(release, keyBindings.getCraftItems())) {
+							try {
+								activator.activate(release, recipeLayout, containerMenu, () -> onActivated.accept(screen));
+							} finally {
+								BookmarkAutoCraftingActivator.releaseAutoCraftingInput(release.getKey());
+							}
+						}
+					})
+					.within((x, y) -> recipeLayout.isMouseOver(x, y) && isOutputSlotUnderMouse(x, y)));
+			}
+			return Optional.of(ConsumedInput.INSTANCE);
 		}
 		BookmarkAutoCraftingActivator.releaseAutoCraftingInput(input.getKey());
 		return Optional.empty();
@@ -89,7 +87,7 @@ public class RecipeAutoCraftingInputHandler implements IUserInputHandler {
 	private boolean isOutputSlotUnderMouse(double mouseX, double mouseY) {
 		return recipeLayout.getSlotUnderMouse(mouseX, mouseY)
 			.map(RecipeSlotUnderMouse::slot)
-			.map(slot -> slot.getRole() == RecipeIngredientRole.OUTPUT)
+			.map(slot -> slot.getRole() == mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT)
 			.orElse(false);
 	}
 }

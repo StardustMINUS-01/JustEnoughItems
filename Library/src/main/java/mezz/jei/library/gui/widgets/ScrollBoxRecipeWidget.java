@@ -4,9 +4,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.widgets.IScrollBoxWidget;
+import mezz.jei.api.gui.widgets.ScrollbarVisibility;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IJeiClientConfigs;
+import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.gui.elements.DrawableBlank;
 import mezz.jei.common.gui.elements.DrawableWrappedText;
 import mezz.jei.common.util.ImmutableRect2i;
@@ -19,10 +20,17 @@ import org.joml.Matrix4f;
 import java.util.List;
 
 public class ScrollBoxRecipeWidget extends AbstractScrollWidget implements IScrollBoxWidget, IJeiInputHandler {
+	private static final int DISCRETE_SCROLL_DISTANCE = 18;
 	private IDrawable contents = DrawableBlank.EMPTY;
 
 	public ScrollBoxRecipeWidget(int width, int height, int xPos, int yPos) {
 		super(new ImmutableRect2i(xPos, yPos, width, height));
+	}
+
+	@Override
+	public ScrollBoxRecipeWidget setScrollbarVisibility(ScrollbarVisibility visibility) {
+		super.setScrollbarVisibility(visibility);
+		return this;
 	}
 
 	@Override
@@ -83,12 +91,17 @@ public class ScrollBoxRecipeWidget extends AbstractScrollWidget implements IScro
 
 	@Override
 	protected float calculateScrollAmount(double scrollDeltaY) {
-		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
+		IClientConfigs jeiClientConfigs = Internal.getClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-		int smoothScrollRate = clientConfig.getSmoothScrollRate();
-
-		int totalHeight = contents.getHeight();
-		double scrollAmount = scrollDeltaY * smoothScrollRate;
-		return (float) (scrollAmount / (double) totalHeight);
+		int hiddenHeight = getHiddenAmount();
+		if (hiddenHeight == 0) {
+			return 0;
+		}
+		int scrollDistance = DISCRETE_SCROLL_DISTANCE;
+		if (clientConfig.smoothScrollingEnabled().get()) {
+			scrollDistance = clientConfig.smoothScrollRate().get();
+		}
+		double scrollAmount = scrollDeltaY * scrollDistance;
+		return (float) (scrollAmount / (double) hiddenHeight);
 	}
 }

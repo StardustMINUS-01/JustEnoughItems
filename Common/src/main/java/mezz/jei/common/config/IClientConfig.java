@@ -1,107 +1,301 @@
 package mezz.jei.common.config;
 
-import mezz.jei.api.runtime.config.IJeiConfigValue;
-import mezz.jei.common.config.file.IConfigListener;
+import mezz.jei.common.Internal;
+import net.mezzdev.config.api.value.IConfigValue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public interface IClientConfig {
-	int getConfigScreenTransparency();
+	int minRecipeGuiWidth = 198;
+
+	default int getConfigScreenTransparency() {
+		return configScreenTransparency().get();
+	}
+
+	default boolean isQuantityFieldEnabled() {
+		return quantityFieldEnabled().get();
+	}
+
+	default void addQuantityFieldEnabledListener(Consumer<Boolean> listener) {
+		Internal.registerRuntimeListenerRemoval(quantityFieldEnabled().addListener(change -> listener.accept(change.newValue())));
+	}
+
+	default boolean isShowRecipeHandlerIconEnabled() {
+		return showRecipeHandlerIconEnabled().get();
+	}
+
+	default int getFavoriteTreeDepth() {
+		return favoriteTreeDepth().get();
+	}
+
+	default BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode() {
+		return bookmarkRecipeMarkerMode().get();
+	}
+
 	int minRecipeGuiHeight = 175;
 	int defaultRecipeGuiHeight = 350;
 	int maximumRecipeGuiHeight = 7680;
 	boolean defaultCenterSearchBar = false;
 
-	boolean isCenterSearchBarEnabled();
+	IConfigValue<Boolean> overlaysEnabled();
 
-	void addCenterSearchBarEnabledListener(IConfigListener<Boolean> listener);
+	IConfigValue<SearchBarPosition> searchBarPosition();
 
-	boolean isQuantityFieldEnabled();
+	IConfigValue<Integer> maxRecipeGuiHeight();
 
-	void addQuantityFieldEnabledListener(IConfigListener<Boolean> listener);
+	IConfigValue<Boolean> quantityFieldEnabled();
 
-	void addMaxRecipeGuiHeightListener(IConfigListener<Integer> listener);
+	IConfigValue<Integer> configScreenTransparency();
 
-	boolean isLowMemorySlowSearchEnabled();
+	IConfigValue<Boolean> showRecipeHandlerIconEnabled();
 
-	void addLowMemorySlowSearchEnabledListener(IConfigListener<Boolean> listener);
+	IConfigValue<Integer> favoriteTreeDepth();
 
-	boolean isCatchRenderErrorsEnabled();
+	IConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode();
 
-	boolean isRecipeSyncWarningEnabled();
+	IConfigValue<Integer> recipeGuiWidth();
 
-	boolean isCheatToHotbarUsingHotkeysEnabled();
+	IConfigValue<Integer> maxRecipeGuiColumns();
 
-	boolean isAddingBookmarksToFrontEnabled();
+	IConfigValue<RecipeGuiNavigationMode> recipeGuiNavigationMode();
 
-	boolean isShowRecipeHandlerIconEnabled();
+	IConfigValue<Boolean> toastReflowEnabled();
 
-	int getFavoriteTreeDepth();
+	IConfigValue<Boolean> compactInventoryEffects();
 
-	boolean isBookmarkOutputAsRecipeEnabled();
+	IConfigValue<Boolean> hideIngredientsWhenNotSearching();
 
-	boolean isLookupFluidContentsEnabled();
+	IConfigValue<GiveMode> giveMode();
 
-	boolean isLookupBlockTagsEnabled();
+	IConfigValue<Boolean> cheatToHotbarUsingHotkeysEnabled();
 
-	GiveMode getGiveMode();
+	IConfigValue<Boolean> showHiddenIngredients();
 
-	boolean getShowHiddenIngredients();
+	IConfigValue<BookmarkAddPosition> bookmarkAddPosition();
 
-	List<BookmarkTooltipFeature> getBookmarkTooltipFeatures();
+	IConfigValue<Boolean> bookmarkOutputAsRecipe();
 
-	boolean isHoldShiftToShowBookmarkTooltipFeaturesEnabled();
+	IConfigValue<Boolean> bookmarkTooltipPreviewEnabled();
 
-	boolean isDragToRearrangeBookmarksEnabled();
+	IConfigValue<Boolean> bookmarkTooltipIngredientsEnabled();
 
-	BookmarkRecipeMarkerMode getBookmarkRecipeMarkerMode();
+	IConfigValue<Boolean> holdShiftToShowBookmarkTooltipFeaturesEnabled();
 
-	boolean isLookupHistoryEnabled();
+	IConfigValue<Boolean> dragToRearrangeBookmarksEnabled();
 
-	void setLookupHistoryEnabled(boolean enabled);
+	IConfigValue<Boolean> lookupHistoryEnabled();
 
-	void addLookupHistoryEnabledListener(IConfigListener<Boolean> listener);
+	IConfigValue<Integer> maxLookupHistoryRows();
 
-	int getMaxLookupHistoryRows();
+	IConfigValue<Integer> maxLookupHistoryColumns();
 
-	int getMaxLookupHistoryIngredients();
+	IConfigValue<Integer> maxLookupHistoryIngredients();
 
-	HistoryDisplaySide getLookupHistoryDisplaySide();
+	IConfigValue<HistoryDisplaySide> lookupHistoryDisplaySide();
 
-	void addLookupHistoryDisplaySideListener(IConfigListener<HistoryDisplaySide> listener);
+	IConfigValue<Boolean> ingredientsSummaryEnabled();
 
-	void addMaxLookupHistoryRowsListener(IConfigListener<Integer> listener);
+	IConfigValue<Boolean> showTagRecipesEnabled();
 
-	void addMaxLookupHistoryIngredientsListener(IConfigListener<Integer> listener);
+	IConfigValue<Boolean> catchRenderErrorsEnabled();
 
-	IJeiConfigValue<Boolean> recipeSlotCyclingEnabled();
+	IConfigValue<Boolean> recipeSyncWarningEnabled();
 
-	boolean isIngredientsSummaryEnabled();
+	IConfigValue<Boolean> lookupFluidContentsEnabled();
 
-	int getDragDelayMs();
+	IConfigValue<Boolean> lookupBlockTagsEnabled();
 
-	int getSmoothScrollRate();
+	IConfigValue<Boolean> showCreativeTabNamesEnabled();
 
-	int getMaxRecipeGuiHeight();
+	IConfigValue<Boolean> guiResizeEnabled();
 
-	List<IngredientSortStage> getIngredientSorterStages();
+	IConfigValue<Integer> dragDelayMs();
 
-	void addIngredientSorterStagesListener(IConfigListener<List<IngredientSortStage>> listener);
+	IConfigValue<Boolean> smoothScrollingEnabled();
 
-	Set<RecipeSorterStage> getRecipeSorterStages();
+	IConfigValue<Integer> smoothScrollRate();
 
-	void enableRecipeSorterStage(RecipeSorterStage stage);
+	IConfigValue<Boolean> searchCompletionEnabled();
 
-	void disableRecipeSorterStage(RecipeSorterStage stage);
+	IConfigValue<Integer> maxSearchCompletionRows();
 
-	boolean isTagContentTooltipEnabled();
+	IConfigValue<Boolean> recipeSlotCyclingEnabled();
 
-	boolean getHideSingleTagContentTooltipEnabled();
+	IConfigValue<List<IngredientSortStage>> ingredientSorterStages();
 
-	boolean isShowTagRecipesEnabled();
+	IConfigValue<Boolean> recipeSortingBookmarksEnabled();
 
-	boolean isShowCreativeTabNamesEnabled();
+	IConfigValue<Boolean> recipeSortingCraftableEnabled();
 
-	boolean isToastReflowEnabled();
+	IConfigValue<Boolean> tagContentTooltipEnabled();
+
+	IConfigValue<Boolean> hideSingleTagContentTooltipEnabled();
+
+	default boolean isCenterSearchBarEnabled() {
+		return searchBarPosition().get().isCentered();
+	}
+
+	default void addCenterSearchBarEnabledListener(Consumer<SearchBarPosition> listener) {
+		addListener(searchBarPosition(), listener);
+	}
+
+	default void addMaxRecipeGuiHeightListener(Consumer<Integer> listener) {
+		addListener(maxRecipeGuiHeight(), listener);
+	}
+
+	default boolean isCatchRenderErrorsEnabled() {
+		return catchRenderErrorsEnabled().get();
+	}
+
+	default boolean isRecipeSyncWarningEnabled() {
+		return recipeSyncWarningEnabled().get();
+	}
+
+	default boolean isCheatToHotbarUsingHotkeysEnabled() {
+		return cheatToHotbarUsingHotkeysEnabled().get();
+	}
+
+	default boolean isAddingBookmarksToFrontEnabled() {
+		return bookmarkAddPosition().get().isFront();
+	}
+
+	default boolean isBookmarkOutputAsRecipeEnabled() {
+		return bookmarkOutputAsRecipe().get();
+	}
+
+	default boolean isLookupFluidContentsEnabled() {
+		return lookupFluidContentsEnabled().get();
+	}
+
+	default boolean isLookupBlockTagsEnabled() {
+		return lookupBlockTagsEnabled().get();
+	}
+
+	default GiveMode getGiveMode() {
+		return giveMode().get();
+	}
+
+	default boolean getShowHiddenIngredients() {
+		return showHiddenIngredients().get();
+	}
+
+	default List<BookmarkTooltipFeature> getBookmarkTooltipFeatures() {
+		List<BookmarkTooltipFeature> features = new ArrayList<>();
+		if (bookmarkTooltipPreviewEnabled().get()) {
+			features.add(BookmarkTooltipFeature.PREVIEW);
+		}
+		if (bookmarkTooltipIngredientsEnabled().get()) {
+			features.add(BookmarkTooltipFeature.INGREDIENTS);
+		}
+		return List.copyOf(features);
+	}
+
+	default boolean isHoldShiftToShowBookmarkTooltipFeaturesEnabled() {
+		return holdShiftToShowBookmarkTooltipFeaturesEnabled().get();
+	}
+
+	default boolean isDragToRearrangeBookmarksEnabled() {
+		return dragToRearrangeBookmarksEnabled().get();
+	}
+
+	default boolean isLookupHistoryEnabled() {
+		return lookupHistoryEnabled().get();
+	}
+
+	default void setLookupHistoryEnabled(boolean enabled) {
+		lookupHistoryEnabled().set(enabled);
+	}
+
+	default void addLookupHistoryEnabledListener(Consumer<Boolean> listener) {
+		addListener(lookupHistoryEnabled(), listener);
+	}
+
+	default int getMaxLookupHistoryRows() {
+		return maxLookupHistoryRows().get();
+	}
+
+	default int getMaxLookupHistoryIngredients() {
+		return maxLookupHistoryIngredients().get();
+	}
+
+	default HistoryDisplaySide getLookupHistoryDisplaySide() {
+		return lookupHistoryDisplaySide().get();
+	}
+
+	default void addLookupHistoryDisplaySideListener(Consumer<HistoryDisplaySide> listener) {
+		addListener(lookupHistoryDisplaySide(), listener);
+	}
+
+	default void addMaxLookupHistoryRowsListener(Consumer<Integer> listener) {
+		addListener(maxLookupHistoryRows(), listener);
+	}
+
+	default void addMaxLookupHistoryIngredientsListener(Consumer<Integer> listener) {
+		addListener(maxLookupHistoryIngredients(), listener);
+	}
+
+	default boolean isIngredientsSummaryEnabled() {
+		return ingredientsSummaryEnabled().get();
+	}
+
+	default int getDragDelayMs() {
+		return dragDelayMs().get();
+	}
+
+	default int getSmoothScrollRate() {
+		return smoothScrollRate().get();
+	}
+
+	default int getMaxRecipeGuiHeight() {
+		return maxRecipeGuiHeight().get();
+	}
+
+	default List<IngredientSortStage> getIngredientSorterStages() {
+		return ingredientSorterStages().get();
+	}
+
+	default void addIngredientSorterStagesListener(Consumer<List<IngredientSortStage>> listener) {
+		addListener(ingredientSorterStages(), listener);
+	}
+
+	default Set<RecipeSorterStage> getRecipeSorterStages() {
+		return RecipeSorterStage.getEnabled(this);
+	}
+
+	default void enableRecipeSorterStage(RecipeSorterStage stage) {
+		stage.setEnabled(this, true);
+	}
+
+	default void disableRecipeSorterStage(RecipeSorterStage stage) {
+		stage.setEnabled(this, false);
+	}
+
+	default boolean isTagContentTooltipEnabled() {
+		return tagContentTooltipEnabled().get();
+	}
+
+	default boolean getHideSingleTagContentTooltipEnabled() {
+		return hideSingleTagContentTooltipEnabled().get();
+	}
+
+	default boolean isShowTagRecipesEnabled() {
+		return showTagRecipesEnabled().get();
+	}
+
+	default boolean isShowCreativeTabNamesEnabled() {
+		return showCreativeTabNamesEnabled().get();
+	}
+
+	default boolean isToastReflowEnabled() {
+		return toastReflowEnabled().get();
+	}
+
+	private static <T> void addListener(IConfigValue<T> value, Consumer<T> listener) {
+		Internal.registerRuntimeListenerRemoval(
+			value.addListener(change -> listener.accept(change.newValue()))
+		);
+	}
 }

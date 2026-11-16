@@ -11,11 +11,11 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.config.IJeiConfigValueSerializer.IDeserializeResult;
+import net.mezzdev.config.api.value.serializer.IDeserializeResult;
+import mezz.jei.common.Internal;
 import mezz.jei.common.config.file.JsonArrayFileHelper;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
+import mezz.jei.gui.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.common.transfer.RecipeTransferService;
-import mezz.jei.common.util.DeduplicatingRunner;
 import mezz.jei.common.util.PathUtil;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -27,6 +27,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.world.item.ItemStack;
+import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -58,7 +59,7 @@ public class BookmarkConfig implements IBookmarkConfig {
 	static final String MARKER_RECIPE = "R:";
 
 	private final Path jeiConfigurationDir;
-	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
+	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
 
 	private static Optional<Path> getPath(Path jeiConfigurationDir, String fileName) {
 		return ServerConfigPathUtil.getWorldPath(jeiConfigurationDir)
@@ -390,7 +391,7 @@ public class BookmarkConfig implements IBookmarkConfig {
 		IDeserializeResult<ITypedIngredient<?>> deserialized = ingredientSerializer.deserialize(serializedIngredient);
 		Optional<ITypedIngredient<?>> result = deserialized.getResult();
 		if (result.isEmpty()) {
-			List<String> errors = deserialized.getErrors();
+			List<String> errors = deserialized.getDiagnostics();
 			LOGGER.warn("Failed to load bookmarked ingredients from string: \n{}\n{}", serializedIngredient, String.join(", ", errors));
 		} else {
 			return IngredientBookmark.create(result.get(), ingredientManager);
@@ -419,7 +420,7 @@ public class BookmarkConfig implements IBookmarkConfig {
 		IDeserializeResult<RecipeBookmark<?, ?>> deserialized = recipeBookmarkSerializer.deserialize(serializedRecipe);
 		Optional<RecipeBookmark<?, ?>> result = deserialized.getResult();
 		if (result.isEmpty()) {
-			List<String> errors = deserialized.getErrors();
+			List<String> errors = deserialized.getDiagnostics();
 			LOGGER.warn("Failed to load bookmarked recipe from string: \n{}\n{}", serializedRecipe, String.join(", ", errors));
 		} else {
 			return result.get();

@@ -1,5 +1,6 @@
 package mezz.jei.gui.input;
 
+import mezz.jei.common.input.UserInput;
 import mezz.jei.common.input.IInternalKeyMappings;
 
 public final class BookmarkKeyInputs {

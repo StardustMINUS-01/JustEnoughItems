@@ -1,6 +1,7 @@
 package mezz.jei.gui.input;
 
 import mezz.jei.api.runtime.IJeiKeyMapping;
+import mezz.jei.common.input.UserInput;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
 

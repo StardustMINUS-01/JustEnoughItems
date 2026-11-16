@@ -1,66 +1,98 @@
 package mezz.jei.gui.overlay.ingredients;
 
 import mezz.jei.common.config.IIngredientGridConfig;
-import mezz.jei.common.util.ImmutablePoint2i;
+import mezz.jei.common.gui.elements.Scrollbar;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.ImmutableSize2i;
 import mezz.jei.gui.util.AlignmentUtil;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
 
 public final class IngredientGridScrollbarLayout {
 	private IngredientGridScrollbarLayout() {
-
 	}
 
 	public static IngredientGridWithNavigationLayout calculate(
 		IIngredientGridConfig gridConfig,
 		ImmutableRect2i availableArea,
 		Set<ImmutableRect2i> guiExclusionAreas,
-		@Nullable ImmutablePoint2i mouseExclusionPoint,
+		@org.jetbrains.annotations.Nullable mezz.jei.common.util.ImmutablePoint2i mouseExclusionPoint,
 		int ingredientCount
 	) {
-		return switch (gridConfig.getNavigationVisibility()) {
-			case ENABLED -> calculateForScrollbar(gridConfig, availableArea, guiExclusionAreas, true);
-			case DISABLED -> calculateForScrollbar(gridConfig, availableArea, guiExclusionAreas, false);
+		return calculate(gridConfig, availableArea, guiExclusionAreas, ingredientCount, false);
+	}
+
+	public static IngredientGridWithNavigationLayout calculate(
+		IIngredientGridConfig gridConfig,
+		ImmutableRect2i availableArea,
+		Set<ImmutableRect2i> guiExclusionAreas,
+		int ingredientCount,
+		boolean smoothScrolling
+	) {
+		IngredientGridWithNavigationLayout layout = switch (gridConfig.navigationVisibility().get()) {
+			case ENABLED -> calculateForScrollbar(gridConfig, availableArea, guiExclusionAreas, true, smoothScrolling);
+			case DISABLED -> calculateForScrollbar(gridConfig, availableArea, guiExclusionAreas, false, smoothScrolling);
 			case AUTO_HIDE -> calculateAutoHideScrollbar(
 				gridConfig,
 				availableArea,
 				guiExclusionAreas,
-				ingredientCount
+				ingredientCount,
+				smoothScrolling
 			);
 		};
+		return layout.shrinkToFit(gridConfig, guiExclusionAreas, ingredientCount);
 	}
 
 	private static IngredientGridWithNavigationLayout calculateAutoHideScrollbar(
 		IIngredientGridConfig gridConfig,
 		ImmutableRect2i availableArea,
 		Set<ImmutableRect2i> guiExclusionAreas,
-		int ingredientCount
+		int ingredientCount,
+		boolean smoothScrolling
 	) {
 		IngredientGridWithNavigationLayout layoutWithoutScrollbar = calculateForScrollbar(
 			gridConfig,
 			availableArea,
 			guiExclusionAreas,
-			false
+			false,
+			smoothScrolling
+		);
+		int fullyVisibleSlotCount = getFullyVisibleSlotCount(
+			layoutWithoutScrollbar,
+			guiExclusionAreas,
+			smoothScrolling
 		);
 		int pageCountWithoutScrollbar = IngredientGridPageState.getPageCount(
 			ingredientCount,
-			layoutWithoutScrollbar.availableSlotCount()
+			fullyVisibleSlotCount
 		);
 		boolean scrollbarEnabled = layoutWithoutScrollbar.hasRoom() && pageCountWithoutScrollbar > 1;
 		if (scrollbarEnabled) {
-			return calculateForScrollbar(gridConfig, availableArea, guiExclusionAreas, true);
+			return calculateForScrollbar(gridConfig, availableArea, guiExclusionAreas, true, smoothScrolling);
 		}
 		return layoutWithoutScrollbar;
+	}
+
+	private static int getFullyVisibleSlotCount(
+		IngredientGridWithNavigationLayout layout,
+		Set<ImmutableRect2i> guiExclusionAreas,
+		boolean smoothScrolling
+	) {
+		ImmutableRect2i ingredientGridArea = layout.ingredientGridArea();
+		int partialRowHeight = ingredientGridArea.height() % IngredientGridLayout.INGREDIENT_HEIGHT;
+		if (!smoothScrolling || partialRowHeight == 0) {
+			return layout.availableSlotCount();
+		}
+		ImmutableRect2i fullyVisibleGridArea = ingredientGridArea.cropBottom(partialRowHeight);
+		return IngredientGridLayout.calculateAvailableSlotCount(fullyVisibleGridArea, guiExclusionAreas);
 	}
 
 	private static IngredientGridWithNavigationLayout calculateForScrollbar(
 		IIngredientGridConfig gridConfig,
 		ImmutableRect2i availableArea,
 		Set<ImmutableRect2i> guiExclusionAreas,
-		boolean scrollbarEnabled
+		boolean scrollbarEnabled,
+		boolean smoothScrolling
 	) {
 		ImmutableRect2i availableGridArea = IngredientGridWithNavigationLayout.getAvailableGridArea(
 			gridConfig,
@@ -69,14 +101,13 @@ public final class IngredientGridScrollbarLayout {
 		);
 		final ImmutableRect2i ingredientGridArea;
 		if (scrollbarEnabled) {
-			ingredientGridArea = calculateScrollbarGridArea(gridConfig, availableGridArea);
+			ingredientGridArea = calculateScrollbarGridArea(gridConfig, availableGridArea, smoothScrolling);
 		} else {
-			ingredientGridArea = IngredientGridLayout.calculateBounds(gridConfig, availableGridArea);
+			ingredientGridArea = IngredientGridLayout.calculateBounds(gridConfig, availableGridArea, smoothScrolling);
 		}
 		int availableSlotCount = IngredientGridLayout.calculateAvailableSlotCount(
 			ingredientGridArea,
-			guiExclusionAreas,
-			null
+			guiExclusionAreas
 		);
 
 		ImmutableRect2i slotBackgroundArea = IngredientGridWithNavigationLayout.calculateSlotBackgroundArea(
@@ -97,7 +128,8 @@ public final class IngredientGridScrollbarLayout {
 
 	private static ImmutableRect2i calculateScrollbarGridArea(
 		IIngredientGridConfig gridConfig,
-		ImmutableRect2i availableGridArea
+		ImmutableRect2i availableGridArea,
+		boolean smoothScrolling
 	) {
 		if (availableGridArea.isEmpty()) {
 			return ImmutableRect2i.EMPTY;
@@ -106,7 +138,8 @@ public final class IngredientGridScrollbarLayout {
 		ImmutableRect2i availableAreaWithoutScrollbar = availableGridArea.cropRight(calculateScrollbarReservedGridWidth(gridConfig));
 		ImmutableSize2i ingredientGridSize = IngredientGridLayout.calculateSize(
 			gridConfig,
-			availableAreaWithoutScrollbar
+			availableAreaWithoutScrollbar,
+			smoothScrolling
 		);
 		if (ingredientGridSize.equals(ImmutableSize2i.EMPTY)) {
 			return ImmutableRect2i.EMPTY;
@@ -115,25 +148,25 @@ public final class IngredientGridScrollbarLayout {
 		return AlignmentUtil.align(
 			ingredientGridSize,
 			availableAreaWithoutScrollbar,
-			gridConfig.getHorizontalAlignment(),
-			gridConfig.getVerticalAlignment()
+			gridConfig.horizontalAlignment().get(),
+			gridConfig.verticalAlignment().get()
 		);
 	}
 
 	private static int calculateScrollbarExtraWidth(IIngredientGridConfig gridConfig) {
-		return calculateScrollbarOffsetFromGrid(gridConfig) + IngredientGridScrollbar.SCROLLBAR_WIDTH;
+		return calculateScrollbarOffsetFromGrid(gridConfig) + Scrollbar.WIDTH;
 	}
 
 	private static int calculateScrollbarReservedGridWidth(IIngredientGridConfig gridConfig) {
 		int reservedGridWidth = calculateScrollbarExtraWidth(gridConfig);
-		if (gridConfig.drawBackground()) {
+		if (gridConfig.backgroundStyle().get().isEnabled()) {
 			return reservedGridWidth - IngredientGridWithNavigationLayout.INNER_PADDING;
 		}
 		return reservedGridWidth;
 	}
 
 	private static int calculateScrollbarOffsetFromGrid(IIngredientGridConfig gridConfig) {
-		if (gridConfig.drawBackground()) {
+		if (gridConfig.backgroundStyle().get().isEnabled()) {
 			return 2 * IngredientGridWithNavigationLayout.INNER_PADDING;
 		}
 		return 0;
@@ -152,7 +185,7 @@ public final class IngredientGridScrollbarLayout {
 		return new ImmutableRect2i(
 			ingredientGridArea.x() + ingredientGridArea.width() + calculateScrollbarOffsetFromGrid(gridConfig),
 			slotBackgroundArea.y(),
-			IngredientGridScrollbar.SCROLLBAR_WIDTH,
+			Scrollbar.WIDTH,
 			slotBackgroundArea.height()
 		);
 	}

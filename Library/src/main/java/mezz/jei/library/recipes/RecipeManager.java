@@ -1,9 +1,11 @@
 package mezz.jei.library.recipes;
 
+import mezz.jei.common.recipes.IRecipeVisibility;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeCatalystLookup;
 import mezz.jei.api.recipe.IRecipeCategoriesLookup;
@@ -25,13 +27,14 @@ import mezz.jei.library.gui.recipes.RecipeLayout;
 import mezz.jei.library.gui.recipes.layout.RecipeLayoutDrawableErrored;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeSlotBuilder;
 import net.minecraft.resources.ResourceLocation;
+import mezz.jei.library.util.IngredientSupplierHelper;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public class RecipeManager implements IRecipeManager {
+public class RecipeManager implements IRecipeManager, IRecipeVisibility {
 	private final RecipeManagerInternal internal;
 	private final IIngredientManager ingredientManager;
 	private final List<IRecipeButtonControllerFactory> recipeButtonControllerFactories;
@@ -44,6 +47,15 @@ public class RecipeManager implements IRecipeManager {
 		this.internal = internal;
 		this.ingredientManager = ingredientManager;
 		this.recipeButtonControllerFactories = List.copyOf(recipeButtonControllerFactories);
+	}
+
+	public void onRuntimeStopped() {
+		internal.onRuntimeStopped();
+	}
+
+	@Override
+	public <T> boolean isRecipeVisible(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focuses) {
+		return internal.isRecipeVisible(recipeCategory, recipe, focuses);
 	}
 
 	@Override
@@ -163,13 +175,23 @@ public class RecipeManager implements IRecipeManager {
 
 	@SuppressWarnings("removal")
 	@Override
-	@Deprecated(since = "19.54.0", forRemoval = true)
+	@Deprecated(since = "15.59.0", forRemoval = true)
 	public IRecipeSlotDrawable createRecipeSlotDrawable(RecipeIngredientRole role, List<Optional<ITypedIngredient<?>>> ingredients, Set<Integer> focusedIngredients, int ingredientCycleOffset) {
 		RecipeSlotBuilder builder = new RecipeSlotBuilder(ingredientManager, 0, role);
 		builder.addOptionalTypedIngredients(ingredients);
 		CycleTimer cycleTimer = CycleTimer.create(ingredientCycleOffset);
 		Pair<Integer, IRecipeSlotDrawable> result = builder.build(focusedIngredients, cycleTimer);
 		return result.second();
+	}
+
+	@Override
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
+		return IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
+	}
+
+	@Override
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe, Set<RecipeIngredientRole> roles) {
+		return IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager, roles);
 	}
 
 	@Override

@@ -10,7 +10,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IJeiClientConfigs;
+import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.library.ingredients.subtypes.SubtypeInterpreters;
 import mezz.jei.library.ingredients.subtypes.SubtypeManager;
@@ -51,10 +51,23 @@ public class JeiRecipeBookmarkEqualsTest {
 	static void setup() {
 		// RecipeBookmarkElement is constructed inside RecipeBookmark's constructor
 		// and reads the static client config, so it must be available.
-		Internal.setJeiClientConfigs(new IJeiClientConfigs() {
+		Internal.setClientConfigs(new IClientConfigs() {
+			@Override
+			public net.mezzdev.config.api.sorting.ISortingConfig<String> getRecipeCategorySortingConfig() {
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
+			public void registerRuntimeListenerRemoval(Runnable listenerRemoval) {
+			}
+
+			@Override
+			public void onRuntimeStopped() {
+			}
+
 			@Override
 			public IClientConfig getClientConfig() {
-				return new TestClientConfig(false);
+				return new TestClientConfig();
 			}
 
 			@Override
@@ -72,8 +85,6 @@ public class JeiRecipeBookmarkEqualsTest {
 				return null;
 			}
 
-			@Override
-			public void onRuntimeStopped() {}
 		});
 
 		SubtypeManager subtypeManager = new SubtypeManager(new SubtypeInterpreters());

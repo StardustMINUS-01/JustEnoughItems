@@ -5,6 +5,8 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
+import mezz.jei.common.util.ImmutableSize2i;
+import mezz.jei.gui.elements.IScrollbarController;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
@@ -14,9 +16,15 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public interface IRecipeGuiLogic {
+public interface IRecipeGuiLogic extends IScrollbarController {
 
 	String getPageString();
+
+	boolean isScrolling();
+
+	RecipeGuiScrollState getScrollState();
+
+	boolean scrollRecipes(double pixels);
 
 	boolean hasMultipleCategories();
 
@@ -32,11 +40,11 @@ public interface IRecipeGuiLogic {
 		return true;
 	}
 
-	void previousRecipeCategory();
+	boolean previousRecipeCategory();
 
-	int getRecipesPerPage();
+	RecipeGuiGrid getRecipeGuiGrid();
 
-	void nextRecipeCategory();
+	boolean nextRecipeCategory();
 
 	void setRecipeCategory(IRecipeCategory<?> category);
 
@@ -44,9 +52,9 @@ public interface IRecipeGuiLogic {
 
 	void goToFirstPage();
 
-	void previousPage();
+	boolean previousPage();
 
-	void nextPage();
+	boolean nextPage();
 
 	void tick(@Nullable AbstractContainerMenu container);
 
@@ -72,8 +80,7 @@ public interface IRecipeGuiLogic {
 	Stream<Consumer<IIngredientAcceptor<?>>> getRecipeCatalystGroups();
 
 	List<IRecipeLayoutWithButtons<?>> getVisibleRecipeLayoutsWithButtons(
-		int availableHeight,
-		int minRecipePadding,
+		ImmutableSize2i availableSize,
 		@Nullable AbstractContainerMenu container
 	);
 }

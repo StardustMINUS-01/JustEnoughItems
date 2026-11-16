@@ -18,6 +18,7 @@ import mezz.jei.api.recipe.category.extensions.vanilla.smithing.IExtendableSmith
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
 import mezz.jei.api.recipe.vanilla.IJeiBrewingRecipe;
 import mezz.jei.api.recipe.vanilla.IVanillaRecipeFactory;
+import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.registration.IModInfoRegistration;
 import mezz.jei.api.registration.IModIngredientRegistration;
@@ -50,12 +51,16 @@ import mezz.jei.library.plugins.vanilla.compostable.CompostingRecipeMaker;
 import mezz.jei.library.plugins.vanilla.cooking.BlastingCategory;
 import mezz.jei.library.plugins.vanilla.cooking.CampfireCookingCategory;
 import mezz.jei.library.plugins.vanilla.cooking.FurnaceRecipeMaker;
-import mezz.jei.library.plugins.vanilla.cooking.FurnaceRecipeTransferInfo;
+import mezz.jei.library.plugins.vanilla.cooking.CookingRecipeTransferInfo;
 import mezz.jei.library.plugins.vanilla.cooking.FurnaceSmeltingCategory;
 import mezz.jei.library.plugins.vanilla.cooking.SmokingCategory;
 import mezz.jei.library.plugins.vanilla.cooking.fuel.FuelRecipeMaker;
 import mezz.jei.library.plugins.vanilla.cooking.fuel.FurnaceFuelCategory;
 import mezz.jei.library.plugins.vanilla.crafting.CraftingCategoryExtension;
+import mezz.jei.library.plugins.vanilla.crafting.FireworkRocketRecipeCategoryExtension;
+import mezz.jei.library.plugins.vanilla.crafting.FireworkStarRecipeCategoryExtension;
+import mezz.jei.library.plugins.vanilla.crafting.FireworkStarRecipeManagerPlugin;
+import mezz.jei.library.plugins.vanilla.crafting.FireworkRocketRecipeManagerPlugin;
 import mezz.jei.library.plugins.vanilla.crafting.CraftingRecipeCategory;
 import mezz.jei.library.plugins.vanilla.crafting.VanillaRecipes;
 import mezz.jei.library.plugins.vanilla.crafting.replacers.ShieldDecorationRecipeMaker;
@@ -107,15 +112,14 @@ import net.minecraft.world.inventory.SmithingMenu;
 import net.minecraft.world.inventory.SmokerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.BlastingRecipe;
-import net.minecraft.world.item.crafting.CampfireCookingRecipe;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.FireworkRocketRecipe;
+import net.minecraft.world.item.crafting.FireworkStarFadeRecipe;
+import net.minecraft.world.item.crafting.FireworkStarRecipe;
 import net.minecraft.world.item.crafting.ShieldDecorationRecipe;
 import net.minecraft.world.item.crafting.ShulkerBoxColoring;
-import net.minecraft.world.item.crafting.SmeltingRecipe;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 import net.minecraft.world.item.crafting.SmithingTrimRecipe;
-import net.minecraft.world.item.crafting.SmokingRecipe;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
 import net.minecraft.world.item.crafting.SuspiciousStewRecipe;
 import net.minecraft.world.item.crafting.TippedArrowRecipe;
@@ -140,17 +144,18 @@ public class VanillaPlugin implements IModPlugin {
 	@Nullable
 	private IRecipeCategory<StonecutterRecipe> stonecuttingCategory;
 	@Nullable
-	private IRecipeCategory<SmeltingRecipe> furnaceCategory;
+	private FurnaceSmeltingCategory furnaceCategory;
 	@Nullable
-	private IRecipeCategory<SmokingRecipe> smokingCategory;
+	private SmokingCategory smokingCategory;
 	@Nullable
-	private IRecipeCategory<BlastingRecipe> blastingCategory;
+	private BlastingCategory blastingCategory;
 	@Nullable
-	private IRecipeCategory<CampfireCookingRecipe> campfireCategory;
+	private CampfireCookingCategory campfireCategory;
 	@Nullable
 	private SmithingRecipeCategory smithingCategory;
 	@Nullable
 	private BrewingExtensionHelper brewingExtensionHelper;
+	@Nullable
 
 	@Override
 	public ResourceLocation getPluginUid() {
@@ -230,10 +235,13 @@ public class VanillaPlugin implements IModPlugin {
 	@Override
 	public void registerVanillaCategoryExtensions(IVanillaCategoryExtensionRegistration registration) {
 		IExtendableRecipeCategory<CraftingRecipe, ICraftingCategoryExtension> craftingCategory = registration.getCraftingCategory();
+		IPlatformRecipeHelper recipeHelper = Services.PLATFORM.getRecipeHelper();
+		craftingCategory.addCategoryExtension(FireworkRocketRecipe.class, recipe -> new FireworkRocketRecipeCategoryExtension(recipe, recipeHelper));
+		craftingCategory.addCategoryExtension(FireworkStarRecipe.class, recipe -> new FireworkStarRecipeCategoryExtension(recipe, recipeHelper));
+		craftingCategory.addCategoryExtension(FireworkStarFadeRecipe.class, recipe -> new FireworkStarRecipeCategoryExtension(recipe, recipeHelper));
 		craftingCategory.addCategoryExtension(CraftingRecipe.class, r -> !r.isSpecial(), CraftingCategoryExtension::new);
 
 		IExtendableSmithingRecipeCategory smithingCategory = registration.getSmithingCategory();
-		IPlatformRecipeHelper recipeHelper = Services.PLATFORM.getRecipeHelper();
 		smithingCategory.addExtension(SmithingTransformRecipe.class, new SmithingTransformCategoryExtension(recipeHelper));
 		smithingCategory.addExtension(SmithingTrimRecipe.class, new SmithingTrimCategoryExtension(recipeHelper));
 
@@ -243,6 +251,16 @@ public class VanillaPlugin implements IModPlugin {
 			brewingCategory,
 			registration.getJeiHelpers().getIngredientManager()
 		);
+	}
+
+	@Override
+	public void registerAdvanced(IAdvancedRegistration registration) {
+		ClientLevel level = ErrorUtil.checkNotNull(Minecraft.getInstance().level, "minecraft.level");
+		IPlatformRecipeHelper recipeHelper = Services.PLATFORM.getRecipeHelper();
+		registration.addTypedRecipeManagerPlugin(RecipeTypes.CRAFTING,
+			new FireworkStarRecipeManagerPlugin(level.getRecipeManager(), recipeHelper));
+		registration.addTypedRecipeManagerPlugin(RecipeTypes.CRAFTING,
+			new FireworkRocketRecipeManagerPlugin(level.getRecipeManager(), recipeHelper));
 	}
 
 	@Override
@@ -267,7 +285,7 @@ public class VanillaPlugin implements IModPlugin {
 		Map<Boolean, List<CraftingRecipe>> craftingRecipes = vanillaRecipes.getCraftingRecipes(craftingCategory);
 		List<CraftingRecipe> handledCraftingRecipes = craftingRecipes.get(true);
 		List<CraftingRecipe> unhandledCraftingRecipes = craftingRecipes.get(false);
-		List<CraftingRecipe> specialCraftingRecipes = replaceSpecialCraftingRecipes(unhandledCraftingRecipes, jeiHelpers);
+		List<CraftingRecipe> specialCraftingRecipes = replaceSpecialCraftingRecipes(unhandledCraftingRecipes, jeiHelpers, craftingCategory);
 
 		registration.addRecipes(RecipeTypes.CRAFTING, handledCraftingRecipes);
 		registration.addRecipes(RecipeTypes.CRAFTING, specialCraftingRecipes);
@@ -316,12 +334,15 @@ public class VanillaPlugin implements IModPlugin {
 
 	@Override
 	public void registerRecipeTransferHandlers(IRecipeTransferRegistration registration) {
+		var furnaceCategory = getSmeltingCategory().orElseThrow();
+		var smokingCategory = getSmokingCategory().orElseThrow();
+		var blastingCategory = getBlastingCategory().orElseThrow();
 		registration.addRecipeTransferHandler(CraftingMenu.class, MenuType.CRAFTING, RecipeTypes.CRAFTING, 1, 9, 10, 36);
-		registration.addRecipeTransferHandler(new FurnaceRecipeTransferInfo());
+		registration.addRecipeTransferHandler(new CookingRecipeTransferInfo<>(FurnaceMenu.class, MenuType.FURNACE, RecipeTypes.SMELTING, recipe -> furnaceCategory.getFuel(recipe)));
 		registration.addRecipeTransferHandler(FurnaceMenu.class, MenuType.FURNACE, RecipeTypes.FUELING, 1, 1, 3, 36);
-		registration.addRecipeTransferHandler(SmokerMenu.class, MenuType.SMOKER, RecipeTypes.SMOKING, 0, 1, 3, 36);
+		registration.addRecipeTransferHandler(new CookingRecipeTransferInfo<>(SmokerMenu.class, MenuType.SMOKER, RecipeTypes.SMOKING, recipe -> smokingCategory.getFuel(recipe)));
 		registration.addRecipeTransferHandler(SmokerMenu.class, MenuType.SMOKER, RecipeTypes.FUELING, 1, 1, 3, 36);
-		registration.addRecipeTransferHandler(BlastFurnaceMenu.class, MenuType.BLAST_FURNACE, RecipeTypes.BLASTING, 0, 1, 3, 36);
+		registration.addRecipeTransferHandler(new CookingRecipeTransferInfo<>(BlastFurnaceMenu.class, MenuType.BLAST_FURNACE, RecipeTypes.BLASTING, recipe -> blastingCategory.getFuel(recipe)));
 		registration.addRecipeTransferHandler(BlastFurnaceMenu.class, MenuType.BLAST_FURNACE, RecipeTypes.FUELING, 1, 1, 3, 36);
 		registration.addRecipeTransferHandler(BrewingStandMenu.class, MenuType.BREWING_STAND, RecipeTypes.BREWING, 0, 4, 5, 36);
 		registration.addRecipeTransferHandler(AnvilMenu.class, MenuType.ANVIL, RecipeTypes.ANVIL, 0, 2, 3, 36);
@@ -375,6 +396,22 @@ public class VanillaPlugin implements IModPlugin {
 		return Optional.ofNullable(brewingExtensionHelper);
 	}
 
+	public Optional<FurnaceSmeltingCategory> getSmeltingCategory() {
+		return Optional.ofNullable(furnaceCategory);
+	}
+
+	public Optional<BlastingCategory> getBlastingCategory() {
+		return Optional.ofNullable(blastingCategory);
+	}
+
+	public Optional<SmokingCategory> getSmokingCategory() {
+		return Optional.ofNullable(smokingCategory);
+	}
+
+	public Optional<CampfireCookingCategory> getCampfireCookingCategory() {
+		return Optional.ofNullable(campfireCategory);
+	}
+
 	/**
 	 * By default, JEI can't handle special recipes.
 	 * This method expands some special unhandled recipes into a list of normal recipes that JEI can understand.
@@ -382,7 +419,7 @@ public class VanillaPlugin implements IModPlugin {
 	 * If a special recipe we know how to replace is not present (because it has been removed),
 	 * we do not replace it.
 	 */
-	private static List<CraftingRecipe> replaceSpecialCraftingRecipes(List<CraftingRecipe> unhandledCraftingRecipes, IJeiHelpers jeiHelpers) {
+	private static List<CraftingRecipe> replaceSpecialCraftingRecipes(List<CraftingRecipe> unhandledCraftingRecipes, IJeiHelpers jeiHelpers, CraftingRecipeCategory craftingCategory) {
 		List<CraftingRecipe> recipes = new ArrayList<>();
 		boolean tippedArrowRecipesAdded = false;
 		boolean shulkerBoxColoringRecipesAdded = false;
@@ -391,7 +428,10 @@ public class VanillaPlugin implements IModPlugin {
 		for (CraftingRecipe recipe : unhandledCraftingRecipes) {
 			if (recipe instanceof TippedArrowRecipe && !tippedArrowRecipesAdded) {
 				try {
-					recipes.addAll(TippedArrowRecipeMaker.createRecipes(jeiHelpers));
+					for (CraftingRecipe replacement : TippedArrowRecipeMaker.createRecipes(jeiHelpers)) {
+						craftingCategory.addReplacementSource(replacement, recipe);
+						recipes.add(replacement);
+					}
 					tippedArrowRecipesAdded = true;
 				} catch (RuntimeException e) {
 					LOGGER.error("Failed to create JEI recipes for {}", recipe.getClass(), e);
@@ -412,7 +452,10 @@ public class VanillaPlugin implements IModPlugin {
 				}
 			} else if (recipe instanceof ShieldDecorationRecipe && !shieldDecorationRecipesAdded) {
 				try {
-					recipes.addAll(ShieldDecorationRecipeMaker.createRecipes());
+					for (CraftingRecipe replacement : ShieldDecorationRecipeMaker.createRecipes()) {
+						craftingCategory.addReplacementSource(replacement, recipe);
+						recipes.add(replacement);
+					}
 					shieldDecorationRecipesAdded = true;
 				} catch (RuntimeException e) {
 					LOGGER.error("Failed to create JEI recipes for {}", recipe.getClass(), e);

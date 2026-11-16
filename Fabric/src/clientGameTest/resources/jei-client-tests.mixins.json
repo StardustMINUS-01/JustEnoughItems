@@ -5,7 +5,13 @@
   "compatibilityLevel": "JAVA_17",
   "client": [
     "InputConstantsMixin",
-    "KeyboardHandlerAccessor"
+    "IndigoChunkRenderInfoMixin",
+    "KeyboardHandlerAccessor",
+    "KeyboardClipboardMixin",
+    "MinecraftMixin",
+    "MouseHandlerAccessor",
+    "GuiGraphicsMixin",
+    "MouseHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

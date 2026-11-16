@@ -1,20 +1,72 @@
 package mezz.jei.common.config;
 
 import mezz.jei.api.gui.placement.HorizontalAlignment;
-import mezz.jei.common.util.NavigationVisibility;
 import mezz.jei.api.gui.placement.VerticalAlignment;
+import mezz.jei.common.Internal;
+import net.mezzdev.config.api.value.IConfigValue;
 
 public interface IIngredientGridConfig {
-	int getMaxColumns();
-	int getMinColumns();
-	int getMaxRows();
-	int getMinRows();
-	boolean drawBackground();
-	HorizontalAlignment getHorizontalAlignment();
-	VerticalAlignment getVerticalAlignment();
-	NavigationVisibility getNavigationVisibility();
-	IngredientGridLayoutMode getLayoutMode();
-	IngredientGridNavigationMode getNavigationMode();
+	IConfigValue<Integer> maxColumns();
 
-	void addLayoutListener(Runnable listener);
+	int getMinColumns();
+
+	IConfigValue<Integer> maxRows();
+
+	int getMinRows();
+
+	IConfigValue<IngredientGridBackgroundStyle> backgroundStyle();
+
+	IConfigValue<IngredientGridLayoutMode> layoutMode();
+
+	IConfigValue<HorizontalAlignment> horizontalAlignment();
+
+	IConfigValue<VerticalAlignment> verticalAlignment();
+
+	IConfigValue<NavigationVisibility> navigationVisibility();
+
+	IConfigValue<IngredientGridNavigationMode> navigationMode();
+
+	default int getMaxColumns() {
+		return maxColumns().get();
+	}
+
+	default int getMaxRows() {
+		return maxRows().get();
+	}
+
+	default boolean isBackgroundDrawn() {
+		return backgroundStyle().get().isEnabled();
+	}
+
+	default HorizontalAlignment getHorizontalAlignment() {
+		return horizontalAlignment().get();
+	}
+
+	default VerticalAlignment getVerticalAlignment() {
+		return verticalAlignment().get();
+	}
+
+	default NavigationVisibility getNavigationVisibility() {
+		return navigationVisibility().get();
+	}
+
+	default IngredientGridLayoutMode getLayoutMode() {
+		return layoutMode().get();
+	}
+
+	default IngredientGridNavigationMode getNavigationMode() {
+		return navigationMode().get();
+	}
+
+	default void addLayoutListener(Runnable listener) {
+		Internal.registerRuntimeListenerRemoval(shrinkToFit().addListener(change -> listener.run()));
+		Internal.registerRuntimeListenerRemoval(maxColumns().addListener(change -> listener.run()));
+		Internal.registerRuntimeListenerRemoval(maxRows().addListener(change -> listener.run()));
+		Internal.registerRuntimeListenerRemoval(backgroundStyle().addListener(change -> listener.run()));
+		Internal.registerRuntimeListenerRemoval(horizontalAlignment().addListener(change -> listener.run()));
+		Internal.registerRuntimeListenerRemoval(verticalAlignment().addListener(change -> listener.run()));
+		Internal.registerRuntimeListenerRemoval(navigationVisibility().addListener(change -> listener.run()));
+	}
+
+	IConfigValue<Boolean> shrinkToFit();
 }

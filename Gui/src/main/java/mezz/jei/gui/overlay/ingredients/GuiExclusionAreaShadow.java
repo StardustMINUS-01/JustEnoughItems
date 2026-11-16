@@ -29,10 +29,10 @@ public final class GuiExclusionAreaShadow {
 		}
 
 		guiGraphics.enableScissor(
-			backgroundArea.getX(),
-			backgroundArea.getY(),
-			backgroundArea.getX() + backgroundArea.getWidth(),
-			backgroundArea.getY() + backgroundArea.getHeight()
+			backgroundArea.x(),
+			backgroundArea.y(),
+			backgroundArea.x() + backgroundArea.width(),
+			backgroundArea.y() + backgroundArea.height()
 		);
 		try {
 			RenderSystem.enableBlend();
@@ -58,10 +58,10 @@ public final class GuiExclusionAreaShadow {
 		for (ImmutableRect2i exclusionArea : guiExclusionAreas) {
 			if (!exclusionArea.isEmpty() && exclusionArea.intersects(backgroundArea)) {
 				shadowAreas.add(new ImmutableRect2i(
-					exclusionArea.getX() - SHADOW_SIZE,
-					exclusionArea.getY() - SHADOW_SIZE,
-					exclusionArea.getWidth() + 2 * SHADOW_SIZE,
-					exclusionArea.getHeight() + 2 * SHADOW_SIZE
+					exclusionArea.x() - SHADOW_SIZE,
+					exclusionArea.y() - SHADOW_SIZE,
+					exclusionArea.width() + 2 * SHADOW_SIZE,
+					exclusionArea.height() + 2 * SHADOW_SIZE
 				));
 			}
 		}

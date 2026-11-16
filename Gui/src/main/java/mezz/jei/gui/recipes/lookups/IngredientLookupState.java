@@ -2,6 +2,7 @@ package mezz.jei.gui.recipes.lookups;
 
 import com.google.common.base.Preconditions;
 import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.gui.recipes.RecipeGuiScrollState;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.transfer.RecipeTransferService;
@@ -22,6 +23,7 @@ public class IngredientLookupState implements ILookupState {
 	private int recipeCategoryIndex = 0;
 	private int recipeIndex = 0;
 	private int recipesPerPage = 1;
+	private final RecipeGuiScrollState scrollState = new RecipeGuiScrollState();
 	@Nullable
 	private IFocusedRecipes<?> focusedRecipes;
 
@@ -68,9 +70,12 @@ public class IngredientLookupState implements ILookupState {
 
 	private void moveToRecipeCategoryIndex(int recipeCategoryIndex) {
 		Preconditions.checkArgument(recipeCategoryIndex >= 0, "Recipe category index cannot be negative.");
-		this.recipeCategoryIndex = recipeCategoryIndex;
-		this.recipeIndex = 0;
-		this.focusedRecipes = null;
+		if (this.recipeCategoryIndex != recipeCategoryIndex) {
+			this.recipeCategoryIndex = recipeCategoryIndex;
+			this.recipeIndex = 0;
+			this.focusedRecipes = null;
+			this.scrollState.scrollToRecipe(0);
+		}
 	}
 
 	@Override
@@ -88,24 +93,29 @@ public class IngredientLookupState implements ILookupState {
 	@Override
 	public void goToFirstPage() {
 		this.recipeIndex = 0;
+		this.scrollState.scrollToRecipe(0);
 	}
 
 	@Override
-	public void nextPage() {
+	public boolean nextPage() {
+		int originalIndex = this.recipeIndex - this.recipeIndex % recipesPerPage;
 		int recipeCount = recipeCount();
-		this.recipeIndex = recipeIndex + recipesPerPage;
+		this.recipeIndex = originalIndex + recipesPerPage;
 		if (recipeIndex >= recipeCount) {
 			this.recipeIndex = 0;
 		}
+		return this.recipeIndex != originalIndex;
 	}
 
 	@Override
-	public void previousPage() {
-		this.recipeIndex = recipeIndex - recipesPerPage;
+	public boolean previousPage() {
+		int originalIndex = this.recipeIndex - this.recipeIndex % recipesPerPage;
+		this.recipeIndex = originalIndex - recipesPerPage;
 		if (recipeIndex < 0) {
 			final int pageCount = pageCount();
 			this.recipeIndex = (pageCount - 1) * recipesPerPage;
 		}
+		return this.recipeIndex != originalIndex;
 	}
 
 	public int recipeCount() {
@@ -123,12 +133,18 @@ public class IngredientLookupState implements ILookupState {
 	}
 
 	@Override
-	public int getRecipeIndex() {
-		return recipeIndex;
+	public RecipeGuiScrollState getScrollState() {
+		return scrollState;
 	}
 
-	void setRecipeIndex(int recipeIndex) {
+	@Override
+	public void setRecipeIndex(int recipeIndex) {
 		this.recipeIndex = recipeIndex;
+	}
+
+	@Override
+	public int getRecipeIndex() {
+		return recipeIndex;
 	}
 
 	@Override

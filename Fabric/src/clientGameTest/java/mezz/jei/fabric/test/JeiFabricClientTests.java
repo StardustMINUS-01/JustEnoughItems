@@ -20,14 +20,40 @@ public final class JeiFabricClientTests implements ClientModInitializer {
 
 		switch (testSuite) {
 			case "all" -> registerAllTests();
+			case "chatLinks" -> FabricClientTestRunner.register(ChatItemLinksClientGameTest.getTestCase());
+			case "itemRendering" -> FabricClientTestRunner.register(ItemBatchRenderingClientGameTest.getTestCase());
+			case "bookmarks" -> BookmarkManagerClientGameTest.register();
+			case "fluidIngredients" -> FluidIngredientGameTests.register();
+			case "recipeSync" -> JeiFabricClientRecipeSyncTests.register();
 			case "creativeInventory" -> JeiFabricCreativeInventoryClientGameTest.register();
-			case "keyMapping" -> JeiFabricKeyMappingClientTests.register();
+			case "keyMapping" -> FabricClientTestRunner.register(List.of(
+				JeiFabricClientResourceTests.getTestCase(),
+				JeiFabricKeyMappingClientTests.getTestCase()
+			));
+			case "textInput" -> FabricClientTestRunner.register(JeiFabricKeyMappingClientTests.getTextInputTestCase());
+			case "withoutAmecs" -> FabricClientTestRunner.register(List.of(
+				JeiFabricClientResourceTests.getTestCase(),
+				RecipeButtonsClientTest.getTestCase(),
+				JeiFabricKeyMappingClientTests.getTestCase()
+			));
+			case "resources" -> FabricClientTestRunner.register(JeiFabricClientResourceTests.getTestCase());
+			case "keyboardNavigation" -> FabricClientTestRunner.register("fabric-client-keyboard-navigation", "ingredientList", () -> {
+				try (FabricClientTestWorld ignored = FabricClientTestWorld.create()) {
+					IngredientKeyboardNavigationClientGameTest.run();
+					SearchInputCaptureClientTest.run();
+				}
+			});
+			case "guiResize" -> FabricClientTestRunner.register("fabric-client-gui-resize", "resize", () -> {
+				try (FabricClientTestWorld ignored = FabricClientTestWorld.create()) {
+					JeiGuiResizeClientGameTest.run();
+				}
+			});
 			default -> FabricClientTestRunner.register(
 				"fabric-client-tests",
 				"unknown-test-suite",
 				() -> {
 					throw new IllegalArgumentException(
-						"Unknown JEI Fabric client test suite '" + testSuite + "'. Expected one of: all, creativeInventory, keyMapping"
+						"Unknown JEI Fabric client test suite '" + testSuite + "'. Expected one of: all, chatLinks, itemRendering, bookmarks, fluidIngredients, recipeSync, creativeInventory, keyMapping, textInput, resources, withoutAmecs, keyboardNavigation, guiResize"
 					);
 				}
 			);
@@ -36,6 +62,14 @@ public final class JeiFabricClientTests implements ClientModInitializer {
 
 	private static void registerAllTests() {
 		List<FabricClientTestRunner.ClientTestCase> testCases = new ArrayList<>();
+		testCases.add(ItemBatchRenderingClientGameTest.getTestCase());
+		testCases.add(ChatItemLinksClientGameTest.getTestCase());
+		testCases.add(JeiFabricClientResourceTests.getTestCase());
+		testCases.add(ConfigScreenClientTest.getTestCase());
+		testCases.add(IngredientNavigationClientTest.getTestCase());
+		testCases.add(RecipeButtonsClientTest.getTestCase());
+		testCases.addAll(JeiFabricClientRecipeSyncTests.getTestCases());
+		testCases.add(FluidIngredientGameTests.getTestCase());
 		testCases.add(JeiFabricCreativeInventoryClientGameTest.getTestCase());
 		testCases.add(JeiFabricKeyMappingClientTests.getTestCase());
 		FabricClientTestRunner.register(testCases);

@@ -8,13 +8,23 @@ import mezz.jei.common.config.IngredientGridLayoutMode;
 import mezz.jei.common.config.IngredientGridNavigationMode;
 import mezz.jei.common.gui.GridScrollMath;
 import mezz.jei.api.gui.placement.HorizontalAlignment;
-import mezz.jei.common.util.NavigationVisibility;
+import mezz.jei.common.config.NavigationVisibility;
 import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
+import mezz.jei.gui.overlay.TestConfigValue;
+import net.mezzdev.config.api.value.IConfigValue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import mezz.jei.common.config.ClientConfigs;
+import mezz.jei.common.config.IClientConfig;
+import net.mezzdev.config.file.ConfigManager;
+import net.mezzdev.config.schema.ConfigSchemaBuilder;
+import net.mezzdev.config.file.ConfigFileWatcherSettings;
+import java.nio.file.Path;
+import java.util.Comparator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IngredientGridScrollControllerTest {
+	@TempDir
+	public Path tempDir;
+
 	private static final IIngredientType<Integer> INTEGER_TYPE = () -> Integer.class;
 
 	@Test
@@ -37,7 +50,7 @@ public class IngredientGridScrollControllerTest {
 			source,
 			grid,
 			new TestGridConfig(IngredientGridNavigationMode.SCROLLING),
-			null
+			createClientConfig(false, 9)
 		);
 		controller.updateLayoutStartingAt(0);
 		int hiddenRows = GridScrollMath.getHiddenRows(elements.size(), grid.getColumnCount(), grid.getRowCount());
@@ -53,6 +66,73 @@ public class IngredientGridScrollControllerTest {
 		assertEquals(9, grid.firstItemIndex);
 		assertEquals(0, grid.scrollOffsetY);
 		assertEquals(3, controller.getFirstVisibleScrollRow());
+	}
+
+	@Test
+	public void smoothScrollingMovesByConfiguredPixels() {
+		TestIngredientGrid grid = new TestIngredientGrid(3, 3);
+		IngredientGridScrollController controller = createController(grid, true);
+		controller.updateLayoutStartingAt(0);
+
+		IngredientGridScrollController.ScrollResult result = controller.scrollByMouse(-1);
+
+		assertTrue(result.consumed());
+		assertTrue(result.changed());
+		assertEquals(0, grid.firstItemIndex);
+		assertEquals(9, grid.scrollOffsetY, "The configured wheel distance must be measured against hidden pixels");
+	}
+
+	@Test
+	public void disablingSmoothScrollingMovesWholeRows() {
+		TestIngredientGrid grid = new TestIngredientGrid(3, 3);
+		IngredientGridScrollController controller = createController(grid, false);
+		controller.updateLayoutStartingAt(0);
+
+		IngredientGridScrollController.ScrollResult result = controller.scrollByMouse(-1);
+
+		assertTrue(result.consumed());
+		assertEquals(3, grid.firstItemIndex);
+		assertEquals(0, grid.scrollOffsetY);
+	}
+
+	@Test
+	public void scrollingAtBottomConsumesWheelWithoutMoving() {
+		TestIngredientGrid grid = new TestIngredientGrid(3, 3);
+		IngredientGridScrollController controller = createController(grid, true);
+		controller.updateLayoutStartingAt(0);
+		controller.setScrollOffsetY(1);
+		int firstItemIndex = grid.firstItemIndex;
+		int pixelOffset = grid.scrollOffsetY;
+
+		IngredientGridScrollController.ScrollResult result = controller.scrollByMouse(-1);
+
+		assertTrue(result.consumed(), "A wheel event over the list must not scroll the underlying screen");
+		assertTrue(!result.changed());
+		assertEquals(firstItemIndex, grid.firstItemIndex);
+		assertEquals(pixelOffset, grid.scrollOffsetY);
+	}
+
+	private IngredientGridScrollController createController(TestIngredientGrid grid, boolean smoothScrolling) {
+		return new IngredientGridScrollController(
+			new TestIngredientGridSource(createElements(30)),
+			grid,
+			new TestGridConfig(IngredientGridNavigationMode.SCROLLING),
+			createClientConfig(smoothScrolling, 9)
+		);
+	}
+
+	private IClientConfig createClientConfig(boolean smoothScrolling, int wheelRate) {
+		ConfigFileWatcherSettings disabledWatcher = ConfigFileWatcherSettings.clientDefaults().withEnabled(false);
+		ConfigManager manager = new ConfigManager("Grid Scroll Test", disabledWatcher, disabledWatcher);
+		ClientConfigs configs = new ClientConfigs(
+			new ConfigSchemaBuilder("jei", tempDir.resolve("jei-client.toml"), "jei.config.client", manager),
+			false,
+			manager.createInMemorySortingConfig(Comparator.<String>naturalOrder(), true)
+		);
+		IClientConfig config = configs.getClientConfig();
+		config.smoothScrollingEnabled().set(smoothScrolling);
+		config.smoothScrollRate().set(wheelRate);
+		return config;
 	}
 
 	private static List<IElement<?>> createElements(int itemCount) {
@@ -102,10 +182,21 @@ public class IngredientGridScrollControllerTest {
 		}
 	}
 
-	private record TestGridConfig(IngredientGridNavigationMode navigationMode) implements IIngredientGridConfig {
+	private static final class TestGridConfig implements IIngredientGridConfig {
+		private final IngredientGridNavigationMode navigationMode;
+
+		private TestGridConfig(IngredientGridNavigationMode navigationMode) {
+			this.navigationMode = navigationMode;
+		}
+
 		@Override
-		public int getMaxColumns() {
-			return 0;
+		public IConfigValue<Boolean> shrinkToFit() {
+			return new TestConfigValue<>(false);
+		}
+
+		@Override
+		public IConfigValue<Integer> maxColumns() {
+			return new TestConfigValue<>(0);
 		}
 
 		@Override
@@ -114,8 +205,8 @@ public class IngredientGridScrollControllerTest {
 		}
 
 		@Override
-		public int getMaxRows() {
-			return 0;
+		public IConfigValue<Integer> maxRows() {
+			return new TestConfigValue<>(0);
 		}
 
 		@Override
@@ -124,33 +215,33 @@ public class IngredientGridScrollControllerTest {
 		}
 
 		@Override
-		public boolean drawBackground() {
-			return false;
+		public IConfigValue<mezz.jei.common.config.IngredientGridBackgroundStyle> backgroundStyle() {
+			return new TestConfigValue<>(mezz.jei.common.config.IngredientGridBackgroundStyle.NONE);
 		}
 
 		@Override
-		public IngredientGridLayoutMode getLayoutMode() {
-			return IngredientGridLayoutMode.MAXIMIZE_AVAILABLE_SPACE;
+		public IConfigValue<IngredientGridLayoutMode> layoutMode() {
+			return new TestConfigValue<>(IngredientGridLayoutMode.MAXIMIZE_AVAILABLE_SPACE);
 		}
 
 		@Override
-		public HorizontalAlignment getHorizontalAlignment() {
-			return HorizontalAlignment.LEFT;
+		public IConfigValue<HorizontalAlignment> horizontalAlignment() {
+			return new TestConfigValue<>(HorizontalAlignment.LEFT);
 		}
 
 		@Override
-		public VerticalAlignment getVerticalAlignment() {
-			return VerticalAlignment.TOP;
+		public IConfigValue<VerticalAlignment> verticalAlignment() {
+			return new TestConfigValue<>(VerticalAlignment.TOP);
 		}
 
 		@Override
-		public NavigationVisibility getNavigationVisibility() {
-			return NavigationVisibility.ENABLED;
+		public IConfigValue<NavigationVisibility> navigationVisibility() {
+			return new TestConfigValue<>(NavigationVisibility.ENABLED);
 		}
 
 		@Override
-		public IngredientGridNavigationMode getNavigationMode() {
-			return navigationMode;
+		public IConfigValue<IngredientGridNavigationMode> navigationMode() {
+			return new TestConfigValue<>(navigationMode);
 		}
 
 		@Override
@@ -182,7 +273,7 @@ public class IngredientGridScrollControllerTest {
 		}
 
 		@Override
-		public boolean isMouseOver(double mouseX, double mouseY) {
+		public boolean containsMouse(double mouseX, double mouseY) {
 			return false;
 		}
 
@@ -204,6 +295,11 @@ public class IngredientGridScrollControllerTest {
 		@Override
 		public int getRowCount() {
 			return rows;
+		}
+
+		@Override
+		public int getVisibleHeight() {
+			return getRowCount() * IngredientGridLayout.INGREDIENT_HEIGHT;
 		}
 
 		@Override

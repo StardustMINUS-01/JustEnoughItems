@@ -19,14 +19,15 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.gui.IngredientGridTooltipComponent;
 import mezz.jei.common.gui.JeiTooltip;
+import mezz.jei.common.input.IGuiInputLayer;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.IMouseOverable;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.MouseDrag;
 import mezz.jei.common.util.SafeIngredientUtil;
-import mezz.jei.gui.input.IGuiInputLayer;
 import mezz.jei.gui.input.IClickableIngredientInternal;
-import mezz.jei.gui.input.IMouseOverable;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.input.handlers.SameElementInputHandler;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -102,7 +103,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		this.clickTargetFactory = clickTargetFactory;
 		this.sourceSlot = sourceSlot;
 		var owner = recipesGui.getRecipeLayoutUnderMouse(anchorX, anchorY)
-			.filter(RecipeLayoutWithButtons.class::isInstance).map(value -> (RecipeLayoutWithButtons<?>) value);
+			.filter(RecipeLayoutWithExtras.class::isInstance).map(value -> (RecipeLayoutWithExtras<?>) value);
 		this.source = new IIngredientCandidateSource() {
 
 			@Override
@@ -151,7 +152,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 	boolean isSourceValid() { return source.isValid(); }
 
 	@Override
-	public boolean isMouseOver(double mouseX, double mouseY) {
+	public boolean containsMouse(double mouseX, double mouseY) {
 		if (!this.source.isValid()) {
 			return false;
 		}
@@ -165,7 +166,7 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 		if (ingredient.isPresent()) {
 			return ingredient.stream();
 		}
-		if (this.sourceSlot != null && this.sourceMouseOverable.isMouseOver(mouseX, mouseY)) {
+		if (this.sourceMouseOverable.containsMouse(mouseX, mouseY)) {
 			return this.clickTargetFactory.create(this.sourceSlot, this.sourceMouseOverable)
 				.stream();
 		}
@@ -256,32 +257,13 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(
+	public Optional<IInputInteraction> beginInput(
 		Screen screen,
 		UserInput input,
 		IInternalKeyMappings keyBindings
 	) {
 		if (!this.controller.isActive(this) || !this.source.isValid()) {
 			return Optional.empty();
-		}
-
-		if (input.is(keyBindings.getCloseRecipeGui())) {
-			if (!input.isSimulate()) {
-				this.controller.hide(this);
-			}
-			return Optional.of(this);
-		}
-
-		if (source.canSelect() &&
-			keyBindings.getSelectRecipeInput().isActiveAndMatchesAllowingExtraModifiers(input.getKey())
-		) {
-			Optional<ITypedIngredient<?>> selected = this.ingredientGrid.getTypedIngredientUnderMouse(input.getMouseX(), input.getMouseY());
-			if (selected.isPresent()) {
-				if (!input.isSimulate()) {
-					source.select(selected.get(), !Screen.hasControlDown());
-				}
-				return Optional.of(new SameElementInputHandler(this, (x, y) -> this.ingredientGrid.getTypedIngredientUnderMouse(x, y).filter(selected.get()::equals).isPresent()));
-			}
 		}
 
 		boolean leftClick = input.getKey().equals(LEFT_MOUSE_BUTTON);
@@ -292,14 +274,8 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
-		if (leftClick && isDraggingScrollbar()) {
-			if (!input.isSimulate()) {
-				stopScrollbarDrag();
-			}
-			return Optional.of(this);
-		}
-		if (leftClick && input.isSimulate() && startScrollbarDrag(mouseX, mouseY)) {
-			return Optional.of(this);
+		if (leftClick && startScrollbarDrag(mouseX, mouseY)) {
+			return Optional.of(MouseDrag.forWidget(this::drag, this::stopScrollbarDrag));
 		}
 
 		Optional<IClickableIngredientInternal<?>> clicked = getIngredientUnderMouse(mouseX, mouseY)
@@ -308,48 +284,46 @@ final class InteractiveIngredientTooltip implements IGuiInputLayer {
 			return Optional.empty();
 		}
 		IClickableIngredientInternal<?> ingredient = clicked.get();
-		if (!input.isSimulate()) {
-			List<RecipeIngredientRole> roles;
-			if (leftClick) {
-				roles = List.of(RecipeIngredientRole.OUTPUT);
-			} else {
-				roles = List.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.CATALYST);
-			}
-			ingredient.show(this.recipesGui, this.focusUtil, roles);
+		List<RecipeIngredientRole> roles;
+		if (leftClick) {
+			roles = List.of(RecipeIngredientRole.OUTPUT);
+		} else {
+			roles = List.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.CATALYST);
 		}
-		return Optional.of(new SameElementInputHandler(this, ingredient::isMouseOver));
+		return Optional.of(InputAction.run(() -> ingredient.show(recipesGui, focusUtil, roles)).within(ingredient::isMouseOver));
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleMouseScrolled(
+	public boolean scroll(
 		double mouseX,
 		double mouseY,
+		double scrollDeltaX,
 		double scrollDeltaY
 	) {
-		if (this.controller.isActive(this) && this.source.isValid() && this.ingredientGrid.isMouseOver(mouseX, mouseY)) {
-			double scrollDelta = scrollDeltaY;
-			this.ingredientGrid.mouseScrolled(scrollDelta);
-			return Optional.of(this);
+		if (this.controller.isActive(this) && this.source.isValid()) {
+			if (scrollDeltaY == 0) {
+				scrollDeltaY = scrollDeltaX;
+			}
+			this.ingredientGrid.mouseScrolled(scrollDeltaY);
+			return true;
 		}
-		return Optional.empty();
+		return false;
 	}
 
-	@Override
-	public Optional<IUserInputHandler> handleMouseDragged(
+	private void drag(
 		double mouseX,
 		double mouseY,
 		InputConstants.Key mouseKey,
 		double dragX,
 		double dragY
 	) {
-		if (this.controller.isActive(this) && this.source.isValid() && mouseKey.equals(LEFT_MOUSE_BUTTON) && dragScrollbar(mouseY)) {
-			return Optional.of(this);
+		if (this.controller.isActive(this) && this.source.isValid() && mouseKey.equals(LEFT_MOUSE_BUTTON)) {
+			dragScrollbar(mouseY);
 		}
-		return Optional.empty();
 	}
 
 	@Override
-	public void unfocus() {
+	public void resetInput() {
 		stopScrollbarDrag();
 	}
 

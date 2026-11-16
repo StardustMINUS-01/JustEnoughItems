@@ -3,8 +3,8 @@ package mezz.jei.gui.overlay.bookmarks;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
+import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
-import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
@@ -12,14 +12,16 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyContext;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyMouseButton;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyRouter;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkScrollHandler;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
-import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.MouseDrag;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.InputType;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay.FavoriteRecipeElementPanelSlot;
-import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay.FavoriteRecipeRowPanelSlot;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
@@ -28,9 +30,6 @@ import java.util.Optional;
 
 /**
  * Input handlers for the bookmark overlay: group panels, recipe collapse, and favorite recipe rows.
- * Ported from JEI 1.21.1 (BookmarkOverlayInputHandlers.java), adapted to the 1.20.1 hotkey router
- * (the 1.20.1 PacketRequestCheatPermission constructor) and the full 1.21.1 group-panel drag
- * semantics including GROUP_DROP_DRAG (Ctrl+left drag) and recipe-chaining (left drag).
  */
 public final class BookmarkOverlayInputHandlers {
 	private final BookmarkOverlay overlay;
@@ -39,242 +38,188 @@ public final class BookmarkOverlayInputHandlers {
 		this.overlay = overlay;
 	}
 
-	public class FavoriteRecipeRowInputHandler implements IUserInputHandler {
+	public class FavoriteRecipeRowInputHandler implements IInputTarget {
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-			if (input.getKey().getType() != InputConstants.Type.MOUSE ||
-				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
-				InputModifiers.hasShift(input) ||
-				InputModifiers.hasControl(input) ||
-				InputModifiers.hasAlt(input)
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+			if (!input.isMouseInput() || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
+				InputModifiers.hasShift(input) || InputModifiers.hasControl(input) || InputModifiers.hasAlt(input)
 			) {
 				return Optional.empty();
 			}
-			Optional<FavoriteRecipeRowPanelSlot> slot = overlay.getFavoriteRecipeRowPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
-			if (slot.isEmpty()) {
-				return Optional.empty();
-			}
-			if (input.getInputType() == InputType.EXECUTE && overlay.getFavoritePanelState().toggleRecipeRowCollapsed(slot.get().recipe())) {
-				playClickSound();
-			}
-			return Optional.of(this);
+			return overlay.getFavoriteRecipeRowPanelSlotUnderMouse(input.getMouseX(), input.getMouseY())
+				.map(slot -> InputAction.run(() -> {
+						if (overlay.getFavoritePanelState().toggleRecipeRowCollapsed(slot.recipe())) {
+							playClickSound();
+						}
+					})
+					.within(slot.area()::contains).when(overlay::isFavoritePanelDisplayed));
 		}
 
 		@Override
-		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+		public boolean scroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDelta) {
 			if (!overlay.isFavoritePanelDisplayed() ||
 				scrollDelta == 0 ||
 				!Screen.hasShiftDown() ||
 				Screen.hasControlDown() ||
 				Screen.hasAltDown()
 			) {
-				return Optional.empty();
+				return false;
 			}
 			Optional<FavoriteRecipeElementPanelSlot> slot = overlay.getFavoriteRecipeElementSlotUnderMouse(mouseX, mouseY);
 			if (slot.isEmpty()) {
-				return Optional.empty();
+				return false;
 			}
 			FavoriteRecipeElement<?> element = slot.get().element();
 			Optional<FavoriteRecipeStore.FavoriteSlotInput> slotInput = element.getFavoriteSlotInput();
 			if (slotInput.isEmpty()) {
-				return Optional.empty();
+				return false;
 			}
 			long step = scrollDelta > 0 ? 1 : -1;
 			if (overlay.getFavoriteRecipes().cycleFavoriteInputs(element.getFocusedRecipe(), slotInput.get(), step)) {
 				playClickSound();
-				return Optional.of(this);
+				return true;
 			}
-			return Optional.empty();
+			return false;
 		}
+
 	}
 
-	public class RecipeCollapseInputHandler implements IUserInputHandler {
+	public class RecipeCollapseInputHandler implements IInputTarget {
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-			if (input.getKey().getType() != InputConstants.Type.MOUSE ||
-				input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
-				!InputModifiers.hasAlt(input) ||
-				InputModifiers.hasShift(input)
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+			if (!input.isMouseInput() || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT ||
+				!InputModifiers.hasAlt(input) || InputModifiers.hasShift(input)
 			) {
 				return Optional.empty();
 			}
-			Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> target = overlay.getPanelSlots().stream()
+			return overlay.getPanelSlots().stream()
 				.filter(slot -> slot.area().contains(input.getMouseX(), input.getMouseY()))
 				.filter(slot -> slot.recipeKey() instanceof ResourceLocation)
 				.filter(slot -> overlay.getBookmarkList().isGroupCraftingMode(slot.groupId()))
-				.findFirst();
-			if (target.isEmpty()) {
-				return Optional.empty();
-			}
-			if (input.getInputType() == InputType.EXECUTE) {
-				int groupId = target.get().groupId();
-				boolean collapsed = overlay.getBookmarkList().getBookmarkGroups().stream()
-					.filter(group -> group.id() == groupId)
-					.findFirst()
-					.map(group -> group.collapsed())
-					.orElse(false);
-				if (collapsed) {
-					overlay.getBookmarkList().toggleGroupCollapsed(groupId);
-					playClickSound();
-					return Optional.of(this);
-				}
-				ResourceLocation recipeUid = (ResourceLocation) target.get().recipeKey();
-				if (overlay.getBookmarkList().toggleGroupCollapsedRecipeId(groupId, recipeUid)) {
-					playClickSound();
-				}
-			}
-			return Optional.of(this);
+				.findFirst()
+				.map(target -> InputAction.run(() -> {
+						int groupId = target.groupId();
+						boolean collapsed = overlay.getBookmarkList().getBookmarkGroups().stream()
+							.filter(group -> group.id() == groupId).findFirst().map(BookmarkGroup::collapsed).orElse(false);
+						boolean changed = collapsed ? overlay.getBookmarkList().toggleGroupCollapsed(groupId) : overlay.getBookmarkList().toggleGroupCollapsedRecipeId(groupId, (ResourceLocation) target.recipeKey());
+						if (changed) {
+							playClickSound();
+						}
+					})
+					.within(target.area()::contains).when(overlay::isListDisplayed));
 		}
 	}
 
-	public class GroupInputHandler implements IUserInputHandler {
+	public class GroupInputHandler implements IInputTarget {
 		private static final long SCROLL_STEP = 1;
 
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-			if (input.getKey().getType() != InputConstants.Type.MOUSE) {
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+			if (!input.isMouseInput()) {
 				return Optional.empty();
 			}
-
 			int mouseButton = input.getKey().getValue();
 			if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT && mouseButton != InputConstants.MOUSE_BUTTON_RIGHT) {
 				return Optional.empty();
 			}
-
 			if (overlay.getScrollStepArea().contains(input.getMouseX(), input.getMouseY())) {
 				if (mouseButton != InputConstants.MOUSE_BUTTON_RIGHT) {
 					return Optional.empty();
 				}
-				if (input.getInputType() == InputType.EXECUTE) {
-					overlay.getScrollStep().reset();
-					overlay.getScrollStepField().syncFromScrollStep();
-					playClickSound();
-				}
-				return Optional.of(this);
-			}
-
-			BookmarkHotkeyMouseButton hotkeyMouseButton = mouseButton == InputConstants.MOUSE_BUTTON_LEFT ? BookmarkHotkeyMouseButton.LEFT : BookmarkHotkeyMouseButton.RIGHT;
-			if (input.getInputType() == InputType.EXECUTE && overlay.getGroupPanelDrag() != null) {
-				boolean handled = overlay.getGroupPanelDrag().complete(input);
-				overlay.setGroupPanelDrag(null);
-				return handled ? Optional.of(this) : Optional.empty();
-			}
-
-			if (overlay.hasDefaultGroupBookmarks() && overlay.getDefaultGroupControlArea().contains(input.getMouseX(), input.getMouseY())) {
-				BookmarkHotkeyContext context = createDefaultGroupControlHotkeyContext();
-				Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveGroupMouseAction(
-					context,
-					hotkeyMouseButton,
-					InputModifiers.hasShift(input),
-					InputModifiers.hasAlt(input),
-					InputModifiers.hasControl(input)
-				);
-				if (action.isEmpty()) {
-					return Optional.empty();
-				}
-				if (input.getInputType() == InputType.EXECUTE) {
-					if (applyGroupClickAction(BookmarkGroupManager.DEFAULT_GROUP_ID, action.get())) {
+				return Optional.of(InputAction.run(() -> {
+						overlay.getScrollStep().reset();
+						overlay.getScrollStepField().syncFromScrollStep();
 						playClickSound();
-					}
-				}
-				return Optional.of(this);
+					})
+					.within((x, y) -> overlay.getScrollStepArea().contains(x, y)));
 			}
-
+			if (!overlay.isListDisplayed()) {
+				return Optional.empty();
+			}
+			BookmarkHotkeyMouseButton button = mouseButton == InputConstants.MOUSE_BUTTON_LEFT ? BookmarkHotkeyMouseButton.LEFT : BookmarkHotkeyMouseButton.RIGHT;
+			if (overlay.hasDefaultGroupBookmarks() && overlay.getDefaultGroupControlArea().contains(input.getMouseX(), input.getMouseY())) {
+				return BookmarkHotkeyRouter.resolveGroupMouseAction(createDefaultGroupControlHotkeyContext(), button,
+					InputModifiers.hasShift(input), InputModifiers.hasAlt(input), InputModifiers.hasControl(input))
+					.map(action -> InputAction.run(() -> applyClick(BookmarkGroupManager.DEFAULT_GROUP_ID, action))
+						.within((x, y) -> overlay.getDefaultGroupControlArea().contains(x, y)).when(overlay::isListDisplayed));
+			}
 			Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(input.getMouseX(), input.getMouseY());
 			if (slot.isEmpty()) {
 				return Optional.empty();
 			}
-
-			BookmarkHotkeyContext context = createGroupPanelHotkeyContext(slot.get());
 			Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveGroupMouseAction(
-				context,
-				hotkeyMouseButton,
-				InputModifiers.hasShift(input),
-				InputModifiers.hasAlt(input),
-				InputModifiers.hasControl(input)
-			);
+				createGroupPanelHotkeyContext(slot.get()), button,
+				InputModifiers.hasShift(input), InputModifiers.hasAlt(input), InputModifiers.hasControl(input));
 			if (action.isEmpty()) {
 				return Optional.empty();
 			}
-
-			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED) {
-				if (input.getInputType() == InputType.EXECUTE) {
-					if (applyGroupClickAction(slot.get().groupId(), action.get())) {
-						playClickSound();
-					}
-				}
-				return Optional.of(this);
+			BookmarkHotkeyAction selected = action.get();
+			if (selected == BookmarkHotkeyAction.GROUP_TOGGLE_COLLAPSED) {
+				return Optional.of(InputAction.run(() -> applyClick(slot.get().groupId(), selected))
+					.within((x, y) -> overlay.getGroupPanelSlotUnderMouse(x, y)
+						.filter(current -> current.groupId() == slot.get().groupId()).isPresent())
+					.when(overlay::isListDisplayed));
 			}
-
-			if (action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE ||
-				action.get() == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING ||
-				action.get() == BookmarkHotkeyAction.GROUP_DROP_DRAG
+			if (selected == BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE || selected == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING ||
+				selected == BookmarkHotkeyAction.GROUP_DROP_DRAG || shouldStartGroupPanelDrag(selected)
 			) {
-				if (input.getInputType() == InputType.SIMULATE) {
-					BookmarkHotkeyAction resolvedAction = action.get();
-					if (resolvedAction == BookmarkHotkeyAction.GROUP_DROP_DRAG && !overlay.canStartGroupDrop(slot.get().groupId())) {
-						resolvedAction = BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE;
+				BookmarkHotkeyAction resolved = selected == BookmarkHotkeyAction.GROUP_DROP_DRAG &&
+					!overlay.canStartGroupDrop(slot.get().groupId()) ? BookmarkHotkeyAction.GROUP_TOGGLE_VIEW_MODE : selected;
+				GroupPanelDrag drag = new GroupPanelDrag(overlay, slot.get(),
+					resolved == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING || resolved == BookmarkHotkeyAction.GROUP_EXCLUDE_DRAG,
+					shouldStartGroupPanelDrag(resolved) ? null : resolved, resolved == BookmarkHotkeyAction.GROUP_DROP_DRAG);
+				overlay.setGroupPanelDrag(drag);
+				return Optional.of(MouseDrag.forIngredient(release -> {
+					try {
+						if (overlay.isListDisplayed()) {
+							drag.complete(release);
+						}
+					} finally {
+						overlay.setGroupPanelDrag(null);
 					}
-					overlay.setGroupPanelDrag(new GroupPanelDrag(
-						overlay,
-						slot.get(),
-						resolvedAction == BookmarkHotkeyAction.GROUP_TOGGLE_CRAFTING,
-						resolvedAction,
-						resolvedAction == BookmarkHotkeyAction.GROUP_DROP_DRAG
-					));
-					return Optional.of(this);
-				}
-				if (input.getInputType() == InputType.EXECUTE && applyGroupClickAction(slot.get().groupId(), action.get())) {
-					playClickSound();
-					return Optional.of(this);
-				}
-				return Optional.empty();
-			}
-
-			if (input.getInputType() == InputType.SIMULATE && shouldStartGroupPanelDrag(action.get())) {
-				overlay.setGroupPanelDrag(new GroupPanelDrag(
-					overlay,
-					slot.get(),
-					action.get() == BookmarkHotkeyAction.GROUP_EXCLUDE_DRAG,
-					null
-				));
-				return Optional.of(this);
+				}, () -> overlay.setGroupPanelDrag(null)));
 			}
 			return Optional.empty();
 		}
 
+		private void applyClick(int groupId, BookmarkHotkeyAction action) {
+			if (applyGroupClickAction(groupId, action)) {
+				playClickSound();
+			}
+		}
+
 		@Override
-		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
-			// Ported from 1.21.1 fork (commit 29334012f): when a group-panel drag is
-			// active and not in drop mode, route scroll to the ingredient grid so the
-			// user can scroll past the page boundary to extend the grouping preview.
-			GroupPanelDrag groupPanelDrag = overlay.getGroupPanelDrag();
-			if (groupPanelDrag != null && !groupPanelDrag.isDropMode()) {
-				groupPanelDrag.scroll(0, scrollDelta, mouseY);
-				return Optional.of(this);
+		public boolean scroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDelta) {
+			var drag = overlay.getGroupPanelDrag();
+			if (drag != null && !drag.isDropMode()) {
+				drag.scroll(scrollDeltaX, scrollDelta, mouseY);
+				return true;
 			}
 			if (overlay.getScrollStepArea().contains(mouseX, mouseY)) {
 				if (scrollDelta == 0) {
-					return Optional.empty();
+					return false;
 				}
 				long direction = scrollDelta > 0 ? 1 : -1;
 				long step = Screen.hasControlDown() ? 64 : 1;
 				overlay.getScrollStep().add(direction * step);
 				overlay.getScrollStepField().syncFromScrollStep();
 				playClickSound();
-				return Optional.of(this);
+				return true;
 			}
 
+			if (!overlay.isListDisplayed()) {
+				return false;
+			}
 			Optional<GroupPanelSlot> groupSlot = overlay.getGroupPanelSlotUnderMouse(mouseX, mouseY);
 			boolean defaultControl = overlay.hasDefaultGroupBookmarks() && overlay.getDefaultGroupControlArea().contains(mouseX, mouseY);
 			if (!overlay.isMouseOver(mouseX, mouseY) && groupSlot.isEmpty() && !defaultControl) {
-				return Optional.empty();
+				return false;
 			}
 			boolean controlDown = Screen.hasControlDown();
 			boolean altDown = Screen.hasAltDown();
 			boolean shiftDown = Screen.hasShiftDown();
 			if (!controlDown && !shiftDown && !altDown) {
-				return Optional.empty();
+				return false;
 			}
 
 			if (groupSlot.isPresent() || defaultControl) {
@@ -287,36 +232,21 @@ public final class BookmarkOverlayInputHandlers {
 					long step = getScrollStep(scrollDelta, action.get());
 					if (overlay.getBookmarkList().shiftGroupAmount(groupId, step)) {
 						playClickSound();
-						return Optional.of(this);
+						return true;
 					}
 				}
-				return Optional.empty();
+				return false;
 			}
 
 			Optional<IBookmark> bookmark = overlay.getBookmarkUnderMouse(mouseX, mouseY);
-			if (bookmark.isPresent()) {
-				BookmarkHotkeyContext context = createBookmarkHotkeyContext(bookmark.get());
-				Optional<BookmarkHotkeyAction> action = BookmarkHotkeyRouter.resolveBookmarkScrollAction(context, controlDown, altDown, shiftDown);
-				if (action.filter(a -> a == BookmarkHotkeyAction.SHIFT_AMOUNT || a == BookmarkHotkeyAction.SHIFT_AMOUNT_STEP).isPresent()) {
-					long step = getScrollStep(scrollDelta, action.get());
-					if (overlay.getBookmarkList().shiftBookmarkAmount(bookmark.get(), step)) {
-						playClickSound();
-						return Optional.of(this);
-					}
-				} else if (action.filter(a -> a == BookmarkHotkeyAction.CYCLE_PERMUTATION).isPresent()) {
-					long step = getScrollStep(scrollDelta, action.get());
-					if (overlay.getBookmarkList().cycleBookmarkPermutation(bookmark.get(), step)) {
-						playClickSound();
-						return Optional.of(this);
-					}
-				} else if (action.filter(a -> a == BookmarkHotkeyAction.TOGGLE_INPUT_CATALYST).isPresent()) {
-					if (overlay.getBookmarkList().toggleBookmarkInputCatalyst(bookmark.get())) {
-						playClickSound();
-						return Optional.of(this);
-					}
-				}
+			if (bookmark.isPresent() && BookmarkScrollHandler.apply(
+				overlay.getBookmarkList(), bookmark.get(), scrollDelta, controlDown, altDown, shiftDown, overlay.getScrollStep().getEffectiveStep(),
+				step -> overlay.getBookmarkList().shiftBookmarkAmount(bookmark.get(), step))
+			) {
+				playClickSound();
+				return true;
 			}
-			return Optional.empty();
+			return false;
 		}
 
 		private long getScrollStep(double scrollDelta, BookmarkHotkeyAction action) {
@@ -349,7 +279,7 @@ public final class BookmarkOverlayInputHandlers {
 	}
 
 	static BookmarkHotkeyContext createGroupPanelHotkeyContext(GroupPanelSlot slot) {
-		boolean grouped = BookmarkGroupManager.DEFAULT_GROUP_ID != slot.groupId();
+		boolean grouped = !(slot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID);
 		if (!grouped) {
 			return BookmarkHotkeyContext.builder(BookmarkHotkeySubject.EMPTY_GROUP_PANEL)
 				.build();
@@ -364,13 +294,4 @@ public final class BookmarkOverlayInputHandlers {
 			.build();
 	}
 
-	private BookmarkHotkeyContext createBookmarkHotkeyContext(IBookmark bookmark) {
-		BookmarkItemMetadata metadata = overlay.getBookmarkList().getBookmarkMetadata(bookmark);
-		BookmarkHotkeySubject subject = metadata.recipeUid() == null ? BookmarkHotkeySubject.ITEM_BOOKMARK : BookmarkHotkeySubject.RECIPE_BOOKMARK;
-		return BookmarkHotkeyContext.builder(subject)
-			.hasIngredient(true)
-			.hasRecipe(metadata.recipeUid() != null)
-			.isBookmarkSlot(true)
-			.build();
-	}
 }

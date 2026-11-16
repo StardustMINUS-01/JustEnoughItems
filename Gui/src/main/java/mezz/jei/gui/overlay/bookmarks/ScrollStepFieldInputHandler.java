@@ -1,13 +1,19 @@
 package mezz.jei.gui.overlay.bookmarks;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import mezz.jei.common.input.IGuiInputLayer;
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.ConsumedInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.gui.input.ITextInputHandler;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.Optional;
 
-public class ScrollStepFieldInputHandler implements IUserInputHandler {
+public class ScrollStepFieldInputHandler implements IGuiInputLayer, ITextInputHandler {
 	private final ScrollStepTextField textField;
 
 	public ScrollStepFieldInputHandler(ScrollStepTextField textField) {
@@ -15,40 +21,61 @@ public class ScrollStepFieldInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		if (input.is(keyBindings.getEnterKey()) || input.is(keyBindings.getEscapeKey())) {
-			return handleSetFocused(input, false);
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keys) {
+		if (hasKeyboardFocus() && (input.is(keys.getEnterKey()) || input.is(keys.getEscapeKey()))) {
+			return Optional.of(InputAction.run(this::clearFocus));
 		}
-		if (input.callVanilla(
-			textField::isMouseOver,
-			textField::mouseClicked,
-			textField::keyPressed
-		)) {
-			handleSetFocused(input, true);
-			return Optional.of(this);
+		if (input.isMouseInput() && input.getKey().getValue() == InputConstants.MOUSE_BUTTON_LEFT &&
+			containsMouse(input.getMouseX(), input.getMouseY())
+		) {
+			return Optional.of(new InputAction(release -> {
+					if (release.ifMouseEvent(textField::mouseClicked)) {
+						focus();
+					}
+				})
+				.within(this));
 		}
-		if (textField.canConsumeInput() && input.isAllowedChatCharacter()) {
-			return Optional.of(this);
+		if (!hasKeyboardFocus()) {
+			return Optional.empty();
 		}
-		return Optional.empty();
-	}
-
-	private Optional<IUserInputHandler> handleSetFocused(UserInput input, boolean focused) {
-		if (textField.isFocused() != focused) {
-			if (!input.isSimulate()) {
-				textField.setFocused(focused);
-				if (!focused) {
-					textField.syncFromScrollStep();
-				}
-			}
-			return Optional.of(this);
+		if (input.ifKeyboardEvent(textField::keyPressed)) {
+			return Optional.of(ConsumedInput.INSTANCE);
 		}
-		return Optional.empty();
+		return textField.canConsumeInput() && input.isAllowedChatCharacter() ? Optional.of(ConsumedInput.TEXT_INPUT) : Optional.empty();
 	}
 
 	@Override
-	public void unfocus() {
+	public boolean containsMouse(double mouseX, double mouseY) {
+		return textField.isVisible() && textField.isMouseOver(mouseX, mouseY);
+	}
+
+	@Override
+	public boolean hasKeyboardFocus() {
+		return textField.isVisible() && textField.isFocused();
+	}
+
+	@Override
+	public void focus() {
+		textField.setFocused(true);
+	}
+
+	@Override
+	public void clearFocus() {
 		textField.setFocused(false);
 		textField.syncFromScrollStep();
+	}
+
+	@Override
+	public void resetInput() {
+		clearFocus();
+	}
+
+	@Override
+	public boolean onCharTyped(char codePoint, int modifiers) {
+		return hasKeyboardFocus() && textField.charTyped(codePoint, modifiers);
+	}
+
+	@Override
+	public void draw(GuiGraphics graphics, int mouseX, int mouseY) {
 	}
 }

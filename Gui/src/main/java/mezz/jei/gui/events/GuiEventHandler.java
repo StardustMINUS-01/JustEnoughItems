@@ -15,9 +15,10 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayRenderer;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayState;
 
-import mezz.jei.gui.input.IGuiInputLayer;
 import mezz.jei.gui.config.screen.JeiConfigScreen;
-import mezz.jei.gui.input.MouseUtil;
+import mezz.jei.common.input.IGuiInputLayer;
+import mezz.jei.common.input.MouseUtil;
+import mezz.jei.gui.input.GuiInputScene;
 import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import net.minecraft.client.Minecraft;
@@ -41,19 +42,21 @@ public class GuiEventHandler {
 	private final BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner;
 	private final List<IGuiInputLayer> inputLayers;
 	private boolean drawnOnBackground;
+	private final GuiInputScene inputScene;
 
 	public GuiEventHandler(
 		IScreenHelper screenHelper,
 		BookmarkOverlay bookmarkOverlay,
 		IngredientListOverlay ingredientListOverlay,
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner,
-		IGuiInputLayer... inputLayers
+		GuiInputScene inputScene
 	) {
 		this.screenHelper = screenHelper;
 		this.bookmarkOverlay = bookmarkOverlay;
 		this.ingredientListOverlay = ingredientListOverlay;
 		this.bookmarkAutoCraftingRunner = bookmarkAutoCraftingRunner;
-		this.inputLayers = List.of(inputLayers);
+		this.inputScene = inputScene;
+		this.inputLayers = inputScene.getForegroundLayers();
 	}
 
 	public void onGuiInit(Screen screen) {
@@ -107,6 +110,7 @@ public class GuiEventHandler {
 		}
 		updateOverlayProperties(screen);
 		this.inputLayers.forEach(inputLayer -> inputLayer.update(mouseX, mouseY));
+		this.inputScene.updateKeyboardFocus();
 	}
 
 	public void onDrawBackgroundPost(GuiGraphics guiGraphics) {
@@ -148,7 +152,7 @@ public class GuiEventHandler {
 		Minecraft minecraft = Minecraft.getInstance();
 
 		boolean mouseOverInputLayer = this.inputLayers.stream()
-			.anyMatch(inputLayer -> inputLayer.isMouseOver(mouseX, mouseY));
+			.anyMatch(inputLayer -> inputLayer.containsMouse(mouseX, mouseY));
 		if (!drawnOnBackground) {
 			drawOverlays(guiGraphics, mouseX, mouseY);
 		}
@@ -174,7 +178,7 @@ public class GuiEventHandler {
 				});
 		}
 
-		if (!mouseOverInputLayer) {
+		if (!mouseOverInputLayer || inputScene.getKeyboardTarget().isPresent()) {
 			ingredientListOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 			bookmarkOverlay.drawTooltips(minecraft, guiGraphics, mouseX, mouseY);
 		}
@@ -192,7 +196,7 @@ public class GuiEventHandler {
 		Minecraft minecraft = Minecraft.getInstance();
 
 		boolean mouseOverInputLayer = this.inputLayers.stream()
-			.anyMatch(inputLayer -> inputLayer.isMouseOver(mouseX, mouseY));
+			.anyMatch(inputLayer -> inputLayer.containsMouse(mouseX, mouseY));
 		int overlayMouseX = mouseX;
 		int overlayMouseY = mouseY;
 		if (mouseOverInputLayer || minecraft.screen instanceof JeiConfigScreen) {
@@ -221,8 +225,8 @@ public class GuiEventHandler {
 			.update();
 	}
 
-	public boolean renderCompactPotionIndicators() {
-		return ingredientListOverlay.isListDisplayed();
+	public boolean renderCompactPotionIndicators(AbstractContainerScreen<?> screen) {
+		return ingredientListOverlay.shouldRenderCompactInventoryEffects(screen);
 	}
 
 	private void drawDebugInfoForScreen(Screen screen, GuiGraphics guiGraphics) {

@@ -5,7 +5,7 @@ import mezz.jei.common.Internal;
 import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.input.ClientInputHandler;
 import mezz.jei.gui.input.PinnedTooltipManager;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.input.handlers.WorldInputHandler;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import mezz.jei.forge.events.RuntimeEventSubscriptions;
@@ -28,6 +28,7 @@ import net.minecraftforge.event.TickEvent;
 public class EventRegistration {
 	public static void registerEvents(RuntimeEventSubscriptions subscriptions, JeiEventHandlers eventHandlers) {
 		ClientInputHandler clientInputHandler = eventHandlers.clientInputHandler();
+		subscriptions.onClear(clientInputHandler::onGuiChanged);
 		registerClientInputHandler(subscriptions, clientInputHandler);
 		registerWorldInputHandler(subscriptions, eventHandlers.worldInputHandler());
 
@@ -68,7 +69,8 @@ public class EventRegistration {
 	}
 
 	private static void registerClientInputHandler(RuntimeEventSubscriptions subscriptions, ClientInputHandler handler) {
-		subscriptions.register(ScreenEvent.Init.Post.class, event -> handler.onInitGui());
+		subscriptions.register(ScreenEvent.Init.Post.class, event -> handler.onGuiChanged());
+		subscriptions.register(ScreenEvent.Closing.class, event -> handler.onGuiChanged());
 
 		subscriptions.register(ScreenEvent.KeyPressed.Pre.class, event -> {
 			Screen screen = event.getScreen();
@@ -85,11 +87,7 @@ public class EventRegistration {
 			}
 		});
 
-		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> {
-			Screen screen = event.getScreen();
-			UserInput input = ForgeUserInput.fromEvent(event);
-			handler.onKeyboardKeyReleased(input);
-		});
+		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> handler.onKeyboardKeyReleased(event.getKeyCode(), event.getScanCode()));
 
 		subscriptions.register(ScreenEvent.CharacterTyped.Pre.class, event -> {
 			Screen screen = event.getScreen();
@@ -181,7 +179,7 @@ public class EventRegistration {
 			}
 		});
 		subscriptions.register(ScreenEvent.RenderInventoryMobEffects.class, event -> {
-			if (guiEventHandler.renderCompactPotionIndicators()) {
+			if (event.getScreen() instanceof AbstractContainerScreen<?> screen && guiEventHandler.renderCompactPotionIndicators(screen)) {
 				// Forcibly renders the potion indicators in compact mode.
 				// This gives the ingredient list overlay more room to display ingredients.
 				event.setCompact(true);

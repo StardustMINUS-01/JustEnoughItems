@@ -3,7 +3,9 @@ package mezz.jei.gui.recipes;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.common.search.BakedSubstringIndexBuilder;
+import mezz.jei.api.search.ISearchStorageBuilder;
+import mezz.jei.api.search.ISearchStorageBuilderFactory;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
@@ -75,7 +77,12 @@ public class RecipesGuiTest {
 		)));
 		RecipeLookupSnapshot snapshot = new RecipeLookupSnapshot(
 			List.of(new RecipeLookupSnapshot.CategoryRecipes<>(category, List.of(ingot, plate))),
-			rules, AliasIndex::new
+			rules, new ISearchStorageBuilderFactory() {
+				@Override
+				public <T> ISearchStorageBuilder<T> create() {
+					return new AliasIndex<>();
+				}
+			}
 		);
 		assertEquals(List.of("ingot"), snapshot.project(RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("")).get(0).getRecipes());
 		assertEquals(List.of("plate"), snapshot.project(RecipeFilterMode.NOT_PREFERRED, RecipeSearchQuery.parse("")).get(0).getRecipes());
@@ -142,7 +149,7 @@ public class RecipesGuiTest {
 		return new RecipeLookupSnapshot.RecipeEntry<>(name, document, Optional.of(candidate));
 	}
 
-	private static final class AliasIndex<T> extends BakedSubstringIndexBuilder<T> {
+	private static final class AliasIndex<T> extends LuceneSearchStorageBuilder<T> {
 		@Override
 		public void put(String key, T value) {
 			super.put(key, value);

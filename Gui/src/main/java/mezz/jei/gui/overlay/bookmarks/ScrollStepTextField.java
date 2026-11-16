@@ -5,7 +5,6 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.gui.elements.DrawableNineSliceTexture;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.input.IUserInputHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -58,10 +57,6 @@ public class ScrollStepTextField extends EditBox {
 		updateColor();
 	}
 
-	public IUserInputHandler createInputHandler() {
-		return new ScrollStepFieldInputHandler(this);
-	}
-
 	@Override
 	public boolean isMouseOver(double mouseX, double mouseY) {
 		return area.contains(mouseX, mouseY);
@@ -106,5 +101,9 @@ public class ScrollStepTextField extends EditBox {
 		} else {
 			setTextColor(0xFFFFFFFF);
 		}
+	}
+
+	public mezz.jei.common.input.IInputTarget createInputHandler() {
+		return new ScrollStepFieldInputHandler(this);
 	}
 }

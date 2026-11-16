@@ -9,14 +9,16 @@ import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.common.util.JeiClientSoundUtil;
-import mezz.jei.gui.input.ICharTypedHandler;
-import mezz.jei.gui.input.IDragHandler;
-import mezz.jei.gui.input.IGuiInputLayer;
+import mezz.jei.common.input.IGuiInputLayer;
 import mezz.jei.gui.input.IPinnedTooltipHolder;
-import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.ConsumedInput;
+import mezz.jei.gui.input.ITextInputHandler;
+import mezz.jei.gui.input.InputArea;
 import mezz.jei.gui.input.PinnedTooltipManager;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.input.MouseUtil;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.MouseUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -35,7 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-public final class IngredientTagSelectionTooltip implements IGuiInputLayer, IPinnedTooltipHolder, ICharTypedHandler, IDragHandler, ClientTooltipComponent, TooltipComponent {
+public final class IngredientTagSelectionTooltip implements IGuiInputLayer, IPinnedTooltipHolder, ITextInputHandler, ClientTooltipComponent, TooltipComponent {
 	private static final int PADDING = 4;
 	private static final int LINE_HEIGHT = 10;
 	private final JeiTooltip tooltip = new JeiTooltip();
@@ -106,12 +108,12 @@ public final class IngredientTagSelectionTooltip implements IGuiInputLayer, IPin
 	}
 
 	@Override
-	public void unfocus() {
+	public void resetInput() {
 		hide();
 	}
 
 	@Override
-	public boolean isMouseOver(double mouseX, double mouseY) {
+	public boolean containsMouse(double mouseX, double mouseY) {
 		return sourceScreen != null;
 	}
 
@@ -123,43 +125,52 @@ public final class IngredientTagSelectionTooltip implements IGuiInputLayer, IPin
 		return rows.get(firstRow + (int) (mouseY - top) / LINE_HEIGHT).tagIndex();
 	}
 
-	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
-		if (sourceScreen == null) {
-			return Optional.empty();
-		}
-		if (input.getKey().getType() == InputConstants.Type.MOUSE) {
-			int row = getTagIndex(input.getMouseX(), input.getMouseY());
-			if (input.isSimulate()) {
-				return Optional.of((releaseScreen, release, keys) -> {
-					if (sourceScreen == screen && row == getTagIndex(release.getMouseX(), release.getMouseY())) {
-						handleUserInput(releaseScreen, release, keys);
-					}
-					return Optional.of(this);
-				});
-			}
-			if (row >= 0 && row < tags.size() && input.getKey().getValue() == InputConstants.MOUSE_BUTTON_LEFT) {
-				Minecraft.getInstance().keyboardHandler.setClipboard(tags.get(row));
-				JeiClientSoundUtil.playClickSound();
-				hide();
-			} else if (!area.contains(input.getMouseX(), input.getMouseY())) {
-				hide();
-			}
-		} else if (!input.isSimulate() && input.getKey().getValue() == GLFW.GLFW_KEY_ESCAPE) {
-			hide();
-		}
-		return Optional.of(this);
+	public InputArea createInputArea() {
+		return InputArea.builder("Ingredient tags", this).controls(this).blockUnhandledMouseInput().build();
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaY) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (sourceScreen == null) {
 			return Optional.empty();
+		}
+		if (input.isMouseInput()) {
+			int row = getTagIndex(input.getMouseX(), input.getMouseY());
+			return Optional.of(new InputAction(release -> {
+					if (row >= 0 && row < tags.size() && input.getKey().getValue() == InputConstants.MOUSE_BUTTON_LEFT) {
+						Minecraft.getInstance().keyboardHandler.setClipboard(tags.get(row));
+						JeiClientSoundUtil.playClickSound();
+						hide();
+					} else if (!area.contains(release.getMouseX(), release.getMouseY())) {
+						hide();
+					}
+				})
+				.within((x, y) -> row == getTagIndex(x, y)).when(() -> sourceScreen == screen));
+		}
+		if (input.getKey().getValue() == GLFW.GLFW_KEY_ESCAPE) {
+			return Optional.of(InputAction.run(this::hide));
+		}
+		return Optional.of(ConsumedInput.INSTANCE);
+	}
+
+	@Override
+	public boolean scroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+		if (sourceScreen == null) {
+			return false;
 		}
 		if (area.contains(mouseX, mouseY)) {
 			firstRow = Mth.clamp(firstRow - (int) Math.signum(scrollDeltaY), 0, rows.size() - visibleRows);
 		}
-		return Optional.of(this);
+		return true;
+	}
+
+	@Override
+	public void focus() {
+	}
+
+	@Override
+	public void clearFocus() {
+		hide();
 	}
 
 	@Override
@@ -170,16 +181,6 @@ public final class IngredientTagSelectionTooltip implements IGuiInputLayer, IPin
 	@Override
 	public boolean onCharTyped(char codePoint, int modifiers) {
 		return hasKeyboardFocus();
-	}
-
-	@Override
-	public Optional<IDragHandler> handleDragStart(Screen screen, UserInput input) {
-		return sourceScreen == null ? Optional.empty() : Optional.of(this);
-	}
-
-	@Override
-	public boolean handleDragComplete(Screen screen, UserInput input) {
-		return true;
 	}
 
 	@Override

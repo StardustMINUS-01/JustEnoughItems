@@ -1,7 +1,7 @@
 package mezz.jei.gui.bookmarks.tree;
 
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.Optional;

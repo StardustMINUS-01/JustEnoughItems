@@ -1,16 +1,19 @@
 package mezz.jei.gui.recipes;
 
 import mezz.jei.common.input.IInternalKeyMappings;
-import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.ConsumedInput;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
-public class RecipeBookmarkButtonHotkeyInputHandler implements IUserInputHandler {
+public class RecipeBookmarkButtonHotkeyInputHandler implements IInputTarget {
 	private final BiPredicate<Double, Double> isMouseOver;
 	private final BiFunction<UserInput, Boolean, Boolean> addRecipeBookmarkGroup;
 	private final Runnable playClickSound;
@@ -26,7 +29,7 @@ public class RecipeBookmarkButtonHotkeyInputHandler implements IUserInputHandler
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		if (!isBookmarkRecipeHotkey(input, keyBindings) || !isMouseOver.test(input.getMouseX(), input.getMouseY())) {
 			return Optional.empty();
 		}
@@ -35,10 +38,16 @@ public class RecipeBookmarkButtonHotkeyInputHandler implements IUserInputHandler
 		if (!addRecipeBookmarkGroup.apply(input, preserveAmount)) {
 			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
-			playClickSound.run();
+		if (input.isMouseInput()) {
+			return Optional.of(new InputAction(release -> {
+					if (addRecipeBookmarkGroup.apply(release, preserveAmount)) {
+						playClickSound.run();
+					}
+				})
+				.within(isMouseOver::test));
 		}
-		return Optional.of(this);
+		playClickSound.run();
+		return Optional.of(ConsumedInput.INSTANCE);
 	}
 
 	private static boolean isBookmarkRecipeHotkey(UserInput input, IInternalKeyMappings keyBindings) {

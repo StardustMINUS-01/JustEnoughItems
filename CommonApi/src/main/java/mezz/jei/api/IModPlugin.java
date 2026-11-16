@@ -24,6 +24,7 @@ import net.minecraft.resources.ResourceLocation;
  * The main class to implement to create a JEI plugin. Everything communicated between a mod and JEI is through this class.
  * IModPlugins must have the {@link JeiPlugin} annotation to get loaded by JEI.
  */
+@SuppressWarnings({"deprecation", "removal"})
 public interface IModPlugin {
 
 	/**
@@ -83,7 +84,7 @@ public interface IModPlugin {
 	/**
 	 * Register search aliases for ingredients.
 	 *
-	 * @implNote If the player has disabled search aliases in the config, this will not be called.
+	 * @implNote The player's search config controls whether these aliases are used by JEI's search.
 	 *
 	 * @since 15.15.0
 	 */
@@ -190,7 +191,9 @@ public interface IModPlugin {
 	 * Called when JEI's configs are available.
 	 * This is called early on, as soon as configs are available.
 	 * @since 12.3.0
+	 * @deprecated use MezzConfig APIs directly
 	 */
+	@Deprecated(since = "15.60.0", forRemoval = true)
 	default void onConfigManagerAvailable(IJeiConfigManager configManager) {
 
 	}

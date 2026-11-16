@@ -609,7 +609,7 @@ public final class JeiConfigScreen extends Screen {
 
 	@Override
 	public void renderBackground(GuiGraphics graphics) {
-		int transparency = Internal.getJeiClientConfigs().getClientConfig().getConfigScreenTransparency();
+		int transparency = Internal.getClientConfigs().getClientConfig().getConfigScreenTransparency();
 		int alpha = Math.round((100 - transparency) * 255 / 100.0f) << 24;
 		graphics.fill(sidebar + 1, 38, width, height - 40, alpha | 0x202020);
 		graphics.fill(0, 0, width, 38, alpha | 0x303030);

@@ -1,13 +1,20 @@
+import mezz.jei.gradle.gradleProperty
 plugins {
 	java
 	idea
 	id("org.spongepowered.gradle.vanilla")
 }
 
+repositories {
+	maven("https://maven.blamejared.com/") {
+		content { includeGroup("net.mezzdev.config") }
+	}
+}
+
 // gradle.properties
-val minecraftVersion: String by extra
-val modId: String by extra
-val modJavaVersion: String by extra
+val minecraftVersion = gradleProperty("minecraftVersion")
+val modId = gradleProperty("modId")
+val modJavaVersion = gradleProperty("modJavaVersion")
 
 val baseArchivesName = "${modId}-${minecraftVersion}-debug"
 base {

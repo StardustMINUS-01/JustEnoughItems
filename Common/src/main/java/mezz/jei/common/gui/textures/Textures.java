@@ -30,6 +30,7 @@ public class Textures {
 	private final DrawableNineSliceTexture interactiveIngredientTooltipBackground;
 	private final DrawableNineSliceTexture recipePreviewBackground;
 	private final DrawableNineSliceTexture searchBackground;
+	private final DrawableNineSliceTexture completionOverlayBackground;
 	private final DrawableNineSliceTexture scrollbarBackground;
 	private final DrawableNineSliceTexture scrollbarMarker;
 	private final DrawableNineSliceTexture exclusionAreaShadow;
@@ -101,14 +102,15 @@ public class Textures {
 		this.searchBackground = createNineSliceGuiSprite("search_background", 20, 20, 6, 6, 6, 6);
 		this.scrollbarBackground = createNineSliceGuiSprite("scrollbar_background", 14, 50, 6, 6, 6, 6);
 		this.scrollbarMarker = createNineSliceGuiSprite("scrollbar_marker", 12, 15, 2, 2, 2, 1);
-		this.exclusionAreaShadow = createNineSliceGuiSprite("exclusion_area_shadow", 16, 16, 4, 4, 4, 4);
 		this.catalystTab = createNineSliceGuiSprite("catalyst_tab", 28, 28, 8, 9, 8, 8);
 		this.recipeOptionsTab = createNineSliceGuiSprite("recipe_options_tab", 28, 28, 8, 9, 8, 8);
 		this.recipeArrow = createGuiSprite("recipe_arrow", 22, 16);
 		this.recipeArrowFilled = createGuiSprite("recipe_arrow_filled", 22, 16);
+		this.exclusionAreaShadow = createNineSliceGuiSprite("exclusion_area_shadow", 16, 16, 4, 4, 4, 4);
+		this.completionOverlayBackground = createNineSliceGuiSprite("completion_overlay_background", 20, 20, 1, 1, 1, 1);
 		this.recipePlusSign = createGuiSprite("recipe_plus_sign", 13, 13);
 
-		this.brewingStandBackground = createGuiSprite("brewing_stand_background", 64, 60);
+		this.brewingStandBackground = createGuiSprite("brewing_stand_background_v2", 64, 60);
 		this.brewingStandBlazeHeat = createGuiSprite("brewing_stand_blaze_heat", 18, 4);
 		this.brewingStandBubbles = createGuiSprite("brewing_stand_bubbles", 11, 28);
 		this.brewingStandArrow = createGuiSprite("brewing_stand_arrow", 7, 27);
@@ -289,6 +291,10 @@ public class Textures {
 
 	public DrawableNineSliceTexture getSearchBackground() {
 		return searchBackground;
+	}
+
+	public DrawableNineSliceTexture getCompletionOverlayBackground() {
+		return completionOverlayBackground;
 	}
 
 	public IDrawableStatic getInfoIcon() {

@@ -1,6 +1,5 @@
 package mezz.jei.gui.recipes;
 
-import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.HotkeyTooltipLine;
 import mezz.jei.common.input.IInternalKeyMappings;
 import net.minecraft.network.chat.CommonComponents;
@@ -11,7 +10,7 @@ public final class RecipeButtonHotkeyTooltipUtil {
 	}
 
 	public static void addOverlayButtonHotkeys(
-		JeiTooltip tooltip,
+		mezz.jei.api.gui.builder.ITooltipBuilder tooltip,
 		IInternalKeyMappings keyMappings,
 		boolean canUseOverlayRenderer,
 		boolean canFillCraftingGrid
@@ -39,7 +38,7 @@ public final class RecipeButtonHotkeyTooltipUtil {
 	}
 
 	public static void addBookmarkButtonHotkeys(
-		JeiTooltip tooltip,
+		mezz.jei.api.gui.builder.ITooltipBuilder tooltip,
 		IInternalKeyMappings keyMappings,
 		boolean canChangeResultIndex
 	) {
@@ -55,7 +54,7 @@ public final class RecipeButtonHotkeyTooltipUtil {
 	}
 
 	public static void addFavoriteButtonHotkeys(
-		JeiTooltip tooltip,
+		mezz.jei.api.gui.builder.ITooltipBuilder tooltip,
 		IInternalKeyMappings keyMappings,
 		boolean canChangeResultIndex
 	) {
@@ -75,7 +74,7 @@ public final class RecipeButtonHotkeyTooltipUtil {
 		}
 	}
 
-	private static void addRecipeBookmarkHotkeys(JeiTooltip tooltip, IInternalKeyMappings keyMappings) {
+	private static void addRecipeBookmarkHotkeys(mezz.jei.api.gui.builder.ITooltipBuilder tooltip, IInternalKeyMappings keyMappings) {
 		Component bookmarkKey = keyMappings.getBookmark().getTranslatedKeyMessage();
 		HotkeyTooltipLine.add(
 			tooltip,

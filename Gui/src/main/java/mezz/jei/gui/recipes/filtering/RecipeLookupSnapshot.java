@@ -4,7 +4,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
-import mezz.jei.common.search.BakedSubstringIndexBuilder;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.input.FocusedRecipe;
@@ -23,7 +23,7 @@ public final class RecipeLookupSnapshot {
 	private ISearchStorage<String> searchStorage;
 
 	public RecipeLookupSnapshot(List<CategoryRecipes<?>> categories) {
-		this(categories, BakedSubstringIndexBuilder::new);
+		this(categories, LuceneSearchStorageBuilder.FACTORY);
 	}
 
 	public RecipeLookupSnapshot(
@@ -36,7 +36,7 @@ public final class RecipeLookupSnapshot {
 	}
 
 	public RecipeLookupSnapshot(List<CategoryRecipes<?>> categories, RecipePreferenceRules preferenceRules) {
-		this(categories, preferenceRules, BakedSubstringIndexBuilder::new);
+		this(categories, preferenceRules, LuceneSearchStorageBuilder.FACTORY);
 	}
 
 	public RecipeLookupSnapshot(

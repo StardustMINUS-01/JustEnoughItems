@@ -69,7 +69,7 @@ public final class CollapsibleSlotVisualsProvider {
 		return Optional.of(new BookmarkSlotVisuals(
 			OptionalInt.of(backgroundColor),
 			OptionalInt.empty(),
-			collapsed && CollapsibleColorConfig.getShowGroupSize().getValue() ? Optional.of(String.valueOf(size)) : Optional.empty(),
+			collapsed && CollapsibleColorConfig.getShowGroupSize().get() ? Optional.of(String.valueOf(size)) : Optional.empty(),
 			OptionalInt.of(0xFFFFFFFF),
 			Optional.empty(),
 			OptionalInt.empty(),

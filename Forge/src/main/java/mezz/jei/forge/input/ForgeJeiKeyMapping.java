@@ -26,6 +26,11 @@ public class ForgeJeiKeyMapping implements IJeiKeyMappingInternal {
 	 * binding's modifier, so CTRL+F must not be triggered by a plain F press.
 	 */
 	@Override
+	public KeyMapping getKeyMapping() {
+		return keyMapping;
+	}
+
+	@Override
 	public boolean isActiveAndMatches(InputConstants.Key key) {
 		return keyMapping.isActiveAndMatches(key);
 	}

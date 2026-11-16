@@ -48,14 +48,14 @@ public final class RecipeTreeBookmarkPanel {
 		this.groupId = groupId;
 		this.ingredients = ingredients;
 		renderer = new IngredientListRenderer(ingredients, false);
-		tooltipHelper = new IngredientGridTooltipHelper(ingredients, Internal.getJeiClientConfigs().getIngredientFilterConfig(),
+		tooltipHelper = new IngredientGridTooltipHelper(ingredients, Internal.getClientConfigs().getIngredientFilterConfig(),
 			Internal.getClientToggleState(), Internal.getKeyMappings(), Internal.getJeiRuntime().getJeiHelpers().getColorHelper());
 		renderer.setSlotVisualsResolver(context -> {
 			var entry = entries.get(context.element());
 			var mode = Screen.hasControlDown() ? BookmarkSlotDisplayMode.REAL : Screen.hasShiftDown() ? BookmarkSlotDisplayMode.SHIFT : BookmarkSlotDisplayMode.DEFAULT;
 			return entry == null ? Optional.empty() : BookmarkChainSlotVisuals.create(entry,
 				new BookmarkSlotVisualContext(mode, context.hoveredElement().map(entries::get).map(value -> (BookmarkDisplayEntry<?>) value),
-					context.rowIndex(), context.hoveredRowIndex(), Internal.getJeiClientConfigs().getClientConfig().getBookmarkRecipeMarkerMode()));
+					context.rowIndex(), context.hoveredRowIndex(), Internal.getClientConfigs().getClientConfig().getBookmarkRecipeMarkerMode()));
 		});
 	}
 

@@ -13,14 +13,15 @@ import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.Blocks;
+
+import java.util.List;
 
 public class CompostableRecipeCategory extends AbstractRecipeCategory<IJeiCompostingRecipe> {
 	public CompostableRecipeCategory(IGuiHelper guiHelper) {
 		super(
 			RecipeTypes.COMPOSTING,
 			Component.translatable("gui.jei.category.compostable"),
-			guiHelper.createDrawableItemLike(Blocks.COMPOSTER),
+			null,
 			120,
 			18
 		);
@@ -48,5 +49,10 @@ public class CompostableRecipeCategory extends AbstractRecipeCategory<IJeiCompos
 	@Override
 	public ResourceLocation getRegistryName(IJeiCompostingRecipe recipe) {
 		return recipe.getUid();
+	}
+
+	@Override
+	public List<ResourceLocation> getSourceRecipeIds(IJeiCompostingRecipe recipe) {
+		return List.of();
 	}
 }

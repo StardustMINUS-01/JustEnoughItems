@@ -15,6 +15,17 @@ public interface IElementSearch {
 
 	Collection<IListElement<?>> getAllIngredients();
 
+	void update(
+		Collection<IListElementInfo<?>> updatedInfos,
+		Set<ElementSearchIndex> rebuildingIndexes,
+		Collection<IListElementInfo<?>> allInfos
+	);
+
+	void rebuildSearchIndexes(
+		Set<ElementSearchIndex> searchIndexes,
+		Collection<IListElementInfo<?>> elementInfos
+	);
+
 	Set<IListElement<?>> getSearchResults(ElementPrefixParser.TokenInfo tokenInfo);
 
 	<T> Optional<IListElement<T>> findElement(ITypedIngredient<T> ingredient, IIngredientHelper<T> ingredientHelper);

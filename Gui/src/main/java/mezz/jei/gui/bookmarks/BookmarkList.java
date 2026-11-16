@@ -20,13 +20,13 @@ import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.bookmarks.RecipeBookmarkEntryFactory.RecipeBookmarkEntry;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
 import mezz.jei.gui.bookmarks.chain.RecipeChainItem;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -155,6 +155,20 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		saveBookmarks();
 	}
 
+	public void moveBookmark(IBookmark bookmark, int index) {
+		int oldIndex = identityIndexOf(bookmark);
+		if (oldIndex < 0 || oldIndex == index) {
+			return;
+		}
+		Objects.checkIndex(index, bookmarksList.size());
+		bookmarksList.remove(oldIndex);
+		bookmarksList.add(index, bookmark);
+		keepRecipeBlocksContiguous(bookmarkGroups.getGroupId(bookmark));
+		ensureRecipeBookmarkScope(bookmark);
+		notifyListenersOfChange();
+		saveBookmarks();
+	}
+
 	void moveBookmarks(List<IBookmark> bookmarks, IBookmark targetBookmark, int targetGroupId, int offset) {
 		List<IBookmark> movingBookmarks = bookmarks.stream()
 			.filter(bookmark -> identityIndexOf(bookmark) >= 0)
@@ -203,6 +217,10 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		saveBookmarks();
 	}
 
+	public void moveBookmarkToFront(IBookmark value) {
+		moveBookmark(value, 0);
+	}
+
 	public boolean contains(IBookmark value) {
 		// The list is the source of truth: the set is only a rebuildable index and
 		// can miss entries whose hashCode drifted (RecipeBookmark.hashCode depends on
@@ -219,7 +237,6 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		bookmarksSet.addAll(bookmarksList);
 	}
 
-	@Override
 	public boolean contains(ITypedIngredient<?> ingredient) {
 		return contains(IngredientBookmark.create(ingredient, ingredientManager));
 	}
@@ -377,7 +394,6 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		return addIngredientBookmark(ingredient);
 	}
 
-	@Override
 	public boolean remove(ITypedIngredient<?> ingredient) {
 		return remove(IngredientBookmark.create(ingredient, ingredientManager));
 	}
@@ -565,6 +581,7 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	}
 
 	public boolean addToListWithoutNotifying(IBookmark value, boolean addToFront) {
+
 		if (contains(value)) {
 			return false;
 		}
@@ -591,7 +608,7 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	}
 
 	public boolean addRecipeBookmarks(IRecipeLayoutDrawable<?> recipeLayout, boolean preserveAmount) {
-		return addRecipeBookmarks(new RecipeLayoutProjection(recipeLayout), preserveAmount);
+		return addProjectedRecipeBookmarks(new RecipeLayoutProjection(recipeLayout), preserveAmount);
 	}
 
 	public boolean addRecipeBookmarks(
@@ -599,7 +616,7 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		boolean preserveAmount,
 		Map<Integer, BookmarkIngredientKey> selectedInputKeys
 	) {
-		return addRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys), preserveAmount);
+		return addProjectedRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys), preserveAmount);
 	}
 
 	public boolean addRecipeBookmarks(
@@ -608,7 +625,7 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		Map<Integer, BookmarkIngredientKey> selectedInputKeys,
 		Map<Integer, List<ITypedIngredient<?>>> filteredInputCandidates
 	) {
-		return addRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys, filteredInputCandidates), preserveAmount);
+		return addProjectedRecipeBookmarks(new RecipeLayoutProjection(recipeLayout, selectedInputKeys, filteredInputCandidates), preserveAmount);
 	}
 
 	public boolean addRecipeToGroup(int groupId, RecipeLayoutProjection projection) {
@@ -636,7 +653,7 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		return true;
 	}
 
-	private boolean addRecipeBookmarks(RecipeLayoutProjection projection, boolean preserveAmount) {
+	public boolean addProjectedRecipeBookmarks(RecipeLayoutProjection projection, boolean preserveAmount) {
 		List<RecipeBookmarkEntry> recipeBookmarks = recipeBookmarkEntryFactory.createRecipeBookmarkEntries(projection, preserveAmount, null);
 		if (recipeBookmarks.isEmpty()) {
 			return false;
@@ -1062,8 +1079,7 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		for (IBookmark bookmark : bookmarksList) {
 			if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
 				if (BookmarkGroupManager.DEFAULT_GROUP_ID == bookmarkGroups.getGroupId(bookmark) &&
-					recipeBookmark.getRecipeCategory().getRecipeType().equals(recipeType) &&
-					recipeBookmark.getRecipe().equals(recipe)
+					recipeBookmark.isRecipe(recipeType, recipe)
 				) {
 					@SuppressWarnings("unchecked")
 					RecipeBookmark<R, ?> castBookmark = (RecipeBookmark<R, ?>) recipeBookmark;

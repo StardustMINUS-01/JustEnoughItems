@@ -9,8 +9,8 @@ import mezz.jei.gui.bookmarks.BookmarkRowLayout;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeyAction;
 import mezz.jei.gui.ghost.GhostIngredientDrag;
-import mezz.jei.gui.input.MouseUtil;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.MouseUtil;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlayLayout.GroupPanelSlot;
 import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
@@ -301,7 +301,7 @@ class GroupPanelDrag {
 		IngredientGridWithNavigation contents = overlay.getContents();
 		ImmutableRect2i area = contents.getIngredientGridArea();
 		if (!area.isEmpty()) {
-			contents.createInputHandler().handleMouseScrolled(area.getX() + 1, area.getY() + 1, deltaY);
+			contents.createInputHandler().scroll(area.getX() + 1, area.getY() + 1, 0, deltaY);
 		}
 		updateEndSlot(mouseY);
 	}

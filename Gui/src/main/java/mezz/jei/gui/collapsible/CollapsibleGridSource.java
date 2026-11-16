@@ -78,7 +78,7 @@ public final class CollapsibleGridSource implements IIngredientGridSource {
 	}
 
 	private void updateIfDirty() {
-		boolean includeBlockTags = Internal.getJeiClientConfigs().getClientConfig().isLookupBlockTagsEnabled();
+		boolean includeBlockTags = Internal.getClientConfigs().getClientConfig().isLookupBlockTagsEnabled();
 		if (this.includeBlockTags != includeBlockTags) {
 			this.includeBlockTags = includeBlockTags;
 			invalidateGroups();

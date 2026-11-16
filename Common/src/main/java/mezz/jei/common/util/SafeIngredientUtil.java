@@ -8,8 +8,7 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.rendering.BatchRenderElement;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
-import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IJeiClientConfigs;
+import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.JeiTooltip;
@@ -237,9 +236,9 @@ public final class SafeIngredientUtil {
 	}
 
 	private static boolean shouldCatchRenderErrors() {
-		return Internal.getOptionalJeiClientConfigs()
-			.map(IJeiClientConfigs::getClientConfig)
-			.map(IClientConfig::isCatchRenderErrorsEnabled)
+		return Internal.getOptionalClientConfigs()
+			.map(IClientConfigs::getClientConfig)
+			.map(clientConfig -> clientConfig.catchRenderErrorsEnabled().get())
 			.orElse(false);
 	}
 

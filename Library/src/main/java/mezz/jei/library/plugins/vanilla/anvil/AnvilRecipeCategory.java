@@ -32,7 +32,7 @@ public class AnvilRecipeCategory extends AbstractRecipeCategory<IJeiAnvilRecipe>
 		super(
 			RecipeTypes.ANVIL,
 			Blocks.ANVIL.getName(),
-			guiHelper.createDrawableItemLike(Blocks.ANVIL),
+			null,
 			125,
 			38
 		);
@@ -115,6 +115,11 @@ public class AnvilRecipeCategory extends AbstractRecipeCategory<IJeiAnvilRecipe>
 	@Override
 	public @Nullable ResourceLocation getRegistryName(IJeiAnvilRecipe recipe) {
 		return recipe.getUid();
+	}
+
+	@Override
+	public List<ResourceLocation> getSourceRecipeIds(IJeiAnvilRecipe recipe) {
+		return List.of();
 	}
 
 	private static boolean playerHasEnoughLevels(@Nullable LocalPlayer player, int cost) {

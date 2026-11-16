@@ -8,13 +8,13 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.gui.IngredientGridTooltipComponent;
+import mezz.jei.common.util.LazyMappedList;
 import mezz.jei.gui.input.ClickableIngredientInternal;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import net.minecraft.client.gui.GuiGraphics;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -47,16 +47,16 @@ public final class InteractiveIngredientGridTooltipComponent extends IngredientG
 
 	public InteractiveIngredientGridTooltipComponent(IRecipeManager recipeManager, List<ITypedIngredient<?>> ingredients) {
 		super(ingredients);
-		this.slots = new ArrayList<>(ingredients.size());
-		for (ITypedIngredient<?> ingredient : ingredients) {
-			IRecipeSlotDrawable slot = recipeManager.createRecipeSlotDrawable(
+		this.slots = new LazyMappedList<>(
+			ingredients,
+			ingredient -> recipeManager.createRecipeSlotDrawable(
 				RecipeIngredientRole.OUTPUT,
 				List.of(Optional.of(ingredient)),
 				Set.of(0),
 				0
-			);
-			this.slots.add(slot);
-		}
+			),
+			MAX_VISIBLE_INGREDIENTS
+		);
 	}
 
 	@Override

@@ -1,10 +1,7 @@
 package mezz.jei.test.bench;
 
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.search.ISearchStorageBuilder;
-import mezz.jei.api.search.ISearchStorageBuilderFactory;
-import mezz.jei.common.search.GeneralizedSuffixTreeSearchStorage;
-import mezz.jei.common.search.SearchStorageBuilderAdapter;
+import mezz.jei.common.search.LuceneSearchStorageBuilder;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import mezz.jei.gui.ingredients.IngredientListElementFactory;
@@ -45,7 +42,6 @@ public final class JeiSearchEngine {
 	private final IIngredientManager ingredientManager;
 	private final ElementPrefixParser elementPrefixParser;
 	private final ElementSearch search;
-	private final SearchTokenizer tokenizer = new SearchTokenizer();
 	private final int scale;
 
 	private JeiSearchEngine(
@@ -87,16 +83,11 @@ public final class JeiSearchEngine {
 			FILTER_CONFIG,
 			COLOR_HELPER,
 			MOD_ID_HELPER,
-			new ISearchStorageBuilderFactory() {
-				@Override
-				public <T> ISearchStorageBuilder<T> create() {
-					return new SearchStorageBuilderAdapter<>(new GeneralizedSuffixTreeSearchStorage<>());
-				}
-			}
+			LuceneSearchStorageBuilder.FACTORY
 		);
 
 		long start = System.nanoTime();
-		List<IListElementInfo<?>> baseList = IngredientListElementFactory.createBaseList(ingredientManager, MOD_ID_HELPER);
+		List<IListElementInfo<?>> baseList = IngredientListElementFactory.createBaseList(ingredientManager, FILTER_CONFIG, MOD_ID_HELPER);
 		ElementSearch search = new ElementSearch(elementPrefixParser, baseList, ingredientManager);
 		long buildNanos = System.nanoTime() - start;
 
@@ -112,7 +103,7 @@ public final class JeiSearchEngine {
 	public Set<Integer> search(String query) {
 		// Mirror IngredientFilter.getElements(): lowercase before tokenizing.
 		String normalized = query.toLowerCase(Locale.ROOT);
-		List<Token> tokens = tokenizer.tokenize(normalized);
+		List<Token> tokens = SearchTokenizer.tokenize(normalized);
 		List<ElementPrefixParser.TokenInfo> toSearch = new ArrayList<>();
 		List<ElementPrefixParser.TokenInfo> toRemove = new ArrayList<>();
 		for (Token token : tokens) {

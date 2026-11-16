@@ -11,7 +11,7 @@ import mezz.jei.api.ingredients.subtypes.ISubtypeManager;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.config.IJeiClientConfigs;
+import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.platform.IPlatformItemStackHelper;
 import mezz.jei.common.platform.IPlatformRegistry;
 import mezz.jei.common.platform.Services;
@@ -38,6 +38,7 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 	private final ISubtypeManager subtypeManager;
 	private final StackHelper stackHelper;
 	private final IColorHelper colorHelper;
+	private final IPlatformRegistry<Item> itemRegistry;
 	private final TagKey<Item> itemHiddenFromRecipeViewers;
 	private final TagKey<Block> blockHiddenFromRecipeViewers;
 
@@ -45,6 +46,7 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 		this.subtypeManager = subtypeManager;
 		this.stackHelper = stackHelper;
 		this.colorHelper = colorHelper;
+		this.itemRegistry = Services.PLATFORM.getRegistry(Registries.ITEM);
 		//noinspection deprecation
 		this.itemHiddenFromRecipeViewers = new TagKey<>(Registries.ITEM, Tags.HIDDEN_FROM_RECIPE_VIEWERS);
 		//noinspection deprecation
@@ -181,8 +183,7 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 	@Override
 	public boolean isIngredientOnServer(ItemStack ingredient) {
 		Item item = ingredient.getItem();
-		IPlatformRegistry<Item> registry = Services.PLATFORM.getRegistry(Registries.ITEM);
-		return registry.contains(item);
+		return itemRegistry.contains(item);
 	}
 
 	@Override
@@ -191,9 +192,9 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 			.map(TagKey::location);
 
 		if (ingredient.getItem() instanceof BlockItem blockItem) {
-			IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
+			IClientConfigs jeiClientConfigs = Internal.getClientConfigs();
 			IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-			if (clientConfig.isLookupBlockTagsEnabled()) {
+			if (clientConfig.lookupBlockTagsEnabled().get()) {
 				Stream<ResourceLocation> blockTagStream = blockItem.getBlock()
 					.defaultBlockState()
 					.getTags()
@@ -222,9 +223,9 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 			return true;
 		}
 		if (itemHolder.value() instanceof BlockItem blockItem) {
-			IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
+			IClientConfigs jeiClientConfigs = Internal.getClientConfigs();
 			IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-			if (clientConfig.isLookupBlockTagsEnabled()) {
+			if (clientConfig.lookupBlockTagsEnabled().get()) {
 				Block block = blockItem.getBlock();
 				@SuppressWarnings("deprecation")
 				Holder.Reference<Block> blockHolder = block.builtInRegistryHolder();

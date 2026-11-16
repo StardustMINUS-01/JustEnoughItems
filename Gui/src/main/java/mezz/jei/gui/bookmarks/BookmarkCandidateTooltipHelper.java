@@ -2,7 +2,7 @@ package mezz.jei.gui.bookmarks;
 
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.JeiTooltip;
-import mezz.jei.gui.input.MouseUtil;
+import mezz.jei.common.input.MouseUtil;
 import mezz.jei.gui.recipes.IIngredientCandidateSource;
 import mezz.jei.gui.recipes.RecipesGui;
 
@@ -14,7 +14,7 @@ public final class BookmarkCandidateTooltipHelper {
 
 	public static void addTo(JeiTooltip tooltip, BookmarkCandidateTooltipState state,
 		List<BookmarkIngredientKey> candidates, Supplier<IIngredientCandidateSource> source) {
-		if (!Internal.getJeiClientConfigs().getClientConfig().isTagContentTooltipEnabled()) {
+		if (!Internal.getClientConfigs().getClientConfig().isTagContentTooltipEnabled()) {
 			return;
 		}
 		state.getOrCreate(candidates).ifPresent(grid -> {

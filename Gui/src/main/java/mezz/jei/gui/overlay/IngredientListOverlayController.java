@@ -1,0 +1,224 @@
+package mezz.jei.gui.overlay;
+
+import mezz.jei.api.gui.handlers.IGuiProperties;
+import mezz.jei.api.gui.placement.VerticalAlignment;
+import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.config.IClientToggleState;
+import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.filter.IFilterTextSource;
+import mezz.jei.gui.overlay.bookmarks.history.ILookupHistoryOverlay;
+import mezz.jei.gui.overlay.elements.IElement;
+import mezz.jei.gui.overlay.ingredients.IIngredientGridPageNavigation;
+import mezz.jei.gui.overlay.ingredients.IIngredientGridView;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.Set;
+import java.util.function.BooleanSupplier;
+
+class IngredientListOverlayController {
+	private static final Logger LOGGER = LogManager.getLogger();
+
+	private final IGuiPropertiesCache guiPropertiesCache;
+	private final Config config;
+	private final BooleanSupplier overlayEnabled;
+	private final BooleanSupplier toggleOverlayUnbound;
+	private final IFilterTextSource filterTextSource;
+	private final IIngredientGridView contentsView;
+	private final IIngredientGridPageNavigation contentsPageNavigation;
+	private final ILookupHistoryOverlay lookupHistory;
+	private final ISearchField searchField;
+	private final IConfigButton configButton;
+	private boolean hasValidScreen = false;
+	private ImmutableRect2i quantityArea = ImmutableRect2i.EMPTY;
+
+	ImmutableRect2i getQuantityArea() { return hasValidScreen ? quantityArea : ImmutableRect2i.EMPTY; }
+
+	static IngredientListOverlayController create(
+		IGuiPropertiesCache guiPropertiesCache,
+		IClientConfig clientConfig,
+		IClientToggleState toggleState,
+		IInternalKeyMappings keyBindings,
+		IFilterTextSource filterTextSource,
+		IIngredientGridView contentsView,
+		IIngredientGridPageNavigation contentsPageNavigation,
+		ILookupHistoryOverlay lookupHistory,
+		ISearchField searchField,
+		IConfigButton configButton
+	) {
+		return new IngredientListOverlayController(
+			guiPropertiesCache,
+			getConfig(clientConfig),
+			toggleState::isOverlayEnabled,
+			() -> keyBindings.getToggleOverlay().isUnbound(),
+			filterTextSource,
+			contentsView,
+			contentsPageNavigation,
+			lookupHistory,
+			searchField,
+			configButton
+		);
+	}
+
+	private static Config getConfig(IClientConfig clientConfig) {
+		return new Config() {
+			@Override
+			public boolean isQuantityFieldEnabled() {
+				return clientConfig.isQuantityFieldEnabled();
+			}
+			@Override
+			public boolean isCenterSearchBarEnabled() {
+				return clientConfig.searchBarPosition().get().isCentered();
+			}
+
+			@Override
+			public boolean isLookupHistoryEnabled() {
+				return clientConfig.lookupHistoryEnabled().get();
+			}
+
+			@Override
+			public boolean isHideIngredientsWhenNotSearchingEnabled() {
+				return clientConfig.hideIngredientsWhenNotSearching().get();
+			}
+		};
+	}
+
+	IngredientListOverlayController(
+		IGuiPropertiesCache guiPropertiesCache,
+		Config config,
+		BooleanSupplier overlayEnabled,
+		BooleanSupplier toggleOverlayUnbound,
+		IFilterTextSource filterTextSource,
+		IIngredientGridView contentsView,
+		IIngredientGridPageNavigation contentsPageNavigation,
+		ILookupHistoryOverlay lookupHistory,
+		ISearchField searchField,
+		IConfigButton configButton
+	) {
+		this.guiPropertiesCache = guiPropertiesCache;
+		this.config = config;
+		this.overlayEnabled = overlayEnabled;
+		this.toggleOverlayUnbound = toggleOverlayUnbound;
+		this.filterTextSource = filterTextSource;
+		this.contentsView = contentsView;
+		this.contentsPageNavigation = contentsPageNavigation;
+		this.lookupHistory = lookupHistory;
+		this.searchField = searchField;
+		this.configButton = configButton;
+	}
+
+	void init() {
+		this.searchField.setFilterText(this.filterTextSource.getFilterText());
+		this.searchField.clearFocus();
+		this.filterTextSource.addListener(this::onFilterTextChanged);
+	}
+
+	boolean isListDisplayed() {
+		return isSearchDisplayed() && !isListHiddenWhenNotSearching() && !contentsView.isEmpty();
+	}
+
+	boolean isListHiddenWhenNotSearching() {
+		return config.isHideIngredientsWhenNotSearchingEnabled() && filterTextSource.getFilterText().isBlank();
+	}
+
+	boolean isSearchDisplayed() {
+		return (overlayEnabled.getAsBoolean() || toggleOverlayUnbound.getAsBoolean()) &&
+			hasValidScreen &&
+			contentsView.hasRoom();
+	}
+
+	boolean hasValidScreen() {
+		return hasValidScreen;
+	}
+
+	IScreenPropertiesUpdater getScreenPropertiesUpdater() {
+		return this.guiPropertiesCache.createUpdater(this::onGuiPropertiesChanged);
+	}
+
+	void updateScreenProperties() {
+		onGuiPropertiesChanged();
+	}
+
+	private void onFilterTextChanged(String oldFilterText, String newFilterText) {
+		this.searchField.setFilterText(newFilterText);
+		if (!oldFilterText.isEmpty() && newFilterText.isEmpty()) {
+			this.contentsPageNavigation.updateLayoutToFirstPage();
+		}
+	}
+
+	private void onGuiPropertiesChanged() {
+		IGuiProperties guiProperties = this.guiPropertiesCache.getGuiProperties();
+		if (guiProperties == null) {
+			clearScreen();
+			return;
+		}
+		Set<ImmutableRect2i> guiExclusionAreas = this.guiPropertiesCache.getGuiExclusionAreas();
+		try {
+			updateScreen(
+				guiProperties,
+				guiExclusionAreas
+			);
+		} catch (RuntimeException e) {
+			LOGGER.error("Failed to update JEI bounds for screen with properties : {}", guiProperties, e);
+			clearScreen();
+		}
+	}
+
+	void updateScreen(IGuiProperties guiProperties, Set<ImmutableRect2i> guiExclusionAreas) {
+		this.hasValidScreen = true;
+		updateBounds(guiProperties, guiExclusionAreas);
+	}
+
+	void clearScreen() {
+		this.hasValidScreen = false;
+		this.contentsView.close();
+		this.lookupHistory.close();
+		this.searchField.clearFocus();
+	}
+
+	private void updateBounds(IGuiProperties guiProperties, Set<ImmutableRect2i> guiExclusionAreas) {
+		IngredientListOverlayLayout.Layout layout = IngredientListOverlayLayout.calculate(
+			guiProperties,
+			config.isCenterSearchBarEnabled(),
+			config.isLookupHistoryEnabled(),
+			lookupHistory.isDisplayedOnThisSide(),
+			lookupHistory.getDisplayHeight(),
+			config.isQuantityFieldEnabled()
+		);
+
+		IElement<?> pageAnchorElement = this.contentsPageNavigation.getPageAnchorElement();
+		this.contentsView.updateBounds(layout.availableContentsArea(), guiExclusionAreas, null);
+		this.contentsPageNavigation.updateLayoutKeepingPageAnchorVisible(pageAnchorElement);
+
+		layout.lookupHistoryArea()
+			.ifPresent(lookupHistoryArea -> {
+				this.lookupHistory.updateBounds(lookupHistoryArea, guiExclusionAreas, null);
+				this.lookupHistory.updateLayout();
+				ImmutableRect2i resizeArea = new ImmutableRect2i(
+					layout.displayArea().x(), layout.displayArea().y(), layout.displayArea().width(),
+					lookupHistoryArea.y() + lookupHistoryArea.height() - layout.displayArea().y()
+				);
+				this.lookupHistory.setResizeBounds(resizeArea, VerticalAlignment.BOTTOM);
+			});
+
+		IngredientListOverlayLayout.SearchAndConfigAreas searchAndConfigAreas = layout.getSearchAndConfigAreas(
+			this.contentsView.hasRoom(),
+			this.contentsView.getBackgroundArea()
+		);
+		this.searchField.setFilterText(filterTextSource.getFilterText());
+		this.searchField.updateBounds(searchAndConfigAreas.searchArea());
+		this.configButton.updateBounds(searchAndConfigAreas.configButtonArea());
+		this.quantityArea = config.isQuantityFieldEnabled() ? layout.getQuantityArea(contentsView.hasRoom(), contentsView.getBackgroundArea()) : ImmutableRect2i.EMPTY;
+	}
+
+	interface Config {
+		boolean isQuantityFieldEnabled();
+		boolean isCenterSearchBarEnabled();
+
+		boolean isLookupHistoryEnabled();
+
+		boolean isHideIngredientsWhenNotSearchingEnabled();
+	}
+
+}

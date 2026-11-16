@@ -1,29 +1,35 @@
 package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.buttons.IButtonState;
+import mezz.jei.api.gui.buttons.IIconButtonController;
+import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.JeiClientSoundUtil;
+import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
-import mezz.jei.gui.elements.GuiIconToggleButton;
+import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.favorites.FavoriteRecipeInputs;
 import mezz.jei.gui.favorites.FavoriteTreeBookmarkWriter;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
-import mezz.jei.gui.input.handlers.CombinedInputHandler;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.handlers.InputGroup;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
@@ -35,11 +41,12 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 import java.util.Optional;
 
-public class RecipeFavoriteButton extends GuiIconToggleButton {
+public class RecipeFavoriteButton implements IIconButtonController {
 	private static final int SELECTED_RESULT_COLOR = 0x66333333;
 
 	private final IRecipeLayoutDrawable<?> recipeLayout;
 	private final IDrawable icon;
+	private final IconButton button;
 	private final FavoriteRecipeStore favoriteRecipes;
 	private final FavoriteRecipeConfig favoriteRecipeConfig;
 	private final Runnable showFavoritePanel;
@@ -83,7 +90,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			showFavoritePanel,
 			favoriteTreeBookmarkWriter,
 			inputSlotSelectionState,
-			Internal.getJeiClientConfigs().getClientConfig(),
+			Internal.getClientConfigs().getClientConfig(),
 			targetSelector,
 			focusedRecipe,
 			ingredientManager
@@ -105,7 +112,6 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		@Nullable FocusedRecipe focusedRecipe,
 		IIngredientManager ingredientManager
 	) {
-		super(icon, icon);
 		this.recipeLayout = recipeLayout;
 		this.icon = icon;
 		this.favoriteRecipes = favoriteRecipes;
@@ -119,15 +125,12 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		this.focusedRecipe = focusedRecipe;
 		this.ingredientManager = ingredientManager;
 
-		if (targetSelector.targetCount() == 0 || focusedRecipe == null) {
-			button.active = false;
-			button.visible = false;
-		}
+		this.button = new IconButton(this);
 		tick();
 	}
 
 	@Override
-	protected void getTooltips(JeiTooltip tooltip) {
+	public void getTooltips(ITooltipBuilder tooltip) {
 		if (targetSelector.selectedKey().isPresent()) {
 			if (favorite) {
 				tooltip.add(Component.translatable("jei.tooltip.recipe.favorite.remove"));
@@ -138,22 +141,26 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		}
 	}
 
-	@Override
 	public void tick() {
 		BookmarkIngredientKey storedTarget = getStoredTarget();
 		if (!selectingTarget) {
 			targetSelector.selectStoredOrDefault(storedTarget);
 		}
 		favorite = targetSelector.isSelectedTarget(storedTarget);
+		button.tick();
 	}
 
 	@Override
-	protected boolean isIconToggledOn() {
-		return favorite;
+	public void updateState(IButtonState state) {
+		boolean available = targetSelector.targetCount() > 0 && focusedRecipe != null;
+		state.setActive(available);
+		state.setVisible(available);
+		state.setIcon(icon);
+		state.setForcePressed(favorite);
 	}
 
 	@Override
-	protected boolean onMouseClicked(UserInput input) {
+	public boolean onPress(IJeiUserInput input) {
 		if (focusedRecipe == null) {
 			return false;
 		}
@@ -167,7 +174,6 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		return true;
 	}
 
-	@Override
 	public void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		selectingTarget = isMouseOver(mouseX, mouseY);
 		if (!selectingTarget) {
@@ -175,7 +181,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		}
 		tick();
 		drawSelectedResultOverlay(guiGraphics);
-		super.draw(guiGraphics, mouseX, mouseY, partialTicks);
+		button.draw(guiGraphics, mouseX, mouseY, partialTicks);
 		if (favorite) {
 			guiGraphics.fill(
 				RenderType.gui(),
@@ -188,19 +194,30 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		}
 	}
 
-	@Override
-	public IUserInputHandler createInputHandler() {
-		return new CombinedInputHandler(
+	public IInputTarget createInputHandler() {
+		return new InputGroup(
 			"RecipeFavoriteButton",
 			new FavoriteOutputSlotInputHandler(),
 			new SaveFavoriteTreeInputHandler(),
-			super.createInputHandler(),
+			button.createInputHandler(),
 			new ScrollInputHandler()
 		);
 	}
 
-	public boolean isFavorite() {
-		return favorite;
+	public void updateBounds(ImmutableRect2i area) {
+		button.updateBounds(area);
+	}
+
+	public boolean isVisible() {
+		return button.isVisible();
+	}
+
+	public boolean isMouseOver(double mouseX, double mouseY) {
+		return button.isMouseOver(mouseX, mouseY);
+	}
+
+	public void drawTooltips(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		button.drawTooltips(guiGraphics, mouseX, mouseY);
 	}
 
 	public static boolean toggleFavorite(
@@ -240,7 +257,7 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		if (InputModifiers.hasControl(modifiers) || InputModifiers.hasAlt(modifiers)) {
 			return Optional.empty();
 		}
-		if (!keyBindings.getFavoriteRecipe().matchesIgnoringModifiers(input.getKey())) {
+		if (!input.is(keyBindings.getFavoriteRecipe())) {
 			return Optional.empty();
 		}
 		if (InputModifiers.hasShift(modifiers)) {
@@ -302,9 +319,9 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 		);
 	}
 
-	private class FavoriteOutputSlotInputHandler implements IUserInputHandler {
+	private class FavoriteOutputSlotInputHandler implements IInputTarget {
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 			if (focusedRecipe == null) {
 				return Optional.empty();
 			}
@@ -319,38 +336,38 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 			if (target.isEmpty()) {
 				return Optional.empty();
 			}
-			if (input.isSimulate()) {
-				return Optional.of(this);
-			}
-			switch (action.get()) {
-				case TOGGLE_FAVORITE -> {
-					toggleFavorite(target.get());
-				}
-				case SAVE_FAVORITE_TREE -> {
-					if (saveFavoriteTree(Optional.of(target.get())).isEmpty()) {
-						return Optional.empty();
+			return Optional.of(InputAction.run(() -> {
+					switch (action.get()) {
+						case TOGGLE_FAVORITE -> toggleFavorite(target.get());
+						case SAVE_FAVORITE_TREE -> {
+							if (saveFavoriteTree(target).isEmpty()) {
+								return;
+							}
+						}
 					}
-				}
-			}
-			JeiClientSoundUtil.playClickSound();
-			return Optional.of(this);
+					JeiClientSoundUtil.playClickSound();
+				})
+				.within((x, y) -> recipeLayout.getSlotUnderMouse(x, y)
+					.map(RecipeSlotUnderMouse::slot)
+					.filter(slot -> slot.getRole() == RecipeIngredientRole.OUTPUT)
+					.flatMap(targetSelector::keyForSlot)
+					.equals(target)));
 		}
 	}
 
-	private class SaveFavoriteTreeInputHandler implements IUserInputHandler {
+	private class SaveFavoriteTreeInputHandler implements IInputTarget {
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 			if (focusedRecipe == null || !isSaveFavoriteTreeInput(input, keyBindings)) {
 				return Optional.empty();
 			}
-			if (input.isSimulate()) {
-				return Optional.of(this);
-			}
-			if (saveFavoriteTree(targetSelector.selectedKey()).isEmpty()) {
-				return Optional.empty();
-			}
-			JeiClientSoundUtil.playClickSound();
-			return Optional.of(this);
+			Optional<BookmarkIngredientKey> selected = targetSelector.selectedKey();
+			return Optional.of(InputAction.run(() -> {
+					if (saveFavoriteTree(selected).isPresent()) {
+						JeiClientSoundUtil.playClickSound();
+					}
+				})
+				.within(RecipeFavoriteButton.this::isMouseOver));
 		}
 
 		private boolean isSaveFavoriteTreeInput(UserInput input, IInternalKeyMappings keyBindings) {
@@ -360,34 +377,33 @@ public class RecipeFavoriteButton extends GuiIconToggleButton {
 	}
 
 	private Optional<Integer> saveFavoriteTree(Optional<BookmarkIngredientKey> selectedOutputKey) {
-		Map<Integer, BookmarkIngredientKey> currentSelections = inputSlotSelectionState.currentSelections(recipeLayout);
 		Optional<Integer> groupId = favoriteTreeBookmarkWriter.save(
 			focusedRecipe,
-			clientConfig.getFavoriteTreeDepth(),
+			clientConfig.favoriteTreeDepth().get(),
 			selectedOutputKey,
-			currentSelections
+			inputSlotSelectionState.currentSelections(recipeLayout)
 		);
 		groupId.ifPresent(ignored -> showBookmarkPanel.run());
 		return groupId;
 	}
 
-	private class ScrollInputHandler implements IUserInputHandler {
+	private class ScrollInputHandler implements IInputTarget {
 		@Override
-		public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 			return Optional.empty();
 		}
 
 		@Override
-		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+		public boolean scroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDelta) {
 			if (!isMouseOver(mouseX, mouseY)) {
-				return Optional.empty();
+				return false;
 			}
 			if (targetSelector.scroll(scrollDelta)) {
 				selectingTarget = true;
 				tick();
-				return Optional.of(this);
+				return true;
 			}
-			return Optional.empty();
+			return false;
 		}
 	}
 }

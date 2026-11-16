@@ -5,14 +5,14 @@ import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.common.config.ClientToggleState;
 import mezz.jei.common.config.IClientToggleState;
-import mezz.jei.common.config.IJeiClientConfigs;
+import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.config.file.FileWatcher;
 import mezz.jei.common.gui.textures.JeiSpriteUploader;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
-import mezz.jei.common.util.DelayedExecutor;
-import mezz.jei.common.util.IDelayedExecutor;
+import net.mezzdev.deduplicatingrunner.DelayedExecutor;
+import net.mezzdev.deduplicatingrunner.DelayedTaskScheduler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -39,15 +39,17 @@ public final class Internal {
 	@Nullable
 	private static IClientToggleState toggleState;
 	@Nullable
-	private static IJeiClientConfigs jeiClientConfigs;
+	private static IClientConfigs jeiClientConfigs;
 	@Nullable
 	private static IJeiRuntime jeiRuntime;
 	@Nullable
 	private static FileWatcher fileWatcher;
 	@Nullable
+	private static Runnable restartJeiRunnable;
+	@Nullable
 	private static ClientRecipes clientRecipes = null;
 	private static final JeiFeatures jeiFeatures = new JeiFeatures();
-	private static final DelayedExecutor delayedExecutor = new DelayedExecutor(Duration.ofSeconds(10));
+	private static final DelayedExecutor delayedExecutor = new DelayedExecutor(Duration.ofSeconds(10), "JEI Delayed Executor");
 
 	private Internal() {
 
@@ -83,31 +85,34 @@ public final class Internal {
 
 	public static IClientToggleState getClientToggleState() {
 		if (toggleState == null) {
-			toggleState = new ClientToggleState();
+			toggleState = new ClientToggleState(getClientConfigs().getClientConfig().overlaysEnabled());
 		}
 		return toggleState;
 	}
 
-	public static IJeiClientConfigs getJeiClientConfigs() {
+	public static IClientConfigs getClientConfigs() {
 		Preconditions.checkState(jeiClientConfigs != null, "Jei Client Configs have not been created yet.");
 		return jeiClientConfigs;
 	}
 
-	public static Optional<IJeiClientConfigs> getOptionalJeiClientConfigs() {
+	public static Optional<IClientConfigs> getOptionalClientConfigs() {
 		return Optional.ofNullable(jeiClientConfigs);
 	}
 
-	public static void setJeiClientConfigs(IJeiClientConfigs jeiClientConfigs) {
+	public static void setClientConfigs(IClientConfigs jeiClientConfigs) {
 		Internal.jeiClientConfigs = jeiClientConfigs;
 	}
 
 	public static FileWatcher getFileWatcher() {
-		Preconditions.checkState(fileWatcher != null, "JEI File Watcher has not been created yet.");
+		if (fileWatcher == null) {
+			fileWatcher = new FileWatcher("JEIU Rule File Watcher");
+			fileWatcher.start();
+		}
 		return fileWatcher;
 	}
 
-	public static void setFileWatcher(FileWatcher fileWatcher) {
-		Internal.fileWatcher = fileWatcher;
+	public static void registerRuntimeListenerRemoval(Runnable listenerRemoval) {
+		getClientConfigs().registerRuntimeListenerRemoval(listenerRemoval);
 	}
 
 	public static JeiFeatures getJeiFeatures() {
@@ -118,7 +123,7 @@ public final class Internal {
 		Internal.jeiRuntime = jeiRuntime;
 	}
 
-	public static IDelayedExecutor getDelayedExecutor() {
+	public static DelayedTaskScheduler getDelayedExecutor() {
 		return delayedExecutor;
 	}
 
@@ -130,6 +135,15 @@ public final class Internal {
 
 	public static Optional<IJeiRuntime> getOptionalJeiRuntime() {
 		return Optional.ofNullable(jeiRuntime);
+	}
+
+	public static void setRestartJeiRunnable(Runnable restartJeiRunnable) {
+		Internal.restartJeiRunnable = restartJeiRunnable;
+	}
+
+	public static void restartJei() {
+		Preconditions.checkState(restartJeiRunnable != null, "JEI restart handler has not been created yet.");
+		restartJeiRunnable.run();
 	}
 
 	@Nullable
@@ -240,6 +254,7 @@ public final class Internal {
 
 	public static void onClientStopping() {
 		onRuntimeStopped();
+		restartJeiRunnable = null;
 		delayedExecutor.shutdown();
 	}
 

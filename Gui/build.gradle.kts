@@ -1,3 +1,4 @@
+import mezz.jei.gradle.gradleProperty
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
@@ -8,12 +9,21 @@ plugins {
     `maven-publish`
 }
 
-// gradle.properties
-val jUnitVersion: String by extra
-val minecraftVersion: String by extra
-val modId: String by extra
-val modJavaVersion: String by extra
+repositories {
+    maven("https://maven.blamejared.com/") {
+        content { includeGroup("net.mezzdev.config") }
+    }
+}
 
+// gradle.properties
+val jUnitVersion = gradleProperty("jUnitVersion")
+val minecraftVersion = gradleProperty("minecraftVersion")
+val modId = gradleProperty("modId")
+val modJavaVersion = gradleProperty("modJavaVersion")
+val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
+val mezzConfigApiDependency: String by rootProject.extra
+val mezzConfigGuiApiDependency: String by rootProject.extra
+val mezzConfigForgeDependency: String by rootProject.extra
 
 val baseArchivesName = "${modId}-${minecraftVersion}-gui"
 base {
@@ -47,9 +57,16 @@ dependencies {
         name = "mixin",
         version = "0.8.5"
     )
+    implementation(mezzConfigApiDependency)
+    compileOnly(mezzConfigGuiApiDependency)
     dependencyProjects.forEach {
         implementation(it)
     }
+    implementation("net.mezzdev:deduplicating-runner:$deduplicatingRunnerVersion") {
+        isTransitive = false
+    }
+    testImplementation(mezzConfigGuiApiDependency)
+    testImplementation(mezzConfigForgeDependency)
     testImplementation(
         group = "org.junit.jupiter",
         name = "junit-jupiter",
@@ -97,6 +114,33 @@ publishing {
             artifactId = baseArchivesName
             artifact(tasks.jar.get())
             artifact(sourcesJarTask.get())
+
+            val dependencyInfos = listOf(
+                dependencyInfo(mezzConfigApiDependency),
+                dependencyInfo(mezzConfigGuiApiDependency) + ("optional" to "true")
+            ) + dependencyProjects.map {
+                mapOf(
+                    "groupId" to it.group,
+                    "artifactId" to it.base.archivesName.get(),
+                    "version" to it.version
+                )
+            } + listOf(
+                mapOf(
+                    "groupId" to "net.mezzdev",
+                    "artifactId" to "deduplicating-runner",
+                    "version" to deduplicatingRunnerVersion
+                )
+            )
+
+            pom.withXml {
+                val dependenciesNode = asNode().appendNode("dependencies")
+                dependencyInfos.forEach {
+                    val dependencyNode = dependenciesNode.appendNode("dependency")
+                    it.forEach { (key, value) ->
+                        dependencyNode.appendNode(key, value)
+                    }
+                }
+            }
         }
     }
     repositories {
@@ -105,6 +149,15 @@ publishing {
             maven(deployDir)
         }
     }
+}
+
+fun dependencyInfo(notation: String): Map<String, String> {
+    val (groupId, artifactId, version) = notation.split(":")
+    return mapOf(
+        "groupId" to groupId,
+        "artifactId" to artifactId,
+        "version" to version
+    )
 }
 
 idea {

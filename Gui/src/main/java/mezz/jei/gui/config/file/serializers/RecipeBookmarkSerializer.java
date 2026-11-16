@@ -8,21 +8,18 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.config.IJeiConfigValueSerializer;
-import mezz.jei.common.config.file.serializers.DeserializeResult;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.overlay.elements.IElement;
+import net.mezzdev.config.api.value.serializer.IDeserializeResult;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<RecipeBookmark<?, ?>> {
+public class RecipeBookmarkSerializer {
 	private static final String SEPARATOR = "#";
 
 	private final IRecipeManager recipeManager;
@@ -54,7 +51,6 @@ public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<Recip
 		this.recipeTransferService = recipeTransferService;
 	}
 
-	@Override
 	public String serialize(RecipeBookmark<?, ?> value) {
 		IRecipeCategory<?> recipeCategory = value.getRecipeCategory();
 		RecipeType<?> recipeType = recipeCategory.getRecipeType();
@@ -70,37 +66,35 @@ public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<Recip
 		return recipeTypeUid + SEPARATOR + recipeUid + SEPARATOR + outputSerialized;
 	}
 
-	@Override
 	public IDeserializeResult<RecipeBookmark<?, ?>> deserialize(String string) {
 		String[] parts = string.split(SEPARATOR);
 		if ((parts.length != 3) && (parts.length != 4)) {
 			String error = "string must be 3 or 4 parts";
-			return new DeserializeResult<>(null, error);
+			return IDeserializeResult.failure(error);
 		}
 		ResourceLocation recipeTypeUid;
 		try {
 			recipeTypeUid = new ResourceLocation(parts[0]);
 		} catch (RuntimeException e) {
 			String error = "recipe type uid must be a valid resource location: %s\n%s".formatted(string, e.getMessage());
-			return new DeserializeResult<>(null, error);
+			return IDeserializeResult.failure(error);
 		}
 		ResourceLocation recipeUid;
 		try {
 			recipeUid = new ResourceLocation(parts[1]);
 		} catch (RuntimeException e) {
 			String error = "recipe uid must be a valid resource location: %s\n%s".formatted(string, e.getMessage());
-			return new DeserializeResult<>(null, error);
+			return IDeserializeResult.failure(error);
 		}
 		IDeserializeResult<ITypedIngredient<?>> deserialized = ingredientSerializer.deserialize(parts[2]);
 		Optional<ITypedIngredient<?>> outputResult = deserialized.getResult();
 		if (outputResult.isEmpty()) {
-			List<String> errors = deserialized.getErrors();
-			return new DeserializeResult<>(null, errors);
+			return IDeserializeResult.failure(deserialized.getDiagnostics());
 		}
 		Optional<RecipeType<?>> recipeTypeResult = recipeManager.getRecipeType(recipeTypeUid);
 		if (recipeTypeResult.isEmpty()) {
 			String error = "could not find a recipe type matching the given uid: %s".formatted(recipeTypeUid);
-			return new DeserializeResult<>(null, error);
+			return IDeserializeResult.failure(error);
 		}
 		RecipeIngredientRole displayRole = RecipeIngredientRole.OUTPUT;
 		if (parts.length == 4) {
@@ -137,43 +131,46 @@ public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<Recip
 		return createBookmark(recipeCategory, recipeUid, output, displayRole);
 	}
 
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	public Optional<RecipeBookmark<?, ?>> createBookmark(
-		IRecipeCategory<?> recipeCategory,
+	public <T> Optional<RecipeBookmark<?, ?>> createBookmark(
+		IRecipeCategory<T> category,
 		ResourceLocation recipeUid,
 		ITypedIngredient<?> output,
 		RecipeIngredientRole displayRole
 	) {
+		if (recipeTransferService == null) {
+			return Optional.empty();
+		}
 		IFocus<?> focus = focusFactory.createFocus(displayRole, output);
-		RecipeType<?> recipeType = recipeCategory.getRecipeType();
-		IRecipeCategory<Object> rawCategory = (IRecipeCategory<Object>) recipeCategory;
-		long total = recipeManager.createRecipeLookup((RecipeType<Object>) recipeType).get().count();
-		List<?> focused = recipeManager.createRecipeLookup((RecipeType<Object>) recipeType)
-			.limitFocus(List.of(focus))
-			.get()
-			.toList();
-		Optional<RecipeBookmark<?, ?>> result = focused.stream()
-			.filter(recipe -> Objects.equals(rawCategory.getRegistryName(recipe), recipeUid))
-			.findFirst()
-			.map(recipe -> new RecipeBookmark(rawCategory, recipe, recipeUid, output, displayRole));
-		return result;
+		return findRecipe(category, List.of(focus), recipeUid)
+			.map(recipe -> new RecipeBookmark<>(category, recipe, Objects.requireNonNull(category.getRegistryName(recipe)), output, displayRole, recipeTransferService));
 	}
 
-	private <T> DeserializeResult<RecipeBookmark<?, ?>> createBookmark(String string, IRecipeCategory<T> recipeCategory, ResourceLocation recipeUid, ITypedIngredient<?> output, RecipeIngredientRole displayRole) {
+	private <T> IDeserializeResult<RecipeBookmark<?, ?>> createBookmark(String string, IRecipeCategory<T> recipeCategory, ResourceLocation recipeUid, ITypedIngredient<?> output, RecipeIngredientRole displayRole) {
 		if (recipeTransferService == null) {
-			return new DeserializeResult<>(null, "recipe transfer service is required to deserialize recipe bookmarks");
+			return IDeserializeResult.failure("recipe transfer service is required to deserialize recipe bookmarks");
 		}
 		IFocus<?> focus = focusFactory.createFocus(displayRole, output);
 
 		Optional<T> recipeResult = findRecipe(recipeCategory, List.of(focus), recipeUid);
 		if (recipeResult.isEmpty()) {
 			String error = "could not find a recipe for this string: %s".formatted(string);
-			return new DeserializeResult<>(null, error);
+			return IDeserializeResult.failure(error);
 		}
 
 		T recipe = recipeResult.get();
-		RecipeBookmark<T, ?> recipeBookmark = new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, displayRole, recipeTransferService);
-		return new DeserializeResult<>(recipeBookmark);
+		ResourceLocation resolvedUid = Objects.requireNonNull(recipeCategory.getRegistryName(recipe));
+		if (resolvedUid.getPath().startsWith("/")) {
+			// The legacy ingredient UID can omit NBT represented by a generated display.
+			var displayBookmark = recipeManager.createRecipeLayoutDrawable(recipeCategory, recipe, focusFactory.createFocusGroup(List.of(focus)))
+				.map(layout -> RecipeBookmark.create(layout, ingredientManager, recipeTransferService))
+				.filter(bookmark -> bookmark.getDisplayRole() == displayRole &&
+					ingredientSerializer.serialize(bookmark.getRecipeOutput()).equals(ingredientSerializer.serialize(output)));
+			if (displayBookmark.isPresent()) {
+				return IDeserializeResult.success(displayBookmark.get());
+			}
+		}
+		RecipeBookmark<T, ?> recipeBookmark = new RecipeBookmark<>(recipeCategory, recipe, resolvedUid, output, displayRole, recipeTransferService);
+		return IDeserializeResult.success(recipeBookmark);
 	}
 
 	private <T> Optional<T> findRecipe(IRecipeCategory<T> recipeCategory, List<IFocus<?>> focus, ResourceLocation recipeUid) {
@@ -182,21 +179,20 @@ public class RecipeBookmarkSerializer implements IJeiConfigValueSerializer<Recip
 			.limitFocus(focus)
 			.get()
 			.filter(r -> Objects.equals(recipeCategory.getRegistryName(r), recipeUid))
-			.findFirst();
+			.findFirst()
+			.or(() -> recipeManager.createRecipeLookup(recipeType)
+				.get()
+				.filter(r -> Objects.equals(recipeCategory.getRegistryName(r), recipeUid))
+				.findFirst())
+			.or(() -> {
+				if (recipeUid.getPath().startsWith("/")) {
+					return Optional.empty();
+				}
+				ResourceLocation syntheticUid = recipeUid.withPrefix("/");
+				return recipeManager.createRecipeLookup(recipeType).get()
+					.filter(r -> Objects.equals(recipeCategory.getRegistryName(r), syntheticUid))
+					.findFirst();
+			});
 	}
 
-	@Override
-	public boolean isValid(RecipeBookmark<?, ?> value) {
-		return true;
-	}
-
-	@Override
-	public Optional<Collection<RecipeBookmark<?, ?>>> getAllValidValues() {
-		return Optional.empty();
-	}
-
-	@Override
-	public String getValidValuesDescription() {
-		return "";
-	}
 }

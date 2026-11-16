@@ -24,7 +24,8 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.ingredients.IngredientGridTooltipHelper;
 import mezz.jei.gui.recipes.FocusedRecipeLayoutResolver;
@@ -194,7 +195,7 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	}
 
 	private void addRecipePreviewTooltip(JeiTooltip tooltip) {
-		IClientConfig clientConfig = Internal.getJeiClientConfigs().getClientConfig();
+		IClientConfig clientConfig = Internal.getClientConfigs().getClientConfig();
 		if (!clientConfig.getBookmarkTooltipFeatures().contains(BookmarkTooltipFeature.PREVIEW)) {
 			return;
 		}
@@ -248,14 +249,11 @@ public class FavoriteRecipeElement<T> implements IElement<T> {
 	}
 
 	@Override
-	public boolean handleClick(UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<InputAction> prepareAction(UserInput input, IInternalKeyMappings keyBindings) {
 		if (favoriteRecipes == null || !BookmarkKeyInputs.isPlainBookmarkKey(input, keyBindings)) {
-			return false;
+			return Optional.empty();
 		}
-		if (!input.isSimulate()) {
-			favoriteRecipes.removeFavorite(recipe);
-		}
-		return true;
+		return Optional.of(InputAction.run(() -> favoriteRecipes.removeFavorite(recipe)).when(this::isVisible));
 	}
 
 	@Override

@@ -4,7 +4,7 @@ import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.util.ImmutablePoint2i;
 import mezz.jei.common.util.ImmutableRect2i;
-import mezz.jei.gui.GuiProperties;
+import mezz.jei.common.gui.GuiProperties;
 import net.minecraft.client.gui.screens.Screen;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,14 +74,15 @@ public class ScreenPropertiesCache {
 			return this;
 		}
 
-		public void forceUpdate() {
-			onChange.run();
-		}
-
 		public void update() {
 			if (changed) {
 				onChange.run();
 			}
+		}
+
+		/** Refreshes the layout when other inputs change, even if screen properties are unchanged. */
+		public void forceUpdate() {
+			onChange.run();
 		}
 
 		private static void validate(List<String> errors, String property, int min, int max, int value) {

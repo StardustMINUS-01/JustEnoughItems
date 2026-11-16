@@ -1,3 +1,4 @@
+import mezz.jei.gradle.gradleProperty
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
@@ -8,11 +9,19 @@ plugins {
     `maven-publish`
 }
 
+repositories {
+    maven("https://maven.blamejared.com/") {
+        content { includeGroup("net.mezzdev.config") }
+    }
+}
+
 // gradle.properties
-val jUnitVersion: String by extra
-val minecraftVersion: String by extra
-val modId: String by extra
-val modJavaVersion: String by extra
+val jUnitVersion = gradleProperty("jUnitVersion")
+val minecraftVersion = gradleProperty("minecraftVersion")
+val modId = gradleProperty("modId")
+val modJavaVersion = gradleProperty("modJavaVersion")
+val mezzConfigApiDependency: String by rootProject.extra
+val mezzConfigForgeDependency: String by rootProject.extra
 
 val baseArchivesName = "${modId}-${minecraftVersion}-lib"
 base {
@@ -46,6 +55,7 @@ dependencies {
         name = "mixin",
         version = "0.8.5"
     )
+    implementation(mezzConfigApiDependency)
     dependencyProjects.forEach {
         implementation(it)
     }
@@ -54,6 +64,7 @@ dependencies {
         name = "junit-jupiter",
         version = jUnitVersion
     )
+    testImplementation(mezzConfigForgeDependency)
     testRuntimeOnly(
         group = "org.junit.platform",
         name = "junit-platform-launcher"
@@ -96,6 +107,26 @@ publishing {
             artifactId = baseArchivesName
             artifact(tasks.jar.get())
             artifact(sourcesJarTask.get())
+
+            val dependencyInfos = listOf(
+                dependencyInfo(mezzConfigApiDependency)
+            ) + dependencyProjects.map {
+                mapOf(
+                    "groupId" to it.group,
+                    "artifactId" to it.base.archivesName.get(),
+                    "version" to it.version
+                )
+            }
+
+            pom.withXml {
+                val dependenciesNode = asNode().appendNode("dependencies")
+                dependencyInfos.forEach {
+                    val dependencyNode = dependenciesNode.appendNode("dependency")
+                    it.forEach { (key, value) ->
+                        dependencyNode.appendNode(key, value)
+                    }
+                }
+            }
         }
     }
     repositories {
@@ -104,6 +135,15 @@ publishing {
             maven(deployDir)
         }
     }
+}
+
+fun dependencyInfo(notation: String): Map<String, String> {
+    val (groupId, artifactId, version) = notation.split(":")
+    return mapOf(
+        "groupId" to groupId,
+        "artifactId" to artifactId,
+        "version" to version
+    )
 }
 
 idea {

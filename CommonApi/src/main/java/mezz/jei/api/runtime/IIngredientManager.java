@@ -13,6 +13,7 @@ import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.registration.IExtraIngredientRegistration;
 import mezz.jei.api.registration.IIngredientAliasRegistration;
 import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
@@ -87,6 +88,16 @@ public interface IIngredientManager {
 	Collection<IIngredientType<?>> getRegisteredIngredientTypes();
 
 	/**
+	 * Returns the UID of the plugin that registered this ingredient type, or empty if unavailable.
+	 *
+	 * @see IModPlugin#getPluginUid()
+	 * @since 15.62.0
+	 */
+	default Optional<ResourceLocation> getRegisteringPluginUid(IIngredientType<?> ingredientType) {
+		return Optional.empty();
+	}
+
+	/**
 	 * @return the ingredient type that has the given uid.
 	 * @see IIngredientType#getUid()
 	 * @since 15.5.0
@@ -108,6 +119,16 @@ public interface IIngredientManager {
 	 * Used by mods that have items created while the game is running, or use the server to define items.
 	 */
 	<V> void removeIngredientsAtRuntime(IIngredientType<V> ingredientType, Collection<V> ingredients);
+
+	/**
+	 * Refresh search, sorting, and suggestions after ingredient names, tooltips, or other searchable information change.
+	 *
+	 * Call on the client main thread, batching related changes together.
+	 * JEI rereads its registered instances, matched by their unchanged {@link UidContext#Ingredient} UIDs.
+	 *
+	 * @since 15.74.0
+	 */
+	<V> void refreshIngredientsAtRuntime(IIngredientType<V> ingredientType, Collection<V> ingredients);
 
 	/**
 	 * Helper method to get ingredient type for an ingredient.
@@ -309,7 +330,7 @@ public interface IIngredientManager {
 	 * Get localized search aliases for ingredients.
 	 * Registered by mods with {@link IIngredientAliasRegistration#addAlias}.
 	 *
-	 * If search aliases are disabled by the player in the configs, this will return an empty collection.
+	 * The player's search config controls whether these aliases are used by JEI's search.
 	 *
 	 * @since 15.15.0
 	 */
@@ -339,5 +360,14 @@ public interface IIngredientManager {
 		 * @since 11.5.0
 		 */
 		<V> void onIngredientsRemoved(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients);
+
+		/**
+		 * Called when registered ingredients need their search data refreshed.
+		 *
+		 * @see IIngredientManager#refreshIngredientsAtRuntime
+		 * @since 15.74.0
+		 */
+		default <V> void onIngredientsUpdated(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
+		}
 	}
 }

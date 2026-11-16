@@ -4,6 +4,10 @@ import mezz.jei.api.runtime.IJeiKeyMapping;
 import mezz.jei.api.runtime.IJeiKeyMappings;
 import mezz.jei.common.input.keys.IJeiKeyMappingInternal;
 import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
+import net.minecraft.client.KeyMapping;
+import org.jetbrains.annotations.Unmodifiable;
+
+import java.util.List;
 
 public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getToggleOverlay();
@@ -12,6 +16,7 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getToggleEditMode();
 
 	IJeiKeyMapping getToggleCheatModeConfigButton();
+	IJeiKeyMapping getToggleHideIngredientsWhenNotSearching();
 
 	IJeiKeyMapping getRecipeBack();
 	IJeiKeyMapping getRecipeForward();
@@ -51,6 +56,8 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 
 	IJeiKeyMapping getTransferRecipeBookmark();
 	IJeiKeyMapping getMaxTransferRecipeBookmark();
+	IJeiKeyMapping getTransferRecipeGui();
+	IJeiKeyMapping getMaxTransferRecipeGui();
 	IJeiKeyMapping getQuickMove();
 	IJeiKeyMapping getSearchIngredientInTerminal();
 	IJeiKeyMapping getShareToChat();
@@ -60,6 +67,8 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getShowWorldTargetUses();
 	IJeiKeyMapping getCheatOneItem();
 	IJeiKeyMapping getCheatItemStack();
+	IJeiKeyMapping getCheatOneItemToInventory();
+	IJeiKeyMapping getCheatItemStackToInventory();
 
 	IJeiKeyMapping getToggleHideIngredient();
 	IJeiKeyMapping getToggleWildcardHideIngredient();
@@ -70,6 +79,9 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 
 	IJeiKeyMapping getCopyRecipeId();
 
+	@Unmodifiable
+	List<KeyMapping> getConfigKeyMappings();
+
 	// internal only, unregistered and can't be changed because they match vanilla Minecraft hard-coded keys:
 	IJeiKeyMapping getEscapeKey();
 	IJeiKeyMapping getLeftClick();
@@ -77,4 +89,5 @@ public interface IInternalKeyMappings extends IJeiKeyMappings {
 	IJeiKeyMapping getEnterKey();
 
 	IJeiKeyMapping getToggleInputCatalyst();
+	IJeiKeyMapping getTabKey();
 }

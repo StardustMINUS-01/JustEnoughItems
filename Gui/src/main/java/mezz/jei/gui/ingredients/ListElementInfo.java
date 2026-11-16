@@ -23,7 +23,6 @@ import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,36 +34,40 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 	private static int elementCount = 0;
 
 	private final IListElement<V> element;
-	private final List<String> names;
+	private List<String> names;
 	private final List<String> modIds;
 	private final List<String> modNames;
 	private final ResourceLocation resourceLocation;
 
 	@Nullable
-	public static <V> IListElementInfo<V> create(ITypedIngredient<V> value, IIngredientManager ingredientManager, IModIdHelper modIdHelper) {
+	public static <V> IListElementInfo<V> create(ITypedIngredient<V> value, IIngredientManager ingredientManager, IIngredientFilterConfig config, IModIdHelper modIdHelper) {
 		int createdIndex = elementCount++;
 		ListElement<V> element = new ListElement<>(value, createdIndex);
-		return createFromElement(element, ingredientManager, modIdHelper);
+		return createFromElement(element, ingredientManager, config, modIdHelper);
 	}
 
 	@Nullable
-	public static <V> IListElementInfo<V> createFromElement(IListElement<V> element, IIngredientManager ingredientManager, IModIdHelper modIdHelper) {
+	public static <V> IListElementInfo<V> createFromElement(IListElement<V> element, IIngredientManager ingredientManager, IIngredientFilterConfig config, IModIdHelper modIdHelper) {
 		try {
-			return new ListElementInfo<>(element, ingredientManager, modIdHelper);
+			return new ListElementInfo<>(element, ingredientManager, config, modIdHelper);
 		} catch (RuntimeException e) {
-			try {
-				ITypedIngredient<V> typedIngredient = element.getTypedIngredient();
-				IIngredientHelper<V> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
-				String ingredientInfo = ingredientHelper.getErrorInfo(typedIngredient.getIngredient());
-				LOGGER.warn("Found a broken ingredient {}", ingredientInfo, e);
-			} catch (RuntimeException e2) {
-				LOGGER.warn("Found a broken ingredient.", e2);
-			}
+			logBrokenIngredient(element, ingredientManager, e);
 			return null;
 		}
 	}
 
-	protected ListElementInfo(IListElement<V> element, IIngredientManager ingredientManager, IModIdHelper modIdHelper) {
+	private static <V> void logBrokenIngredient(IListElement<V> element, IIngredientManager ingredientManager, RuntimeException e) {
+		try {
+			ITypedIngredient<V> typedIngredient = element.getTypedIngredient();
+			IIngredientHelper<V> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
+			String ingredientInfo = ingredientHelper.getErrorInfo(typedIngredient.getIngredient());
+			LOGGER.warn("Found a broken ingredient {}", ingredientInfo, e);
+		} catch (RuntimeException e2) {
+			LOGGER.warn("Found a broken ingredient.", e2);
+		}
+	}
+
+	protected ListElementInfo(IListElement<V> element, IIngredientManager ingredientManager, IIngredientFilterConfig config, IModIdHelper modIdHelper) {
 		this.element = element;
 		ITypedIngredient<V> value = element.getTypedIngredient();
 		V ingredient = value.getIngredient();
@@ -84,22 +87,39 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 		}
 
 		String displayNameLowercase = DisplayNameUtil.getLowercaseDisplayNameForSearch(ingredient, ingredientHelper);
-		Collection<String> aliases = ingredientManager.getIngredientAliases(value);
-		if (aliases.isEmpty()) {
-			this.names = List.of(displayNameLowercase);
-		} else {
-			this.names = new ArrayList<>(1 + aliases.size());
-			this.names.add(displayNameLowercase);
-			for (String alias : aliases) {
-				String lowercaseAlias = Translator.toLowercaseWithLocale(alias);
-				this.names.add(lowercaseAlias);
-			}
+		this.names = createNames(displayNameLowercase, ingredientManager, config);
+	}
+
+	private List<String> createNames(String displayNameLowercase, IIngredientManager ingredientManager, IIngredientFilterConfig config) {
+		if (!config.searchIngredientAliases().get()) {
+			return List.of(displayNameLowercase);
 		}
+		Collection<String> aliases = ingredientManager.getIngredientAliases(element.getTypedIngredient());
+		if (aliases.isEmpty()) {
+			return List.of(displayNameLowercase);
+		}
+		List<String> names = new ArrayList<>(1 + aliases.size());
+		names.add(displayNameLowercase);
+		for (String alias : aliases) {
+			String lowercaseAlias = Translator.toLowercaseWithLocale(alias);
+			names.add(lowercaseAlias);
+		}
+		return names;
 	}
 
 	@Override
 	public List<String> getNames() {
 		return names;
+	}
+
+	@Override
+	public void refreshIngredientAliases(IIngredientManager ingredientManager, IIngredientFilterConfig config) {
+		try {
+			this.names = createNames(names.get(0), ingredientManager, config);
+		} catch (RuntimeException e) {
+			this.names = List.of(names.get(0));
+			logBrokenIngredient(element, ingredientManager, e);
+		}
 	}
 
 	@Override
@@ -144,11 +164,10 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 		for (FormattedText component : tooltip) {
 			String string = component.getString();
 			string = StringUtil.removeChatFormatting(string);
-			string = Translator.toLowercaseWithLocale(string);
-			// Split tooltip strings into words to keep them from being too long.
-			// Longer strings are more expensive for the suffix tree to handle.
-			String[] strings = string.split(" ");
-			Collections.addAll(result, strings);
+			string = Translator.toLowercaseWithLocale(string).trim();
+			if (!string.isEmpty()) {
+				result.add(string);
+			}
 		}
 		return result;
 	}
@@ -191,8 +210,10 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 			if (itemGroup.contains(itemStack)) {
 				String name = itemGroup.getDisplayName().getString();
 				name = StringUtil.removeChatFormatting(name);
-				name = Translator.toLowercaseWithLocale(name);
-				Collections.addAll(creativeTabStrings, name.split(" "));
+				name = Translator.toLowercaseWithLocale(name).trim();
+				if (!name.isEmpty()) {
+					creativeTabStrings.add(name);
+				}
 			}
 		}
 		return creativeTabStrings;

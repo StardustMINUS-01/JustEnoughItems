@@ -2,6 +2,8 @@ package mezz.jei.library.recipes;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import mezz.jei.library.ingredients.RecipeIngredientSupplier;
+import mezz.jei.library.ingredients.RecipeIngredientSupplier.FocusLink;
 import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
@@ -16,7 +18,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.library.config.RecipeCategorySortingConfig;
-import mezz.jei.library.ingredients.IIngredientSupplier;
+import mezz.jei.library.config.RecipeCategorySortingConfig.Snapshot;
 import mezz.jei.library.ingredients.SimpleIngredientAcceptor;
 import mezz.jei.library.recipes.collect.RecipeMap;
 import mezz.jei.library.recipes.collect.RecipeTypeData;
@@ -33,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -53,6 +56,11 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	private final Set<RecipeType<?>> hiddenRecipeTypes = new HashSet<>();
 	private final IIngredientVisibility ingredientVisibility;
 	private ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
+	private final RecipeCategorySortingConfig recipeCategorySortingConfig;
+	private final List<RecipeType<?>> recipeTypes;
+	@Nullable
+	private Snapshot recipeCategorySortingSnapshot;
+	private final Runnable removeRecipeCategorySortingConfigChangeListener;
 
 	@Nullable
 	@Unmodifiable
@@ -71,18 +79,22 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		this.ingredientManager = ingredientManager;
 		this.ingredientVisibility = ingredientVisibility;
 		this.ingredientVisibility.registerListener(this);
+		this.recipeCategorySortingConfig = recipeCategorySortingConfig;
+		this.removeRecipeCategorySortingConfigChangeListener = this.recipeCategorySortingConfig.addChangeListener(
+			this::onRecipeCategorySortingConfigChanged
+		);
 
-		Collection<RecipeType<?>> recipeTypes = recipeCategories.stream()
+		this.recipeTypes = recipeCategories.stream()
 			.<RecipeType<?>>map(IRecipeCategory::getRecipeType)
 			.toList();
-		Comparator<RecipeType<?>> recipeTypeComparator = recipeCategorySortingConfig.getComparator(recipeTypes);
 
 		this.recipeMaps = new EnumMap<>(RecipeIngredientRole.class);
-		for (RecipeIngredientRole role : RecipeIngredientRole.values()) {
-			RecipeMap recipeMap = new RecipeMap(recipeTypeComparator, ingredientManager, role);
+		for (RecipeIngredientRole role : EnumSet.of(RecipeIngredientRole.INPUT, RecipeIngredientRole.OUTPUT, RecipeIngredientRole.CATALYST)) {
+			RecipeMap recipeMap = new RecipeMap(ingredientManager, role);
 			this.recipeMaps.put(role, recipeMap);
 		}
 
+		Comparator<RecipeType<?>> recipeTypeComparator = (first, second) -> getRecipeCategorySortingSnapshot().getComparator().compare(first, second);
 		this.recipeCategoryComparator = Comparator.comparing(IRecipeCategory::getRecipeType, recipeTypeComparator);
 		this.recipeCategories = recipeCategories.stream()
 			.sorted(this.recipeCategoryComparator)
@@ -125,7 +137,9 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 
 		List<T> addedRecipes = new ArrayList<>(recipes.size());
 		for (T recipe : recipes) {
-			if (addRecipe(recipeCategory, recipe, hiddenRecipes)) {
+			RecipeIngredientSupplier ingredientSupplier = addRecipe(recipeCategory, recipe, hiddenRecipes);
+			if (ingredientSupplier != null) {
+				recipeTypeData.addFocusLinks(recipe, ingredientSupplier.getFocusLinks());
 				addedRecipes.add(recipe);
 			}
 		}
@@ -136,43 +150,40 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		}
 	}
 
-	private <T> boolean addRecipe(IRecipeCategory<T> recipeCategory, T recipe, Set<T> hiddenRecipes) {
+	private <T> @Nullable RecipeIngredientSupplier addRecipe(IRecipeCategory<T> recipeCategory, T recipe, Set<T> hiddenRecipes) {
 		RecipeType<T> recipeType = recipeCategory.getRecipeType();
 		if (hiddenRecipes.contains(recipe)) {
 			if (LOGGER.isDebugEnabled()) {
 				String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, recipeCategory, ingredientManager);
 				LOGGER.debug("Recipe not added because it is hidden: {}", recipeInfo);
 			}
-			return false;
+			return null;
 		}
 		if (!recipeCategory.isHandled(recipe)) {
 			if (LOGGER.isDebugEnabled()) {
 				String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, recipeCategory, ingredientManager);
 				LOGGER.debug("Recipe not added because the recipe category cannot handle it: {}", recipeInfo);
 			}
-			return false;
+			return null;
 		}
-		IIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
-		if (ingredientSupplier == null) {
-			return false;
-		}
+		RecipeIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager, recipeMaps.keySet());
 
 		try {
 			for (RecipeMap recipeMap : recipeMaps.values()) {
 				recipeMap.addRecipe(recipeType, recipe, ingredientSupplier);
 			}
-			return true;
+			return ingredientSupplier;
 		} catch (RuntimeException | LinkageError e) {
 			String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, recipeCategory, ingredientManager);
 			LOGGER.error("Found a broken recipe, failed to addRecipe: {}\n", recipeInfo, e);
-			return false;
+			return null;
 		}
 	}
 
 	public boolean isCategoryHidden(IRecipeCategory<?> recipeCategory, IFocusGroup focuses) {
 		// hide the category if it has been explicitly hidden
 		RecipeType<?> recipeType = recipeCategory.getRecipeType();
-		if (hiddenRecipeTypes.contains(recipeType)) {
+		if (isRecipeTypeHidden(recipeType)) {
 			return true;
 		}
 
@@ -249,8 +260,52 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	}
 
 	public <T> Stream<T> getRecipesStream(RecipeType<T> recipeType, IFocusGroup focuses, boolean includeHidden) {
+		if (!includeHidden && isRecipeTypeHidden(recipeType)) {
+			return Stream.empty();
+		}
 		RecipeTypeData<T> recipeTypeData = this.recipeTypeDataMap.get(recipeType);
-		return this.pluginManager.getRecipes(recipeTypeData, focuses, includeHidden);
+		Stream<T> recipes = this.pluginManager.getRecipes(recipeTypeData, focuses, includeHidden);
+		if (!includeHidden) {
+			recipes = recipes.filter(recipe -> isRecipeVisible(recipeTypeData, recipe, focuses));
+		}
+		return recipes;
+	}
+
+	public <T> boolean isRecipeVisible(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focuses) {
+		RecipeTypeData<T> recipeTypeData = this.recipeTypeDataMap.get(recipeCategory.getRecipeType());
+		if (recipeTypeData.getHiddenRecipes().contains(recipe)) {
+			return false;
+		}
+		return isRecipeVisible(recipeTypeData, recipe, focuses);
+	}
+
+	private <T> boolean isRecipeVisible(RecipeTypeData<T> recipeTypeData, T recipe, IFocusGroup focuses) {
+		List<FocusLink> focusLinks = getFocusLinks(recipeTypeData, recipe);
+		for (FocusLink focusLink : focusLinks) {
+			Set<Integer> visibleIndexes = focusLink.getVisibleIngredientIndexes(
+				focuses,
+				ingredientManager,
+				ingredient -> ingredientVisibility.isIngredientVisible(ingredient, UidContext.Recipe)
+			);
+			if (visibleIndexes == null) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private <T> List<FocusLink> getFocusLinks(RecipeTypeData<T> recipeTypeData, T recipe) {
+		List<FocusLink> focusLinks = recipeTypeData.getFocusLinks(recipe);
+		if (focusLinks != null) {
+			return focusLinks;
+		}
+		RecipeIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(
+			recipe,
+			recipeTypeData.getRecipeCategory(),
+			ingredientManager,
+			recipeMaps.keySet()
+		);
+		return ingredientSupplier.getFocusLinks();
 	}
 
 	public <T> Stream<Consumer<IIngredientAcceptor<?>>> getRecipeCatalystGroups(RecipeType<T> recipeType, boolean includeHidden) {
@@ -301,6 +356,27 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		}
 	}
 
+	private boolean isRecipeTypeHidden(RecipeType<?> recipeType) {
+		return hiddenRecipeTypes.contains(recipeType) ||
+			!getRecipeCategorySortingSnapshot().isVisible(recipeType);
+	}
+
+	private Snapshot getRecipeCategorySortingSnapshot() {
+		if (recipeCategorySortingSnapshot == null) {
+			recipeCategorySortingSnapshot = recipeCategorySortingConfig.getSnapshot(recipeTypes);
+		}
+		return recipeCategorySortingSnapshot;
+	}
+
+	private void onRecipeCategorySortingConfigChanged() {
+		recipeCategorySortingSnapshot = null;
+		recipeCategoriesVisibleCache = null;
+	}
+
+	public void onRuntimeStopped() {
+		removeRecipeCategorySortingConfigChangeListener.run();
+	}
+
 	public <T> void hideRecipes(RecipeType<T> recipeType, Collection<T> recipes) {
 		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
 		Set<T> hiddenRecipes = recipeTypeData.getHiddenRecipes();
@@ -347,6 +423,6 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 
 	public boolean isRecipeCatalyst(RecipeType<?> recipeType, IFocus<?> focus) {
 		RecipeMap recipeMap = recipeMaps.get(focus.getRole());
-		return recipeMap.isCatalystForRecipeCategory(recipeType, focus.getTypedValue());
+		return recipeMap != null && recipeMap.isCatalystForRecipeCategory(recipeType, focus.getTypedValue());
 	}
 }

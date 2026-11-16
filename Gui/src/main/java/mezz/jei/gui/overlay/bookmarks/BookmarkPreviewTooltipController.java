@@ -1,16 +1,17 @@
 package mezz.jei.gui.overlay.bookmarks;
 
 import mezz.jei.common.Internal;
+import mezz.jei.common.input.IGuiInputLayer;
 import mezz.jei.common.input.IInternalKeyMappings;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IDraggableIngredientInternal;
-import mezz.jei.gui.input.IGuiInputLayer;
 import mezz.jei.gui.input.IPinnedTooltipHolder;
 import mezz.jei.gui.input.IRecipeFocusSource;
-import mezz.jei.gui.input.IUserInputHandler;
+import mezz.jei.gui.input.InputArea;
 import mezz.jei.gui.input.PinnedTooltipManager;
-import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.elements.RecipeBookmarkElement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -31,6 +32,13 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 		this.recipeTransferService = recipeTransferService;
 	}
 
+	InputArea createInputArea() {
+		return InputArea.builder("Bookmark tooltip", this)
+			.blockUnhandledMouseInput()
+			.controls(this)
+			.build();
+	}
+
 	public boolean isVisible() {
 		return this.activeTooltip != null;
 	}
@@ -48,9 +56,9 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 	}
 
 	@Override
-	public boolean isMouseOver(double mouseX, double mouseY) {
+	public boolean containsMouse(double mouseX, double mouseY) {
 		BookmarkPreviewTooltip activeTooltip = this.activeTooltip;
-		return activeTooltip != null && activeTooltip.isMouseOver(mouseX, mouseY);
+		return activeTooltip != null && activeTooltip.containsMouse(mouseX, mouseY);
 	}
 
 	@Override
@@ -89,7 +97,7 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 	private void open(double mouseX, double mouseY) {
 		bookmarkOverlay.getPreviewSourcesUnderMouse(mouseX, mouseY)
 			.<BookmarkPreviewTooltip>mapMulti((source, consumer) -> {
-				if (source.ingredient().getElement() instanceof RecipeBookmarkElement<?, ?> element) {
+				if (source.element() instanceof RecipeBookmarkElement<?, ?> element) {
 					element.getInteractivePreview()
 						.map(component -> new BookmarkPreviewTooltip(
 							this,
@@ -126,7 +134,13 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(
+	public boolean scroll(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
+		BookmarkPreviewTooltip activeTooltip = this.activeTooltip;
+		return activeTooltip != null && activeTooltip.scroll(mouseX, mouseY, scrollDeltaX, scrollDeltaY);
+	}
+
+	@Override
+	public Optional<IInputInteraction> beginInput(
 		Screen screen,
 		UserInput input,
 		IInternalKeyMappings keyBindings
@@ -135,6 +149,6 @@ public class BookmarkPreviewTooltipController implements IGuiInputLayer, IPinned
 		if (activeTooltip == null) {
 			return Optional.empty();
 		}
-		return activeTooltip.handleUserInput(screen, input, keyBindings);
+		return activeTooltip.beginInput(screen, input, keyBindings);
 	}
 }

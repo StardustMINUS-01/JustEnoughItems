@@ -2,7 +2,7 @@ package mezz.jei.gui.recipes;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.gui.input.InputModifiers;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.gui.recipes.navigation.RecipeNavigationDirection;
 import org.lwjgl.glfw.GLFW;
 

@@ -21,7 +21,7 @@ import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.collect.ListMultiMap;
 import mezz.jei.gui.bookmarks.BookmarkSlotBorder;
 import mezz.jei.gui.collapsible.CollapsedGroupElement;
-import mezz.jei.gui.input.MouseUtil;
+import mezz.jei.common.input.MouseUtil;
 import mezz.jei.gui.overlay.IngredientListSlotContext;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisuals;
 import mezz.jei.gui.overlay.elements.IElement;

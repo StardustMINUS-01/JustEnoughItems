@@ -1,5 +1,6 @@
 package mezz.jei.gui.config;
 
+import mezz.jei.common.Internal;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -7,8 +8,8 @@ import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.file.JsonArrayFileHelper;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
-import mezz.jei.common.util.DeduplicatingRunner;
+import mezz.jei.gui.config.file.serializers.TypedIngredientSerializer;
+import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import mezz.jei.common.util.PathUtil;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
@@ -38,7 +39,7 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	private static final String JSON_KEY_KIND = "kind";
 
 	private final Path jeiConfigurationDir;
-	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
+	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
 	private final BookmarkConfig iniBookmarkConfig;
 	private @Nullable BookmarkList bookmarkList;
 

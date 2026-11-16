@@ -4,8 +4,9 @@ import mezz.jei.api.IModPlugin;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IServerConfig;
-import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.IngredientTooltipComponent;
+import mezz.jei.common.gui.IngredientsTooltipComponent;
+import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.common.network.ClientPacketRouter;
 import mezz.jei.forge.chat.JeiChatEventHandler;
@@ -37,6 +38,8 @@ import mezz.jei.gui.overlay.bookmarks.FixedRecipePreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.RecipeChainPreviewTooltipComponent;
 import mezz.jei.gui.recipes.InteractiveIngredientGridTooltipComponent;
+import mezz.jei.library.config.JeiConfigData;
+import mezz.jei.library.config.JeiConfigRegistration;
 import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
 import mezz.jei.library.plugins.vanilla.cooking.JeiSmeltingRecipe;
 import mezz.jei.library.plugins.vanilla.crafting.JeiShapedRecipe;
@@ -73,6 +76,7 @@ public class JustEnoughItemsClient {
 		IServerConfig serverConfig
 	) {
 		this.subscriptions = subscriptions;
+		JeiConfigData configData = JeiConfigRegistration.register();
 		registerCompatProviders();
 
 		ConnectionToServer serverConnection = new ConnectionToServer(networkHandler);
@@ -88,12 +92,12 @@ public class JustEnoughItemsClient {
 		StartData startData = new StartData(
 			plugins,
 			serverConnection,
-			keyMappings
+			configData
 		);
 
 		this.jeiStarter = new JeiStarter(startData);
-
 		StartEventObserver startEventObserver = new StartEventObserver(serverConnection, this.jeiStarter::start, this.jeiStarter::stop);
+		Internal.setRestartJeiRunnable(startEventObserver::restart);
 		startEventObserver.register(subscriptions);
 	}
 
@@ -147,9 +151,8 @@ public class JustEnoughItemsClient {
 
 	private void onRecipesUpdatedEvent(RecipesUpdatedEvent event) {
 		List<Recipe<?>> recipes = List.copyOf(event.getRecipeManager().getRecipes());
-		if (!recipes.isEmpty()) {
-			Internal.setClientSyncedRecipes(recipes);
-		}
+		// Every recipe update is authoritative, including an empty recipe list.
+		Internal.setClientSyncedRecipes(recipes);
 	}
 
 	private void onRegisterReloadListenerEvent(RegisterClientReloadListenersEvent event) {

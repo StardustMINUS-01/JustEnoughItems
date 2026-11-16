@@ -1,3 +1,5 @@
+import mezz.jei.gradle.externalSourceSetClasspath
+import mezz.jei.gradle.gradleProperty
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.slf4j.event.Level
@@ -12,21 +14,41 @@ plugins {
 	id("net.mezzdev.modshade")
 }
 
+repositories {
+	maven("https://maven.blamejared.com/") {
+		content { includeGroup("net.mezzdev.config") }
+	}
+}
+
+repositories {
+    google { content { includeModule("com.android.tools", "r8") } }
+}
+
 // gradle.properties
-val curseHomepageUrl: String by extra
-val curseProjectId: String by extra
-val forgeVersion: String by extra
-val jUnitVersion: String by extra
-val minecraftVersion: String by extra
-val minecraftVersionRangeStart: String by extra
-val modGroup: String by extra
-val modId: String by extra
-val modJavaVersion: String by extra
-val parchmentMinecraftVersion: String by extra
-val parchmentVersionForge: String by extra
-val modrinthId: String by extra
-val bakedSubstringIndexVersion: String by extra
-val suffixtreeVersion: String by extra
+val curseHomepageUrl = gradleProperty("curseHomepageUrl")
+val curseProjectId = gradleProperty("curseProjectId")
+val forgeVersion = gradleProperty("forgeVersion")
+val jUnitVersion = gradleProperty("jUnitVersion")
+val minecraftVersion = gradleProperty("minecraftVersion")
+val minecraftVersionRangeStart = gradleProperty("minecraftVersionRangeStart")
+val modGroup = gradleProperty("modGroup")
+val modId = gradleProperty("modId")
+val modJavaVersion = gradleProperty("modJavaVersion")
+val parchmentMinecraftVersion = gradleProperty("parchmentMinecraftVersion")
+val parchmentVersionForge = gradleProperty("parchmentVersionForge")
+val modrinthId = gradleProperty("modrinthId")
+val mezzConfigCurseForgeProjectSlug = gradleProperty("mezzConfigCurseForgeProjectSlug")
+val mezzConfigModrinthProjectId = gradleProperty("mezzConfigModrinthProjectId")
+val mezzConfigGuiCurseForgeProjectSlug = gradleProperty("mezzConfigGuiCurseForgeProjectSlug")
+val mezzConfigGuiModrinthProjectId = gradleProperty("mezzConfigGuiModrinthProjectId")
+val luceneVersion = gradleProperty("luceneVersion")
+val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
+val mezzConfigVersion = gradleProperty("mezzConfigVersion")
+val mezzConfigVersionRange = gradleProperty("mezzConfigVersionRange")
+val mezzConfigApiDependency: String by rootProject.extra
+val mezzConfigForgeDependency: String by rootProject.extra
+val mezzConfigGuiApiDependency: String by rootProject.extra
+val mezzConfigGuiForgeDependency: String by rootProject.extra
 
 val forgeArtifactVersion = "${minecraftVersion}-${forgeVersion}"
 
@@ -114,15 +136,26 @@ repositories {
 }
 
 dependencies {
+	compileOnly(mezzConfigApiDependency)
+	modRuntimeOnly(mezzConfigForgeDependency)
+	jarJar(mezzConfigForgeDependency) {
+		isTransitive = false
+		version {
+			strictly(mezzConfigVersionRange)
+			prefer(mezzConfigVersion)
+		}
+	}
+	compileOnly(mezzConfigGuiApiDependency)
+	modRuntimeOnly(mezzConfigGuiForgeDependency)
 	dependencyProjects.forEach {
 		compileOnly(it)
 		testImplementation(it)
 		add(gameTestSourceSet.implementationConfigurationName, it)
 	}
-	modShadeImplementation("net.mezzdev:baked-substring-index:${bakedSubstringIndexVersion}") {
+	modShadeImplementation("org.apache.lucene:lucene-core:${luceneVersion}") {
 		isTransitive = false
 	}
-	modShadeImplementation("net.mezzdev:suffixtree:${suffixtreeVersion}") {
+	modShadeImplementation("net.mezzdev:deduplicating-runner:${deduplicatingRunnerVersion}") {
 		isTransitive = false
 	}
 	// Optional mod integrations (compile-only; guarded by CompatUtil.createIfLoaded at runtime).
@@ -133,6 +166,8 @@ dependencies {
 	modCompileOnly("maven.modrinth:tinkers-construct:3.11.2.166")
 	changelogHtml(project(":Changelog"))
 	changelogMarkdown(project(":Changelog"))
+	testImplementation(mezzConfigApiDependency)
+	testImplementation(mezzConfigForgeDependency)
 	testImplementation(
 		group = "org.junit.jupiter",
 		name = "junit-jupiter",
@@ -219,6 +254,10 @@ tasks.named("runGameTestServer") {
 	dependsOn(copyGameTestStructures)
 }
 
+tasks.check {
+	dependsOn("runGameTestServer")
+}
+
 tasks.jar {
 	from(sourceSets.main.get().output)
 	for (p in dependencyProjects) {
@@ -239,7 +278,28 @@ val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
 
 val reobfJarTask = tasks.named<AbstractArchiveTask>("reobfJar")
 
+// Shared API annotations are compile-only and absent from the loader runtime classpath.
+val r8Libraries = configurations.create("r8Libraries") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+dependencies {
+    add(r8Libraries.name, "com.google.code.findbugs:jsr305:3.0.2")
+}
+
+val r8LibraryClasspath = externalSourceSetClasspath(listOf(sourceSets.main.get()))
+    .minus(files(dependencyProjects.map { it.sourceSets.main.get().output }))
+
+// Dependency module descriptors describe their original jars, not the shaded mod.
+modShade.exclude("module-info.class")
+modShade.exclude("META-INF/versions/**/module-info.class")
 val shadedJar = modShade.shadeJar()
+shadedJar.configure {
+    shrink.set(true)
+    shrinkLibraryClasspath.setFrom(r8LibraryClasspath.minus(project.files(configurations)), r8Libraries)
+    shrinkRuleFiles.from(rootProject.layout.projectDirectory.file("config/lucene-r8.pro"))
+}
+apply(from = "../gradle/verify-jar-bytecode.gradle")
 val shadedSourcesJar = modShade.shadeSourcesJar()
 
 publishMods {
@@ -254,6 +314,8 @@ publishMods {
 		projectId = curseProjectId
 		projectSlug = curseHomepageUrl.substringAfterLast("/")
 		accessToken.set(curseforgeApikey ?: "0")
+		requires(mezzConfigCurseForgeProjectSlug)
+		optional(mezzConfigGuiCurseForgeProjectSlug)
 		changelog.set(changelogHtml.singleFileContents())
 		changelogType = "html"
 		minecraftVersionRange {
@@ -269,6 +331,8 @@ publishMods {
 	modrinth {
 		projectId = modrinthId
 		accessToken = modrinthToken
+		requires(mezzConfigModrinthProjectId)
+		optional(mezzConfigGuiModrinthProjectId)
 		minecraftVersionRange {
 			start = minecraftVersionRangeStart
 			end = minecraftVersion
@@ -277,7 +341,25 @@ publishMods {
 	}
 }
 
+abstract class PackagedJarArgumentProvider : CommandLineArgumentProvider {
+	@get:InputFile
+	@get:PathSensitive(PathSensitivity.NONE)
+	abstract val jar: RegularFileProperty
+
+	@get:Classpath
+	abstract val classpath: ConfigurableFileCollection
+
+	override fun asArguments() = listOf(
+		"-Djei.test.packagedJar=${jar.get().asFile.absolutePath}",
+		"-Djei.test.packagedClasspath=${classpath.asPath}"
+	)
+}
+
 tasks.named<Test>("test") {
+	jvmArgumentProviders.add(objects.newInstance<PackagedJarArgumentProvider>().apply {
+		jar.set(shadedJar.flatMap { it.archiveFile })
+		classpath.from(sourceSets.test.get().runtimeClasspath, sourceSets.main.get().compileClasspath)
+	})
 	useJUnitPlatform()
 	include("mezz/jei/gui/config/**")
 	include("mezz/jei/gui/input/focus/**")
@@ -301,6 +383,26 @@ publishing {
 			artifactId = baseArchivesName
 			artifact(shadedJar)
 			artifact(shadedSourcesJar)
+
+			val dependencyInfos = listOf(
+				dependencyInfo(mezzConfigGuiForgeDependency) + ("optional" to "true")
+			) + dependencyProjects.map {
+				mapOf(
+					"groupId" to it.group,
+					"artifactId" to it.base.archivesName.get(),
+					"version" to it.version
+				)
+			}
+
+			pom.withXml {
+				val dependenciesNode = asNode().appendNode("dependencies")
+				dependencyInfos.forEach {
+					val dependencyNode = dependenciesNode.appendNode("dependency")
+					it.forEach { (key, value) ->
+						dependencyNode.appendNode(key, value)
+					}
+				}
+			}
 		}
 	}
 	repositories {
@@ -309,6 +411,15 @@ publishing {
 			maven(deployDir)
 		}
 	}
+}
+
+fun dependencyInfo(notation: String): Map<String, String> {
+	val (groupId, artifactId, version) = notation.split(":")
+	return mapOf(
+		"groupId" to groupId,
+		"artifactId" to artifactId,
+		"version" to version
+	)
 }
 
 idea {

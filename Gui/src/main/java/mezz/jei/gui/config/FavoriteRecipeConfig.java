@@ -1,11 +1,12 @@
 package mezz.jei.gui.config;
 
+import mezz.jei.common.Internal;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import mezz.jei.common.config.file.JsonArrayFileHelper;
-import mezz.jei.common.util.DeduplicatingRunner;
+import net.mezzdev.deduplicatingrunner.DeduplicatingRunner;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import org.apache.logging.log4j.LogManager;
@@ -24,7 +25,7 @@ public class FavoriteRecipeConfig {
 	private static final Duration SAVE_DELAY_TIME = Duration.ofSeconds(5);
 	private static final int VERSION = 1;
 	private final Path jeiConfigurationDir;
-	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
+	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME, Internal.getDelayedExecutor());
 
 	public FavoriteRecipeConfig(Path jeiConfigurationDir) {
 		this.jeiConfigurationDir = jeiConfigurationDir;

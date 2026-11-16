@@ -3,8 +3,11 @@ package mezz.jei.gui.recipes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayActivator;
-import mezz.jei.gui.input.IUserInputHandler;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.common.input.IInputTarget;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
+import mezz.jei.common.input.interaction.InputAction;
+import mezz.jei.common.input.interaction.ConsumedInput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
@@ -14,7 +17,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class RecipeGhostOverlayInputHandler implements IUserInputHandler {
+public class RecipeGhostOverlayInputHandler implements IInputTarget {
 	@FunctionalInterface
 	public interface Activator {
 		boolean activate(UserInput input, IRecipeLayoutDrawable<?> recipeLayout, @Nullable AbstractContainerMenu containerMenu, Runnable onActivated);
@@ -51,7 +54,7 @@ public class RecipeGhostOverlayInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleUserInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+	public Optional<IInputInteraction> beginInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
 		if (!BookmarkGhostOverlayActivator.isOverlayRecipeInput(input, keyBindings.getOverlayRecipe()) || !isMouseOver.test(mouseX, mouseY)) {
@@ -60,7 +63,11 @@ public class RecipeGhostOverlayInputHandler implements IUserInputHandler {
 
 		AbstractContainerMenu containerMenu = parentContainerMenu.apply(screen);
 		if (activator.activate(input, recipeLayout, containerMenu, () -> onActivated.accept(screen))) {
-			return Optional.of(this);
+			if (input.isMouseInput()) {
+				return Optional.of(new InputAction(release -> activator.activate(release, recipeLayout, containerMenu, () -> onActivated.accept(screen)))
+					.within(isMouseOver::test));
+			}
+			return Optional.of(ConsumedInput.INSTANCE);
 		}
 		return Optional.empty();
 	}

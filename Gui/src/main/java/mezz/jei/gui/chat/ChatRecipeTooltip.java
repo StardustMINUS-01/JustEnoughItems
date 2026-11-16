@@ -10,9 +10,8 @@ import mezz.jei.common.chat.JeiChatItemLinkHover;
 import mezz.jei.common.chat.JeiChatRecipeLinks;
 import mezz.jei.common.chat.JeiChatRecipeLinks.RecipeLink;
 import mezz.jei.gui.input.FocusedRecipe;
-import mezz.jei.gui.input.handlers.FocusInputHandler;
-import mezz.jei.gui.input.handlers.UserInputRouter;
-import mezz.jei.gui.input.UserInput;
+import mezz.jei.gui.input.handlers.IngredientShortcutInputHandler;
+import mezz.jei.common.input.UserInput;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.platform.Services;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -40,20 +39,14 @@ public final class ChatRecipeTooltip {
 	private boolean pinned;
 	private int anchorX;
 	private int anchorY;
-	private @Nullable FocusInputHandler shortcuts;
-	private @Nullable UserInputRouter tagInputs;
+	private @Nullable IngredientShortcutInputHandler shortcuts;
 
-	public void setShortcuts(FocusInputHandler shortcuts) {
+	public void setShortcuts(IngredientShortcutInputHandler shortcuts) {
 		this.shortcuts = shortcuts;
-		tagInputs = new UserInputRouter("Chat tags", shortcuts.getTagTooltip());
 	}
 
 	public boolean hasTags() {
-		return source instanceof ChatScreen && shortcuts != null && shortcuts.getTagTooltip().hasKeyboardFocus();
-	}
-
-	public boolean handleTags(Screen screen, UserInput input, IInternalKeyMappings keys) {
-		return hasTags() && tagInputs != null && tagInputs.handleUserInput(screen, input, keys);
+		return source instanceof ChatScreen && shortcuts != null && shortcuts.getTagSelectionTooltip().hasKeyboardFocus();
 	}
 
 	public boolean copy(ITypedIngredient<?> ingredient, UserInput input, IInternalKeyMappings keys) {
@@ -61,8 +54,8 @@ public final class ChatRecipeTooltip {
 	}
 
 	public boolean scroll(double x, double y, double dy) {
-		if (hasTags() && tagInputs != null) {
-			return tagInputs.handleMouseScrolled(x, y, dy);
+		if (hasTags() && shortcuts != null) {
+			return shortcuts.getTagSelectionTooltip().scroll(x, y, 0, dy);
 		}
 		return isPinned();
 	}
@@ -203,12 +196,11 @@ public final class ChatRecipeTooltip {
 	public void onRuntimeStopped() {
 		clear();
 		shortcuts = null;
-		tagInputs = null;
 	}
 
 	public void clear() {
-		if (tagInputs != null) {
-			tagInputs.handleGuiChange();
+		if (shortcuts != null) {
+			shortcuts.getTagSelectionTooltip().resetInput();
 		}
 		ChatIngredientTooltip.clearSharedIngredient();
 		style = null;

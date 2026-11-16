@@ -29,7 +29,7 @@ public class RecipeBookmarkScopeTest {
 
 	private static RecipeBookmark<String, String> recipeBookmark(@Nullable Object equalityScope) {
 		return new RecipeBookmark<>(
-			null,
+			new BookmarkListPatternEncodeLookupTest.TestRecipeCategory(),
 			"recipe",
 			RECIPE,
 			new TestTypedIngredient("plate"),

@@ -9,8 +9,8 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.config.IJeiConfigValueSerializer.IDeserializeResult;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
+import net.mezzdev.config.api.value.serializer.IDeserializeResult;
+import mezz.jei.gui.config.file.serializers.TypedIngredientSerializer;
 import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.gui.input.FocusedRecipe;
 

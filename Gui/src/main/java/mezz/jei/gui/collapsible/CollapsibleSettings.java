@@ -15,8 +15,8 @@ public record CollapsibleSettings(int collapsedColor, int expandedColor) {
 
 	public static CollapsibleSettings fromConfig() {
 		return new CollapsibleSettings(
-			CollapsibleColorConfig.getCollapsedColor().getValue(),
-			CollapsibleColorConfig.getExpandedColor().getValue()
+			CollapsibleColorConfig.getCollapsedColor().get(),
+			CollapsibleColorConfig.getExpandedColor().get()
 		);
 	}
 }
