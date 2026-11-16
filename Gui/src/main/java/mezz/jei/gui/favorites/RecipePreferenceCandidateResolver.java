@@ -98,6 +98,8 @@ public final class RecipePreferenceCandidateResolver {
 		}
 		List<RecipePreferenceCandidate> candidates = new ArrayList<>(references.size());
 		for (RecipeCandidateReference reference : references) {
+			if (mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().disabled().contains(reference.focusedRecipe().recipeTypeUid()))
+				continue;
 			Optional<RecipeCandidateResult> result = getCandidateResult(reference, layoutCache);
 			if (result.isPresent()) {
 				candidates.add(result.get().candidate());
@@ -146,6 +148,8 @@ public final class RecipePreferenceCandidateResolver {
 		Set<FocusedRecipe> seen = new LinkedHashSet<>();
 		List<RecipeCandidateReference> result = new ArrayList<>();
 		for (RecipeCandidateReference reference : recipeFinder.findRecipes(output)) {
+			if (mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().disabled().contains(reference.focusedRecipe().recipeTypeUid()))
+				continue;
 			Optional<RecipeCandidateResult> candidateResult = getCandidateResult(reference, layoutCache);
 			if (candidateResult.isEmpty()) {
 				continue;
@@ -222,6 +226,7 @@ public final class RecipePreferenceCandidateResolver {
 			recipeManager.createRecipeCategoryLookup()
 				.limitFocus(List.of(focus))
 				.get()
+				.filter(category -> !mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get().disabled().contains(category.getRecipeType().getUid()))
 				.forEach(category -> collectCategoryRecipes(category, focus, result));
 			return List.copyOf(result);
 		}
@@ -316,4 +321,11 @@ public final class RecipePreferenceCandidateResolver {
 			}
 		}
 	}
+	static Optional<FocusedRecipe> resolvePreferredCategory(List<RecipePreferenceCandidate> candidates) {
+		var preferences = mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.get();
+		List<FocusedRecipe> selected = candidates.stream().map(RecipePreferenceCandidate::recipe)
+			.filter(recipe -> !preferences.disabled().contains(recipe.recipeTypeUid()) && preferences.preferred().contains(recipe.recipeTypeUid())).distinct().toList();
+		return selected.size() == 1 ? Optional.of(selected.get(0)) : Optional.empty();
+	}
+
 }

@@ -218,4 +218,12 @@ public class RecipeGuiTabs implements IPaged, IInputTarget {
 	public int getPageNumber() {
 		return pageNumber;
 	}
+	public Optional<IRecipeCategory<?>> getCategoryUnderMouse(double x, double y) {
+		for (int i = 0; i < tabs.size(); i++) {
+			if (tabs.get(i).isMouseOver(x, y))
+				return Optional.of(recipeGuiLogic.getRecipeCategories().get(pageNumber * categoriesPerPage + i));
+		}
+		return Optional.empty();
+	}
+
 }

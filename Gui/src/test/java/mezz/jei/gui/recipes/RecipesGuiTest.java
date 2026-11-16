@@ -3,19 +3,8 @@ package mezz.jei.gui.recipes;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.api.search.ISearchStorageBuilder;
-import mezz.jei.api.search.ISearchStorageBuilderFactory;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceCandidate;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceRule;
-import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
-import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.match.IngredientExpression;
 import mezz.jei.gui.match.IngredientMatchInfo;
-import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
-import mezz.jei.gui.recipes.filtering.RecipeLookupSnapshot;
-import mezz.jei.gui.recipes.filtering.RecipeSearchDocument;
-import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
 import mezz.jei.gui.recipes.lookups.LookupStatePositionUtil;
@@ -25,7 +14,6 @@ import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
 import net.minecraft.resources.ResourceLocation;
 import java.lang.reflect.Proxy;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -67,32 +55,17 @@ public class RecipesGuiTest {
 	}
 
 	@Test
-	public void filtersRecipesAndCandidates() {
-		IRecipeCategory<String> category = category("macerating");
-		RecipeLookupSnapshot.RecipeEntry<String> ingot = entry(category, "ingot");
-		RecipeLookupSnapshot.RecipeEntry<String> plate = entry(category, "plate");
-		RecipePreferenceRules rules = new RecipePreferenceRules(List.of(new RecipePreferenceRule(
-			IngredientExpression.parseIngredient("test:dust").orElseThrow(),
-			Optional.of(IngredientExpression.parseIngredient("test:ingot").orElseThrow()), Optional.empty()
-		)));
-		RecipeLookupSnapshot snapshot = new RecipeLookupSnapshot(
-			List.of(new RecipeLookupSnapshot.CategoryRecipes<>(category, List.of(ingot, plate))),
-			rules, new ISearchStorageBuilderFactory() {
-				@Override
-				public <T> ISearchStorageBuilder<T> create() {
-					return new AliasIndex<>();
-				}
-			}
-		);
-		assertEquals(List.of("ingot"), snapshot.project(RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("")).get(0).getRecipes());
-		assertEquals(List.of("plate"), snapshot.project(RecipeFilterMode.NOT_PREFERRED, RecipeSearchQuery.parse("")).get(0).getRecipes());
-		assertTrue(snapshot.project(RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("i:plate")).isEmpty());
-
-		var query = RecipeSearchQuery.parse("i:alias");
-		var matcher = snapshot.createSearchTextMatcher();
-		assertEquals(List.of("ingot"), snapshot.project(RecipeFilterMode.ALL, query, matcher).get(0).getRecipes());
-		assertTrue(query.matchesInputCandidate(ingot.searchDocument().inputs().get(0), matcher));
-		assertFalse(query.matchesInputCandidate(plate.searchDocument().inputs().get(0), matcher));
+	public void limitsCandidateMatchingToInputTerms() {
+		net.minecraft.SharedConstants.tryDetectVersion();
+		net.minecraft.server.Bootstrap.bootStrap();
+		var iron = mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(mezz.jei.api.constants.VanillaTypes.ITEM_STACK,
+			new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT));
+		var gold = mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(mezz.jei.api.constants.VanillaTypes.ITEM_STACK,
+			new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLD_INGOT));
+		var query = RecipeSearchQuery.parse("i:alias o:plate");
+		java.util.function.BiPredicate<mezz.jei.api.ingredients.ITypedIngredient<?>, String> alias = (ingredient, token) -> ingredient == iron && token.equals("alias");
+		assertTrue(query.matchesInputCandidate(iron, alias));
+		assertFalse(query.matchesInputCandidate(gold, alias));
 	}
 
 	@Test
@@ -135,28 +108,6 @@ public class RecipesGuiTest {
 				case "getRecipeType" -> type;
 				default -> throw new UnsupportedOperationException(method.getName());
 			});
-	}
-
-	private static RecipeLookupSnapshot.RecipeEntry<String> entry(IRecipeCategory<String> category, String name) {
-		ResourceLocation id = new ResourceLocation("test", name);
-		var input = new RecipeSearchIngredient(name, id, "test", Set.of());
-		var document = new RecipeSearchDocument(List.of(input), List.of(), List.of(), List.of());
-		var candidate = new RecipePreferenceCandidate(
-			new FocusedRecipe(category.getRecipeType().getUid(), id),
-			List.of(IngredientMatchInfo.item(id, Set.of())),
-			List.of(IngredientMatchInfo.item(new ResourceLocation("test:dust"), Set.of()))
-		);
-		return new RecipeLookupSnapshot.RecipeEntry<>(name, document, Optional.of(candidate));
-	}
-
-	private static final class AliasIndex<T> extends LuceneSearchStorageBuilder<T> {
-		@Override
-		public void put(String key, T value) {
-			super.put(key, value);
-			if (key.equals("ingot")) {
-				super.put("alias", value);
-			}
-		}
 	}
 
 	@Test

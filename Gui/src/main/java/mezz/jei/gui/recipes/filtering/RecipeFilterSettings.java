@@ -1,16 +1,16 @@
 package mezz.jei.gui.recipes.filtering;
 
 public final class RecipeFilterSettings {
-	private RecipeFilterMode mode = RecipeFilterMode.ALL;
+	private RecipeFilterMode mode = RecipeFilterMode.DEFAULT;
+	private RecipeSearchScope scope = RecipeSearchScope.NONE;
+
+	public RecipeSearchScope getScope() { return scope; }
+	public void setScope(RecipeSearchScope scope) { this.scope = scope; }
+	public void setMode(RecipeFilterMode mode) { this.mode = mode; }
 	private String draftQuery = "";
 	private String appliedQuery = "";
 
 	public RecipeFilterMode getMode() {
-		return mode;
-	}
-
-	public RecipeFilterMode cycleMode() {
-		mode = mode.next();
 		return mode;
 	}
 

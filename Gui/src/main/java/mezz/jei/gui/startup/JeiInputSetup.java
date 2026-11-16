@@ -79,6 +79,7 @@ public record JeiInputSetup(GuiInputScene scene, ClientInputHandler handler) {
 			ingredientListOverlay.getKeyboardFocus(),
 			tagSelector.createInputArea(),
 			bookmarkOverlay.createChapterInputArea(),
+			recipesGui.createFilterInputArea(),
 			bookmarkOverlay.createQuantityInputArea(),
 			recipesGui.createSearchInputArea(keyMappings),
 			searchInputArea,

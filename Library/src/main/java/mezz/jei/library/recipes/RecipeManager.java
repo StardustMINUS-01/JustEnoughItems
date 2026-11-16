@@ -1,5 +1,6 @@
 package mezz.jei.library.recipes;
 
+import mezz.jei.common.recipes.IRecipeMaterialCacheInternal;
 import mezz.jei.common.recipes.IRecipeVisibility;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
@@ -27,14 +28,13 @@ import mezz.jei.library.gui.recipes.RecipeLayout;
 import mezz.jei.library.gui.recipes.layout.RecipeLayoutDrawableErrored;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeSlotBuilder;
 import net.minecraft.resources.ResourceLocation;
-import mezz.jei.library.util.IngredientSupplierHelper;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public class RecipeManager implements IRecipeManager, IRecipeVisibility {
+public class RecipeManager implements IRecipeManager, IRecipeVisibility, IRecipeMaterialCacheInternal {
 	private final RecipeManagerInternal internal;
 	private final IIngredientManager ingredientManager;
 	private final List<IRecipeButtonControllerFactory> recipeButtonControllerFactories;
@@ -186,12 +186,17 @@ public class RecipeManager implements IRecipeManager, IRecipeVisibility {
 
 	@Override
 	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
-		return IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
+		return internal.getRecipeIngredients(recipeCategory, recipe);
+	}
+
+	@Override
+	public void invalidateRecipeMaterials() {
+		internal.invalidateRecipeMaterials();
 	}
 
 	@Override
 	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe, Set<RecipeIngredientRole> roles) {
-		return IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager, roles);
+		return internal.getRecipeIngredients(recipeCategory, recipe, roles);
 	}
 
 	@Override

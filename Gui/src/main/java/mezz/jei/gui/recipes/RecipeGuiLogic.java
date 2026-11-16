@@ -1,5 +1,11 @@
 package mezz.jei.gui.recipes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import mezz.jei.gui.ingredients.IngredientFilter;
+import mezz.jei.gui.recipes.filtering.RecipeSearchScope;
+import mezz.jei.gui.recipes.filtering.RecipeSearchSession;
+import java.util.function.BiPredicate;
 import mezz.jei.common.recipes.IRecipeVisibility;
 import mezz.jei.gui.recipes.lookups.StaticFocusedRecipes;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -29,11 +35,7 @@ import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
-import mezz.jei.gui.recipes.filtering.IRecipeSearchTextMatcher;
 import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
-import mezz.jei.gui.recipes.filtering.RecipeLookupSnapshot;
-import mezz.jei.gui.recipes.filtering.RecipeLookupSnapshotFactory;
-import mezz.jei.gui.recipes.filtering.RecipeSearchIngredient;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
 import mezz.jei.gui.recipes.layouts.IRecipeLayoutList;
 import mezz.jei.gui.recipes.lookups.IFocusedRecipes;
@@ -59,21 +61,25 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class RecipeGuiLogic implements IRecipeGuiLogic {
+	private static final Logger LOGGER = LogManager.getLogger();
 	private final IRecipeManager recipeManager;
 	private final IIngredientManager ingredientManager;
 	private final RecipeTransferService recipeTransferService;
 	private final IRecipeLogicStateListener stateListener;
 
 	private final Supplier<RecipePreferenceRules> preferenceRulesSupplier;
-	private final RecipeLookupSnapshotFactory snapshotFactory;
+	private final RecipeSearchSession searchSession;
 	private ILookupState unfilteredState;
 	private final Map<ILookupState, RecipeNavigationEntry> navigationEntries = new IdentityHashMap<>();
-	private RecipeFilterMode filterMode = RecipeFilterMode.ALL;
+	private RecipeFilterMode filterMode = RecipeFilterMode.DEFAULT;
+	private RecipeSearchScope searchScope = RecipeSearchScope.NONE;
 	private String searchQueryText = "";
 	private RecipeSearchQuery searchQuery = RecipeSearchQuery.parse("");
-	private IRecipeSearchTextMatcher searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
-	private @Nullable RecipeLookupSnapshot snapshot;
-	private @Nullable RecipePreferenceRules snapshotPreferenceRules;
+	private BiPredicate<ITypedIngredient<?>, String> searchIngredientMatcher = (ingredient, token) -> true;
+	private RecipeSearchQuery displayedSearchQuery = searchQuery;
+	private long displayedSearchRevision = -1;
+	private @Nullable RecipeNavigationEntry pendingSearchPosition;
+	private @Nullable Boolean searchBlockTags;
 
 	private boolean initialState = true;
 	private ILookupState state;
@@ -115,7 +121,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		ISearchStorageBuilderFactory searchStorageBuilderFactory
 	) {
 		this.preferenceRulesSupplier = preferenceRulesSupplier;
-		this.snapshotFactory = new RecipeLookupSnapshotFactory(recipeManager, ingredientManager, focusFactory, searchStorageBuilderFactory);
+		this.searchSession = new RecipeSearchSession(recipeManager, searchStorageBuilderFactory);
 		this.recipeManager = recipeManager;
 		this.ingredientManager = ingredientManager;
 		this.lookupHistory = lookupHistory;
@@ -141,11 +147,49 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		if (cachedRecipeLayoutsWithButtons != null) {
 			cachedRecipeLayoutsWithButtons.tick(container);
 		}
-		if (snapshotPreferenceRules != null && snapshotPreferenceRules != preferenceRulesSupplier.get()) {
+		Internal.getOptionalClientConfigs().ifPresent(configs -> {
+			boolean blockTags = configs.getClientConfig().lookupBlockTagsEnabled().get();
+			if (searchBlockTags != null && searchBlockTags != blockTags) {
+				searchSession.clear();
+				rebuildDisplayedState();
+			}
+			searchBlockTags = blockTags;
+		});
+		RecipePreferenceRules rules = preferenceRulesSupplier.get();
+		if (searchSession.needsPreferenceRefresh(rules) || searchSession.needsIngredientRefresh()) {
 			rebuildDisplayedState();
+		}
+		Optional<RecipeSearchSession.Result> completed;
+		try {
+			completed = searchSession.tick(rules);
+		} catch (RuntimeException | LinkageError e) {
+			searchSession.clear();
+			LOGGER.error("Recipe search failed for query '{}' in mode {}", searchQueryText, filterMode, e);
+			net.minecraft.client.Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("gui.jei.recipe_filter.error"));
+			return;
+		}
+		completed.ifPresent(result -> {
+			IRecipeCategory<?> selected = state.getFocusedRecipes().getRecipeCategory();
+			int recipeIndex = state.getRecipeIndex();
+			int recipesPerPage = state.getRecipesPerPage();
+			this.searchIngredientMatcher = result.ingredientMatcher();
+			this.displayedSearchQuery = result.query();
+			this.state = new ProjectedLookupState(unfilteredState, result.recipes());
+			this.state.moveToRecipeCategory(selected);
+			this.state.setRecipesPerPage(recipesPerPage);
+			if (displayedSearchRevision == result.revision() && state.getFocusedRecipes().getRecipeCategory() == selected) {
+				LookupStatePositionUtil.restoreRecipeIndex(state, recipeIndex);
+			}
+			this.displayedSearchRevision = result.revision();
+			if (pendingSearchPosition != null && !searchSession.isSearching()) {
+				restorePosition(pendingSearchPosition);
+				pendingSearchPosition = null;
+			}
 			clearLayoutCache();
 			stateListener.onStateChange();
-		}
+			if (pendingSearchPosition == null)
+				updateCurrentNavigationEntry();
+		});
 	}
 
 	@Override
@@ -264,11 +308,23 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	}
 
 	boolean hasInputSearchTerms() {
-		return searchQuery.hasInputTerms();
+		return displayedSearchQuery.hasInputTerms();
 	}
 
-	boolean matchesInputCandidate(RecipeSearchIngredient ingredient) {
-		return searchQuery.matchesInputCandidate(ingredient, searchTextMatcher);
+	boolean matchesInputCandidate(ITypedIngredient<?> ingredient) {
+		return displayedSearchQuery.matchesInputCandidate(ingredient, searchIngredientMatcher);
+	}
+
+	void setIngredientSearch(IngredientFilter ingredientSearch) {
+		searchSession.setIngredientSearch(ingredientSearch);
+	}
+
+	public void setSearchScope(RecipeSearchScope scope) {
+		searchScope = scope;
+	}
+
+	public RecipeSearchScope getSearchScope() {
+		return searchScope;
 	}
 
 	@Override
@@ -292,9 +348,10 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		this.unfilteredState = state;
 		this.state = state;
 		this.initialState = false;
-		this.snapshot = null;
-		this.snapshotPreferenceRules = null;
-		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.searchSession.clear();
+		this.pendingSearchPosition = null;
+		this.displayedSearchQuery = RecipeSearchQuery.parse("");
+		this.searchIngredientMatcher = (ingredient, token) -> true;
 		rebuildDisplayedState();
 		clearLayoutCache();
 		if (saveHistory) {
@@ -306,30 +363,38 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	}
 
 	private RecipeNavigationEntry createNavigationEntry() {
-		return new RecipeNavigationEntry(
+		RecipeNavigationEntry entry = new RecipeNavigationEntry(
 			unfilteredState,
 			createNavigationTitle(unfilteredState),
 			filterMode,
 			searchQueryText,
 			state
 		);
+		entry.setSearchScope(searchScope);
+		return entry;
 	}
 
 	private void updateCurrentNavigationEntry() {
 		Optional.ofNullable(navigationEntries.get(unfilteredState))
-			.ifPresent(entry -> entry.updateView(filterMode, searchQueryText, state));
+			.ifPresent(entry -> {
+				entry.updateView(filterMode, searchQueryText, state);
+				entry.setSearchScope(searchScope);
+			});
 	}
 
 	private boolean restoreNavigationEntry(RecipeNavigationEntry entry) {
 		this.filterMode = entry.getFilterMode();
+		this.searchScope = entry.getSearchScope();
 		this.searchQueryText = entry.getSearchQuery();
-		this.searchQuery = RecipeSearchQuery.parse(searchQueryText);
+		this.searchQuery = RecipeSearchQuery.parse(searchQueryText).withDefaultScope(searchScope);
 		this.unfilteredState = entry.getLookupState();
 		this.state = unfilteredState;
-		this.snapshot = null;
-		this.snapshotPreferenceRules = null;
-		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.searchSession.clear();
+		this.pendingSearchPosition = null;
+		this.displayedSearchQuery = RecipeSearchQuery.parse("");
+		this.searchIngredientMatcher = (ingredient, token) -> true;
 		rebuildDisplayedState();
+		pendingSearchPosition = searchSession.isSearching() ? entry : null;
 		restorePosition(entry);
 		clearLayoutCache();
 		stateListener.onStateChange();
@@ -360,26 +425,20 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	private void rebuildDisplayedState() {
 		IRecipeCategory<?> selectedCategory = this.state.getFocusedRecipes().getRecipeCategory();
-		if (filterMode == RecipeFilterMode.ALL && searchQuery.isEmpty()) {
-			this.snapshot = null;
-			this.snapshotPreferenceRules = null;
-			this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		searchSession.request(unfilteredState, filterMode, searchQuery);
+		if (filterMode.isUnrestricted() && searchQuery.isEmpty()) {
+			this.displayedSearchQuery = searchQuery;
+			this.pendingSearchPosition = null;
+			this.searchIngredientMatcher = (ingredient, token) -> true;
 			this.state = unfilteredState;
 			this.state.moveToRecipeCategory(selectedCategory);
 			return;
 		}
 
-		RecipePreferenceRules preferenceRules = filterMode != RecipeFilterMode.ALL || snapshotPreferenceRules != null ? preferenceRulesSupplier.get() : null;
-		if (snapshot == null || snapshotPreferenceRules != preferenceRules) {
-			this.snapshot = preferenceRules == null ? snapshotFactory.create(unfilteredState) : snapshotFactory.create(unfilteredState, preferenceRules);
-			this.snapshotPreferenceRules = preferenceRules;
-		}
-		this.searchTextMatcher = searchQuery.isEmpty() ? IRecipeSearchTextMatcher.DEFAULT : snapshot.createSearchTextMatcher();
-		this.state = new ProjectedLookupState(
-			unfilteredState,
-			snapshot.project(filterMode, searchQuery, searchTextMatcher)
-		);
-		this.state.moveToRecipeCategory(selectedCategory);
+	}
+
+	boolean isRecipeSearchPending() {
+		return searchSession.shouldShowProgress();
 	}
 
 	private void clearLayoutCache() {
@@ -392,7 +451,8 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 	public void applyRecipeResultFilter(RecipeFilterMode mode, String query) {
 		this.filterMode = mode;
 		this.searchQueryText = query;
-		this.searchQuery = RecipeSearchQuery.parse(query);
+		this.searchQuery = RecipeSearchQuery.parse(query).withDefaultScope(searchScope);
+		this.pendingSearchPosition = null;
 		rebuildDisplayedState();
 		clearLayoutCache();
 		stateListener.onStateChange();
@@ -401,9 +461,10 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public void clearRecipeResultSnapshot() {
-		this.snapshot = null;
-		this.snapshotPreferenceRules = null;
-		this.searchTextMatcher = IRecipeSearchTextMatcher.DEFAULT;
+		this.searchSession.clear();
+		this.pendingSearchPosition = null;
+		this.displayedSearchQuery = RecipeSearchQuery.parse("");
+		this.searchIngredientMatcher = (ingredient, token) -> true;
 		this.state = unfilteredState;
 		clearLayoutCache();
 	}

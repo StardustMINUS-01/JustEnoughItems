@@ -9,6 +9,10 @@ public class SearchTokenizer {
 	}
 
 	public static List<Token> tokenize(String filterText) {
+		return tokenize(filterText, SearchTokenizer::isPrefix);
+	}
+
+	public static List<Token> tokenize(String filterText, java.util.function.Predicate<String> prefixPredicate) {
 		List<Token> tokens = new ArrayList<>();
 
 		if (filterText.isEmpty()) {
@@ -50,7 +54,7 @@ public class SearchTokenizer {
 					exclusion = false;
 					tokenStart = -1;
 					tokenEnd = -1;
-				} else if (!current.isEmpty() && !isPrefix(current.toString())) {
+				} else if (!current.isEmpty() && !prefixPredicate.test(current.toString())) {
 					addToken(tokens, current, exclusion, tokenStart, tokenEnd);
 					current.setLength(0);
 					exclusion = false;

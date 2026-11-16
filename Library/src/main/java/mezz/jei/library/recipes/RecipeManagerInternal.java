@@ -1,5 +1,6 @@
 package mezz.jei.library.recipes;
 
+import mezz.jei.api.ingredients.IIngredientSupplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import mezz.jei.library.ingredients.RecipeIngredientSupplier;
@@ -54,6 +55,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	private final EnumMap<RecipeIngredientRole, RecipeMap> recipeMaps;
 	private final PluginManager pluginManager;
 	private final Set<RecipeType<?>> hiddenRecipeTypes = new HashSet<>();
+	private final RecipeMaterialCache recipeMaterialCache = new RecipeMaterialCache();
 	private final IIngredientVisibility ingredientVisibility;
 	private ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
 	private final RecipeCategorySortingConfig recipeCategorySortingConfig;
@@ -151,6 +153,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	}
 
 	private <T> @Nullable RecipeIngredientSupplier addRecipe(IRecipeCategory<T> recipeCategory, T recipe, Set<T> hiddenRecipes) {
+		recipeMaterialCache.invalidate(recipeCategory, recipe);
 		RecipeType<T> recipeType = recipeCategory.getRecipeType();
 		if (hiddenRecipes.contains(recipe)) {
 			if (LOGGER.isDebugEnabled()) {
@@ -166,11 +169,15 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 			}
 			return null;
 		}
-		RecipeIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager, recipeMaps.keySet());
+		IngredientSupplierHelper.Extraction extraction = IngredientSupplierHelper.extractIngredients(recipe, recipeCategory, ingredientManager, recipeMaps.keySet());
+		RecipeIngredientSupplier ingredientSupplier = extraction.supplier();
 
 		try {
 			for (RecipeMap recipeMap : recipeMaps.values()) {
 				recipeMap.addRecipe(recipeType, recipe, ingredientSupplier);
+			}
+			if (extraction.complete()) {
+				recipeMaterialCache.register(recipeCategory, recipe, ingredientSupplier, recipeMaps.keySet());
 			}
 			return ingredientSupplier;
 		} catch (RuntimeException | LinkageError e) {
@@ -178,6 +185,18 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 			LOGGER.error("Found a broken recipe, failed to addRecipe: {}\n", recipeInfo, e);
 			return null;
 		}
+	}
+
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> category, T recipe) {
+		return recipeMaterialCache.getIngredients(category, recipe, ingredientManager, recipeMaps.keySet());
+	}
+
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> category, T recipe, Set<RecipeIngredientRole> roles) {
+		return recipeMaterialCache.getIngredients(category, recipe, ingredientManager, roles);
+	}
+
+	public void invalidateRecipeMaterials() {
+		recipeMaterialCache.invalidateAll();
 	}
 
 	public boolean isCategoryHidden(IRecipeCategory<?> recipeCategory, IFocusGroup focuses) {
@@ -374,6 +393,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	}
 
 	public void onRuntimeStopped() {
+		recipeMaterialCache.invalidateAll();
 		removeRecipeCategorySortingConfigChangeListener.run();
 	}
 
@@ -381,6 +401,8 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
 		Set<T> hiddenRecipes = recipeTypeData.getHiddenRecipes();
 		hiddenRecipes.addAll(recipes);
+		for (T recipe : recipes)
+			recipeMaterialCache.invalidate(recipeTypeData.getRecipeCategory(), recipe);
 		recipeCategoriesVisibleCache = null;
 	}
 
@@ -388,6 +410,8 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
 		Set<T> hiddenRecipes = recipeTypeData.getHiddenRecipes();
 		hiddenRecipes.removeAll(recipes);
+		for (T recipe : recipes)
+			recipeMaterialCache.invalidate(recipeTypeData.getRecipeCategory(), recipe);
 		recipeCategoriesVisibleCache = null;
 	}
 

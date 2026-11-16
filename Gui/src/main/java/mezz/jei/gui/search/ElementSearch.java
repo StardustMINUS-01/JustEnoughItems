@@ -1,5 +1,8 @@
 package mezz.jei.gui.search;
 
+import mezz.jei.common.search.LimitedStringStorage;
+import mezz.jei.common.search.LuceneSearchStorage;
+import java.util.function.Consumer;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
@@ -175,6 +178,32 @@ public class ElementSearch implements IElementSearch {
 					putIfNotBlank(storage, string, element);
 				}
 			}
+		}
+	}
+
+	@Override
+	public void collectSearchResults(ElementPrefixParser.TokenInfo tokenInfo, Consumer<IListElement<?>> consumer) {
+		String token = tokenInfo.token();
+		if (token.isEmpty())
+			return;
+		var selected = prefixedSearchables.get(tokenInfo.prefixInfo());
+		if (tokenInfo.prefixInfo() != noPrefix && selected != null && selected.getMode() != SearchMode.DISABLED) {
+			collectSearchResults(selected.getSearchStorage(), token, consumer);
+		} else {
+			for (var searchable : prefixedSearchables.values()) {
+				if (searchable.getMode() == SearchMode.ENABLED)
+					collectSearchResults(searchable.getSearchStorage(), token, consumer);
+			}
+		}
+	}
+
+	private static void collectSearchResults(ISearchStorage<IListElement<?>> storage, String token, Consumer<IListElement<?>> consumer) {
+		if (storage.getClass() == LuceneSearchStorage.class && storage instanceof LuceneSearchStorage<IListElement<?>> lucene) {
+			lucene.collectSearchResults(token, consumer);
+		} else if (storage.getClass() == LimitedStringStorage.class && storage instanceof LimitedStringStorage<IListElement<?>> limited) {
+			limited.collectSearchResults(token, consumer);
+		} else {
+			storage.getSearchResults(token, values -> values.forEach(consumer));
 		}
 	}
 

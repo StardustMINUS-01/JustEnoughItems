@@ -745,6 +745,10 @@ public class IngredientFilterTest {
 		Assertions.assertEquals(List.of(ALIASED_INGREDIENT), filteredIngredients);
 		Assertions.assertTrue(data.nameReads.isEmpty());
 		Assertions.assertEquals(List.of("unprefixed"), searchStorageBuilderFactory.getAndClearCreatedIds());
+		var ingredient = mezz.jei.common.ingredients.TypedIngredient.createUnvalidated(TestIngredient.TYPE, ALIASED_INGREDIENT);
+		var aliasTokens = Set.of(INGREDIENT_ALIAS);
+		var aliasSnapshot = ingredientFilter.createRecipeSearchSnapshot(aliasTokens);
+		Assertions.assertTrue(aliasSnapshot.test(ingredient, INGREDIENT_ALIAS));
 
 		data.nameReads.clear();
 		ingredientFilterConfig.searchModAliases().set(true);
@@ -758,6 +762,9 @@ public class IngredientFilterTest {
 		Assertions.assertFalse(filteredIngredients.contains(ALIASED_INGREDIENT));
 		Assertions.assertTrue(data.nameReads.isEmpty());
 		Assertions.assertEquals(List.of("unprefixed"), searchStorageBuilderFactory.getAndClearCreatedIds());
+		var updatedSnapshot = ingredientFilter.createRecipeSearchSnapshot(aliasTokens, aliasSnapshot);
+		Assertions.assertFalse(updatedSnapshot.test(ingredient, INGREDIENT_ALIAS));
+		Assertions.assertTrue(aliasSnapshot.test(ingredient, INGREDIENT_ALIAS));
 	}
 
 	@Test

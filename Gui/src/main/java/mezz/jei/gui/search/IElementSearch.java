@@ -1,5 +1,6 @@
 package mezz.jei.gui.search;
 
+import java.util.function.Consumer;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
@@ -12,6 +13,10 @@ import java.util.Set;
 
 public interface IElementSearch {
 	<T> void add(IListElementInfo<T> info, IIngredientManager ingredientManager);
+
+	default void collectSearchResults(ElementPrefixParser.TokenInfo tokenInfo, Consumer<IListElement<?>> consumer) {
+		getSearchResults(tokenInfo).forEach(consumer);
+	}
 
 	Collection<IListElement<?>> getAllIngredients();
 

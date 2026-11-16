@@ -1,5 +1,6 @@
 package mezz.jei.gui.ingredients;
 
+import mezz.jei.gui.search.IngredientSearchSnapshot;
 import mezz.jei.common.Internal;
 
 import mezz.jei.api.helpers.IColorHelper;
@@ -62,6 +63,8 @@ public class IngredientFilter
 	private final IFilterTextSource filterTextSource;
 	private final IIngredientManager ingredientManager;
 	private Comparator<IListElement<?>> ingredientComparator;
+	private final ISearchStorageBuilderFactory searchStorageBuilderFactory;
+	private long ingredientIdentityRevision;
 	private final IModIdHelper modIdHelper;
 	private final IIngredientVisibility ingredientVisibility;
 	private final IngredientTypeSortingConfig ingredientTypeSortingConfig;
@@ -102,6 +105,7 @@ public class IngredientFilter
 		this.config = config;
 		this.ingredientManager = ingredientManager;
 		this.sortIndexUpdater = sortIndexUpdater;
+		this.searchStorageBuilderFactory = searchStorageBuilderFactory;
 		this.ingredientComparator = sortIndexUpdater.apply(ingredients);
 		this.modIdHelper = modIdHelper;
 		this.ingredientVisibility = ingredientVisibility;
@@ -130,6 +134,21 @@ public class IngredientFilter
 		clientToggleState.addEditModeToggleListener(this);
 	}
 
+	public IngredientSearchSnapshot createRecipeSearchSnapshot(Set<String> tokens) {
+		return createRecipeSearchSnapshot(tokens, null);
+	}
+
+	public IngredientSearchSnapshot createRecipeSearchSnapshot(Set<String> tokens, @Nullable IngredientSearchSnapshot previous) {
+		updateDirtyState();
+		return new IngredientSearchSnapshot(tokens, elementSearch, elementPrefixParser,
+			ingredientManager, config, modIdHelper, searchStorageBuilderFactory, ingredientIdentityRevision, completionRevision, previous);
+	}
+
+	public long getIngredientSearchRevision() {
+		updateDirtyState();
+		return completionRevision;
+	}
+
 	private void addConfigListeners(IClientConfig clientConfig, IIngredientFilterConfig config) {
 		Internal.registerRuntimeListenerRemoval(clientConfig.ingredientSorterStages().addListener(v -> markSortIndexesDirty()));
 
@@ -154,6 +173,7 @@ public class IngredientFilter
 	}
 
 	public <V> void addIngredient(IListElementInfo<V> info) {
+		ingredientIdentityRevision++;
 		IListElement<V> element = info.getElement();
 		updateHiddenState(element);
 
@@ -169,6 +189,7 @@ public class IngredientFilter
 	}
 
 	public void rebuildItemFilter() {
+		ingredientIdentityRevision++;
 		this.sortedIngredients = null;
 		this.invalidateCache();
 		invalidateCandidateCache();

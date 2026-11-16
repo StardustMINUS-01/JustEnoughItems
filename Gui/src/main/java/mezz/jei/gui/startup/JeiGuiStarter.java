@@ -1,5 +1,6 @@
 package mezz.jei.gui.startup;
 
+import mezz.jei.common.recipes.IRecipeMaterialCacheInternal;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
@@ -324,6 +325,15 @@ public class JeiGuiStarter {
 			);
 		}
 
+		var categoryPreferencesPath = mezz.jei.common.util.ServerConfigPathUtil.getWorldPath(configData.configDir())
+			.orElse(configData.configDir()).resolve("recipe-category-preferences.json");
+		mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.load(categoryPreferencesPath, favoriteRecipes, () -> {
+			favoriteRecipes.clearGeneratedFavorites();
+			recipePreferenceCandidateResolver.invalidateAll();
+		});
+		favoriteRecipes.addSourceListChangedListener(() -> mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.refreshFavorites(favoriteRecipes));
+		Internal.registerRuntimeListenerRemoval(mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences::clear);
+
 		BookmarkAutoCraftingRunner bookmarkAutoCraftingRunner = new BookmarkAutoCraftingRunner();
 		PacketCraftingGridCraftAck.setListener(ack -> bookmarkAutoCraftingRunner.handleAck(ack.taskId(), ack.requestId(), ack.craftedCount()));
 
@@ -347,6 +357,7 @@ public class JeiGuiStarter {
 			recipePreferenceRulesRef::get,
 			searchStorageBuilderFactory);
 		registration.setRecipesGui(recipesGui);
+		recipesGui.setIngredientSearch(ingredientFilter);
 		JeiInputSetup input = JeiInputSetup.create(
 			ingredientListOverlay,
 			bookmarkOverlay,
@@ -386,6 +397,9 @@ public class JeiGuiStarter {
 			() -> {
 				favoriteRecipes.clearGeneratedFavorites();
 				recipePreferenceCandidateResolver.invalidateAll();
+				if (recipeManager instanceof IRecipeMaterialCacheInternal cache) {
+					cache.invalidateRecipeMaterials();
+				}
 			}
 		);
 

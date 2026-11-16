@@ -222,6 +222,33 @@ public class LuceneSearchStorage<T> implements ISearchStorage<T> {
 		return UnicodeUtil.calcUTF16toUTF8Length(text, 0, text.length());
 	}
 
+	public void collectSearchResults(String token, Consumer<T> consumer) {
+		refresh();
+		IndexSearcher searcher = this.searcher;
+		if (searcher == null || getUtf8Length(token) > IndexWriter.MAX_TERM_LENGTH)
+			return;
+		try {
+			searcher.search(new WildcardQuery(new Term(KEY_FIELD, containsPattern(token))), new CollectorManager<ValueCollector, Void>() {
+				@Override
+				public ValueCollector newCollector() {
+					return new ValueCollector(consumer);
+				}
+
+				@Override
+				public @Nullable Void reduce(Collection<ValueCollector> collectors) {
+					return null;
+				}
+			});
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
+	/** Matches an unindexed recipe ingredient using the same literal term limits as this storage. */
+	public static boolean matchesLiteral(String text, String token) {
+		return getUtf8Length(text) <= IndexWriter.MAX_TERM_LENGTH && text.contains(token);
+	}
+
 	private static String containsPattern(String token) {
 		StringBuilder pattern = new StringBuilder(token.length() + 2);
 		pattern.append('*');
@@ -258,6 +285,15 @@ public class LuceneSearchStorage<T> implements ISearchStorage<T> {
 
 	private class ValueCollector implements Collector {
 		private final List<T> results = new ArrayList<>();
+		private final Consumer<T> consumer;
+
+		private ValueCollector() {
+			consumer = results::add;
+		}
+
+		private ValueCollector(Consumer<T> consumer) {
+			this.consumer = consumer;
+		}
 
 		@Override
 		public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
@@ -270,7 +306,7 @@ public class LuceneSearchStorage<T> implements ISearchStorage<T> {
 				@Override
 				public void collect(int doc) throws IOException {
 					if (valueIds.advanceExact(doc)) {
-						results.add(Objects.requireNonNull(values.get(Math.toIntExact(valueIds.longValue()))));
+						consumer.accept(Objects.requireNonNull(values.get(Math.toIntExact(valueIds.longValue()))));
 					}
 				}
 			};

@@ -14,6 +14,10 @@ public final class RecipeNavigationEntry {
 	private final Component title;
 	private RecipeFilterMode filterMode;
 	private String searchQuery;
+	private mezz.jei.gui.recipes.filtering.RecipeSearchScope searchScope = mezz.jei.gui.recipes.filtering.RecipeSearchScope.NONE;
+
+	public mezz.jei.gui.recipes.filtering.RecipeSearchScope getSearchScope() { return searchScope; }
+	public void setSearchScope(mezz.jei.gui.recipes.filtering.RecipeSearchScope scope) { searchScope = scope; }
 	private IRecipeCategory<?> recipeCategory;
 	private int recipeIndex;
 	private int recipesPerPage;
