@@ -1,5 +1,7 @@
 package mezz.jei.gui.events;
 
+import mezz.jei.api.gui.tooltip.TooltipCloseReason;
+import mezz.jei.gui.input.InteractiveTooltipController;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.handlers.IGuiClickableArea;
 import mezz.jei.api.runtime.IScreenHelper;
@@ -79,6 +81,7 @@ public class GuiEventHandler {
 	}
 
 	public void onGuiOpen(Screen screen) {
+		InteractiveTooltipController.INSTANCE.close(TooltipCloseReason.SCREEN_CHANGED);
 		if (screen instanceof JeiConfigScreen) {
 			return;
 		}
@@ -93,6 +96,7 @@ public class GuiEventHandler {
 	}
 
 	public void onClientTick() {
+		InteractiveTooltipController.INSTANCE.tick();
 		if (Minecraft.getInstance().screen instanceof JeiConfigScreen) {
 			return;
 		}

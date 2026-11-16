@@ -101,7 +101,7 @@ public final class GuiInputController {
 			}
 			LOGGER.debug("JEI input {} targeting {}", input, targetName);
 		}
-		ITextInputHandler focusedEditor = input.isKeyboardInput() ? getFocusedEditor() : null;
+		ITextInputHandler focusedEditor = input.isKeyboardInput() ? getFocusedEditor(true) : null;
 		if (focusedEditor != null) {
 			Optional<IInputInteraction> edit = focusedEditor.beginInput(screen, input, keys);
 			if (edit.isPresent()) {
@@ -146,7 +146,7 @@ public final class GuiInputController {
 			}
 		}
 		if (capture == null) {
-			return false;
+			return InteractiveTooltipController.INSTANCE.consumeStoppedRelease(input.getKey());
 		}
 		int initialScreenChangeCount = screenChangeCount;
 		if (capture.interaction() != null) {
@@ -197,13 +197,13 @@ public final class GuiInputController {
 
 	public boolean charTyped(char codePoint, int modifiers) {
 		scene.updateKeyboardFocus();
-		ITextInputHandler focusedEditor = getFocusedEditor();
+		ITextInputHandler focusedEditor = getFocusedEditor(false);
 		return (focusedEditor != null && focusedEditor.onCharTyped(codePoint, modifiers)) || scene.getKeyboardTarget().isPresent();
 	}
 
-	private @Nullable ITextInputHandler getFocusedEditor() {
+	private @Nullable ITextInputHandler getFocusedEditor(boolean keyboardPriority) {
 		for (InputArea area : scene.getInputAreas()) {
-			if (area.area() instanceof ITextInputHandler textInput && textInput.hasKeyboardFocus()) {
+			if (area.area() instanceof ITextInputHandler textInput && (keyboardPriority ? textInput.hasKeyboardPriority() : textInput.hasKeyboardFocus())) {
 				return textInput;
 			}
 		}

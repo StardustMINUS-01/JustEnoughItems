@@ -1,5 +1,6 @@
 package mezz.jei.gui.startup;
 
+import mezz.jei.gui.input.InteractiveTooltipController;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.runtime.IBookmarkManager;
 import mezz.jei.api.runtime.IEditModeConfig;
@@ -77,6 +78,7 @@ public record JeiInputSetup(GuiInputScene scene, ClientInputHandler handler) {
 		ChatLinkInputHandler links = new ChatLinkInputHandler(recipesGui, focusUtil, screenHelper, bookmarkList, forkInputs.groupImporter());
 		GuiInputScene inputScene = new GuiInputScene(
 			ingredientListOverlay.getKeyboardFocus(),
+			InteractiveTooltipController.INSTANCE.createInputArea(),
 			tagSelector.createInputArea(),
 			bookmarkOverlay.createChapterInputArea(),
 			recipesGui.createFilterInputArea(),

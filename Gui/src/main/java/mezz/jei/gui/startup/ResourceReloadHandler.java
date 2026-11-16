@@ -20,6 +20,7 @@ public class ResourceReloadHandler implements ResourceManagerReloadListener {
 
 	@Override
 	public void onResourceManagerReload(ResourceManager resourceManager) {
+		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.close(mezz.jei.api.gui.tooltip.TooltipCloseReason.RESOURCE_RELOAD);
 		cacheInvalidator.run();
 		LoggedTimer timer = new LoggedTimer();
 		timer.start("Rebuilding ingredient filter");

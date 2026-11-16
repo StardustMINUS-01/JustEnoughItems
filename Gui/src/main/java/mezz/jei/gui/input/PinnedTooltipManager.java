@@ -21,7 +21,10 @@ public final class PinnedTooltipManager {
 		if (PinnedTooltipManager.active == holder) {
 			PinnedTooltipManager.active = null;
 		}
+		InteractiveTooltipController.INSTANCE.ownerClosed(holder);
 	}
+
+	public static @Nullable IPinnedTooltipHolder getActiveHolder() { return active; }
 
 	public static void draw(IPinnedTooltipHolder holder, Runnable draw) {
 		if (active != holder) {

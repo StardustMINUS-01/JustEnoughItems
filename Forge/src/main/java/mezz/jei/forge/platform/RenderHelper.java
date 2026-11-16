@@ -1,5 +1,6 @@
 package mezz.jei.forge.platform;
 
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.datafixers.util.Either;
 import mezz.jei.api.constants.ModIds;
@@ -72,6 +73,23 @@ public class RenderHelper implements IPlatformRenderHelper {
 		}
 		NativeImage frame = frames[0];
 		return Optional.ofNullable(frame);
+	}
+
+	@Override
+	public @org.jetbrains.annotations.Nullable ScreenRectangle getTooltipClip(GuiGraphics graphics) {
+		return graphics.scissorStack.stack.peekLast();
+	}
+
+	@Override
+	public void renderPreparedTooltip(GuiGraphics graphics, Font font, List<ClientTooltipComponent> components, int x, int y,
+		ClientTooltipPositioner positioner, ItemStack stack) {
+		ItemStack previous = graphics.tooltipStack;
+		try {
+			graphics.tooltipStack = stack;
+			graphics.renderTooltipInternal(font, components, x, y, positioner);
+		} finally {
+			graphics.tooltipStack = previous;
+		}
 	}
 
 	@Override

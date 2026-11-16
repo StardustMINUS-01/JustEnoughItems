@@ -1,5 +1,6 @@
 package mezz.jei.fabric.startup;
 
+import mezz.jei.gui.input.InteractiveTooltipController;
 import mezz.jei.common.input.InputPhase;
 import mezz.jei.common.input.UserInput;
 import mezz.jei.fabric.events.JeiCharTypedEvents;
@@ -107,7 +108,7 @@ public class EventRegistration {
 		if (clientInputHandler != null) {
 			clientInputHandler.onKeyboardKeyReleased(key, scancode);
 		}
-		return true;
+		return !InteractiveTooltipController.INSTANCE.keyReleased(key, scancode, modifiers);
 	}
 
 	private boolean allowMouseScroll(Screen screen, double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {

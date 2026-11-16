@@ -1,6 +1,7 @@
 package mezz.jei.gui.startup;
 
 import mezz.jei.common.recipes.IRecipeMaterialCacheInternal;
+import mezz.jei.gui.input.InteractiveTooltipController;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
@@ -358,6 +359,8 @@ public class JeiGuiStarter {
 			searchStorageBuilderFactory);
 		registration.setRecipesGui(recipesGui);
 		recipesGui.setIngredientSearch(ingredientFilter);
+		InteractiveTooltipController.INSTANCE.install();
+		Internal.registerRuntimeListenerRemoval(InteractiveTooltipController.INSTANCE::stop);
 		JeiInputSetup input = JeiInputSetup.create(
 			ingredientListOverlay,
 			bookmarkOverlay,

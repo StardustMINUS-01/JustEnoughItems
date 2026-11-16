@@ -267,6 +267,7 @@ public class IngredientGrid implements IIngredientGrid {
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(ingredientType);
 
 		JeiTooltip tooltip = new JeiTooltip();
+		tooltip.setInteractionSource(() -> ingredientListRenderer.getSlots().anyMatch(slot -> slot.getOptionalElement().filter(current -> current == element).isPresent()));
 		element.getTooltip(tooltip, tooltipHelper, ingredientRenderer, ingredientHelper);
 		if (searchable) {
 			addCreativeTabs(tooltip, typedIngredient);

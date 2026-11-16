@@ -1,5 +1,8 @@
 package mezz.jei.common.platform;
 
+import org.jetbrains.annotations.Nullable;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.client.Minecraft;
@@ -29,6 +32,13 @@ public interface IPlatformRenderHelper {
 	ItemColors getItemColors();
 
 	Optional<NativeImage> getMainImage(TextureAtlasSprite sprite);
+
+	void renderPreparedTooltip(GuiGraphics graphics, Font font, List<ClientTooltipComponent> components, int x, int y,
+		ClientTooltipPositioner positioner, ItemStack stack);
+
+	default @Nullable ScreenRectangle getTooltipClip(GuiGraphics graphics) {
+		return null;
+	}
 
 	void renderTooltip(GuiGraphics guiGraphics, List<Either<FormattedText, TooltipComponent>> elements, int x, int y, Font font, ItemStack stack);
 

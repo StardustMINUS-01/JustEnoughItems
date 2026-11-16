@@ -1,5 +1,6 @@
 package mezz.jei.forge.startup;
 
+import mezz.jei.gui.input.InteractiveTooltipController;
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.common.Internal;
 import mezz.jei.gui.events.GuiEventHandler;
@@ -87,7 +88,12 @@ public class EventRegistration {
 			}
 		});
 
-		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> handler.onKeyboardKeyReleased(event.getKeyCode(), event.getScanCode()));
+		subscriptions.register(ScreenEvent.KeyReleased.Pre.class, event -> {
+			handler.onKeyboardKeyReleased(event.getKeyCode(), event.getScanCode());
+			if (InteractiveTooltipController.INSTANCE.keyReleased(event.getKeyCode(), event.getScanCode(), event.getModifiers())) {
+				event.setCanceled(true);
+			}
+		});
 
 		subscriptions.register(ScreenEvent.CharacterTyped.Pre.class, event -> {
 			Screen screen = event.getScreen();
@@ -143,7 +149,10 @@ public class EventRegistration {
 			guiEventHandler.updateForScreenRender(screen, event.getMouseX(), event.getMouseY());
 		});
 		subscriptions.register(RenderTooltipEvent.Pre.class, event -> {
-			if (PinnedTooltipManager.shouldSuppressExternalTooltip()) {
+			if (PinnedTooltipManager.shouldSuppressExternalTooltip() ||
+				InteractiveTooltipController.INSTANCE.intercept(event.getGraphics(), event.getFont(), event.getComponents(),
+				event.getX(), event.getY(), event.getTooltipPositioner(), event.getItemStack())
+			) {
 				event.setCanceled(true);
 			}
 		});
