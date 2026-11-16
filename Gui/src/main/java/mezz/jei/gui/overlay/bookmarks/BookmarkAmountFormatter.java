@@ -4,6 +4,8 @@ import mezz.jei.gui.bookmarks.BookmarkIngredientKey;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.FluidAmountFormatter;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Set;
 
 public final class BookmarkAmountFormatter {
@@ -37,15 +39,17 @@ public final class BookmarkAmountFormatter {
 
 	private static String formatFluidAmount(long amount, long bucketVolume) {
 		if (amount < bucketVolume) {
-			return FluidAmountFormatter.format(amount, bucketVolume);
+			return BigDecimal.valueOf(amount).movePointRight(3)
+				.divide(BigDecimal.valueOf(bucketVolume), 6, RoundingMode.HALF_UP)
+				.stripTrailingZeros().toPlainString();
 		}
-		if (amount < bucketVolume * 100) {
+		if (amount / bucketVolume < 1_000) {
 			return FluidAmountFormatter.format(amount, bucketVolume) + "B";
 		}
-		if (amount < bucketVolume * 100_000) {
-			return formatCompact(amount, bucketVolume * 1_000, "kB");
+		if (amount / bucketVolume < 1_000_000) {
+			return FluidAmountFormatter.format(amount, bucketVolume * 1_000) + "kB";
 		}
-		return formatCompact(amount, bucketVolume * 1_000_000, "MB");
+		return FluidAmountFormatter.format(amount, bucketVolume * 1_000_000) + "MB";
 	}
 
 	public static String formatTypedAmount(long amount, Set<BookmarkIngredientKey> permutations) {

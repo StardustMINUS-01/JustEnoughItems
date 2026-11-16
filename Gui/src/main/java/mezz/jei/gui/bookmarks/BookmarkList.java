@@ -2,7 +2,6 @@ package mezz.jei.gui.bookmarks;
 
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
@@ -35,6 +34,9 @@ import mezz.jei.gui.overlay.elements.ProjectedBookmarkElement;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
+import net.minecraft.nbt.CompoundTag;
+import org.jetbrains.annotations.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -130,26 +132,26 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	}
 
 	public void moveBookmark(IBookmark previousBookmark, IBookmark newBookmark, int offset) {
-		if (identityIndexOf(newBookmark) < 0 || identityIndexOf(previousBookmark) < 0) {
+		int i = identityIndexOf(previousBookmark);
+		int j = identityIndexOf(newBookmark);
+		if (i < 0 || j < 0) {
 			return;
 		}
-		int i = bookmarksList.indexOf(previousBookmark);
-		int j = bookmarksList.indexOf(newBookmark);
-		int newIndex = i + offset;
-		if (newIndex == j) {
+		int newIndex = Math.floorMod(i + offset, bookmarksList.size());
+		if (newIndex == j && bookmarkGroups.getGroupId(previousBookmark) == bookmarkGroups.getGroupId(newBookmark)) {
 			return;
 		}
 
-		if (newIndex < 0) {
-			newIndex += bookmarksList.size();
-		}
-		newIndex %= bookmarksList.size();
-
-		bookmarksList.remove(newBookmark);
+		bookmarksList.remove(j);
 		bookmarksList.add(newIndex, newBookmark);
-		bookmarkGroups.moveItemToGroup(newBookmark, bookmarkGroups.getGroupId(previousBookmark));
-		keepRecipeBlocksContiguous(bookmarkGroups.getGroupId(newBookmark));
-		ensureRecipeBookmarkScope(newBookmark);
+		Set<Integer> sourceGroupIds = collectSourceGroupIds(List.of(newBookmark));
+		int targetGroupId = bookmarkGroups.getGroupId(previousBookmark);
+		bookmarkGroups.moveItemToGroup(newBookmark, targetGroupId);
+		deduplicateGroup(targetGroupId);
+		sourceGroupIds.remove(targetGroupId);
+		if (!sourceGroupIds.isEmpty()) {
+			cleanupAfterGroupChange(sourceGroupIds);
+		}
 
 		notifyListenersOfChange();
 		saveBookmarks();
@@ -184,32 +186,14 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		Set<Integer> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
 		bookmarksList.removeAll(movingBookmarks);
 		int targetIndex = bookmarksList.indexOf(targetBookmark);
-		List<IBookmark> placedBookmarks = new ArrayList<>();
-		boolean changed = false;
 		for (IBookmark bookmark : movingBookmarks) {
-			int previousGroupId = bookmarkGroups.getGroupId(bookmark);
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID == targetGroupId) {
-				if (releaseBookmarkToDefault(bookmark)) {
-					placedBookmarks.add(bookmark);
-				}
-				changed = changed || BookmarkGroupManager.DEFAULT_GROUP_ID != previousGroupId;
-			} else if (!isDuplicateInGroup(bookmark, targetGroupId)) {
-				bookmarkGroups.moveItemToGroup(bookmark, targetGroupId);
-				placedBookmarks.add(bookmark);
-				changed = true;
-			}
+			bookmarkGroups.moveItemToGroup(bookmark, targetGroupId);
 		}
-		if (targetIndex < 0) {
-			bookmarksList.addAll(placedBookmarks);
-		} else {
-			int insertionIndex = Math.max(0, Math.min(bookmarksList.size(), targetIndex + offset));
-			bookmarksList.addAll(insertionIndex, placedBookmarks);
-		}
-		for (IBookmark bookmark : placedBookmarks) {
-			ensureRecipeBookmarkScope(bookmark);
-		}
-		keepRecipeBlocksContiguous(targetGroupId);
-		if (changed) {
+		int insertionIndex = targetIndex < 0 ? bookmarksList.size() : Math.max(0, Math.min(bookmarksList.size(), targetIndex + offset));
+		bookmarksList.addAll(insertionIndex, movingBookmarks);
+		deduplicateGroup(targetGroupId);
+		sourceGroupIds.remove(targetGroupId);
+		if (!sourceGroupIds.isEmpty()) {
 			cleanupAfterGroupChange(sourceGroupIds);
 		}
 
@@ -832,13 +816,15 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 			return existingIndex;
 		}
 		BookmarkItemMetadata metadata = recipeBookmark.metadata();
+		ItemMergeKey itemKey = getExactItemKey(recipeBookmark.bookmark());
 		for (int index = 0; index < bookmarksList.size(); index++) {
 			BookmarkItemMetadata existingMetadata = bookmarkGroups.getItemMetadata(bookmarksList.get(index));
 			if (existingMetadata.type() == metadata.type() &&
 				existingMetadata.groupId() == metadata.groupId() &&
 				Objects.equals(existingMetadata.recipeTypeUid(), metadata.recipeTypeUid()) &&
 				Objects.equals(existingMetadata.recipeUid(), metadata.recipeUid()) &&
-				existingMetadata.permutations().equals(metadata.permutations())
+				existingMetadata.permutations().equals(metadata.permutations()) &&
+				Objects.equals(getExactItemKey(bookmarksList.get(index)), itemKey)
 			) {
 				return index;
 			}
@@ -889,7 +875,18 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		int firstIndex = bookmarksList.indexOf(recipeBookmarks.get(0));
 		bookmarksList.removeAll(recipeBookmarks);
 		int insertionIndex = Math.max(0, Math.min(firstIndex, bookmarksList.size()));
-		bookmarksList.addAll(insertionIndex, recipeBookmarks);
+		List<IBookmark> ordered = new ArrayList<>(recipeBookmarks.size());
+		for (IBookmark bookmark : recipeBookmarks) {
+			if (bookmarkGroups.getItemMetadata(bookmark).type() == BookmarkItemType.RESULT) {
+				ordered.add(bookmark);
+			}
+		}
+		for (IBookmark bookmark : recipeBookmarks) {
+			if (bookmarkGroups.getItemMetadata(bookmark).type() != BookmarkItemType.RESULT) {
+				ordered.add(bookmark);
+			}
+		}
+		bookmarksList.addAll(insertionIndex, ordered);
 	}
 
 	private static boolean matchesRecipeBlock(BookmarkItemMetadata metadata, RecipeBlockKey key) {
@@ -1336,12 +1333,16 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	}
 
 	public int createGroupForBookmarks(String title, List<IBookmark> bookmarks) {
+		Set<Integer> sourceGroupIds = collectSourceGroupIds(bookmarks);
 		int groupId = bookmarkGroups.createGroup(title);
 		for (IBookmark bookmark : bookmarks) {
 			if (identityIndexOf(bookmark) >= 0) {
 				bookmarkGroups.moveItemToGroup(bookmark, groupId);
-				ensureRecipeBookmarkScope(bookmark);
 			}
+		}
+		deduplicateGroup(groupId);
+		if (!sourceGroupIds.isEmpty()) {
+			cleanupAfterGroupChange(sourceGroupIds);
 		}
 		notifyListenersOfChange();
 		saveBookmarks();
@@ -1349,57 +1350,26 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 	}
 
 	public void moveBookmarkToGroup(IBookmark bookmark, int groupId) {
-		if (identityIndexOf(bookmark) >= 0) {
-			Set<Integer> sourceGroupIds = collectSourceGroupIds(List.of(bookmark));
-			boolean changed = false;
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
-				int previousGroupId = bookmarkGroups.getGroupId(bookmark);
-				if (BookmarkGroupManager.DEFAULT_GROUP_ID != previousGroupId) {
-					releaseBookmarkToDefault(bookmark);
-					changed = true;
-				}
-			} else if (!isDuplicateInGroup(bookmark, groupId)) {
-				if (groupId != bookmarkGroups.getGroupId(bookmark)) {
-					bookmarkGroups.moveItemToGroup(bookmark, groupId);
-					ensureRecipeBookmarkScope(bookmark);
-					changed = true;
-				}
-			}
-			if (changed) {
-				cleanupAfterGroupChange(sourceGroupIds);
-			}
-			notifyListenersOfChange();
-			saveBookmarks();
-		}
+		moveBookmarksToGroup(List.of(bookmark), groupId);
 	}
 
 	public boolean moveBookmarksToGroup(List<IBookmark> bookmarks, int groupId) {
 		List<IBookmark> movingBookmarks = bookmarks.stream()
-			.filter(bookmark -> identityIndexOf(bookmark) >= 0)
+			.filter(bookmark -> identityIndexOf(bookmark) >= 0 && bookmarkGroups.getGroupId(bookmark) != groupId)
 			.distinct()
 			.toList();
 		if (movingBookmarks.isEmpty()) {
 			return false;
 		}
 		Set<Integer> sourceGroupIds = collectSourceGroupIds(movingBookmarks);
-		boolean changed = false;
 		for (IBookmark bookmark : movingBookmarks) {
-			if (BookmarkGroupManager.DEFAULT_GROUP_ID == groupId) {
-				int previousGroupId = bookmarkGroups.getGroupId(bookmark);
-				releaseBookmarkToDefault(bookmark);
-				changed = changed || BookmarkGroupManager.DEFAULT_GROUP_ID != previousGroupId;
-			} else if (!isDuplicateInGroup(bookmark, groupId)) {
-				bookmarkGroups.moveItemToGroup(bookmark, groupId);
-				ensureRecipeBookmarkScope(bookmark);
-				changed = true;
-			}
+			bookmarkGroups.moveItemToGroup(bookmark, groupId);
 		}
-		if (changed) {
-			cleanupAfterGroupChange(sourceGroupIds);
-			notifyListenersOfChange();
-			saveBookmarks();
-		}
-		return changed;
+		deduplicateGroup(groupId);
+		cleanupAfterGroupChange(sourceGroupIds);
+		notifyListenersOfChange();
+		saveBookmarks();
+		return true;
 	}
 
 	public void addGroupFromConfig(BookmarkGroup group) {
@@ -1505,126 +1475,54 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		}
 	}
 
-	private boolean releaseBookmarkToDefault(IBookmark bookmark) {
-		int currentGroupId = bookmarkGroups.getGroupId(bookmark);
-		if (BookmarkGroupManager.DEFAULT_GROUP_ID == currentGroupId) {
-			return true;
-		}
-		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-		if (metadata.recipeUid() != null && metadata.type().isRecipeAssociated()) {
-			Optional<RecipeMergeKey> mergeKey = createMergeKey(bookmark, metadata);
-			if (mergeKey.isPresent()) {
-				Optional<IBookmark> mergeTarget = findDefaultMergeTarget(bookmark, mergeKey.get());
-				if (mergeTarget.isPresent()) {
-					IBookmark target = mergeTarget.get();
-					BookmarkItemMetadata targetMetadata = bookmarkGroups.getItemMetadata(target);
-					bookmarkGroups.setItemMetadata(target, mergeMetadata(targetMetadata, metadata));
-					removeBookmarkWithoutNotifying(bookmark);
-					return false;
-				}
+	private void deduplicateGroup(int groupId) {
+		Set<Object> seen = new HashSet<>();
+		List<IBookmark> retained = new ArrayList<>();
+		boolean removed = bookmarksList.removeIf(bookmark -> {
+			BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
+			if (metadata.groupId() != groupId) {
+				return false;
 			}
-			bookmarkGroups.moveItemToGroup(bookmark, BookmarkGroupManager.DEFAULT_GROUP_ID);
-			ensureRecipeBookmarkScope(bookmark);
+			Object key = createMergeKey(bookmark, metadata)
+				.orElseGet(() -> bookmark instanceof IngredientBookmark<?> ingredient ? ingredient.withEqualityScope(null) : bookmark);
+			if (seen.add(key)) {
+				retained.add(bookmark);
+				return false;
+			}
+			bookmarkGroups.removeItem(bookmark);
 			return true;
+		});
+		// Apply scope changes after removing duplicates, since changing scope can replace a bookmark.
+		retained.forEach(this::ensureRecipeBookmarkScope);
+		if (removed) {
+			rebuildBookmarksSet();
 		}
-		Optional<IBookmark> identicalDefaultBookmark = findIdenticalDefaultBookmark(bookmark);
-		if (identicalDefaultBookmark.isPresent()) {
-			removeBookmarkWithoutNotifying(bookmark);
-			return false;
-		}
-		bookmarkGroups.moveItemToGroup(bookmark, BookmarkGroupManager.DEFAULT_GROUP_ID);
-		ensureRecipeBookmarkScope(bookmark);
-		return true;
+		keepRecipeBlocksContiguous(groupId);
 	}
 
-	private Optional<IBookmark> findIdenticalDefaultBookmark(IBookmark bookmark) {
-		IBookmark unscoped = bookmark instanceof IngredientBookmark<?> ingredient ? ingredient.withEqualityScope(null) : bookmark;
-		return bookmarksList.stream()
-			.filter(candidate -> candidate != bookmark)
-			.filter(candidate -> BookmarkGroupManager.DEFAULT_GROUP_ID == bookmarkGroups.getGroupId(candidate))
-			.filter(candidate -> candidate.equals(unscoped))
-			.findFirst();
-	}
-
-	private Optional<IBookmark> findDefaultMergeTarget(IBookmark source, RecipeMergeKey mergeKey) {
-		return bookmarksList.stream()
-			.filter(candidate -> candidate != source)
-			.filter(candidate -> BookmarkGroupManager.DEFAULT_GROUP_ID == bookmarkGroups.getGroupId(candidate))
-			.filter(candidate -> {
-				BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(candidate);
-				return createMergeKey(candidate, metadata)
-					.map(mergeKey::equals)
-					.orElse(false);
-			})
-			.findFirst();
-	}
-
-	private boolean isDuplicateInGroup(IBookmark bookmark, int groupId) {
-		if (bookmark instanceof IngredientBookmark<?> ingredient) {
-			IngredientBookmark<?> scoped = ingredient.withEqualityScope(groupId);
-			return bookmarksList.stream()
-				.filter(candidate -> candidate != bookmark)
-				.filter(candidate -> groupId == bookmarkGroups.getGroupId(candidate))
-				.anyMatch(scoped::equals);
-		}
-		BookmarkItemMetadata metadata = bookmarkGroups.getItemMetadata(bookmark);
-		Optional<RecipeMergeKey> mergeKey = createMergeKey(bookmark, metadata);
-		if (mergeKey.isEmpty()) {
-			return false;
-		}
-		RecipeMergeKey key = mergeKey.get();
-		return bookmarksList.stream()
-			.filter(candidate -> candidate != bookmark)
-			.filter(candidate -> groupId == bookmarkGroups.getGroupId(candidate))
-			.anyMatch(candidate -> createMergeKey(candidate, bookmarkGroups.getItemMetadata(candidate))
-				.map(key::equals)
-				.orElse(false));
-	}
-
-	private Optional<RecipeMergeKey> createMergeKey(IBookmark bookmark, BookmarkItemMetadata metadata) {
+	private Optional<Object> createMergeKey(IBookmark bookmark, BookmarkItemMetadata metadata) {
 		ResourceLocation recipeUid = metadata.recipeUid();
 		if (recipeUid == null || !metadata.type().isRecipeAssociated()) {
 			return Optional.empty();
 		}
-		Set<BookmarkIngredientKey> slotKey = getDisplayedIngredientKey(bookmark)
-			.map(Set::of)
-			.orElse(metadata.permutations());
-		return Optional.of(new RecipeMergeKey(metadata.type(), metadata.recipeTypeUid(), recipeUid, Set.copyOf(slotKey)));
-	}
-
-	private Optional<BookmarkIngredientKey> getDisplayedIngredientKey(IBookmark bookmark) {
-		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
-			ITypedIngredient<?> ingredient = recipeBookmark.getRecipeOutput();
-			if (ingredientManager != null) {
-				return Optional.of(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager));
-			}
-			Object value = ingredient.getIngredient();
-			if (value instanceof ItemStack stack && !stack.isEmpty()) {
-				return stack.getItemHolder()
-					.unwrapKey()
-					.map(key -> new BookmarkIngredientKey(VanillaTypes.ITEM_STACK.getUid(), key.location().toString(), null));
+		Object ingredientKey = getExactItemKey(bookmark);
+		if (ingredientKey == null) {
+			if (ingredientManager != null && bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
+				ingredientKey = Set.of(BookmarkItemMetadataFactory.createPermutationKey(recipeBookmark.getRecipeOutput(), ingredientManager));
+			} else {
+				ingredientKey = metadata.permutations();
 			}
 		}
-		return Optional.empty();
+		return Optional.of(new RecipeMergeKey(metadata.type(), metadata.recipeTypeUid(), recipeUid, ingredientKey));
 	}
 
-	private static BookmarkItemMetadata mergeMetadata(BookmarkItemMetadata existing, BookmarkItemMetadata released) {
-		long chance = Math.min(existing.chance(), released.chance());
-		Set<BookmarkIngredientKey> permutations = new LinkedHashSet<>(existing.permutations());
-		permutations.addAll(released.permutations());
-		return new BookmarkItemMetadata(
-			BookmarkGroupManager.DEFAULT_GROUP_ID,
-			existing.type(),
-			1,
-			released.factor(),
-			chance,
-			existing.recipeTypeUid(),
-			existing.recipeUid(),
-			Set.copyOf(permutations),
-			existing.containerItem(),
-			existing.containerItemCraftingUses(),
-			existing.brokenContainerItem()
-		);
+	private static @Nullable ItemMergeKey getExactItemKey(IBookmark bookmark) {
+		if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark &&
+			recipeBookmark.getRecipeOutput().getIngredient() instanceof ItemStack stack
+		) {
+			return new ItemMergeKey(stack.getItem(), stack.getTag());
+		}
+		return null;
 	}
 
 	private void ensureRecipeBookmarkScope(IBookmark bookmark) {
@@ -2260,7 +2158,10 @@ public class BookmarkList implements IIngredientGridSource, IBookmarkManager {
 		BookmarkItemType type,
 		ResourceLocation recipeTypeUid,
 		ResourceLocation recipeUid,
-		Set<BookmarkIngredientKey> slotKey
+		Object ingredientKey
 	) {
+	}
+
+	private record ItemMergeKey(Item item, @Nullable CompoundTag tag) {
 	}
 }

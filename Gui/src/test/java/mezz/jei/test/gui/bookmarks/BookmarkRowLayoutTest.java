@@ -34,7 +34,21 @@ public class BookmarkRowLayoutTest {
 		Assertions.assertEquals(4, BookmarkRowLayout.below(0, COLUMNS, USABLE_COLUMNS_PER_ROW));
 		Assertions.assertEquals(7, BookmarkRowLayout.below(3, COLUMNS, USABLE_COLUMNS_PER_ROW));
 		Assertions.assertEquals(11, BookmarkRowLayout.below(7, COLUMNS, USABLE_COLUMNS_PER_ROW));
-		Assertions.assertEquals(-1, BookmarkRowLayout.below(8, COLUMNS, USABLE_COLUMNS_PER_ROW));
+		Assertions.assertEquals(17, BookmarkRowLayout.below(8, COLUMNS, USABLE_COLUMNS_PER_ROW));
 		Assertions.assertEquals(-1, BookmarkRowLayout.below(16, COLUMNS, USABLE_COLUMNS_PER_ROW));
+	}
+
+	@Test
+	public void repeatsExcludedRowWidthsAcrossPages() {
+		var layout = BookmarkRowLayout.RowLayout.create(6, List.of(6, 3, 3));
+		for (int page = 0; page < 3; page++) {
+			int start = page * 12;
+			Assertions.assertEquals(start, BookmarkRowLayout.rowStart(start + 5, layout));
+			Assertions.assertEquals(start + 6, BookmarkRowLayout.rowStart(start + 8, layout));
+			Assertions.assertEquals(start + 9, BookmarkRowLayout.rowStart(start + 11, layout));
+			Assertions.assertEquals(start + 9, BookmarkRowLayout.nextRowStart(start + 6, layout));
+			Assertions.assertEquals(start + 12, BookmarkRowLayout.below(start + 9, layout));
+			Assertions.assertEquals(page == 0 ? -1 : start - 3, BookmarkRowLayout.above(start, layout));
+		}
 	}
 }

@@ -214,23 +214,22 @@ public class RecipeGuiLayouts implements IInputTarget {
 	public boolean bookmarkRecipeUnderMouse(UserInput input, boolean preserveAmount) {
 		double mouseX = input.getMouseX();
 		double mouseY = input.getMouseY();
-		for (IRecipeLayoutWithButtons<?> recipeLayoutWithButtons : recipeLayoutsWithButtons) {
-			IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutWithButtons.getRecipeLayout();
-			if (recipeLayout.isMouseOver(mouseX, mouseY) && isOutputSlotUnderMouse(recipeLayout, mouseX, mouseY)) {
-				if (recipeLayoutWithButtons instanceof RecipeLayoutWithExtras<?> recipeLayoutWithForkExtras) {
-					return recipeLayoutWithForkExtras.addRecipeBookmarkGroup(input, preserveAmount);
-				}
-				return false;
+		if (!isInsideViewport(mouseX, mouseY)) {
+			return false;
+		}
+		for (IRecipeLayoutWithButtons<?> layout : recipeLayoutsWithButtons) {
+			if (!(layout instanceof RecipeLayoutWithExtras<?> extras) || !layout.getRecipeLayout().isMouseOver(mouseX, mouseY)) {
+				continue;
+			}
+			var output = layout.getRecipeLayout().getSlotUnderMouse(mouseX, mouseY)
+				.map(RecipeSlotUnderMouse::slot)
+				.filter(slot -> slot.getRole() == RecipeIngredientRole.OUTPUT)
+				.flatMap(slot -> slot.getDisplayedIngredient());
+			if (output.isPresent()) {
+				return extras.addRecipeBookmarkGroup(input, preserveAmount, output.get());
 			}
 		}
 		return false;
-	}
-
-	private static boolean isOutputSlotUnderMouse(IRecipeLayoutDrawable<?> recipeLayout, double mouseX, double mouseY) {
-		return recipeLayout.getSlotUnderMouse(mouseX, mouseY)
-			.map(RecipeSlotUnderMouse::slot)
-			.map(slot -> slot.getRole() == RecipeIngredientRole.OUTPUT)
-			.orElse(false);
 	}
 
 	public Optional<IRecipeLayoutDrawable<?>> draw(GuiGraphics guiGraphics, int mouseX, int mouseY) {

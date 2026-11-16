@@ -22,6 +22,8 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IBookmark;
+import mezz.jei.gui.bookmarks.RecipeLayoutProjection;
+import mezz.jei.gui.bookmarks.BookmarkItemType;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.Rect2i;
@@ -394,6 +396,39 @@ public class BookmarkListVirtualCircuitTest {
 		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.NONCONSUMABLE, bookmarks.getBookmarkMetadata(input).type());
 		Assertions.assertTrue(bookmarks.toggleBookmarkInputCatalyst(input));
 		Assertions.assertEquals(mezz.jei.gui.bookmarks.BookmarkItemType.INGREDIENT, bookmarks.getBookmarkMetadata(input).type());
+	}
+
+	@Test
+	public void selectedNamedOutputKeepsItsNbtAndStaysBeforeInputs() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		var plain = item(Items.IRON_INGOT);
+		ItemStack namedStack = new ItemStack(Items.IRON_INGOT);
+		namedStack.setHoverName(Component.literal("Named output"));
+		var named = typed(namedStack);
+		var layout = layout(new Object(), List.of(List.of(item(Items.STICK))), List.of(List.of(plain, named)));
+		for (var output : List.of(plain, named)) {
+			var key = BookmarkItemMetadataFactory.createPermutationKey(output, INGREDIENT_MANAGER);
+			Assertions.assertTrue(bookmarks.addProjectedRecipeBookmarks(new RecipeLayoutProjection(layout, Optional.of(key), Map.of()), false));
+		}
+		var entries = bookmarks.getBookmarks();
+		Assertions.assertEquals(List.of(BookmarkItemType.RESULT, BookmarkItemType.RESULT, BookmarkItemType.INGREDIENT),
+			entries.stream().map(bookmarks::getBookmarkMetadata).map(BookmarkItemMetadata::type).toList());
+		Assertions.assertTrue(ItemStack.isSameItemSameTags(namedStack,
+			entries.get(1).getElement().getTypedIngredient().getItemStack().orElseThrow()));
+	}
+
+	@Test
+	public void movingDuplicateRecipeIntoGroupPreservesExistingEntry() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		var layout = layout(new Object(), List.of(List.of(item(Items.STICK))), List.of(List.of(item(Items.IRON_INGOT))));
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, false));
+		int targetGroup = bookmarks.createGroupForBookmarks("Target", bookmarks.getBookmarks());
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, true));
+		var moving = bookmarks.getBookmarks().stream().filter(bookmark -> bookmarks.getBookmarkGroupId(bookmark) == 0).toList();
+		Assertions.assertEquals(2, moving.size());
+		Assertions.assertTrue(bookmarks.moveBookmarksToGroup(moving, targetGroup));
+		Assertions.assertEquals(2, bookmarks.getBookmarks().size());
+		Assertions.assertTrue(bookmarks.getBookmarks().stream().allMatch(bookmark -> bookmarks.getBookmarkGroupId(bookmark) == targetGroup && bookmarks.getBookmarkMetadata(bookmark).multiplier() == 0));
 	}
 
 	@Test

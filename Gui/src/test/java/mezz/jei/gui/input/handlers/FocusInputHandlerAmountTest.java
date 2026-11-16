@@ -1,5 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.common.config.GiveMode;
 import mezz.jei.gui.util.GiveAmount;
 import net.minecraft.SharedConstants;
@@ -24,45 +26,63 @@ public class FocusInputHandlerAmountTest {
 	@Test
 	public void mousePickupKeepsGiveAmount() {
 		assertEquals(1, IngredientCommands.resolveGiveAmount(
-			GiveMode.MOUSE_PICKUP, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33
+			GiveMode.MOUSE_PICKUP, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33, VanillaTypes.ITEM_STACK, 0
 		));
 		assertEquals(64, IngredientCommands.resolveGiveAmount(
-			GiveMode.MOUSE_PICKUP, GiveAmount.MAX, stack(Items.DIAMOND), Optional.of(8L), 33
+			GiveMode.MOUSE_PICKUP, GiveAmount.MAX, stack(Items.DIAMOND), Optional.of(8L), 33, VanillaTypes.ITEM_STACK, 0
 		));
 	}
 
 	@Test
 	public void inventoryUsesScrollStepValue() {
 		assertEquals(33, IngredientCommands.resolveGiveAmount(
-			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 33
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 33, VanillaTypes.ITEM_STACK, 0
 		));
 	}
 
 	@Test
 	public void inventoryUsesOneStackWhenScrollStepIsZero() {
 		assertEquals(64, IngredientCommands.resolveGiveAmount(
-			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 0
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.empty(), 0, VanillaTypes.ITEM_STACK, 0
 		));
 	}
 
 	@Test
 	public void inventoryNonStackableUsesOneStackWhenScrollStepIsZero() {
 		assertEquals(1, IngredientCommands.resolveGiveAmount(
-			GiveMode.INVENTORY, GiveAmount.MAX, stack(Items.DIAMOND_SWORD), Optional.empty(), 0
+			GiveMode.INVENTORY, GiveAmount.MAX, stack(Items.DIAMOND_SWORD), Optional.empty(), 0, VanillaTypes.ITEM_STACK, 0
 		));
 	}
 
 	@Test
 	public void inventoryBookmarkAmountTakesPriority() {
 		assertEquals(8, IngredientCommands.resolveGiveAmount(
-			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(8L), 33, VanillaTypes.ITEM_STACK, 0
 		));
 	}
 
 	@Test
 	public void inventoryBookmarkAmountClampsToIntMax() {
 		assertEquals(Integer.MAX_VALUE, IngredientCommands.resolveGiveAmount(
-			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(3_000_000_000L), 0
+			GiveMode.INVENTORY, GiveAmount.ONE, stack(Items.DIAMOND), Optional.of(3_000_000_000L), 0, VanillaTypes.ITEM_STACK, 0
+		));
+	}
+
+	@Test
+	public void givesEnoughBucketsForBookmarkFluidAmount() {
+		IIngredientType<String> fluidType = () -> String.class;
+		ItemStack bucket = stack(Items.WATER_BUCKET);
+		assertEquals(2, IngredientCommands.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.ONE, bucket, Optional.of(1_500L), 64, fluidType, 1_000
+		));
+		assertEquals(1, IngredientCommands.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.MAX, bucket, Optional.empty(), 64, fluidType, 1_000
+		));
+		assertEquals(1, IngredientCommands.resolveGiveAmount(
+			GiveMode.MOUSE_PICKUP, GiveAmount.MAX, bucket, Optional.of(1_500L), 64, fluidType, 1_000
+		));
+		assertEquals(Integer.MAX_VALUE, IngredientCommands.resolveGiveAmount(
+			GiveMode.INVENTORY, GiveAmount.ONE, bucket, Optional.of(Long.MAX_VALUE), 0, fluidType, 1_000
 		));
 	}
 

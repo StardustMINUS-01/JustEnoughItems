@@ -1,5 +1,7 @@
 package mezz.jei.gui.input.handlers;
 
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IEditModeConfig;
@@ -14,6 +16,7 @@ import mezz.jei.common.input.UserInput;
 import mezz.jei.common.input.interaction.IInputInteraction;
 import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.common.network.IConnectionToServer;
+import mezz.jei.common.platform.Services;
 import mezz.jei.gui.input.IClickableIngredientInternal;
 import mezz.jei.gui.input.IngredientFocusSource;
 import mezz.jei.gui.input.InputCommands;
@@ -170,7 +173,16 @@ public final class IngredientCommands {
 				return Optional.of(createIngredientAction(
 						clicked,
 						() -> {
-							int count = resolveGiveAmount(config.getGiveMode(), amount, stack, clicked.getElement().getCheatGiveAmount(), quantity.getAsLong());
+							IIngredientType<?> type = clicked.getTypedIngredient().getType();
+							long bucketVolume = 0;
+							if (!type.equals(VanillaTypes.ITEM_STACK)) {
+								var fluidHelper = Services.PLATFORM.getFluidHelper();
+								if (type.equals(fluidHelper.getFluidIngredientType())) {
+									bucketVolume = fluidHelper.bucketVolume();
+								}
+							}
+							int count = resolveGiveAmount(config.getGiveMode(), amount, stack, clicked.getElement().getCheatGiveAmount(),
+								quantity.getAsLong(), type, bucketVolume);
 							commandUtil.giveStack(stack, count);
 						}
 					)
@@ -233,7 +245,16 @@ public final class IngredientCommands {
 		return InputAction.run(action).within(clicked::isMouseOver).when(clicked.getElement()::isVisible);
 	}
 
-	static int resolveGiveAmount(GiveMode mode, GiveAmount giveAmount, ItemStack stack, Optional<Long> bookmarkAmount, long configuredAmount) {
+	static int resolveGiveAmount(GiveMode mode, GiveAmount giveAmount, ItemStack stack, Optional<Long> bookmarkAmount,
+		long configuredAmount, IIngredientType<?> type, long bucketVolume) {
+		if (!type.equals(VanillaTypes.ITEM_STACK)) {
+			if (mode == GiveMode.INVENTORY && bucketVolume > 0 && bookmarkAmount.isPresent()) {
+				long amount = bookmarkAmount.get();
+				long buckets = amount / bucketVolume + (amount % bucketVolume > 0 ? 1 : 0);
+				return (int) Math.max(1, Math.min(buckets, Integer.MAX_VALUE));
+			}
+			return stack.getCount();
+		}
 		if (mode == GiveMode.MOUSE_PICKUP) {
 			return giveAmount.getAmountForStack(stack);
 		}

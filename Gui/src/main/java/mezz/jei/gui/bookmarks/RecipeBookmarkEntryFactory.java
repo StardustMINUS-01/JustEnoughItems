@@ -11,6 +11,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.gui.compat.gtm.GtmVirtualCircuitCompat;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -197,13 +198,18 @@ final class RecipeBookmarkEntryFactory {
 		if (selectedKey == null || ingredientManager == null) {
 			return Optional.empty();
 		}
-		List<ITypedIngredient<?>> candidates = slotView.getAllIngredients().toList();
-		// 1.20.1 fork: preserve the exact-NBT-first, same-ingredient-fallback selection logic so
-		// tool NBT differences (damage, tconstruct materials, GT tool attributes) still resolve.
-		return candidates.stream()
+		if (slotView.getRole() == RecipeIngredientRole.OUTPUT && selectedKey.typedIngredient() != null &&
+			selectedKey.typedIngredient().getIngredient() instanceof ItemStack selectedStack
+		) {
+			return slotView.getDisplayedIngredient()
+				.filter(ingredient -> ingredient.getIngredient() instanceof ItemStack stack && ItemStack.isSameItemSameTags(selectedStack, stack))
+				.or(() -> slotView.getAllIngredients()
+					.filter(ingredient -> ingredient.getIngredient() instanceof ItemStack stack && ItemStack.isSameItemSameTags(selectedStack, stack))
+					.findFirst());
+		}
+		return slotView.getDisplayedIngredient()
 			.filter(ingredient -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
-			.findFirst()
-			.or(() -> candidates.stream()
+			.or(() -> slotView.getAllIngredients()
 				.filter(ingredient -> selectedKey.equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
 				.findFirst());
 	}
@@ -297,9 +303,7 @@ final class RecipeBookmarkEntryFactory {
 			return Optional.empty();
 		}
 		return recipeSlotsView.getSlotViews(RecipeIngredientRole.OUTPUT).stream()
-			.map(slot -> slot.getAllIngredients()
-				.filter(ingredient -> selectedOutputKey.get().equals(BookmarkItemMetadataFactory.createPermutationKey(ingredient, ingredientManager)))
-				.findFirst())
+			.map(slot -> getSelectedIngredient(slot, selectedOutputKey.get()))
 			.flatMap(Optional::stream)
 			.findFirst();
 	}

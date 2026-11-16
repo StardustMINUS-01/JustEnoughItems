@@ -10,6 +10,7 @@ import mezz.jei.api.gui.widgets.ICycleButtonWidget;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.Internal;
@@ -18,6 +19,7 @@ import mezz.jei.common.gui.elements.DrawableBlank;
 import mezz.jei.common.util.ReflectionUtil;
 import mezz.jei.fabric.test.mixin.MouseHandlerAccessor;
 import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
+import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.recipes.RecipeGuiLayouts;
 import mezz.jei.gui.recipes.RecipesGui;
 import net.mezzdev.config.api.value.IConfigValue;
@@ -25,6 +27,8 @@ import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
@@ -65,6 +69,7 @@ final class RecipeButtonsClientTest {
 					return testCategory;
 				});
 				waitTicks(3);
+				assertBookmarkUsesHoveredOutput(cleanup);
 				assertRecipeButtons(category);
 			} finally {
 				releaseMouse(InputConstants.MOUSE_BUTTON_LEFT);
@@ -77,6 +82,32 @@ final class RecipeButtonsClientTest {
 				});
 			}
 		}
+	}
+
+	private static void assertBookmarkUsesHoveredOutput(List<Runnable> cleanup) {
+		var layout = ClientTestUtil.computeOnClient(client -> {
+			var mapping = KeyMappingTestHelper.find("key.jei.bookmark");
+			cleanup.add(KeyMappingTestHelper.rebindUnmodified(mapping, InputConstants.Type.KEYSYM.getOrCreate(InputConstants.KEY_B)));
+			var overlay = (BookmarkOverlay) Internal.getJeiRuntime().getBookmarkOverlay();
+			var bookmarks = overlay.getBookmarkList();
+			var original = bookmarks.getBookmarks();
+			cleanup.add(() -> bookmarks.setFromConfigFile(original));
+			bookmarks.setFromConfigFile(List.of());
+			return visibleLayouts().get(0);
+		});
+		move(layout, 56, 8);
+		ClientTestUtil.runOnClient(client -> {
+			var screen = Objects.requireNonNull(client.screen);
+			check(!ScreenKeyboardEvents.allowKeyPress(screen).invoker().allowKeyPress(screen, InputConstants.KEY_B, 0, GLFW.GLFW_MOD_SHIFT),
+				"Shift + bookmark must capture the hovered output");
+			var bookmarks = ((BookmarkOverlay) Internal.getJeiRuntime().getBookmarkOverlay()).getBookmarkList();
+			var entries = bookmarks.getBookmarks();
+			check(entries.size() == 2, "Bookmarking one output must keep that output and the recipe input");
+			check(entries.get(0).getElement().getTypedIngredient().getItemStack().orElseThrow().is(Items.GOLD_INGOT),
+				"The output under the cursor must be bookmarked");
+			check(entries.get(1).getElement().getTypedIngredient().getItemStack().orElseThrow().is(Items.STICK),
+				"The input must remain in the recipe bookmark");
+		});
 	}
 
 	private static void assertRecipeButtons(TestCategory<?> category) {
@@ -342,12 +373,23 @@ final class RecipeButtonsClientTest {
 	private static final class TestCategory<T> extends AbstractRecipeCategory<T> {
 		private final Map<T, ButtonControls> controls = new IdentityHashMap<>();
 
+		private final IRecipeCategory<T> delegate;
+
 		private TestCategory(IRecipeCategory<T> delegate) {
 			super(delegate.getRecipeType(), delegate.getTitle(), new DrawableBlank(16, 16), 160, 60);
+			this.delegate = delegate;
+		}
+
+		@Override
+		public ResourceLocation getRegistryName(T recipe) {
+			return delegate.getRegistryName(recipe);
 		}
 
 		@Override
 		public void setRecipe(IRecipeLayoutBuilder builder, T recipe, IFocusGroup focuses) {
+			builder.addSlot(RecipeIngredientRole.INPUT, 108, 4).addItemStack(new ItemStack(Items.STICK));
+			builder.addSlot(RecipeIngredientRole.OUTPUT, 4, 4).addItemStack(new ItemStack(Items.IRON_INGOT));
+			builder.addSlot(RecipeIngredientRole.OUTPUT, 52, 4).addItemStack(new ItemStack(Items.GOLD_INGOT));
 		}
 
 		@Override
