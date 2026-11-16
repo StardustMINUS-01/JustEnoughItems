@@ -172,6 +172,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	private final BookmarkOverlayRenderer renderer;
 	private final BookmarkOverlayInputHandlers inputHandlers;
 	private final BookmarkOverlayDragHandlers dragHandlers;
+	private final BookmarkChapterNavigation chapterNavigation;
 	private ImmutableRect2i scrollStepArea = ImmutableRect2i.EMPTY;
 	private long defaultGroupBookmarksVersion = Long.MIN_VALUE;
 	private boolean defaultGroupHasBookmarks;
@@ -206,6 +207,8 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		this.scrollStepInput = new ScrollStepFieldInputHandler(scrollStepField);
 		this.bookmarkListConfig = bookmarkListConfig;
 		this.contents = contents;
+		this.chapterNavigation = new BookmarkChapterNavigation(this);
+		contents.enableLeadingNavigationContent();
 		this.favoriteContents = favoriteContents;
 		this.lookupHistoryOverlay = lookupHistoryOverlay;
 		this.backgroundRenderer = backgroundRenderer;
@@ -234,7 +237,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		contents.setExtraHoveredIngredientSource(() -> getGroupDropHoverIngredient(MouseUtil.getX(), MouseUtil.getY()));
 		bookmarkList.addSourceListChangedListener(() -> {
 			layout.clearPanelSnapshot();
-			toggleState.setBookmarkEnabled(!bookmarkList.isEmpty());
+			toggleState.setBookmarkEnabled(!bookmarkList.isEmpty() || bookmarkList.getChapters().size() > 1);
 			markScreenPropertiesDirty();
 		});
 		lookupHistoryOverlay.getLookupHistory().addSourceListChangedListener(this::markScreenPropertiesDirty);
@@ -258,7 +261,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		return toggleState.isBookmarkOverlayEnabled() &&
 			guiPropertiesCache.hasValidScreen() &&
 			contents.hasRoom() &&
-			!bookmarkList.isEmpty();
+			(!bookmarkList.isEmpty() || bookmarkList.getChapters().size() > 1);
 	}
 
 	public boolean isFavoritePanelDisplayed() {
@@ -294,7 +297,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			LOGGER.info("[FavTree] toggleBookmarkPanel simulate={} listSize={} hasRoom={} isFavSelected={} isListDisplayed={} bookmarkEnabled={}",
 				simulate, bookmarkList.getBookmarks().size(), hasBookmarkPanelRoom(), isFavoritePanelSelected(), isListDisplayed(), toggleState.isBookmarkOverlayEnabled());
 		}
-		if (bookmarkList.isEmpty() || !hasBookmarkPanelRoom()) {
+		if ((bookmarkList.isEmpty() && bookmarkList.getChapters().size() <= 1) || !hasBookmarkPanelRoom()) {
 			if (DebugConfig.isDebugModeEnabled()) {
 				LOGGER.info("[FavTree] toggleBookmarkPanel REJECT listEmpty={} noRoom={}",
 					bookmarkList.isEmpty(), !hasBookmarkPanelRoom());
@@ -676,20 +679,31 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		}
 	}
 
-	public void drawTooltips(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		if (sortDragState != null) {
-			boolean drewSortDrag = sortDragState.drawDraggedItems(guiGraphics, mouseX, mouseY);
-			drewSortDrag = renderer.drawFloatingGroupPanel(guiGraphics, sortDragState, mouseX, mouseY) || drewSortDrag;
-			if (drewSortDrag || sortDragState.isActive()) {
-				return;
+	public void drawDragPreviews(GuiGraphics graphics, int mouseX, int mouseY) {
+		boolean bookmarks = sortDragState != null && sortDragState.isActive() && isListDisplayed();
+		boolean favorites = favoriteSortDragState != null && favoriteSortDragState.isActive() && isFavoritePanelDisplayed();
+		if (!bookmarks && !favorites)
+			return;
+		// Drag previews are foreground content, not tooltips suppressed by menu hit testing.
+		graphics.pose().pushPose();
+		try {
+			graphics.pose().translate(0, 0, 400);
+			if (bookmarks) {
+				sortDragState.drawDraggedItems(graphics, mouseX, mouseY);
+				renderer.drawFloatingGroupPanel(graphics, sortDragState, mouseX, mouseY);
 			}
+			if (favorites) {
+				favoriteSortDragState.drawDraggedItems(graphics, mouseX, mouseY);
+				renderer.drawFloatingFavoriteRecipeRowPanel(graphics, favoriteSortDragState, mouseX, mouseY);
+			}
+		} finally {
+			graphics.pose().popPose();
 		}
-		if (favoriteSortDragState != null) {
-			boolean drewSortDrag = favoriteSortDragState.drawDraggedItems(guiGraphics, mouseX, mouseY);
-			drewSortDrag = renderer.drawFloatingFavoriteRecipeRowPanel(guiGraphics, favoriteSortDragState, mouseX, mouseY) || drewSortDrag;
-			if (drewSortDrag || favoriteSortDragState.isActive()) {
-				return;
-			}
+	}
+
+	public void drawTooltips(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (sortDragState != null && sortDragState.isActive() || favoriteSortDragState != null && favoriteSortDragState.isActive()) {
+			return;
 		}
 		updateScreenPropertiesIfDirty();
 		if (!this.bookmarkDragManager.drawDraggedItem(guiGraphics, mouseX, mouseY)) {
@@ -818,6 +832,17 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 			.controls(createInputHandler())
 			.commands(commands)
 			.dragSources(createDragSources())
+			.build();
+	}
+
+	boolean blocksChapterBackgroundHover(double x, double y) {
+		return chapterNavigation.containsMouse(x, y);
+	}
+
+	public InputArea createChapterInputArea() {
+		return InputArea.builder("Bookmark chapters", chapterNavigation)
+			.controls(chapterNavigation)
+			.blockUnhandledMouseInput()
 			.build();
 	}
 

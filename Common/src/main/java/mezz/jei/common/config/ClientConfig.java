@@ -21,6 +21,7 @@ public final class ClientConfig implements IClientConfig {
 	private final IConfigValue<Boolean> showRecipeHandlerIconEnabled;
 	private final IConfigValue<Integer> favoriteTreeDepth;
 	private final IConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode;
+	private final IConfigValue<Integer> bookmarkAmountFontScale;
 	private final IConfigValue<Boolean> overlaysEnabled;
 	private final IConfigValue<SearchBarPosition> searchBarPosition;
 	private final IConfigValue<Integer> maxRecipeGuiHeight;
@@ -128,6 +129,7 @@ public final class ClientConfig implements IClientConfig {
 			.addLegacyValue("bookmarks", "favoriteTreeDepth")
 			.setEditMode(ConfigValueEditMode.IMMEDIATE)
 			.build();
+		bookmarkAmountFontScale = bookmarkList.addInteger("amountFontScale", 65, 25, 100).build();
 		bookmarkRecipeMarkerMode = bookmarkList.addEnum("recipeMarkerMode", BookmarkRecipeMarkerMode.NONE)
 			.addLegacyValue("bookmarks", "recipeMarkerMode")
 			.setEditMode(ConfigValueEditMode.IMMEDIATE)
@@ -554,6 +556,10 @@ public final class ClientConfig implements IClientConfig {
 		return favoriteTreeDepth;
 	}
 
+	@Override
+	public IConfigValue<Integer> bookmarkAmountFontScale() {
+		return bookmarkAmountFontScale;
+	}
 	@Override
 	public IConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode() {
 		return bookmarkRecipeMarkerMode;

@@ -295,4 +295,8 @@ public class TestClientConfig implements IClientConfig {
 	public IConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode() {
 		return value("recipeMarkerMode", BookmarkRecipeMarkerMode.NONE);
 	}
+	@Override
+	public IConfigValue<Integer> bookmarkAmountFontScale() {
+		return value("amountFontScale", 65);
+	}
 }

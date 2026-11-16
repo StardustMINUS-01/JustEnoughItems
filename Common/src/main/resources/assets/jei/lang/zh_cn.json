@@ -1,4 +1,6 @@
 {
+  "jei.config.client.bookmarkList.amountFontScale": "书签数量字体缩放（%）",
+  "jei.config.client.bookmarkList.amountFontScale.description": "书签数量与乘数文字的缩放比例，65% 即 0.65 倍。不改变配方标记的字号。",
 	"_comment": "Key Names",
 	"jei.tooltip.config": "JEI配置",
 	"jei.tooltip.show.recipes": "显示配方",
@@ -461,6 +463,8 @@
 	"gui.jei.recipe_navigation.forward.shift": "Shift + 点击：前往本次查询末项",
 	"gui.jei.recipe_navigation.target.recipes": "%s的配方",
 	"gui.jei.recipe_navigation.target.uses": "%s的用途",
+  "gui.jei.bookmark.chapter.create": "创建章节",
+  "gui.jei.bookmark.chapter.rename": "重命名章节",
 	"gui.jei.recipe_filter.search": "搜索配方……",
 	"gui.jei.recipe_filter.mode": "配方筛选：%s",
 	"gui.jei.recipe_filter.mode.all": "全部",

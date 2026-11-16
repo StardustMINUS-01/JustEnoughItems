@@ -31,7 +31,8 @@ import java.util.Optional;
 public class BookmarkJsonConfig implements IBookmarkConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final Duration SAVE_DELAY_TIME = Duration.ofSeconds(5);
-	private static final int VERSION = 1;
+	private static final int VERSION = 2;
+	private static final int LEGACY_VERSION = 1;
 
 	private static final String JSON_TYPE_STACK = "item_stack";
 	private static final String JSON_TYPE_INGREDIENT = "ingredient";
@@ -72,7 +73,11 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 	) {
 		getPath(jeiConfigurationDir)
 			.ifPresent(path -> {
-				delayedSave.run(() -> save(path, ingredientManager));
+				BookmarkList list = this.bookmarkList;
+				if (list != null) {
+					List<BookmarkConfigEntry> chapters = list.createChapterEntries();
+					delayedSave.run(() -> write(path, BookmarkJsonSerializer.serializeChapters(chapters, ingredientManager)));
+				}
 			});
 	}
 
@@ -81,7 +86,10 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		if (bookmarkList == null) {
 			return false;
 		}
-		List<JsonElement> elements = BookmarkJsonSerializer.serialize(bookmarkList, ingredientManager);
+		return write(path, BookmarkJsonSerializer.serializeChapters(bookmarkList.createChapterEntries(), ingredientManager));
+	}
+
+	private static boolean write(Path path, List<JsonElement> elements) {
 		try {
 			JsonArrayFileHelper.write(path, VERSION, elements);
 			LOGGER.debug("Saved bookmarks config to file: {}", path);
@@ -111,9 +119,16 @@ public class BookmarkJsonConfig implements IBookmarkConfig {
 		if (Files.exists(path)) {
 			List<JsonElement> elements;
 			try {
-				elements = JsonArrayFileHelper.read(path, VERSION, (element, error) -> {
-					LOGGER.error("Encountered error when loading the bookmark config from file {}\n{}\n{}", path, element, error);
-				});
+				elements = JsonArrayFileHelper.read(path, VERSION, (element, error) -> {});
+				if (elements.isEmpty()) {
+					elements = JsonArrayFileHelper.read(path, LEGACY_VERSION, (element, error) -> LOGGER.error("Encountered error when loading the bookmark config from file {}\n{}\n{}", path, element, error));
+					if (!elements.isEmpty()) {
+						Path backup = path.resolveSibling("bookmarks.before-chapters.json");
+						if (!Files.exists(backup)) {
+							Files.copy(path, backup);
+						}
+					}
+				}
 			} catch (RuntimeException | IOException e) {
 				LOGGER.error("Failed to load bookmarks config from file {}", path, e);
 				return;

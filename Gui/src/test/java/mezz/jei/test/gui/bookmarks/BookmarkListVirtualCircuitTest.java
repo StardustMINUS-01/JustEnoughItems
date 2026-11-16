@@ -399,6 +399,30 @@ public class BookmarkListVirtualCircuitTest {
 	}
 
 	@Test
+	public void chapterSwitchAndReloadPreserveMovedRecipeAndPage() {
+		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		var layout = layout(new Object(), List.of(List.of(item(Items.STICK))), List.of(List.of(item(Items.IRON_INGOT))));
+		Assertions.assertTrue(bookmarks.addRecipeBookmarks(layout, true));
+		int targetGroup = bookmarks.createGroupForBookmarks("Input and output", bookmarks.getBookmarks());
+		bookmarks.rememberChapterPage(3);
+		int chapter = bookmarks.createChapter();
+		bookmarks.renameChapter(chapter, "Metals");
+		int movedGroup = bookmarks.moveGroupToChapter(targetGroup, chapter);
+		bookmarks.rememberChapterPage(2);
+
+		BookmarkList loaded = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
+		loaded.loadChapters(bookmarks.createChapterEntries());
+		Assertions.assertEquals(chapter, loaded.getActiveChapterId());
+		Assertions.assertEquals(2, loaded.getChapterPage());
+		Assertions.assertEquals("Metals", loaded.getChapters().get(1).title());
+		Assertions.assertEquals(2, loaded.getBookmarks().size());
+		Assertions.assertTrue(loaded.getBookmarks().stream().allMatch(bookmark -> loaded.getBookmarkGroupId(bookmark) == movedGroup));
+		loaded.selectChapter(1);
+		Assertions.assertEquals(3, loaded.getChapterPage());
+		Assertions.assertTrue(loaded.getBookmarks().isEmpty());
+	}
+
+	@Test
 	public void selectedNamedOutputKeepsItsNbtAndStaysBeforeInputs() {
 		BookmarkList bookmarks = new BookmarkList(null, null, INGREDIENT_MANAGER, null, null, null, null);
 		var plain = item(Items.IRON_INGOT);

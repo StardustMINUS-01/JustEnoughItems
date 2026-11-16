@@ -56,6 +56,8 @@ public interface IClientConfig {
 
 	IConfigValue<BookmarkRecipeMarkerMode> bookmarkRecipeMarkerMode();
 
+	IConfigValue<Integer> bookmarkAmountFontScale();
+
 	IConfigValue<Integer> recipeGuiWidth();
 
 	IConfigValue<Integer> maxRecipeGuiColumns();

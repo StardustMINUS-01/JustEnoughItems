@@ -186,6 +186,7 @@ public class GuiEventHandler {
 		for (int i = this.inputLayers.size() - 1; i >= 0; i--) {
 			this.inputLayers.get(i).draw(guiGraphics, mouseX, mouseY);
 		}
+		bookmarkOverlay.drawDragPreviews(guiGraphics, mouseX, mouseY);
 
 		if (DebugConfig.isDebugGuisEnabled()) {
 			drawDebugInfoForScreen(screen, guiGraphics);
