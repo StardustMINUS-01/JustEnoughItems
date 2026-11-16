@@ -19,6 +19,7 @@ public final class BookmarkAutoCraftingRunner {
 	public void tick() {
 		if (activeTask != null && !activeTask.tick()) {
 			activeTask = null;
+			BookmarkProcessingStations.cancel();
 		}
 	}
 
@@ -29,6 +30,7 @@ public final class BookmarkAutoCraftingRunner {
 	}
 
 	public void handleAck(int taskId, int requestId, int craftedCount) {
+		BookmarkProcessingStations.acknowledge(taskId, requestId);
 		if (activeTask != null) {
 			if (taskId != activeTask.taskId()) {
 				return;
@@ -43,6 +45,7 @@ public final class BookmarkAutoCraftingRunner {
 	public void stop() {
 		activeTask = null;
 		mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope.clear();
+		BookmarkProcessingStations.cancel();
 	}
 
 	public boolean hasActiveTask() {

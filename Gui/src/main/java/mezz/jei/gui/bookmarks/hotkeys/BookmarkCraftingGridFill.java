@@ -97,6 +97,15 @@ public record BookmarkCraftingGridFill(
 		for (int i = 0; i < targetSlotCount; i++) {
 			candidateSlots.add(List.of());
 		}
+		if (!recipeLayout.getRecipeCategory().getRecipeType().equals(RecipeTypes.CRAFTING)) {
+			if (inputSlots.size() != targetSlotCount) {
+				return List.of();
+			}
+			for (int i = 0; i < inputSlots.size(); i++) {
+				candidateSlots.set(i, createCandidates(inputSlots.get(i), groups));
+			}
+			return candidateSlots;
+		}
 		// JEI crafting layouts retain all nine slots, including empty right and bottom
 		// edges. Map them onto the actual target grid (2x2 or 3x3) by row/column so a
 		// right-edge crafting-table recipe still aligns to a 2x2 inventory.

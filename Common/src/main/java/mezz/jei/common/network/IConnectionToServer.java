@@ -7,6 +7,10 @@ public interface IConnectionToServer {
 		return false;
 	}
 
+	default boolean canProcessBookmarks() {
+		return false;
+	}
+
 	default boolean canShareChat() {
 		return false;
 	}

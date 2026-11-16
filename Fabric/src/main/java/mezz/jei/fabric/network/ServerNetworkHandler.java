@@ -1,5 +1,6 @@
 package mezz.jei.fabric.network;
 
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.common.Constants;
 import mezz.jei.common.network.ServerPacketRouter;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -12,6 +13,7 @@ public final class ServerNetworkHandler {
 		registerServerPacketHandler(Constants.NETWORK_CHANNEL_ID, packetRouter);
 		registerServerPacketHandler(Constants.RECIPE_TRANSFER_RESULT_CHANNEL_ID, packetRouter);
 		registerServerPacketHandler(mezz.jei.common.network.packets.PacketCraftingGridCraft.CHANNEL, packetRouter);
+		registerServerPacketHandler(PacketProcessingStationCraft.CHANNEL, packetRouter);
 	}
 
 	private static void registerServerPacketHandler(ResourceLocation channelId, ServerPacketRouter packetRouter) {

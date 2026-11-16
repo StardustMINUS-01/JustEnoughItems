@@ -1,5 +1,7 @@
 package mezz.jei.common.network;
 
+import mezz.jei.common.network.packets.PacketCancelProcessingStation;
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.common.network.packets.PacketShareIngredient;
 import mezz.jei.common.network.packets.PacketShareRecipe;
 import mezz.jei.common.network.packets.IServerPacketHandler;
@@ -46,6 +48,8 @@ public class ServerPacketRouter {
 		handlers.put(PacketIdServer.RECIPE_TRANSFER_COUNTED_WITH_RESULT, PacketRecipeTransferCountedWithResult::readPacketData);
 		handlers.put(PacketIdServer.PULL_BOOKMARK_ITEMS, PacketPullBookmarkItems::readPacketData);
 		handlers.put(PacketIdServer.CRAFTING_GRID_CRAFT_WITH_RECIPE, PacketCraftingGridCraft::readPacketData);
+		handlers.put(PacketIdServer.PROCESSING_STATION_CRAFT, PacketProcessingStationCraft::readPacketData);
+		handlers.put(PacketIdServer.CANCEL_PROCESSING_STATION, PacketCancelProcessingStation::readPacketData);
 		handlers.put(PacketIdServer.FILL_CRAFTING_GRID, PacketFillCraftingGrid::readPacketData);
 		registerEncodeRecipeChainPatternsHandler(handlers);
 		handlers.put(PacketIdServer.SHARE_BOOKMARK_GROUP, PacketShareBookmarkGroup::readPacketData);

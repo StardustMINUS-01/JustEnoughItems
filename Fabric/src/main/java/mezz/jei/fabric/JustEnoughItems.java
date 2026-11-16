@@ -1,5 +1,8 @@
 package mezz.jei.fabric;
 
+import mezz.jei.common.bookmarks.ServerProcessingStationCraft;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.config.IServerConfig;
 import mezz.jei.common.network.IConnectionToClient;
@@ -22,6 +25,8 @@ public class JustEnoughItems implements ModInitializer {
 		IConnectionToClient connection = new ConnectionToClient();
 		ServerPacketRouter packetRouter = new ServerPacketRouter(connection, serverConfig);
 		ServerNetworkHandler.registerServerPacketHandler(packetRouter);
+		ServerTickEvents.END_SERVER_TICK.register(server -> server.getPlayerList().getPlayers().forEach(ServerProcessingStationCraft::tick));
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ServerProcessingStationCraft.cancel(handler.player));
 
 		ResourceLocation resourceLocation = new ResourceLocation(ModIds.JEI_ID, "jei_shaped");
 		var recipeSerializer = new JeiShapedRecipe.Serializer();

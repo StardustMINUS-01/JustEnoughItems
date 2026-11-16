@@ -1,5 +1,6 @@
 package mezz.jei.forge.network;
 
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.common.Constants;
 import mezz.jei.common.network.ClientPacketRouter;
 import mezz.jei.common.network.ServerPacketRouter;
@@ -22,6 +23,7 @@ public class NetworkHandler {
 	private final EventNetworkChannel channel;
 	private final EventNetworkChannel bookmarkGroupChannel;
 	private final EventNetworkChannel bookmarkCraftingChannel;
+	private final EventNetworkChannel processingStationChannel;
 	public static final ResourceLocation BOOKMARK_GROUP_CHANNEL = new ResourceLocation("jei", "bookmark_group");
 	private final EventNetworkChannel recipeTransferResultChannel;
 
@@ -29,6 +31,7 @@ public class NetworkHandler {
 		this.channelId = channelId;
 		this.bookmarkCraftingChannel = createChannel(mezz.jei.common.network.packets.PacketCraftingGridCraft.CHANNEL, "1");
 		this.channel = createChannel(channelId, protocolVersion);
+		this.processingStationChannel = createChannel(PacketProcessingStationCraft.CHANNEL, "1");
 		this.recipeTransferResultChannel = createChannel(Constants.RECIPE_TRANSFER_RESULT_CHANNEL_ID, protocolVersion);
 		this.bookmarkGroupChannel = NetworkRegistry.newEventChannel(BOOKMARK_GROUP_CHANNEL, () -> "2", version -> true, version -> true);
 	}
@@ -62,6 +65,7 @@ public class NetworkHandler {
 		registerServerPacketHandler(channel, packetRouter);
 		registerServerPacketHandler(bookmarkGroupChannel, packetRouter);
 		registerServerPacketHandler(bookmarkCraftingChannel, packetRouter);
+		registerServerPacketHandler(processingStationChannel, packetRouter);
 		registerServerPacketHandler(recipeTransferResultChannel, packetRouter);
 	}
 

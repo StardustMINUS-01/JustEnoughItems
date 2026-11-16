@@ -1,5 +1,9 @@
 package mezz.jei.forge;
 
+import mezz.jei.common.bookmarks.ServerProcessingStationCraft;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.TickEvent;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.Constants;
 import mezz.jei.common.bookmarks.CraftingGridCraftExecutors;
@@ -33,6 +37,16 @@ public class JustEnoughItems {
 		IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 		PermanentEventSubscriptions subscriptions = new PermanentEventSubscriptions(eventBus, modEventBus);
 		ServerHelper.register(subscriptions);
+		subscriptions.register(TickEvent.PlayerTickEvent.class, event -> {
+			if (event.phase == TickEvent.Phase.END && event.player instanceof ServerPlayer player) {
+				ServerProcessingStationCraft.tick(player);
+			}
+		});
+		subscriptions.register(PlayerEvent.PlayerLoggedOutEvent.class, event -> {
+			if (event.getEntity() instanceof ServerPlayer player) {
+				ServerProcessingStationCraft.cancel(player);
+			}
+		});
 
 		IServerConfig serverConfig = ServerConfig.register(subscriptions);
 

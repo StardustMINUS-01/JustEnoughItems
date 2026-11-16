@@ -1,5 +1,6 @@
 package mezz.jei.gui.input.handlers;
 
+import mezz.jei.common.bookmarks.ProcessingStations;
 import mezz.jei.common.util.SaturatedMath;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -174,11 +175,12 @@ public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget 
 			return Optional.empty();
 		}
 
-		int targetSlotCount = BookmarkGhostOverlayTargetSlots.fromMenu(containerScreen.getMenu()).size();
+		int targetSlotCount = Math.max(BookmarkGhostOverlayTargetSlots.fromMenu(containerScreen.getMenu()).size(),
+			ProcessingStations.getInputSlotCount(containerScreen.getMenu()));
 		if (targetSlotCount <= 0) {
 			return Optional.empty();
 		}
-		if (!serverConnection.canCraftBookmarks()
+		if (!serverConnection.canCraftBookmarks() && !serverConnection.canProcessBookmarks()
 		) {
 			if (!input.isSimulate()) {
 				minecraft.player.displayClientMessage(Component.translatable("jei.message.server.feature_unavailable"), false);

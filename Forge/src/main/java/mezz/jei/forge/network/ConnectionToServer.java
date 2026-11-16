@@ -1,5 +1,6 @@
 package mezz.jei.forge.network;
 
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.common.network.packets.PacketShareIngredient;
 import mezz.jei.common.network.packets.PacketShareRecipe;
 import com.google.common.collect.ImmutableMap;
@@ -71,6 +72,9 @@ public final class ConnectionToServer implements IConnectionToServer {
 
 	@Override
 	public void sendPacketToServer(PacketJei packet) {
+		if (packet.getChannelId().equals(PacketProcessingStationCraft.CHANNEL) && !canProcessBookmarks()) {
+			return;
+		}
 		if (packet instanceof mezz.jei.common.network.packets.PacketCraftingGridCraft && !canCraftBookmarks()) {
 			return;
 		}
@@ -99,6 +103,16 @@ public final class ConnectionToServer implements IConnectionToServer {
 			.map(NetworkHooks::getConnectionData)
 			.map(ConnectionData::getChannels)
 			.map(channels -> channels.containsKey(NetworkHandler.BOOKMARK_GROUP_CHANNEL))
+			.orElse(false);
+	}
+
+	@Override
+	public boolean canProcessBookmarks() {
+		return Optional.ofNullable(ClientConnectionHelper.getConnectedClientPacketListener())
+			.map(ClientPacketListener::getConnection)
+			.map(NetworkHooks::getConnectionData)
+			.map(ConnectionData::getChannels)
+			.map(channels -> channels.containsKey(PacketProcessingStationCraft.CHANNEL))
 			.orElse(false);
 	}
 

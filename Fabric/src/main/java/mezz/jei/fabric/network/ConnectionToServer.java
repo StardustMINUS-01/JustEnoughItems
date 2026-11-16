@@ -1,5 +1,6 @@
 package mezz.jei.fabric.network;
 
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.common.Constants;
 import mezz.jei.common.network.ClientConnectionHelper;
 import mezz.jei.common.network.IConnectionToServer;
@@ -22,6 +23,11 @@ public final class ConnectionToServer implements IConnectionToServer {
 	}
 
 	@Override
+	public boolean canProcessBookmarks() {
+		return ClientPlayNetworking.canSend(PacketProcessingStationCraft.CHANNEL);
+	}
+
+	@Override
 	public boolean canCraftBookmarks() {
 		return ClientPlayNetworking.canSend(mezz.jei.common.network.packets.PacketCraftingGridCraft.CHANNEL);
 	}
@@ -33,6 +39,9 @@ public final class ConnectionToServer implements IConnectionToServer {
 
 	@Override
 	public void sendPacketToServer(PacketJei packet) {
+		if (packet.getChannelId().equals(PacketProcessingStationCraft.CHANNEL) && !canProcessBookmarks()) {
+			return;
+		}
 		if (packet instanceof mezz.jei.common.network.packets.PacketCraftingGridCraft && !canCraftBookmarks()) {
 			return;
 		}
