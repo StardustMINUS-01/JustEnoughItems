@@ -1,5 +1,6 @@
 package mezz.jei.gui.bookmarks.hotkeys;
 
+import mezz.jei.common.bookmarks.ProcessingStations;
 import mezz.jei.common.input.keys.IJeiKeyMappingWithExtraModifiers;
 
 import com.mojang.blaze3d.platform.InputConstants;
@@ -60,6 +61,24 @@ public final class BookmarkAutoCraftingActivator {
 		CLAIMED_AUTO_CRAFTING_KEYS.clear();
 	}
 
+	public static boolean canCraftRecipe(IRecipeLayoutDrawable<?> layout, @Nullable AbstractContainerMenu menu) {
+		if (menu == null)
+			return false;
+		var type = layout.getRecipeCategory().getRecipeType();
+		var connection = Internal.getServerConnection();
+		if (RecipeTypes.CRAFTING.equals(type)) {
+			return connection.canSendPacket(PacketCraftingGridCraft.TYPE) && BookmarkGhostOverlayTargetSlots.getSlotCount(menu) > 0;
+		}
+		return connection.canSendPacket(PacketProcessingStationCraft.TYPE) &&
+			ProcessingStations.find(menu, type.getUid()).filter(station -> !station.getInputSlots(menu).isEmpty()).isPresent();
+	}
+
+	public static boolean canCraftGroup(AbstractContainerMenu menu) {
+		var connection = Internal.getServerConnection();
+		return (connection.canSendPacket(PacketCraftingGridCraft.TYPE) && BookmarkGhostOverlayTargetSlots.getSlotCount(menu) > 0) ||
+			(connection.canSendPacket(PacketProcessingStationCraft.TYPE) && ProcessingStations.getInputSlotCount(menu) > 0);
+	}
+
 	public static boolean activate(
 		UserInput input,
 		IRecipeLayoutDrawable<?> recipeLayout,
@@ -115,7 +134,7 @@ public final class BookmarkAutoCraftingActivator {
 				.orElse(false);
 		}
 
-		int targetSlotCount = BookmarkGhostOverlayTargetSlots.fromMenu(containerMenu).size();
+		int targetSlotCount = BookmarkGhostOverlayTargetSlots.getSlotCount(containerMenu);
 		if (targetSlotCount <= 0) {
 			return false;
 		}

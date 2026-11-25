@@ -14,6 +14,7 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainDetails;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipModel;
 import mezz.jei.gui.bookmarks.chain.RecipeChainTooltipSectionType;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
@@ -273,46 +274,38 @@ public class BookmarkOverlayRenderer {
 	}
 
 	boolean drawGroupHotkeyTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		if (overlay.getDefaultGroupControlArea().contains(mouseX, mouseY)) {
+		boolean defaultControl = overlay.getDefaultGroupControlArea().contains(mouseX, mouseY);
+		int groupId;
+		if (defaultControl) {
 			if (!overlay.hasDefaultGroupBookmarks()) {
 				return false;
 			}
-			int groupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
-			boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
-			JeiTooltip tooltip = new JeiTooltip();
-			addRecipeChainTooltip(tooltip, groupId);
-			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(
-				tooltip,
-				overlay.getKeyBindings(),
-				Screen.hasAltDown(),
-				craftingMode,
-				canPullDefaultGroupItems(),
-				canShareBookmarkGroups()
-			);
-			tooltip.draw(guiGraphics, mouseX, mouseY);
-			return true;
+			groupId = BookmarkGroupManager.DEFAULT_GROUP_ID;
+		} else {
+			Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(mouseX, mouseY);
+			if (slot.isEmpty()) {
+				return false;
+			}
+			groupId = slot.get().groupId();
 		}
 
-		Optional<GroupPanelSlot> slot = overlay.getGroupPanelSlotUnderMouse(mouseX, mouseY);
-		if (slot.isEmpty()) {
-			return false;
-		}
-
-		int groupId = slot.get().groupId();
-		boolean grouped = !(groupId == BookmarkGroupManager.DEFAULT_GROUP_ID);
 		boolean craftingMode = bookmarkList.isGroupCraftingMode(groupId);
 		JeiTooltip tooltip = new JeiTooltip();
 		addRecipeChainTooltip(tooltip, groupId);
-		BookmarkHotkeyTooltipUtil.addGroupHotkeys(
-			tooltip,
-			overlay.getKeyBindings(),
-			Screen.hasAltDown(),
-			grouped,
-			craftingMode,
-			canEncodeAe2Patterns(),
-			overlay.canStartGroupDrop(groupId),
-			canShareBookmarkGroups()
-		);
+		boolean altDown = Screen.hasAltDown();
+		boolean controlDown = Screen.hasControlDown();
+		var minecraft = Minecraft.getInstance();
+		var container = minecraft.player != null && minecraft.screen instanceof AbstractContainerScreen<?> screen ? screen : null;
+		boolean canEncode = container != null && canEncodeAe2Patterns(container);
+		boolean canCraft = altDown && craftingMode && container != null && BookmarkAutoCraftingActivator.canCraftGroup(container.getMenu());
+		if (defaultControl) {
+			BookmarkHotkeyTooltipUtil.addDefaultGroupControlHotkeys(tooltip, overlay.getKeyBindings(), altDown, controlDown,
+				craftingMode, canEncode, canShareBookmarkGroups(), container != null, canCraft);
+		} else {
+			BookmarkHotkeyTooltipUtil.addGroupHotkeys(tooltip, overlay.getKeyBindings(), altDown, controlDown,
+				groupId != BookmarkGroupManager.DEFAULT_GROUP_ID, craftingMode, canEncode, overlay.canStartGroupDrop(groupId),
+				canShareBookmarkGroups(), container != null, canCraft);
+		}
 		tooltip.draw(guiGraphics, mouseX, mouseY);
 		return true;
 	}
@@ -327,17 +320,9 @@ public class BookmarkOverlayRenderer {
 		return true;
 	}
 
-	private static boolean canEncodeAe2Patterns() {
-		if (!(Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> containerScreen)) {
-			return false;
-		}
+	private static boolean canEncodeAe2Patterns(AbstractContainerScreen<?> containerScreen) {
 		Ae2RecipeChainPatternEncodingBridge bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
 		return bridge.isAvailable() && bridge.isPatternEncodingTerminal(containerScreen.getMenu());
-	}
-
-	private static boolean canPullDefaultGroupItems() {
-		Minecraft minecraft = Minecraft.getInstance();
-		return minecraft.player != null && minecraft.screen instanceof AbstractContainerScreen<?>;
 	}
 
 	private static boolean canShareBookmarkGroups() {

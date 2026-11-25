@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.builder.IIngredientAcceptor;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.buttons.IButtonState;
 import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
@@ -13,10 +14,12 @@ import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.gui.inputs.RecipeSlotUnderMouse;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientType;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusFactory;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
@@ -25,7 +28,10 @@ import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
+import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil.IngredientAction;
+import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.GuiProperties;
+import mezz.jei.common.gui.IRecipeSlotHotkeyScreenInternal;
 import mezz.jei.common.gui.JeiGuiColors.GuiColor;
 import mezz.jei.common.gui.JeiGuiColors;
 import mezz.jei.common.gui.JeiTooltip;
@@ -50,6 +56,9 @@ import mezz.jei.common.util.MathUtil;
 import mezz.jei.common.util.StringUtil;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingActivator;
+import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.config.FavoriteRecipeConfig;
 import mezz.jei.gui.favorites.FavoriteRecipeInputs;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
@@ -88,6 +97,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,7 +106,7 @@ import java.util.function.Supplier;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSource {
+public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSource, IRecipeSlotHotkeyScreenInternal {
 	private static final int borderPadding = 6;
 	private static final int navBarPadding = 2;
 	private static final int titleInnerPadding = 14;
@@ -1000,6 +1010,33 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			return Optional.empty();
 		}
 		return layouts.getRecipeLayoutUnderMouse(mouseX, mouseY);
+	}
+
+	@Override
+	public void addSlotHotkeys(ITooltipBuilder tooltip, IRecipeSlotDrawable slot, ITypedIngredient<?> ingredient) {
+		var hovered = getRecipeLayoutWithSlotUnderMouse(MouseUtil.getX(), MouseUtil.getY());
+		if (hovered.isEmpty() || hovered.get().slotUnderMouse().slot() != slot)
+			return;
+
+		boolean altDown = Screen.hasAltDown();
+		boolean controlDown = Screen.hasControlDown();
+		var menu = getParentContainerMenu();
+		var actions = EnumSet.noneOf(IngredientAction.class);
+		if (ingredient.getItemStack().isPresent())
+			actions.add(IngredientAction.COPY_COMPONENTS);
+		if (controlDown && menu != null) {
+			var bridge = Ae2RecipeChainPatternEncodingBridgeRegistry.getBridge();
+			if (bridge.isAvailable() && bridge.isPatternEncodingTerminal(menu))
+				actions.add(IngredientAction.ENCODE_PATTERN);
+		}
+		if (controlDown && ExternalIngredientSearchHandlerRegistry.search(this, ingredient, true))
+			actions.add(IngredientAction.SEARCH_TERMINAL);
+		if (altDown && slot.getRole() == RecipeIngredientRole.OUTPUT) {
+			actions.add(IngredientAction.FAVORITE_RECIPE);
+			if (BookmarkAutoCraftingActivator.canCraftRecipe(hovered.get().layout(), menu))
+				actions.add(IngredientAction.CRAFT);
+		}
+		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, Internal.getKeyMappings(), altDown, controlDown, actions);
 	}
 
 	public Optional<RecipeGuiLayouts.RecipeLayoutUnderMouse> getRecipeLayoutWithSlotUnderMouse(double mouseX, double mouseY) {

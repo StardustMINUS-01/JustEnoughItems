@@ -326,6 +326,7 @@
   "jei.tooltip.bookmarks.hotkeys.hold_alt": "按住 ALT 查看热键",
   "jei.tooltip.bookmarks.hotkeys.hold_alt.prefix": "按住 ",
   "jei.tooltip.bookmarks.hotkeys.hold_alt.suffix": " 查看热键",
+  "jei.tooltip.bookmarks.hotkeys.remove": "移除书签",
   "jei.tooltip.bookmarks.hotkeys.add": "添加书签",
   "jei.tooltip.bookmarks.hotkeys.recipes": "制作此物品的配方",
   "jei.tooltip.bookmarks.hotkeys.uses": "使用此物品的配方",

@@ -666,6 +666,7 @@
   "jei.tooltip.bookmarks.hotkeys.hold_alt": "Hold ALT to view hotkeys",
   "jei.tooltip.bookmarks.hotkeys.hold_alt.prefix": "Hold ",
   "jei.tooltip.bookmarks.hotkeys.hold_alt.suffix": " to view hotkeys",
+  "jei.tooltip.bookmarks.hotkeys.remove": "Remove Bookmark",
   "jei.tooltip.bookmarks.hotkeys.add": "Add Bookmark",
   "jei.tooltip.bookmarks.hotkeys.recipes": "Recipes for this item",
   "jei.tooltip.bookmarks.hotkeys.uses": "Uses for this item",

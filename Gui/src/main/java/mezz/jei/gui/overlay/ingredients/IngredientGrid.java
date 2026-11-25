@@ -71,10 +71,24 @@ public class IngredientGrid implements IIngredientGrid {
 		IColorHelper colorHelper,
 		boolean searchable
 	) {
+		this(ingredientManager, ingredientFilterConfig, clientConfig, toggleState, serverConnection, keyBindings, colorHelper, searchable, false);
+	}
+
+	public IngredientGrid(
+		IIngredientManager ingredientManager,
+		IIngredientFilterConfig ingredientFilterConfig,
+		IClientConfig clientConfig,
+		IClientToggleState toggleState,
+		IConnectionToServer serverConnection,
+		IInternalKeyMappings keyBindings,
+		IColorHelper colorHelper,
+		boolean searchable,
+		boolean bookmarkGrid
+	) {
 		this.ingredientManager = ingredientManager;
 		this.searchable = searchable;
 		this.ingredientListRenderer = new IngredientListRenderer(ingredientManager, searchable);
-		this.tooltipHelper = new IngredientGridTooltipHelper(ingredientManager, ingredientFilterConfig, toggleState, keyBindings, colorHelper);
+		this.tooltipHelper = new IngredientGridTooltipHelper(ingredientManager, ingredientFilterConfig, toggleState, keyBindings, colorHelper, bookmarkGrid);
 		this.deleteItemHandler = new DeleteItemInputHandler(this, toggleState, clientConfig, serverConnection, ingredientManager);
 	}
 

@@ -72,7 +72,8 @@ public final class OverlayHelper {
 			serverConnection,
 			keyMappings,
 			colorHelper,
-			supportsEditMode
+			supportsEditMode,
+			ingredientFilter instanceof BookmarkList
 		);
 
 		return new IngredientGridWithNavigation(

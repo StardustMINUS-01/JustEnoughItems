@@ -15,10 +15,10 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
-import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.GuiRenderLayers;
 import mezz.jei.common.gui.IRecipeSlotCandidateView;
 import mezz.jei.common.gui.IRecipeSlotBackgroundInternal;
+import mezz.jei.common.gui.IRecipeSlotHotkeyScreenInternal;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.RecipeSlotOptionsTooltipComponent;
 import mezz.jei.common.gui.elements.OffsetDrawable;
@@ -31,7 +31,7 @@ import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.common.util.function.LazySupplier;
 import mezz.jei.library.gui.recipes.layout.builder.LegacyTooltipCallbackAdapter;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderType;
@@ -177,17 +177,18 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 	}
 
 	private void addTooltip(ITooltipBuilder tooltip) {
+		var selected = getDisplayedIngredient();
 		if (tooltip instanceof JeiTooltip jeiTooltip) {
-			var selected = getDisplayedIngredient();
 			jeiTooltip.setInteractionSource(() -> getDisplayedIngredient().equals(selected));
 		}
-		getDisplayedIngredient()
-			.ifPresent(ingredient -> addIngredientTooltip(tooltip, ingredient));
+		selected.ifPresent(ingredient -> addIngredientTooltip(tooltip, ingredient));
 		for (IRecipeSlotRichTooltipCallback tooltipCallback : tooltipCallbacks) {
 			tooltipCallback.onRichTooltip(this, tooltip);
 		}
 
-		BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, Internal.getKeyMappings(), Screen.hasAltDown(), role == RecipeIngredientRole.OUTPUT, true);
+		if (Minecraft.getInstance().screen instanceof IRecipeSlotHotkeyScreenInternal screen) {
+			selected.ifPresent(ingredient -> screen.addSlotHotkeys(tooltip, this, ingredient));
+		}
 	}
 
 	@Deprecated

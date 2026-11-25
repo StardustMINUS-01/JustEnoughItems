@@ -1401,7 +1401,6 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 	public boolean isBookmarkElementUnderMouse(IElement<?> element, double mouseX, double mouseY) {
 		return isListDisplayed() &&
 			element.isVisible() &&
-			bookmarkList.containsElement(element) &&
 			contents.getIngredientUnderMouse(mouseX, mouseY)
 				.anyMatch(ingredient -> ingredient.getElement() == element);
 	}

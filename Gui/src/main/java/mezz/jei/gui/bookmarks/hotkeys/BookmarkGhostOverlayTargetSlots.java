@@ -51,21 +51,21 @@ public final class BookmarkGhostOverlayTargetSlots {
 		int offsetX,
 		int offsetY
 	) {
+		return toTargetSlots(getCraftingSlots(menu), offsetX, offsetY);
+	}
+
+	public static int getSlotCount(AbstractContainerMenu menu) {
+		return getCraftingSlots(menu).size();
+	}
+
+	private static List<Slot> getCraftingSlots(AbstractContainerMenu menu) {
 		for (Provider provider : PROVIDERS) {
 			Optional<List<Slot>> slots = provider.getCraftingGridSlots(menu);
 			if (slots.isPresent()) {
-				return toTargetSlots(slots.get(), offsetX, offsetY);
+				return slots.get();
 			}
 		}
-		return toTargetSlots(menu, offsetX, offsetY);
-	}
-
-	private static List<BookmarkGhostOverlay.TargetSlot> toTargetSlots(
-		AbstractContainerMenu menu,
-		int offsetX,
-		int offsetY
-	) {
-		return toTargetSlots(VanillaCraftingGridSlots.getCraftingSlots(menu), offsetX, offsetY);
+		return VanillaCraftingGridSlots.getCraftingSlots(menu);
 	}
 
 	private static List<BookmarkGhostOverlay.TargetSlot> toTargetSlots(

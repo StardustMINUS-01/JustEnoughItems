@@ -182,7 +182,7 @@ public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget 
 			return Optional.empty();
 		}
 
-		int targetSlotCount = Math.max(BookmarkGhostOverlayTargetSlots.fromMenu(containerScreen.getMenu()).size(),
+		int targetSlotCount = Math.max(BookmarkGhostOverlayTargetSlots.getSlotCount(containerScreen.getMenu()),
 			mezz.jei.common.bookmarks.ProcessingStations.getInputSlotCount(containerScreen.getMenu()));
 		if (targetSlotCount <= 0) {
 			return Optional.empty();
@@ -662,7 +662,7 @@ public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget 
 	}
 
 	private BookmarkHotkeyContext createBookmarkContext(IElement<?> element, UserInput input) {
-		if (bookmarkOverlay.isMouseOver(input.getMouseX(), input.getMouseY())) {
+		if (bookmarkOverlay.isBookmarkElementUnderMouse(element, input.getMouseX(), input.getMouseY())) {
 			Optional<IBookmark> bookmark = element.getBookmark();
 			if (bookmark.isPresent()) {
 				BookmarkHotkeySubject subject = bookmark.get() instanceof RecipeBookmark<?, ?> ? BookmarkHotkeySubject.RECIPE_BOOKMARK : BookmarkHotkeySubject.ITEM_BOOKMARK;

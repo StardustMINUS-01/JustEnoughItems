@@ -7,6 +7,7 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
+import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil.IngredientAction;
 import mezz.jei.common.gui.BookmarkHotkeyTooltipUtil;
 import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
@@ -20,6 +21,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -30,6 +32,8 @@ public final class IngredientGridTooltipHelper {
 	private final IInternalKeyMappings keyBindings;
 	private final IColorHelper colorHelper;
 
+	private final boolean bookmarkGrid;
+
 	public IngredientGridTooltipHelper(
 		IIngredientManager ingredientManager,
 		IIngredientFilterConfig ingredientFilterConfig,
@@ -37,6 +41,18 @@ public final class IngredientGridTooltipHelper {
 		IInternalKeyMappings keyBindings,
 		IColorHelper colorHelper
 	) {
+		this(ingredientManager, ingredientFilterConfig, toggleState, keyBindings, colorHelper, false);
+	}
+
+	IngredientGridTooltipHelper(
+		IIngredientManager ingredientManager,
+		IIngredientFilterConfig ingredientFilterConfig,
+		IClientToggleState toggleState,
+		IInternalKeyMappings keyBindings,
+		IColorHelper colorHelper,
+		boolean bookmarkGrid
+	) {
+		this.bookmarkGrid = bookmarkGrid;
 		this.ingredientManager = ingredientManager;
 		this.ingredientFilterConfig = ingredientFilterConfig;
 		this.toggleState = toggleState;
@@ -86,20 +102,19 @@ public final class IngredientGridTooltipHelper {
 		}
 
 		if (includeHotkeys) {
-			boolean altDown = Screen.hasAltDown();
-			// Screen is null outside GUIs, where terminal search is unavailable.
+			boolean controlDown = Screen.hasControlDown();
 			Screen screen = Minecraft.getInstance().screen;
-			boolean canSearchIngredientInTerminal = altDown && screen != null &&
-				ExternalIngredientSearchHandlerRegistry.search(screen, typedIngredient, true);
-			BookmarkHotkeyTooltipUtil.addIngredientHotkeys(
-				tooltip,
-				keyBindings,
-				altDown,
-				false,
-				false,
-				showToggleInputCatalyst,
-				canSearchIngredientInTerminal
-			);
+			var actions = EnumSet.noneOf(IngredientAction.class);
+			if (bookmarkGrid)
+				actions.add(IngredientAction.REMOVE_BOOKMARK);
+			if (typedIngredient.getItemStack().isPresent())
+				actions.add(IngredientAction.COPY_COMPONENTS);
+			if (showToggleInputCatalyst)
+				actions.add(IngredientAction.TOGGLE_CATALYST);
+			if (controlDown && screen != null && ExternalIngredientSearchHandlerRegistry.search(screen, typedIngredient, true)) {
+				actions.add(IngredientAction.SEARCH_TERMINAL);
+			}
+			BookmarkHotkeyTooltipUtil.addIngredientHotkeys(tooltip, keyBindings, Screen.hasAltDown(), controlDown, actions);
 		}
 	}
 
