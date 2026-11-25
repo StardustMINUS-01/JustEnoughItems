@@ -48,6 +48,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkGhostOverlayTargetSlots;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
+import mezz.jei.gui.compat.ae2.PatternEncodingFeedback;
 import mezz.jei.gui.input.BookmarkKeyInputs;
 import mezz.jei.gui.input.FocusedRecipe;
 import mezz.jei.gui.input.InputModifiers;
@@ -257,7 +258,7 @@ public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget 
 				() -> bookmarkList.getCollapsedRecipeIds(groupId.get()),
 				recipeUid -> bookmarkList.createRecipeLayoutDrawable(groupId.get(), recipeUid),
 				ingredientManager,
-				message -> minecraft.player.displayClientMessage(message, false)
+				PatternEncodingFeedback.INSTANCE::showMessage
 			)
 			.filter(RecipeChainPatternEncodeController.HandleResult::sent).ifPresent(result -> JeiClientSoundUtil.playClickSound()))
 			.within(bookmarkOverlay::isMouseOver));
@@ -278,10 +279,14 @@ public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget 
 			.map(clicked -> {
 				Optional<IRecipeLayoutDrawable<?>> layout = resolveSingleBookmarkPatternLayout(clicked.getElement(), clicked.getTypedIngredient());
 				return new InputAction(release -> {
-						Minecraft minecraft = Minecraft.getInstance();
 						if (layout.isEmpty()) {
-							if (minecraft.player != null) {
-								minecraft.player.displayClientMessage(Component.translatable("jei.message.ae2.pattern_encoding.no_recipe_request"), false);
+							var message = Component.translatable("jei.message.ae2.pattern_encoding.no_recipe_request");
+							var bookmark = clicked.getElement().getBookmark().orElse(null);
+							if (bookmark instanceof RecipeBookmark<?, ?> recipe) {
+								var key = new PatternEncodingFeedback.RecipeKey(recipe.getRecipeCategory().getRecipeType().getUid(), recipe.getRecipeUid());
+								PatternEncodingFeedback.INSTANCE.show(message, List.of(new PatternEncodingFeedback.Entry(key, PatternEncodingFeedback.Outcome.FAILED)));
+							} else {
+								PatternEncodingFeedback.INSTANCE.showMessage(message);
 							}
 							return;
 						}
@@ -294,11 +299,7 @@ public class BookmarkInputHandler implements mezz.jei.common.input.IInputTarget 
 							Optional.empty(),
 							() -> clicked.getElement().getBookmark().map(bookmarkList::getRecipeInputs).orElseGet(List::of),
 							ingredientManager,
-							message -> {
-								if (minecraft.player != null) {
-									minecraft.player.displayClientMessage(message, false);
-								}
-							}
+							message -> PatternEncodingFeedback.INSTANCE.showRecipeFailure(message, layout.get())
 						).filter(RecipeChainPatternEncodeController.HandleResult::sent).ifPresent(result -> JeiClientSoundUtil.playClickSound());
 					})
 					.within(clicked::isMouseOver).when(clicked.getElement()::isVisible);

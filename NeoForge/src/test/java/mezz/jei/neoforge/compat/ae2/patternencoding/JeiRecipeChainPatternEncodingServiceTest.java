@@ -4,6 +4,13 @@ import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.util.inv.AppEngInternalInventory;
+import io.netty.buffer.Unpooled;
+import mezz.jei.gui.compat.ae2.PatternEncodingFeedback.Outcome;
+import mezz.jei.neoforge.compat.ae2.patternencoding.JeiRecipeChainPatternEncodingService.PreparedEntry;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.chat.Component;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceLocation;
@@ -60,7 +67,7 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 		JeiBatchPatternEncodeResult result = JeiRecipeChainPatternEncodingService.encodeRecipeChainPatterns(null, new FakeMenu(), List.of(request));
 
 		Assertions.assertEquals(JeiPatternEncodeStopReason.NOT_PATTERN_ENCODING_TERMINAL, result.stopReason());
-		Assertions.assertEquals(1, result.notProcessedCount());
+		Assertions.assertEquals(List.of(new JeiPatternEncodeEntryResult(request.recipeTypeUid(), request.recipeUid(), JeiPatternEncodeEntryStatus.NOT_PROCESSED)), result.entries());
 	}
 
 	@ParameterizedTest
@@ -101,6 +108,124 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 		Assertions.assertEquals(JeiPatternEncodeStopReason.NONE, blanks.writePattern(destination, pattern, true));
 		Assertions.assertEquals(1, blanks.count());
 		Assertions.assertTrue(destination.getStackInSlot(0).is(Items.MAP));
+	}
+
+	@Test
+	public void encodingReplyIdentifiesTheFullInventoryEntryAndLeavesLaterRecipesUnmarked() {
+		var prepared = List.of(
+			PreparedEntry.skipped(feedbackRequest("existing"), JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT),
+			PreparedEntry.skipped(feedbackRequest("invalid"), JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE),
+			PreparedEntry.writable(feedbackRequest("first"), new ItemStack(Items.MAP)),
+			PreparedEntry.writable(feedbackRequest("second"), new ItemStack(Items.BOOK)),
+			PreparedEntry.writable(feedbackRequest("third"), new ItemStack(Items.COMPASS))
+		);
+		var source = new Slot(new SimpleContainer(1), 0, 0, 0);
+		var blanks = new JeiRecipeChainPatternEncodingService.TerminalBlankPatterns(List.of(source), Items.PAPER);
+		var destination = new AppEngInternalInventory(1);
+		var shortage = JeiRecipeChainPatternEncodingService.writePreparedEntries(prepared, blanks, destination, false);
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NO_BLANK_PATTERN, shortage.stopReason());
+		Assertions.assertEquals(List.of(Outcome.FAILED, Outcome.FAILED, Outcome.NONE, Outcome.NONE, Outcome.NONE),
+			PacketPatternEncodingResult.from(shortage).entries.stream().map(entry -> entry.outcome()).toList());
+
+		source.set(new ItemStack(Items.PAPER, 3));
+		var result = JeiRecipeChainPatternEncodingService.writePreparedEntries(prepared, blanks, destination, false);
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NO_INVENTORY_SPACE, result.stopReason());
+		Assertions.assertEquals(1, result.encodedCount());
+		Assertions.assertEquals(2, blanks.count());
+		var reply = PacketPatternEncodingResult.from(result);
+		var buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
+		try {
+			PacketPatternEncodingResult.STREAM_CODEC.encode(buffer, reply);
+			var received = PacketPatternEncodingResult.STREAM_CODEC.decode(buffer);
+			Assertions.assertEquals(reply.message, received.message);
+			String prefix = "jei.message.ae2.pattern_encoding.";
+			var separator = Component.translatableWithFallback(prefix + "separator", ", ");
+			Assertions.assertEquals(List.of(Component.translatable(prefix + "inventory_full"), separator,
+				Component.translatable(prefix + "encoded", 1), separator, Component.translatable(prefix + "existing", 1),
+				separator, Component.translatable(prefix + "invalid", 1)), received.message.getSiblings());
+			Assertions.assertEquals(List.of(Outcome.FAILED, Outcome.FAILED, Outcome.ENCODED, Outcome.INVENTORY_FULL, Outcome.NONE),
+				received.entries.stream().map(entry -> entry.outcome()).toList());
+			Assertions.assertEquals(prepared.stream().map(entry -> entry.request().recipeUid()).toList(),
+				received.entries.stream().map(entry -> entry.recipe().id()).toList());
+		} finally {
+			buffer.release();
+		}
+	}
+
+	@Test
+	public void mixedRequestKeepsConversionFailuresInTheFinalReply() {
+		var valid = feedbackRequest("valid");
+		var invalid = new JeiPatternEncodeEntryResult(valid.recipeTypeUid(), ResourceLocation.parse("test:invalid"), JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE);
+		var encoded = new JeiPatternEncodeEntryResult(valid.recipeTypeUid(), valid.recipeUid(), JeiPatternEncodeEntryStatus.ENCODED);
+		var packet = PacketEncodeRecipeChainPatterns.create(List.of(valid), List.of(invalid), true);
+		var buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
+		try {
+			Assertions.assertEquals(PacketEncodeRecipeChainPatterns.WITH_FAILURES, packet.type());
+			packet.streamCodec().encode(buffer, packet);
+			var received = PacketEncodeRecipeChainPatterns.WITH_FAILURES_CODEC.decode(buffer);
+			var merged = received.mergeFailures(JeiBatchPatternEncodeResult.fromEntries(JeiPatternEncodeStopReason.NONE, List.of(encoded)));
+			var reply = PacketPatternEncodingResult.from(merged);
+			String prefix = "jei.message.ae2.pattern_encoding.";
+			Assertions.assertEquals(List.of(Component.translatable(prefix + "encoded", 1), Component.translatableWithFallback(prefix + "separator", ", "),
+				Component.translatable(prefix + "invalid", 1)), reply.message.getSiblings());
+			Assertions.assertEquals(List.of(invalid, encoded), merged.entries());
+			Assertions.assertEquals(List.of(Outcome.FAILED, Outcome.ENCODED), reply.entries.stream().map(entry -> entry.outcome()).toList());
+
+			var stopped = received.mergeFailures(JeiBatchPatternEncodeResult.fromEntries(JeiPatternEncodeStopReason.NO_INVENTORY_SPACE,
+				List.of(new JeiPatternEncodeEntryResult(valid.recipeTypeUid(), valid.recipeUid(), JeiPatternEncodeEntryStatus.INVENTORY_FULL))));
+			Assertions.assertEquals(JeiPatternEncodeStopReason.NO_INVENTORY_SPACE, stopped.stopReason());
+			Assertions.assertEquals(1, stopped.skippedInvalidCount());
+		} finally {
+			buffer.release();
+		}
+	}
+
+	@Test
+	public void reportsAllConversionFailuresInOneLocalReply() {
+		var type = ResourceLocation.parse("test:processing");
+		var first = new JeiPatternEncodeEntryResult(type, ResourceLocation.parse("test:first"), JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE);
+		var second = new JeiPatternEncodeEntryResult(type, ResourceLocation.parse("test:second"), JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE);
+		var local = PacketPatternEncodingResult.invalidRecipes(List.of(first, second));
+		Assertions.assertEquals(List.of(Component.translatable("jei.message.ae2.pattern_encoding.invalid", 2)), local.message.getSiblings());
+		Assertions.assertEquals(List.of(first.recipeUid(), second.recipeUid()), local.entries.stream().map(entry -> entry.recipe().id()).toList());
+		Assertions.assertTrue(local.entries.stream().allMatch(entry -> entry.outcome() == Outcome.FAILED));
+	}
+
+	@Test
+	public void legacyRequestCountsFailedConversionsWithoutAnEncodablePattern() {
+		var valid = feedbackRequest("valid");
+		var invalid = new JeiPatternEncodeEntryResult(valid.recipeTypeUid(), ResourceLocation.parse("test:invalid"), JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE);
+		var buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
+		try {
+			var legacy = PacketEncodeRecipeChainPatterns.create(List.of(valid), List.of(invalid), false);
+			Assertions.assertEquals(PacketEncodeRecipeChainPatterns.TYPE, legacy.type());
+			legacy.streamCodec().encode(buffer, legacy);
+			var requests = JeiPatternEncodeRequestWire.STREAM_CODEC.apply(ByteBufCodecs.list(JeiPatternEncodeRequestWire.MAX_REQUESTS)).decode(buffer);
+			Assertions.assertEquals(List.of(invalid.recipeUid(), valid.recipeUid()), requests.stream().map(JeiPatternEncodeRequestWire::recipeUid).toList());
+			Assertions.assertNull(JeiRecipeChainPatternEncodingService.createProcessingPattern(requests.getFirst()));
+			Assertions.assertEquals(valid, requests.getLast());
+			Assertions.assertFalse(buffer.isReadable());
+		} finally {
+			buffer.release();
+		}
+	}
+
+	private static JeiPatternEncodeRequestWire feedbackRequest(String id) {
+		return new JeiPatternEncodeRequestWire(ResourceLocation.parse("test:category"), ResourceLocation.fromNamespaceAndPath("test", id),
+			JeiPatternEncodeMode.PROCESSING, List.of(), List.of(), List.of(), List.of(), null, false, false);
+	}
+
+	@Test
+	public void existingPatternMessageDescribesOneOutputOrCountsSkippedRecipes() {
+		String prefix = "jei.message.ae2.pattern_encoding.";
+		var category = ResourceLocation.parse("test:category");
+		var first = new JeiPatternEncodeEntryResult(category, ResourceLocation.parse("test:first"), JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT);
+		var second = new JeiPatternEncodeEntryResult(category, ResourceLocation.parse("test:second"), JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT);
+		var single = JeiBatchPatternEncodeResult.fromEntries(JeiPatternEncodeStopReason.NONE, List.of(first));
+		var batch = JeiBatchPatternEncodeResult.fromEntries(JeiPatternEncodeStopReason.NONE, List.of(first, second));
+		Assertions.assertEquals(List.of(Component.translatableWithFallback(prefix + "existing_single", "This output already has a pattern")),
+			PacketPatternEncodingResult.from(single).message.getSiblings());
+		Assertions.assertEquals(List.of(Component.translatable(prefix + "existing", 2)), PacketPatternEncodingResult.from(batch).message.getSiblings());
 	}
 
 	@ParameterizedTest

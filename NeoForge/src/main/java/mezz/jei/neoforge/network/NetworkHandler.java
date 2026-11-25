@@ -34,6 +34,7 @@ import mezz.jei.common.network.packets.legacy.PacketRecipeTransfer;
 import mezz.jei.common.network.packets.legacy.PacketRecipeTransferCounted;
 import mezz.jei.neoforge.events.PermanentEventSubscriptions;
 import mezz.jei.neoforge.compat.ae2.patternencoding.PacketEncodeRecipeChainPatterns;
+import mezz.jei.neoforge.compat.ae2.patternencoding.PacketPatternEncodingResult;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -104,7 +105,9 @@ public class NetworkHandler {
 				.playToClient(PacketRecipeTransferResult.TYPE, PacketRecipeTransferResult.STREAM_CODEC, wrapClientHandler(PacketRecipeTransferResult::process))
 				.playToClient(PacketCraftingGridCraftAck.TYPE, PacketCraftingGridCraftAck.STREAM_CODEC, wrapClientHandler(PacketCraftingGridCraftAck::process));
 			if (CompatUtil.isModLoaded("ae2")) {
+				registrar.playToClient(PacketPatternEncodingResult.TYPE, PacketPatternEncodingResult.STREAM_CODEC, wrapClientHandler(PacketPatternEncodingResult::process));
 				registrar.playToServer(PacketEncodeRecipeChainPatterns.TYPE, PacketEncodeRecipeChainPatterns.STREAM_CODEC, wrapServerHandler(PacketEncodeRecipeChainPatterns::process));
+				registrar.playToServer(PacketEncodeRecipeChainPatterns.WITH_FAILURES, PacketEncodeRecipeChainPatterns.WITH_FAILURES_CODEC, wrapServerHandler(PacketEncodeRecipeChainPatterns::process));
 			}
 		});
 	}

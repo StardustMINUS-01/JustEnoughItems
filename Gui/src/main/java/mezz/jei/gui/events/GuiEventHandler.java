@@ -144,6 +144,7 @@ public class GuiEventHandler {
 		}
 		drawnOnBackground = false;
 		drawPostForeground(screen, guiProperties, guiGraphics, mouseX, mouseY);
+		mezz.jei.gui.compat.ae2.PatternEncodingFeedback.INSTANCE.draw(guiGraphics, Minecraft.getInstance().font);
 	}
 
 	private void updateOverlayProperties(Screen screen, @Nullable IGuiProperties guiProperties) {

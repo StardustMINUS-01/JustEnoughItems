@@ -34,6 +34,7 @@ import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.history.LookupHistoryGridConfig;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkChainSlotVisuals;
+import mezz.jei.gui.compat.ae2.PatternEncodingFeedback;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotDisplayMode;
 import mezz.jei.gui.overlay.bookmarks.BookmarkSlotVisualContext;
 import mezz.jei.gui.overlay.bookmarks.ScrollStep;
@@ -326,13 +327,16 @@ public final class OverlayHelper {
 		bookmarkListGridNavigation.setSlotVisualsResolver(element -> element.element()
 			.getBookmark()
 			.flatMap(bookmarkList::getDisplayEntry)
-			.flatMap(entry -> BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
-				getBookmarkSlotDisplayMode(),
-				getHoveredBookmarkDisplayEntry(bookmarkList, element),
-				element.rowIndex(),
-				element.hoveredRowIndex(),
-				clientConfig.bookmarkRecipeMarkerMode().get()
-			)))
+			.flatMap(entry -> {
+				var visuals = BookmarkChainSlotVisuals.create(entry, new BookmarkSlotVisualContext(
+					getBookmarkSlotDisplayMode(),
+					getHoveredBookmarkDisplayEntry(bookmarkList, element),
+					element.rowIndex(),
+					element.hoveredRowIndex(),
+					clientConfig.bookmarkRecipeMarkerMode().get()
+				));
+				return PatternEncodingFeedback.INSTANCE.applyHighlight(entry.metadata(), visuals);
+			})
 		);
 
 		IIngredientGridConfig lookupHistoryGridConfig = new LookupHistoryGridConfig(

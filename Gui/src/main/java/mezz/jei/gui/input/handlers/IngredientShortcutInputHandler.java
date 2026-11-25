@@ -22,6 +22,7 @@ import mezz.jei.gui.bookmarks.hotkeys.BookmarkHotkeySubject;
 import mezz.jei.gui.compat.ExternalIngredientSearchHandlerRegistry;
 import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridgeRegistry;
 import mezz.jei.gui.compat.ae2.RecipeChainPatternEncodeController;
+import mezz.jei.gui.compat.ae2.PatternEncodingFeedback;
 import mezz.jei.gui.input.IngredientFocusSource;
 import mezz.jei.common.input.IInputTarget;
 import mezz.jei.common.input.interaction.IInputInteraction;
@@ -203,16 +204,17 @@ public class IngredientShortcutInputHandler implements IInputTarget {
 			return Optional.empty();
 		}
 		return Optional.of(new InputAction(release -> RecipeChainPatternEncodeController.handleSingleRecipe(
-			release,
-			keyBindings.getEncodeRecipeChainPatterns(),
-			menu,
-			bridge,
-			recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::layout),
-			recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::slotUnderMouse)
-				.map(mezz.jei.api.gui.inputs.RecipeSlotUnderMouse::slot),
-			ingredientManager,
-			this::displayClientMessage
-		))
+				release,
+				keyBindings.getEncodeRecipeChainPatterns(),
+				menu,
+				bridge,
+				recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::layout),
+				recipeUnderMouse.map(RecipeGuiLayouts.RecipeLayoutUnderMouse::slotUnderMouse)
+					.map(mezz.jei.api.gui.inputs.RecipeSlotUnderMouse::slot),
+				ingredientManager,
+				message -> PatternEncodingFeedback.INSTANCE.showRecipeFailure(message, recipeUnderMouse.get().layout())
+			)
+			.filter(RecipeChainPatternEncodeController.HandleResult::sent).ifPresent(result -> JeiClientSoundUtil.playClickSound()))
 			.within(recipeUnderMouse.get().slotUnderMouse()::isMouseOver));
 	}
 

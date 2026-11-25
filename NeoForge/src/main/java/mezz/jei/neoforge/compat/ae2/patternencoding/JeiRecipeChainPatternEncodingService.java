@@ -14,7 +14,6 @@ import appeng.menu.me.items.PatternEncodingTermMenu;
 import appeng.util.CraftingRecipeUtil;
 import appeng.util.inv.PlayerInternalInventory;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -54,66 +53,38 @@ public final class JeiRecipeChainPatternEncodingService {
 			return stoppedBeforeProcessing(requests, JeiPatternEncodeStopReason.NOT_PATTERN_ENCODING_TERMINAL);
 		}
 
-		int encodedCount = 0;
-		int skippedExistingCount = 0;
-		int skippedInvalidCount = 0;
-		JeiPatternEncodeStopReason stopReason = JeiPatternEncodeStopReason.NONE;
-		List<JeiPatternEncodeEntryResult> entries = new ArrayList<>(requests.size());
 		List<PreparedEntry> preparedEntries = prepareEntries(player, patternMenu, requests);
-
-		for (PreparedEntry preparedEntry : preparedEntries) {
-			if (preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT) {
-				skippedExistingCount++;
-			} else if (preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_CATALYST
-				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE
-				|| preparedEntry.status == JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN
-			) {
-				skippedInvalidCount++;
-			}
-		}
-
 		List<Slot> patternSlots = new ArrayList<>(patternMenu.getSlots(SlotSemantics.BLANK_PATTERN));
 		patternSlots.addAll(patternMenu.getSlots(SlotSemantics.ENCODED_PATTERN));
 		TerminalBlankPatterns blanks = new TerminalBlankPatterns(patternSlots, AEItems.BLANK_PATTERN.asItem());
-		boolean creative = player.getAbilities().instabuild;
-		PlayerInternalInventory playerInv = new PlayerInternalInventory(player.getInventory());
+		return writePreparedEntries(preparedEntries, blanks, new PlayerInternalInventory(player.getInventory()), player.getAbilities().instabuild);
+	}
+
+	static JeiBatchPatternEncodeResult writePreparedEntries(List<PreparedEntry> preparedEntries, TerminalBlankPatterns blanks,
+		InternalInventory playerInv, boolean creative) {
 		if (!creative && blanks.count() < countWritable(preparedEntries)) {
-			entries.addAll(entriesForInsufficientBlankPatterns(preparedEntries));
-			return new JeiBatchPatternEncodeResult(
-				0,
-				skippedExistingCount,
-				skippedInvalidCount,
-				countNotProcessed(entries),
-				JeiPatternEncodeStopReason.NO_BLANK_PATTERN,
-				entries
-			);
+			return JeiBatchPatternEncodeResult.fromEntries(JeiPatternEncodeStopReason.NO_BLANK_PATTERN, entriesForInsufficientBlankPatterns(preparedEntries));
 		}
 
-		for (int i = 0; i < preparedEntries.size(); i++) {
-			PreparedEntry preparedEntry = preparedEntries.get(i);
-			if (preparedEntry.status != JeiPatternEncodeEntryStatus.ENCODED) {
-				entries.add(preparedEntry.toResult());
-				continue;
-			}
-
-			stopReason = blanks.writePattern(playerInv, preparedEntry.encodedPattern, creative);
+		var stopReason = JeiPatternEncodeStopReason.NONE;
+		List<JeiPatternEncodeEntryResult> entries = new ArrayList<>(preparedEntries.size());
+		for (var preparedEntry : preparedEntries) {
 			if (stopReason != JeiPatternEncodeStopReason.NONE) {
-				addNotProcessedEntries(entries, requests, i);
-				break;
+				entries.add(entry(preparedEntry.request, JeiPatternEncodeEntryStatus.NOT_PROCESSED));
+			} else if (preparedEntry.status != JeiPatternEncodeEntryStatus.ENCODED) {
+				entries.add(preparedEntry.toResult());
+			} else {
+				stopReason = blanks.writePattern(playerInv, preparedEntry.encodedPattern, creative);
+				var status = switch (stopReason) {
+					case NONE -> JeiPatternEncodeEntryStatus.ENCODED;
+					case NO_INVENTORY_SPACE -> JeiPatternEncodeEntryStatus.INVENTORY_FULL;
+					case NO_BLANK_PATTERN -> JeiPatternEncodeEntryStatus.FAILED_NO_BLANK_PATTERN;
+					case NOT_PATTERN_ENCODING_TERMINAL -> throw new IllegalStateException("Unexpected write result: " + stopReason);
+				};
+				entries.add(entry(preparedEntry.request, status));
 			}
-
-			encodedCount++;
-			entries.add(entry(preparedEntry.request, JeiPatternEncodeEntryStatus.ENCODED, null));
 		}
-
-		return new JeiBatchPatternEncodeResult(
-			encodedCount,
-			skippedExistingCount,
-			skippedInvalidCount,
-			countNotProcessed(entries),
-			stopReason,
-			entries
-		);
+		return JeiBatchPatternEncodeResult.fromEntries(stopReason, entries);
 	}
 
 	private static List<PreparedEntry> prepareEntries(
@@ -126,27 +97,26 @@ public final class JeiRecipeChainPatternEncodingService {
 		Predicate<AEKey> networkHasPattern = getNetworkPatternLookup(menu);
 
 		for (JeiPatternEncodeRequestWire request : requests) {
-			String catalystValidationFailure = validateCatalysts(request);
-			if (catalystValidationFailure != null) {
-				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_INVALID_CATALYST, catalystValidationFailure));
+			if (validateCatalysts(request) != null) {
+				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_INVALID_CATALYST));
 				continue;
 			}
 
 			ItemStack encodedPattern = createEncodedPattern(player.level(), request);
 			if (encodedPattern == null) {
-				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE, "Unable to encode recipe"));
+				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE));
 				continue;
 			}
 
 			IPatternDetails details = PatternDetailsHelper.decodePattern(encodedPattern, player.level());
 			if (details == null || details.getOutputs().isEmpty()) {
-				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN, "Encoded pattern is invalid"));
+				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_INVALID_PATTERN));
 				continue;
 			}
 
 			GenericStack primaryOutput = details.getPrimaryOutput();
 			if (!markPrimaryOutputIfNew(primaryOutput.what(), knownPrimaryOutputs, networkHasPattern)) {
-				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT, "Pattern with same primary output already exists"));
+				preparedEntries.add(PreparedEntry.skipped(request, JeiPatternEncodeEntryStatus.SKIPPED_EXISTING_PRIMARY_OUTPUT));
 				continue;
 			}
 
@@ -170,7 +140,7 @@ public final class JeiRecipeChainPatternEncodingService {
 		List<JeiPatternEncodeEntryResult> entries = new ArrayList<>(preparedEntries.size());
 		for (PreparedEntry preparedEntry : preparedEntries) {
 			if (preparedEntry.status == JeiPatternEncodeEntryStatus.ENCODED) {
-				entries.add(entry(preparedEntry.request, JeiPatternEncodeEntryStatus.NOT_PROCESSED, null));
+				entries.add(entry(preparedEntry.request, JeiPatternEncodeEntryStatus.NOT_PROCESSED));
 			} else {
 				entries.add(preparedEntry.toResult());
 			}
@@ -596,63 +566,33 @@ public final class JeiRecipeChainPatternEncodingService {
 		return stack != null && stack.amount() > 0;
 	}
 
-	private static JeiPatternEncodeEntryResult entry(
-		JeiPatternEncodeRequestWire request,
-		JeiPatternEncodeEntryStatus status,
-		@Nullable String message
-	) {
-		return new JeiPatternEncodeEntryResult(
-			request.recipeUid(),
-			status,
-			message != null ? Component.literal(message) : null
-		);
-	}
-
-	private static void addNotProcessedEntries(
-		List<JeiPatternEncodeEntryResult> entries,
-		List<JeiPatternEncodeRequestWire> requests,
-		int firstNotProcessed
-	) {
-		for (int index = firstNotProcessed; index < requests.size(); index++) {
-			entries.add(entry(requests.get(index), JeiPatternEncodeEntryStatus.NOT_PROCESSED, null));
-		}
-	}
-
-	private static int countNotProcessed(List<JeiPatternEncodeEntryResult> entries) {
-		int count = 0;
-		for (JeiPatternEncodeEntryResult entry : entries) {
-			if (entry.status() == JeiPatternEncodeEntryStatus.NOT_PROCESSED) {
-				count++;
-			}
-		}
-		return count;
+	private static JeiPatternEncodeEntryResult entry(JeiPatternEncodeRequestWire request, JeiPatternEncodeEntryStatus status) {
+		return new JeiPatternEncodeEntryResult(request.recipeTypeUid(), request.recipeUid(), status);
 	}
 
 	private static JeiBatchPatternEncodeResult stoppedBeforeProcessing(
 		List<JeiPatternEncodeRequestWire> requests,
 		JeiPatternEncodeStopReason stopReason
 	) {
-		List<JeiPatternEncodeEntryResult> entries = new ArrayList<>(requests.size());
-		addNotProcessedEntries(entries, requests, 0);
-		return new JeiBatchPatternEncodeResult(0, 0, 0, requests.size(), stopReason, entries);
+		return JeiBatchPatternEncodeResult.fromEntries(stopReason, requests.stream()
+			.map(request -> entry(request, JeiPatternEncodeEntryStatus.NOT_PROCESSED)).toList());
 	}
 
-	private record PreparedEntry(
+	record PreparedEntry(
 		JeiPatternEncodeRequestWire request,
 		JeiPatternEncodeEntryStatus status,
-		@Nullable ItemStack encodedPattern,
-		@Nullable String message
+		@Nullable ItemStack encodedPattern
 	) {
 		static PreparedEntry writable(JeiPatternEncodeRequestWire request, ItemStack encodedPattern) {
-			return new PreparedEntry(request, JeiPatternEncodeEntryStatus.ENCODED, encodedPattern, null);
+			return new PreparedEntry(request, JeiPatternEncodeEntryStatus.ENCODED, encodedPattern);
 		}
 
-		static PreparedEntry skipped(JeiPatternEncodeRequestWire request, JeiPatternEncodeEntryStatus status, @Nullable String message) {
-			return new PreparedEntry(request, status, null, message);
+		static PreparedEntry skipped(JeiPatternEncodeRequestWire request, JeiPatternEncodeEntryStatus status) {
+			return new PreparedEntry(request, status, null);
 		}
 
 		JeiPatternEncodeEntryResult toResult() {
-			return entry(request, status, message);
+			return entry(request, status);
 		}
 	}
 }

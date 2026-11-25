@@ -12,12 +12,16 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.neoforge.NeoForgeTypes;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.common.Internal;
 import mezz.jei.gui.compat.ae2.JeiPatternCatalyst;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeRequest;
 import mezz.jei.gui.compat.ae2.JeiPatternStack;
 import mezz.jei.neoforge.compat.ae2.patternencoding.JeiPatternCatalystWire;
+import mezz.jei.neoforge.compat.ae2.patternencoding.JeiPatternEncodeEntryResult;
+import mezz.jei.neoforge.compat.ae2.patternencoding.JeiPatternEncodeEntryStatus;
 import mezz.jei.neoforge.compat.ae2.patternencoding.JeiPatternEncodeRequestWire;
 import mezz.jei.neoforge.compat.ae2.patternencoding.PacketEncodeRecipeChainPatterns;
+import mezz.jei.neoforge.compat.ae2.patternencoding.PacketPatternEncodingResult;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
@@ -33,6 +37,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -96,9 +102,9 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 	}
 
 	@Override
-	public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+	public SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
 		if (requests.isEmpty() || !isPatternEncodingTerminal(menu)) {
-			return false;
+			return SendResult.UNAVAILABLE;
 		}
 		return access.sendRequests(menu, requests);
 	}
@@ -132,7 +138,28 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 			return false;
 		}
 
-		boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests);
+		SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests);
+	}
+
+	static SendResult convertAndSend(List<JeiPatternEncodeRequest> requests,
+		BiConsumer<List<JeiPatternEncodeRequestWire>, List<JeiPatternEncodeEntryResult>> send,
+		Consumer<PacketPatternEncodingResult> reportInvalid) {
+		List<JeiPatternEncodeRequestWire> converted = new ArrayList<>(requests.size());
+		List<JeiPatternEncodeEntryResult> failures = new ArrayList<>();
+		for (var request : requests) {
+			try {
+				converted.add(DirectAccess.convert(request));
+			} catch (RuntimeException e) {
+				failures.add(new JeiPatternEncodeEntryResult(request.recipeTypeUid(), request.recipeUid(), JeiPatternEncodeEntryStatus.SKIPPED_INVALID_RECIPE));
+				LOGGER.warn("Failed to convert recipe chain pattern request {}", request.recipeUid(), e);
+			}
+		}
+		if (converted.isEmpty()) {
+			reportInvalid.accept(PacketPatternEncodingResult.invalidRecipes(failures));
+			return SendResult.INVALID_RECIPES;
+		}
+		send.accept(converted, failures);
+		return SendResult.SENT;
 	}
 
 	private static final class DirectAccess implements Access {
@@ -165,23 +192,19 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 		}
 
 		@Override
-		public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
-			List<JeiPatternEncodeRequestWire> convertedRequests = new ArrayList<>(requests.size());
-			for (JeiPatternEncodeRequest request : requests) {
-				try {
-					convertedRequests.add(convert(request));
-				} catch (RuntimeException e) {
-					LOGGER.warn("Failed to convert recipe chain pattern request {}", request.recipeUid(), e);
-				}
+		public SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+			var connection = Internal.getServerConnection();
+			if (!connection.canSendPacket(PacketEncodeRecipeChainPatterns.TYPE)) {
+				return SendResult.UNAVAILABLE;
 			}
-			if (convertedRequests.isEmpty()) {
-				return false;
-			}
-			PacketDistributor.sendToServer(new PacketEncodeRecipeChainPatterns(convertedRequests));
-			return true;
+			return convertAndSend(requests, (converted, failures) -> {
+				boolean supportsFailures = failures.isEmpty() || connection.canSendPacket(PacketEncodeRecipeChainPatterns.WITH_FAILURES);
+				var packet = PacketEncodeRecipeChainPatterns.create(converted, failures, supportsFailures);
+				PacketDistributor.sendToServer(packet);
+			}, PacketPatternEncodingResult::show);
 		}
 
-		private JeiPatternEncodeRequestWire convert(JeiPatternEncodeRequest request) {
+		private static JeiPatternEncodeRequestWire convert(JeiPatternEncodeRequest request) {
 			return new JeiPatternEncodeRequestWire(
 				request.recipeTypeUid(),
 				request.recipeUid(),
@@ -196,7 +219,7 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 			);
 		}
 
-		private List<@Nullable GenericStack> convertStacks(List<@Nullable JeiPatternStack> stacks) {
+		private static List<@Nullable GenericStack> convertStacks(List<@Nullable JeiPatternStack> stacks) {
 			List<@Nullable GenericStack> converted = new ArrayList<>(stacks.size());
 			for (JeiPatternStack stack : stacks) {
 				converted.add(convertStack(stack));
@@ -204,7 +227,7 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 			return converted;
 		}
 
-		private @Nullable GenericStack convertStack(@Nullable JeiPatternStack stack) {
+		private static @Nullable GenericStack convertStack(@Nullable JeiPatternStack stack) {
 			if (stack == null) {
 				return null;
 			}
@@ -226,7 +249,7 @@ public class Ae2RecipeChainPatternEncodingBridge implements mezz.jei.gui.compat.
 			};
 		}
 
-		private List<JeiPatternCatalystWire> convertCatalysts(List<JeiPatternCatalyst> catalysts) {
+		private static List<JeiPatternCatalystWire> convertCatalysts(List<JeiPatternCatalyst> catalysts) {
 			List<JeiPatternCatalystWire> converted = new ArrayList<>(catalysts.size());
 			for (JeiPatternCatalyst catalyst : catalysts) {
 				GenericStack stack = convertStack(catalyst.stack());

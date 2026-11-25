@@ -75,6 +75,7 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 
 	@Override
 	public void onRuntimeUnavailable() {
+		mezz.jei.gui.compat.ae2.PatternEncodingFeedback.INSTANCE.clear();
 		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.stop();
 		mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.clear();
 		mezz.jei.common.Internal.getOptionalJeiRuntime().ifPresent(runtime -> {

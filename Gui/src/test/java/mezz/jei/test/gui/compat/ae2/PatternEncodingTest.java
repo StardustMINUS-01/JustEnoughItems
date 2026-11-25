@@ -457,6 +457,34 @@ public class PatternEncodingTest {
 		Assertions.assertEquals(execute ? 1 : 0, bridge.sentRequests.size());
 	}
 
+	@ParameterizedTest
+	@EnumSource(Ae2RecipeChainPatternEncodingBridge.SendResult.class)
+	public void reportsSendFailureOnlyWhenTheBridgeHasNoResult(Ae2RecipeChainPatternEncodingBridge.SendResult outcome) {
+		TestBridge bridge = new TestBridge(true, true);
+		bridge.sendResult = outcome;
+		List<Component> messages = new ArrayList<>();
+		var result = RecipeChainPatternEncodeController.handle(
+				input(),
+				new TestKeyMapping(GLFW.GLFW_KEY_Q),
+				new TestMenu(),
+				Optional.of("group"),
+				true,
+				bridge,
+				() -> List.of(
+					input(0, result(PROCESSING_TYPE, PROCESSING_RECIPE, key("gold_ingot"))),
+					input(1, ingredient(PROCESSING_TYPE, PROCESSING_RECIPE, key("iron_ingot")))
+				),
+				Set::of,
+				id -> Optional.empty(),
+				INGREDIENT_MANAGER,
+				messages::add
+			)
+			.orElseThrow();
+		Assertions.assertEquals(outcome == Ae2RecipeChainPatternEncodingBridge.SendResult.SENT, result.sent());
+		Assertions.assertEquals(outcome == Ae2RecipeChainPatternEncodingBridge.SendResult.UNAVAILABLE
+			? List.of(Component.translatable("jei.message.ae2.pattern_encoding.send_failed")) : List.of(), messages);
+	}
+
 	private static Stream<Arguments> inputEvents() {
 		InputConstants.Key mouse = InputConstants.Type.MOUSE.getOrCreate(3);
 		InputConstants.Key keyboard = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q);
@@ -712,6 +740,7 @@ public class PatternEncodingTest {
 	private static final class TestBridge implements Ae2RecipeChainPatternEncodingBridge {
 		private final boolean available;
 		private final boolean terminal;
+		private SendResult sendResult = SendResult.SENT;
 		private final List<JeiPatternEncodeRequest> sentRequests = new ArrayList<>();
 
 		private TestBridge(boolean available, boolean terminal) {
@@ -730,9 +759,9 @@ public class PatternEncodingTest {
 		}
 
 		@Override
-		public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+		public SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
 			sentRequests.addAll(requests);
-			return true;
+			return sendResult;
 		}
 	}
 

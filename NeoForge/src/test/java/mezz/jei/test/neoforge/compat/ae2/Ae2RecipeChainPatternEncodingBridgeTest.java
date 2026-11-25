@@ -8,6 +8,7 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.gui.compat.ae2.Ae2RecipeChainPatternEncodingBridge.SendResult;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeRequest;
 import mezz.jei.neoforge.compat.ae2.Ae2RecipeChainPatternEncodingBridge;
@@ -106,7 +107,7 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 		TestAccess access = new TestAccess(terminal, sendSucceeds);
 		Ae2RecipeChainPatternEncodingBridge bridge = new Ae2RecipeChainPatternEncodingBridge(access);
 
-		Assertions.assertEquals(expected, bridge.sendRequests(null, empty ? List.of() : List.of(request())));
+		Assertions.assertEquals(expected ? SendResult.SENT : SendResult.UNAVAILABLE, bridge.sendRequests(null, empty ? List.of() : List.of(request())));
 		Assertions.assertEquals(expectedCalls, access.sentRequests);
 	}
 
@@ -201,12 +202,9 @@ public class Ae2RecipeChainPatternEncodingBridgeTest {
 		}
 
 		@Override
-		public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+		public SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
 			sentRequests++;
-			if (!sendSucceeds) {
-				return false;
-			}
-			return true;
+			return sendSucceeds ? SendResult.SENT : SendResult.UNAVAILABLE;
 		}
 
 		@Override

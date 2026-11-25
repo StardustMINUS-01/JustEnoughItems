@@ -19,10 +19,12 @@ public interface Ae2RecipeChainPatternEncodingBridge {
 		}
 
 		@Override
-		public boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
-			return false;
+		public SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests) {
+			return SendResult.UNAVAILABLE;
 		}
 	};
+
+	enum SendResult { SENT, UNAVAILABLE, INVALID_RECIPES }
 
 	boolean isAvailable();
 
@@ -32,5 +34,5 @@ public interface Ae2RecipeChainPatternEncodingBridge {
 		return false;
 	}
 
-	boolean sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests);
+	SendResult sendRequests(AbstractContainerMenu menu, List<JeiPatternEncodeRequest> requests);
 }

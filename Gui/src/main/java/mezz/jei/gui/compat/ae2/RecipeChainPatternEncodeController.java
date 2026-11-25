@@ -80,8 +80,7 @@ public final class RecipeChainPatternEncodeController {
 			messageSink.accept(Component.translatable("jei.message.ae2.pattern_encoding.no_requests"));
 			return Optional.of(new HandleResult(true, false));
 		}
-		boolean sent = bridge.sendRequests(menu, result.requests());
-		return Optional.of(new HandleResult(true, sent));
+		return sendRequests(menu, bridge, result.requests(), messageSink);
 	}
 
 	public static Optional<HandleResult> handleSingleRecipe(
@@ -130,8 +129,16 @@ public final class RecipeChainPatternEncodeController {
 			messageSink.accept(Component.translatable("jei.message.ae2.pattern_encoding.no_recipe_request"));
 			return Optional.of(new HandleResult(true, false));
 		}
-		boolean sent = bridge.sendRequests(menu, result.requests());
-		return Optional.of(new HandleResult(true, sent));
+		return sendRequests(menu, bridge, result.requests(), messageSink);
+	}
+
+	private static Optional<HandleResult> sendRequests(AbstractContainerMenu menu, Ae2RecipeChainPatternEncodingBridge bridge,
+		List<JeiPatternEncodeRequest> requests, Consumer<Component> messageSink) {
+		var result = bridge.sendRequests(menu, requests);
+		if (result == Ae2RecipeChainPatternEncodingBridge.SendResult.UNAVAILABLE) {
+			messageSink.accept(Component.translatable("jei.message.ae2.pattern_encoding.send_failed"));
+		}
+		return Optional.of(new HandleResult(true, result == Ae2RecipeChainPatternEncodingBridge.SendResult.SENT));
 	}
 
 	public record HandleResult(boolean handled, boolean sent) {
