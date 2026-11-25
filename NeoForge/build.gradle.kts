@@ -1,5 +1,4 @@
 import mezz.jei.gradle.WriteClientOptions
-import mezz.jei.gradle.externalSourceSetClasspath
 import mezz.jei.gradle.optionalGradleProperty
 import mezz.jei.gradle.gradleProperty
 import org.gradle.api.publish.maven.internal.publication.MavenPublicationInternal
@@ -19,10 +18,6 @@ plugins {
 	id("net.mezzdev.modshade")
 }
 
-repositories {
-    google { content { includeModule("com.android.tools", "r8") } }
-}
-
 // gradle.properties
 val curseHomepageUrl = gradleProperty("curseHomepageUrl")
 val curseProjectId = gradleProperty("curseProjectId")
@@ -39,8 +34,6 @@ val mezzConfigModrinthProjectId = gradleProperty("mezzConfigModrinthProjectId")
 val mezzConfigGuiCurseForgeProjectSlug = gradleProperty("mezzConfigGuiCurseForgeProjectSlug")
 val mezzConfigGuiModrinthProjectId = gradleProperty("mezzConfigGuiModrinthProjectId")
 val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
-val mezzConfigVersion = gradleProperty("mezzConfigVersion")
-val mezzConfigVersionRange = gradleProperty("mezzConfigVersionRange")
 val mezzConfigApiDependency: String by rootProject.extra
 val mezzConfigNeoForgeDependency: String by rootProject.extra
 val mezzConfigGuiApiDependency: String by rootProject.extra
@@ -88,6 +81,7 @@ sourceSets {
 		runtimeClasspath += sourceSets.main.get().output
 	}
 	create("clientGameTest") {
+		compileClasspath += sourceSets.main.get().output
 		java.srcDir(project(":Common").layout.projectDirectory.dir("src/testFixtures/java"))
 		java.srcDir(commonClientTestFixturesSource)
 	}
@@ -177,6 +171,7 @@ val clientRecipeSyncTestProperty = "jei.clientRecipeSyncTest"
 val clientRecipeSyncTestRunName = "clientRecipeSyncTest"
 val clientResourcePackName = "jei-client-test-pack"
 val clientRecipeSyncTestCaseRuns = listOf(
+	"clientInspectionTest" to "inspection",
 	"clientRecipeSyncSingleplayer" to "singleplayer",
 	"clientRecipeSyncNeoForgeServerWithJei" to "neoforgeServerWithJei",
 	"clientRecipeSyncNeoForgeServerWithoutJei" to "neoforgeServerWithoutJei",
@@ -203,12 +198,6 @@ fun Configuration.singleFileContents(): Provider<String> =
 dependencies {
 	compileOnly(mezzConfigApiDependency)
 	runtimeOnly(mezzConfigNeoForgeDependency)
-	jarJar(mezzConfigNeoForgeDependency) {
-		version {
-			strictly(mezzConfigVersionRange)
-			prefer(mezzConfigVersion)
-		}
-	}
 	compileOnly(mezzConfigGuiApiDependency)
 	runtimeOnly(mezzConfigGuiNeoForgeDependency)
 	dependencyProjects.forEach {
@@ -470,26 +459,7 @@ val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
 	archiveClassifier.set("sources")
 }
 
-// Shared API annotations are compile-only and absent from the loader runtime classpath.
-val r8Libraries = configurations.create("r8Libraries") {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-}
-dependencies {
-    add(r8Libraries.name, "com.google.code.findbugs:jsr305:3.0.2")
-    // AE2's screen signatures reference GuideME, which Modrinth's POM does not declare.
-    add(r8Libraries.name, "maven.modrinth:guideme:21.1.1")
-}
-
-val r8LibraryClasspath = externalSourceSetClasspath(listOf(sourceSets.main.get(), apiSourceSet))
-    .minus(commonApiSourceSet.output)
-
 val shadedJar = modShade.shadeJar()
-shadedJar.configure {
-    shrink.set(true)
-    shrinkLibraryClasspath.setFrom(r8LibraryClasspath.minus(project.files(configurations)), r8Libraries)
-    shrinkRuleFiles.from(rootProject.layout.projectDirectory.file("config/lucene-r8.pro"))
-}
 apply(from = "../gradle/verify-jar-bytecode.gradle")
 val shadedSourcesJar = modShade.shadeSourcesJar()
 
@@ -594,6 +564,7 @@ publishing {
 			artifact(shadedSourcesJar)
 
 			val dependencyInfos = listOf(
+				dependencyInfo(mezzConfigNeoForgeDependency) + ("scope" to "runtime"),
 				dependencyInfo(mezzConfigGuiNeoForgeDependency) + ("optional" to "true")
 			) + dependencyProjects.map {
 				mapOf(

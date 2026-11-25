@@ -5,6 +5,8 @@ import mezz.jei.test.client.ClientTestUtil;
 import mezz.jei.common.Internal;
 import mezz.jei.common.network.ClientConnectionHelper;
 import mezz.jei.test.lib.JUnitXmlTestReporter;
+import mezz.jei.test.client.FakeMenuClientTest;
+import mezz.jei.test.client.SpriteRenderingTest;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.resources.ResourceLocation;
@@ -67,6 +69,8 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 		try {
 			JeiNeoForgeClientResourceTests.run();
 			LOGGER.info("JEI NeoForge client resource test passed");
+			JUnitXmlTestReporter.runAndReport("neoforge-client-rendering", "arrowSprites", () -> ClientTestUtil.runOnClient(SpriteRenderingTest::run, Duration.ofSeconds(30)));
+			LOGGER.info("JEI NeoForge arrow rendering test passed");
 			testName = TestCase.fromSystemPropertyId();
 			for (TestCase currentTestCase : TestCase.fromSystemProperty()) {
 				testName = currentTestCase.displayName;
@@ -86,8 +90,12 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 	}
 
 	private static void runSingleplayerTestCase(String name, Runnable assertions) {
+		runSingleplayerTestCase(name, GameType.CREATIVE, assertions);
+	}
+
+	private static void runSingleplayerTestCase(String name, GameType gameType, Runnable assertions) {
 		LOGGER.info("Starting JEI NeoForge client recipe sync test: {}", name);
-		try (SingleplayerWorld ignored = SingleplayerWorld.create()) {
+		try (SingleplayerWorld ignored = SingleplayerWorld.create(gameType)) {
 			assertions.run();
 		}
 		assertJeiClientStateCleared(name);
@@ -282,6 +290,16 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 	}
 
 	private enum TestCase {
+		INSPECTION("inspection", "NeoForge inspection API") {
+			@Override
+			public void run() {
+				runSingleplayerTestCase(displayName(), GameType.SURVIVAL, () -> {
+					assertSyncedRecipesFromSingleplayer();
+					RecipeIngredientNavigationTest.run();
+					JeiNeoForgeInspectionTests.run();
+				});
+			}
+		},
 		SINGLEPLAYER("singleplayer", "NeoForge singleplayer") {
 			@Override
 			public void run() {
@@ -289,6 +307,9 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 					assertSyncedRecipesFromSingleplayer();
 					JeiNeoForgeClientTextInputTests.run();
 					JeiNeoForgeClientChatTooltipTests.run();
+					FakeMenuClientTest.run(ClientTestUtil::runOnClient, condition -> ClientTestUtil.waitUntil(
+						() -> ClientTestUtil.computeOnClient(condition::test), ASSERTION_TIMEOUT, () -> "Timed out waiting for fake-menu player replacement"
+					));
 				});
 			}
 		},
@@ -367,12 +388,12 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 			this.levelId = levelId;
 		}
 
-		public static SingleplayerWorld create() {
+		public static SingleplayerWorld create(GameType gameType) {
 			String levelId = "jei-client-test-" + UUID.randomUUID();
 			ClientTestUtil.runOnClient(client -> {
 				LevelSettings levelSettings = new LevelSettings(
 					"JEI Client Test",
-					GameType.CREATIVE,
+					gameType,
 					false,
 					Difficulty.NORMAL,
 					true,
@@ -383,9 +404,10 @@ public final class JeiNeoForgeClientRecipeSyncTests {
 					.createFreshLevel(levelId, levelSettings, WorldOptions.defaultWithRandomSeed(), WorldPresets::createNormalWorldDimensions, new TitleScreen());
 			}, WORLD_LOAD_TIMEOUT);
 			ClientTestUtil.waitUntil(
-				() -> ClientTestUtil.computeOnClient(client -> client.level != null && client.hasSingleplayerServer()),
+				() -> ClientTestUtil.computeOnClient(client -> client.level != null && client.player != null &&
+					client.hasSingleplayerServer() && client.levelRenderer.isSectionCompiled(client.player.blockPosition())),
 				ASSERTION_TIMEOUT,
-				() -> "Timed out creating integrated server world: " + levelId
+				() -> "Timed out loading integrated server world: " + levelId
 			);
 			return new SingleplayerWorld(levelId);
 		}

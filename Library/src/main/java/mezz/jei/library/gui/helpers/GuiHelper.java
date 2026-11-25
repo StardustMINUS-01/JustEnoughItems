@@ -1,6 +1,8 @@
 package mezz.jei.library.gui.helpers;
 
 import mezz.jei.api.gui.ITickTimer;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IDrawableAnimated;
@@ -26,6 +28,7 @@ import mezz.jei.common.gui.elements.DrawableIngredientRenderer;
 import mezz.jei.common.gui.elements.DrawableSprite;
 import mezz.jei.common.gui.elements.ScalableDrawable;
 import mezz.jei.common.gui.textures.Textures;
+import mezz.jei.common.ingredients.DecoratingIngredientRenderer;
 import mezz.jei.common.ingredients.TypedIngredientUtil;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.TickTimer;
@@ -207,7 +210,10 @@ public class GuiHelper implements IGuiHelper {
 	public <V> IDrawable createDrawableIngredient(IIngredientRenderer<V> ingredientRenderer, V ingredient) {
 		ErrorUtil.checkNotNull(ingredientRenderer, "ingredientRenderer");
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
-		return new DrawableIngredientRenderer<>(ingredientRenderer, ingredient);
+		IIngredientRenderer<V> renderer = ingredientManager.getIngredientTypeChecked(ingredient)
+			.map(type -> DecoratingIngredientRenderer.create(type, ingredientRenderer))
+			.orElse(ingredientRenderer);
+		return new DrawableIngredientRenderer<>(renderer, ingredient);
 	}
 
 	@Override
@@ -265,6 +271,11 @@ public class GuiHelper implements IGuiHelper {
 	@Override
 	public int getScrollBoxScrollbarExtraWidth() {
 		return AbstractScrollWidget.getScrollBoxScrollbarExtraWidth();
+	}
+
+	@Override
+	public ITooltipBuilder createTooltipBuilder() {
+		return new JeiTooltip();
 	}
 
 	@Override

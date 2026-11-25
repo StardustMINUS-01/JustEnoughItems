@@ -153,7 +153,10 @@ public class JustEnoughItemsClient {
 		return (ResourceManager resourceManager) -> {
 			JeiGuiColors.onResourceManagerReload(resourceManager);
 			NeoForgeGuiPlugin.getResourceReloadHandler()
-				.ifPresent(r -> r.onResourceManagerReload(resourceManager));
+				.ifPresent(handler -> {
+					handler.onResourceManagerReload(resourceManager);
+					jeiStarter.onRuntimeRefreshed();
+				});
 		};
 	}
 

@@ -122,7 +122,10 @@ public class JustEnoughItemsClient {
 	private ResourceManagerReloadListener createReloadListener() {
 		return (ResourceManager resourceManager) -> {
 			ForgeGuiPlugin.getResourceReloadHandler()
-				.ifPresent(r -> r.onResourceManagerReload(resourceManager));
+				.ifPresent(handler -> {
+					handler.onResourceManagerReload(resourceManager);
+					jeiStarter.onRuntimeRefreshed();
+				});
 		};
 	}
 }

@@ -2,6 +2,7 @@ package mezz.jei.library.gui.ingredients;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.builder.IIngredientConsumer;
+import mezz.jei.api.ingredients.rendering.IIngredientRenderContext;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
@@ -344,7 +345,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		final int y = this.rect.getY();
 
 		if (background != null) {
-			background.draw(guiGraphics, x, y);
+			background.draw(guiGraphics, x, y, IIngredientRenderContext.ICON);
 		}
 
 		RenderSystem.enableBlend();
@@ -367,7 +368,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 			poseStack.pushPose();
 			{
 				poseStack.translate(0, 0, GuiRenderLayers.OVERLAY_DECORATION_Z);
-				overlay.draw(guiGraphics, x, y);
+				overlay.draw(guiGraphics, x, y, IIngredientRenderContext.ICON);
 			}
 			poseStack.popPose();
 		}
@@ -405,7 +406,7 @@ public class RecipeSlot implements IRecipeSlotView, IRecipeSlotDrawable, IRecipe
 		IIngredientType<T> ingredientType = typedIngredient.getType();
 		IIngredientRenderer<T> ingredientRenderer = getIngredientRenderer(ingredientType);
 
-		SafeIngredientUtil.render(guiGraphics, ingredientRenderer, typedIngredient, xPos, yPos);
+		SafeIngredientUtil.render(guiGraphics, ingredientRenderer, typedIngredient, xPos, yPos, IIngredientRenderContext.INGREDIENT);
 	}
 
 	@Override

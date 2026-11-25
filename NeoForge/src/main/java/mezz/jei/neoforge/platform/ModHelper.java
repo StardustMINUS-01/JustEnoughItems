@@ -32,6 +32,11 @@ public class ModHelper implements IPlatformModHelper {
 	}
 
 	@Override
+	public boolean isModLoaded(String modId) {
+		return ModList.get().isLoaded(modId);
+	}
+
+	@Override
 	public Optional<byte[]> getModIconBytes(String modId) {
 		return modIconCache.computeIfAbsent(modId, this::computeModIconBytes);
 	}
@@ -63,10 +68,5 @@ public class ModHelper implements IPlatformModHelper {
 	@Override
 	public boolean isInDev() {
 		return !FMLLoader.isProduction();
-	}
-
-	@Override
-	public boolean isModLoaded(String modId) {
-		return ModList.get().isLoaded(modId);
 	}
 }

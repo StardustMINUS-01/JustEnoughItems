@@ -872,6 +872,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		commands.add("Previous Recipe Page", keys.getPreviousRecipePage(), this::isOpen, logic::previousPage);
 	}
 
+	@Override
 	public boolean isOpen() {
 		return minecraft != null && minecraft.screen == this;
 	}
@@ -955,6 +956,14 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	@Override
+	public List<IFocus<?>> getFocuses() {
+		if (isOpen()) {
+			return logic.getFocuses();
+		}
+		return List.of();
+	}
+
+	@Override
 	public void showTypes(List<RecipeType<?>> recipeTypes) {
 		ErrorUtil.checkNotEmpty(recipeTypes, "recipeTypes");
 		prepareForLookup();
@@ -962,6 +971,36 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 		if (logic.showCategories(recipeTypes) && !isOpen()) {
 			open();
 		}
+	}
+
+	@Override
+	public List<IRecipeCategory<?>> getRecipeCategories() {
+		if (isOpen()) {
+			return List.copyOf(logic.getRecipeCategories());
+		}
+		return List.of();
+	}
+
+	@Override
+	public Optional<IRecipeCategory<?>> getSelectedRecipeCategory() {
+		if (isOpen()) {
+			return Optional.of(logic.getSelectedRecipeCategory());
+		}
+		return Optional.empty();
+	}
+
+	@Override
+	public boolean setRecipeCategory(RecipeType<?> recipeType) {
+		ErrorUtil.checkNotNull(recipeType, "recipeType");
+		if (isOpen()) {
+			for (IRecipeCategory<?> category : logic.getRecipeCategories()) {
+				if (category.getRecipeType().equals(recipeType)) {
+					logic.setRecipeCategory(category);
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	@Override
@@ -992,6 +1031,30 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			}
 		}
 		showRecipes(recipeCategory, recipes, focuses);
+	}
+
+	@Override
+	public int getPageIndex() {
+		if (isOpen()) {
+			return logic.getPageIndex();
+		}
+		return -1;
+	}
+
+	@Override
+	public int getPageCount() {
+		if (isOpen()) {
+			return logic.getPageCount();
+		}
+		return 0;
+	}
+
+	@Override
+	public List<IRecipeLayoutDrawable<?>> getVisibleRecipeLayouts() {
+		if (isOpen()) {
+			return layouts.getVisibleRecipeLayouts();
+		}
+		return List.of();
 	}
 
 	@Override
@@ -1430,5 +1493,4 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			return false;
 		}
 	}
-
 }

@@ -1,4 +1,3 @@
-import mezz.jei.gradle.externalSourceSetClasspath
 import mezz.jei.gradle.optionalGradleProperty
 import mezz.jei.gradle.gradleProperty
 import org.gradle.api.publish.maven.internal.publication.MavenPublicationInternal
@@ -15,10 +14,6 @@ plugins {
 	id("net.minecraftforge.jarjar")
 	id("me.modmuss50.mod-publish-plugin")
 	id("net.mezzdev.modshade")
-}
-
-repositories {
-    google { content { includeModule("com.android.tools", "r8") } }
 }
 
 // gradle.properties
@@ -38,8 +33,6 @@ val mezzConfigGuiCurseForgeProjectSlug = gradleProperty("mezzConfigGuiCurseForge
 val mezzConfigGuiModrinthProjectId = gradleProperty("mezzConfigGuiModrinthProjectId")
 val luceneVersion = gradleProperty("luceneVersion")
 val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
-val mezzConfigVersion = gradleProperty("mezzConfigVersion")
-val mezzConfigVersionRange = gradleProperty("mezzConfigVersionRange")
 val mezzConfigApiDependency: String by rootProject.extra
 val mezzConfigForgeDependency: String by rootProject.extra
 val mezzConfigGuiApiDependency: String by rootProject.extra
@@ -125,8 +118,6 @@ configurations.runtimeClasspath {
 	extendsFrom(mezzConfigLocalRuntime)
 }
 
-jarJar.register()
-
 java {
 	toolchain {
 		languageVersion.set(JavaLanguageVersion.of(modJavaVersion))
@@ -177,13 +168,6 @@ dependencies {
 	implementation(minecraft.dependency(forgeDependency))
 	compileOnly(mezzConfigApiDependency)
 	mezzConfigLocalRuntime(mezzConfigForgeDependency)
-	"jarJar"(mezzConfigForgeDependency) {
-		isTransitive = false
-		jarJar.configure(this) {
-			setRange(mezzConfigVersionRange)
-			setVersion(mezzConfigVersion)
-		}
-	}
 	compileOnly(mezzConfigGuiApiDependency)
 	mezzConfigLocalRuntime(mezzConfigGuiForgeDependency)
 	dependencyProjects.forEach {
@@ -317,27 +301,10 @@ val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
 	archiveClassifier.set("sources")
 }
 
-// Shared API annotations are compile-only and absent from the loader runtime classpath.
-val r8Libraries = configurations.create("r8Libraries") {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-}
-dependencies {
-    add(r8Libraries.name, "com.google.code.findbugs:jsr305:3.0.2")
-}
-
-val r8LibraryClasspath = externalSourceSetClasspath(listOf(sourceSets.main.get(), apiSourceSet))
-    .minus(commonApiSourceSet.output)
-
 // Dependency module descriptors describe their original jars, not the shaded mod.
 modShade.exclude("module-info.class")
 modShade.exclude("META-INF/versions/**/module-info.class")
 val shadedJar = modShade.shadeJar()
-shadedJar.configure {
-    shrink.set(true)
-    shrinkLibraryClasspath.setFrom(r8LibraryClasspath.minus(project.files(configurations)), r8Libraries)
-    shrinkRuleFiles.from(rootProject.layout.projectDirectory.file("config/lucene-r8.pro"))
-}
 apply(from = "../gradle/verify-jar-bytecode.gradle")
 val shadedSourcesJar = modShade.shadeSourcesJar()
 
@@ -459,6 +426,7 @@ publishing {
 			artifact(shadedSourcesJar)
 
 			val dependencyInfos = listOf(
+				dependencyInfo(mezzConfigForgeDependency) + ("scope" to "runtime"),
 				dependencyInfo(mezzConfigGuiForgeDependency) + ("optional" to "true")
 			) + dependencyProjects.map {
 				mapOf(

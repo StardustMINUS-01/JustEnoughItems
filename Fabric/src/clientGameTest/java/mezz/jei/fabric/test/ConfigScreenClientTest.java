@@ -14,7 +14,6 @@ import net.mezzdev.config.api.value.IConfigValue;
 import net.mezzdev.config.gui.ConfigScreen;
 import net.mezzdev.config.gui.ConfigValueCategoryPath;
 import net.mezzdev.config.gui.api.IConfigScreenValue;
-import net.mezzdev.config.gui.api.IConfigValueEditorSerializer;
 import net.mezzdev.config.gui.entries.ConfigEntryWidget;
 import net.mezzdev.config.gui.model.ConfigScreenModel;
 import net.mezzdev.config.gui.util.ImmutableRect2i;
@@ -76,11 +75,16 @@ final class ConfigScreenClientTest {
 				}
 				for (var value : category.getConfigValues()) {
 					String name = value.getEditorInfo().getName();
-					if (!name.equals("horizontalAlignment") && !name.equals("verticalAlignment") && !visibleConfigValues.contains(value)) {
+					if (!List.of("horizontalAlignment", "verticalAlignment", "bookmarkTooltipPreview", "holdShiftToShowBookmarkTooltipFeatures").contains(name) && !visibleConfigValues.contains(value)) {
 						problems.add("Missing config setting: " + value.getEditorInfo().getLocalizationKey());
 					}
 				}
 			}
+		}
+		var previewControls = model.getAllEntryWidgets()
+			.filter(widget -> widget.getConfigValue().getName().equals("bookmarkPreviewMode")).toList();
+		if (previewControls.size() != 1 || previewControls.getFirst().getConfigValue().getSerializer().getAllValidValues().orElseThrow().size() != 3) {
+			problems.add("Expected one three-state bookmark preview control");
 		}
 		for (String list : List.of("ingredientList", "bookmarkList")) {
 			String key = "jei.config.client." + list + ".alignment";
@@ -88,8 +92,7 @@ final class ConfigScreenClientTest {
 				.filter(widget -> widget.getConfigValue().getLocalizationKey().equals(key))
 				.toList();
 			if (controls.size() != 1 ||
-				!(controls.getFirst().getConfigValue().getSerializer() instanceof IConfigValueEditorSerializer<?> serializer) ||
-				!serializer.getEditorType().getUid().equals(ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "alignment"))
+				!controls.getFirst().getConfigValue().getEditorMetadata().getEditorType().getUid().equals(ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "alignment"))
 			) {
 				problems.add("Expected one custom alignment control for " + list + ", found " + controls.size());
 			}
@@ -299,7 +302,7 @@ final class ConfigScreenClientTest {
 		context.getInput().setCursorPos(position[0], position[1]);
 	}
 
-	private static ConfigScreenModel getScreenModel(Screen screen) {
+	static ConfigScreenModel getScreenModel(Screen screen) {
 		if (!(screen instanceof ConfigScreen)) {
 			throw new AssertionError("Expected MezzConfig GUI, got " + screen.getClass().getName());
 		}

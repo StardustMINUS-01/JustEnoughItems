@@ -4,6 +4,8 @@ import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.Provider
 import mezz.jei.gradle.gradleProperty
 import mezz.jei.gradle.ValidateApiCompatibilityReports
+import net.fabricmc.loom.LoomGradleExtension
+import net.fabricmc.loom.api.mappings.layered.MappingsNamespace
 import net.neoforged.jarcompatibilitychecker.core.NonExtendableApiCheckMode
 import net.neoforged.jarcompatibilitychecker.gradle.CompatibilityTask
 import org.gradle.language.base.plugins.LifecycleBasePlugin
@@ -98,6 +100,7 @@ val mezzConfigVersionRange = gradleProperty("mezzConfigVersionRange")
 val mezzConfigFabricVersionRange = gradleProperty("mezzConfigFabricVersionRange")
 val mezzConfigGuiVersion = gradleProperty("mezzConfigGuiVersion")
 val mezzConfigGuiMinimumVersion = gradleProperty("mezzConfigGuiMinimumVersion")
+val mezzConfigGuiMaximumVersion = gradleProperty("mezzConfigGuiMaximumVersion")
 val specificationVersion = gradleProperty("specificationVersion")
 
 val mezzConfigApiDependency = "$configModGroup:${configModId}-${minecraftVersion}-config-api:$mezzConfigVersion"
@@ -116,7 +119,7 @@ subprojects {
     //adds the build number to the end of the version string if on a build server
     var buildNumber = project.findProperty("BUILD_NUMBER")
     if (buildNumber == null) {
-        buildNumber = "469"
+        buildNumber = "481"
     }
 
     version = "${specificationVersion}.${buildNumber}"
@@ -173,9 +176,10 @@ subprojects {
             "modId" to modId,
             "modJavaVersion" to modJavaVersion,
             "modName" to modName,
-            "mezzConfigGuiVersionRange" to "[$mezzConfigGuiMinimumVersion,)",
-            "mezzConfigGuiFabricVersionRange" to ">=$mezzConfigGuiMinimumVersion",
-            "mezzConfigGuiFabricBreaksVersionRange" to "<$mezzConfigGuiMinimumVersion",
+            "mezzConfigGuiVersionRange" to "[$mezzConfigGuiMinimumVersion,$mezzConfigGuiMaximumVersion)",
+            "mezzConfigGuiFabricVersionRange" to ">=$mezzConfigGuiMinimumVersion <$mezzConfigGuiMaximumVersion",
+            "mezzConfigGuiMinimumVersion" to mezzConfigGuiMinimumVersion,
+            "mezzConfigGuiMaximumVersion" to mezzConfigGuiMaximumVersion,
             "mezzConfigVersionRange" to mezzConfigVersionRange,
             "mezzConfigFabricVersionRange" to mezzConfigFabricVersionRange,
             "version" to version,
@@ -216,6 +220,7 @@ apiProjectPaths.forEach { apiProjectPath ->
     }
     apiProject.pluginManager.apply("net.neoforged.jarcompatibilitychecker")
     apiProject.pluginManager.withPlugin("java") {
+        val compileClasspath = apiProject.configurations.getByName("compileClasspath")
         apiProject.tasks.named<CompatibilityTask>("checkJarCompatibility") {
             group = LifecycleBasePlugin.VERIFICATION_GROUP
             description = "Checks $apiProjectPath against official JEI API $apiCompatibilityVersion."
@@ -223,11 +228,17 @@ apiProjectPaths.forEach { apiProjectPath ->
             baseJar.set(rootProject.layout.file(providers.provider { baseline.singleFile }))
             val apiJarTaskName = if (apiProjectPath == ":Fabric") "remapApiJar" else "apiJar"
             inputJar.set(apiProject.tasks.named<AbstractArchiveTask>(apiJarTaskName).flatMap { it.archiveFile })
-
-            // Match the previous CLI check and avoid loading the full Minecraft compile classpath.
-            libraries.setFrom(emptyList<Any>())
+            libraries.setFrom(compileClasspath)
             nonExtendableApiCheckMode.set(NonExtendableApiCheckMode.SKIP)
             // Keep fail disabled so the target branch validator can filter its known non-extendable API exceptions.
+        }
+        apiProject.pluginManager.withPlugin("fabric-loom") {
+            val loom = LoomGradleExtension.get(apiProject)
+            apiProject.tasks.named<CompatibilityTask>("checkJarCompatibility") {
+                // Match the remapped API jar so the checker can resolve Minecraft parent types.
+                libraries.setFrom(compileClasspath.minus(loom.namedMinecraftJars)
+                    .plus(loom.getMinecraftJarsCollection(MappingsNamespace.INTERMEDIARY)))
+            }
         }
     }
 }
@@ -264,7 +275,7 @@ val runtimeApiCompatibilityTasks = listOf("Fabric", "NeoForge", "Forge").flatMap
                 output.set(report)
                 inputJar.fileProvider(runtimeJar)
                 baseJar.set(rootProject.layout.file(providers.provider { baseline.singleFile }))
-                libraries.setFrom(emptyList<Any>())
+                libraries.setFrom(project(":$loader").tasks.named<CompatibilityTask>("checkJarCompatibility").map { it.libraries })
                 nonExtendableApiCheckMode.set(NonExtendableApiCheckMode.SKIP)
                 // The aggregate validator applies the same policy as the standalone API checks.
             }

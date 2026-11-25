@@ -6,6 +6,7 @@ public interface IPlatformModHelper {
 	String getModNameForModId(String modId);
 
 	boolean isModLoaded(String modId);
+
 	Optional<byte[]> getModIconBytes(String modId);
 
 	boolean isInDev();

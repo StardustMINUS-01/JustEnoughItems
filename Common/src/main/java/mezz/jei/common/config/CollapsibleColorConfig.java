@@ -49,6 +49,11 @@ public final class CollapsibleColorConfig {
 
 	private static final class ColorSerializer implements IConfigValueSerializer<Integer> {
 		@Override
+		public Class<Integer> getValueClass() {
+			return Integer.class;
+		}
+
+		@Override
 		public String serialize(Integer value) {
 			return "0x%08X".formatted(value);
 		}

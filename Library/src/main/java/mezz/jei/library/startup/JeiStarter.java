@@ -189,11 +189,7 @@ public final class JeiStarter {
 			screenHelper,
 			recipeTransferManager,
 			editModeConfig,
-			runtimeRegistration.getIngredientListOverlay(),
-			runtimeRegistration.getBookmarkOverlay(),
-			runtimeRegistration.getBookmarkManager(),
-			runtimeRegistration.getRecipesGui(),
-			runtimeRegistration.getIngredientFilter(),
+			runtimeRegistration.getGuiRuntime(),
 			configManagerForPlugins
 		);
 		timer.stop();
@@ -249,6 +245,12 @@ public final class JeiStarter {
 		LocalPlayer player = minecraft.player;
 		if (player != null) {
 			ChatUtil.writeChatMessage(player, component);
+		}
+	}
+
+	public void onRuntimeRefreshed() {
+		if (running) {
+			PluginCaller.callOnPlugins("Sending Runtime Refreshed", plugins, IModPlugin::onRuntimeRefreshed);
 		}
 	}
 

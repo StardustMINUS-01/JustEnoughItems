@@ -21,7 +21,6 @@ import mezz.jei.common.search.LuceneSearchStorageBuilder;
 import mezz.jei.common.config.RecipeGuiNavigationMode;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.common.util.ImmutableSize2i;
-import mezz.jei.common.util.MathUtil;
 import mezz.jei.gui.bookmarks.BookmarkList;
 import mezz.jei.gui.bookmarks.IngredientBookmark;
 import mezz.jei.gui.bookmarks.BookmarkFactory;
@@ -740,8 +739,28 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 
 	@Override
 	public String getPageString() {
-		int pageIndex = MathUtil.divideCeil(state.getRecipeIndex() + 1, state.getRecipesPerPage());
-		return pageIndex + "/" + state.pageCount();
+		return (getPageIndex() + 1) + "/" + getPageCount();
+	}
+
+	@Override
+	public int getPageIndex() {
+		int firstRecipeIndex;
+		if (scrolling) {
+			firstRecipeIndex = state.getScrollState().getFirstRecipeIndex();
+		} else {
+			firstRecipeIndex = state.getRecipeIndex();
+		}
+		return firstRecipeIndex / state.getRecipesPerPage();
+	}
+
+	@Override
+	public int getPageCount() {
+		return state.pageCount();
+	}
+
+	@Override
+	public List<IFocus<?>> getFocuses() {
+		return List.copyOf(state.getFocuses().getAllFocuses());
 	}
 
 	@Override

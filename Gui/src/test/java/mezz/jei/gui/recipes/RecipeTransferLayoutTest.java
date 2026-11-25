@@ -3,11 +3,9 @@ package mezz.jei.gui.recipes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.api.recipe.transfer.IRecipeTransferContext;
-import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
-import mezz.jei.api.recipe.transfer.IRecipeTransferListener;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
-import mezz.jei.api.recipe.transfer.RecipeTransferResult;
+import mezz.jei.api.recipe.transfer.IRecipeTransferError;
+import mezz.jei.common.transfer.RecipeTransferErrorInternal;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.test.gui.fixtures.RecipeLayoutTestFixtures;
 import net.minecraft.client.gui.GuiGraphics;
@@ -26,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -39,74 +38,47 @@ class RecipeTransferLayoutTest {
 	}
 
 	@Test
-	void selectedSlotsReachTheHandlerAndLifecycleWithoutDuplicateTransfers() {
-		List<String> calls = new ArrayList<>();
-		List<IRecipeTransferContext<?, ?>> contexts = new ArrayList<>();
-		IRecipeTransferListener listener = new IRecipeTransferListener() {
-			@Override
-			public void beforeRecipeTransfer(IRecipeTransferContext<?, ?> context) {
-				calls.add("before");
-				contexts.add(context);
-			}
-
-			@Override
-			public void afterRecipeTransfer(IRecipeTransferContext<?, ?> context, RecipeTransferResult result) {
-				assertEquals(RecipeTransferResult.SUCCESS, result);
-				assertSame(contexts.getLast(), context);
-				calls.add("after");
-			}
-		};
-		IRecipeTransferHandler<?, ?> handler = (IRecipeTransferHandler<?, ?>) Proxy.newProxyInstance(
-			getClass().getClassLoader(), new Class<?>[]{IRecipeTransferHandler.class}, (proxy, method, args) -> {
-				if (!method.getName().equals("transferRecipe") || args.length != 2) {
-					throw new AssertionError(method.getName());
-				}
-				IRecipeTransferContext<?, ?> context = (IRecipeTransferContext<?, ?>) args[0];
-				calls.add((boolean) args[1] ? "transfer" : "check");
-				if ((boolean) args[1]) {
-					assertSame(contexts.getLast(), context);
-					assertTrue(context.isMaxTransfer());
-					context.completeRecipeTransfer(RecipeTransferResult.SUCCESS);
-				} else {
-					contexts.add(context);
-				}
-				return null;
-			});
-		RecipeTransferService service = new RecipeTransferService(manager(Optional.of(handler), List.of(listener)));
-		IRecipeLayoutDrawable<?> layout = layout();
-		IRecipeSlotsView first = new TestSlots();
-		IRecipeSlotsView second = new TestSlots();
-		AtomicReference<IRecipeSlotsView> selection = new AtomicReference<>(first);
-		RecipeTransferLayout<?> selectedLayout = new RecipeTransferLayout<>(layout, selection::get);
-		TestScreen screen = new TestScreen();
-
-		assertTrue(service.getTransferRecipeError(screen, selectedLayout, null).isEmpty());
-		assertEquals(List.of("check"), calls);
-		assertSame(first, contexts.getFirst().getRecipeSlots());
-		selection.set(second);
-		assertTrue(service.transferRecipe(screen, selectedLayout, null, true));
-		assertEquals(List.of("check", "before", "transfer", "after"), calls);
-		assertSame(second, contexts.getLast().getRecipeSlots());
-		assertSame(layout.getRecipe(), contexts.getLast().getRecipe());
-		assertSame(screen, contexts.getLast().getScreen());
+	void dryRunAndExecutionUseTheirCurrentSelection() {
+		var selection = new AtomicReference<IRecipeSlotsView>(new TestSlots());
+		var layout = layout();
+		var selected = new RecipeTransferLayout<>(layout, selection::get);
+		var screen = new TestScreen();
+		List<IRecipeSlotsView> slots = new ArrayList<>();
+		List<List<Boolean>> modes = new ArrayList<>();
+		var service = service(args -> {
+			assertSame(screen, args[0]);
+			var received = (IRecipeLayoutDrawable<?>) args[1];
+			assertSame(layout.getRecipe(), received.getRecipe());
+			slots.add(received.getRecipeSlotsView());
+			modes.add(List.of((boolean) args[3], (boolean) args[4]));
+			return Optional.empty();
+		});
+		var first = selection.get();
+		assertTrue(service.getTransferRecipeError(screen, selected, null).isEmpty());
+		selection.set(new TestSlots());
+		assertTrue(service.transferRecipe(screen, selected, null, true));
+		assertEquals(List.of(first, selection.get()), slots);
+		assertEquals(List.of(List.of(false, false), List.of(true, true)), modes);
 	}
 
 	@Test
-	void missingHandlerDoesNotEvaluateSelectedSlots() {
-		RecipeTransferService service = new RecipeTransferService(manager(Optional.empty(), List.of()));
-		RecipeTransferLayout<?> selectedLayout = new RecipeTransferLayout<>(layout(), () -> {
-			throw new AssertionError("Slots should only be read after finding a transfer handler");
+	void rejectedTransferDoesNotRequireTheServiceToEvaluateSelectedSlots() {
+		var service = service(args -> Optional.of(RecipeTransferErrorInternal.INSTANCE));
+		var selected = new RecipeTransferLayout<>(layout(), () -> {
+			throw new AssertionError("Unexpected slot lookup");
 		});
-		assertTrue(service.getTransferRecipeError(new TestScreen(), selectedLayout, null).isPresent());
+		assertSame(RecipeTransferErrorInternal.INSTANCE, service.getTransferRecipeError(new TestScreen(), selected, null).orElseThrow());
 	}
 
-	private IRecipeTransferManager manager(Optional<IRecipeTransferHandler<?, ?>> handler, List<IRecipeTransferListener> listeners) {
-		return (IRecipeTransferManager) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IRecipeTransferManager.class},
-			(proxy, method, args) -> switch (method.getName()) {
-				case "getRecipeTransferHandler" -> handler;
-				case "getRecipeTransferListeners" -> listeners;
-				default -> throw new AssertionError(method.getName());
+	private RecipeTransferService service(Function<Object[], Optional<IRecipeTransferError>> transfer) {
+		var manager = (IRecipeTransferManager) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IRecipeTransferManager.class},
+			(proxy, method, args) -> {
+				if (!method.getName().equals("transferRecipe")) {
+					throw new AssertionError(method.getName());
+				}
+				return transfer.apply(args);
 			});
+		return new RecipeTransferService(manager);
 	}
 
 	private static IRecipeLayoutDrawable<?> layout() {

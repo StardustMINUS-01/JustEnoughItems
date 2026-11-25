@@ -3,6 +3,7 @@ package mezz.jei.gui.recipes;
 import mezz.jei.gui.bookmarks.BookmarkItemMetadataFactory;
 
 import mezz.jei.common.Internal;
+import mezz.jei.api.gui.IJeiTooltipComponent;
 
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -21,7 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public final class InteractiveIngredientGridTooltipComponent extends IngredientGridTooltipComponent<ITypedIngredient<?>> {
+public final class InteractiveIngredientGridTooltipComponent extends IngredientGridTooltipComponent<ITypedIngredient<?>> implements IJeiTooltipComponent {
 	private final List<IRecipeSlotDrawable> slots;
 	private int selectedIndex = -1;
 	private Optional<ITypedIngredient<?>> displayedIngredient = Optional.empty();
@@ -58,6 +59,16 @@ public final class InteractiveIngredientGridTooltipComponent extends IngredientG
 			),
 			MAX_VISIBLE_INGREDIENTS
 		);
+	}
+
+	@Override
+	public List<String> getText() {
+		return List.of();
+	}
+
+	@Override
+	public List<ITypedIngredient<?>> getIngredients() {
+		return getIngredientList();
 	}
 
 	@Override

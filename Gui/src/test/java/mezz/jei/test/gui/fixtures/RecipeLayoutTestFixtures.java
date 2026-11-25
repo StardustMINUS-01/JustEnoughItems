@@ -1,5 +1,7 @@
 package mezz.jei.test.gui.fixtures;
 
+import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
@@ -141,6 +143,20 @@ public final class RecipeLayoutTestFixtures {
 				inputs,
 				outputs
 			);
+		}
+
+		@Override
+		public List<IRecipeWidget> getWidgets() {
+			return List.of();
+		}
+
+		@Override
+		public boolean isShapeless() {
+			return false;
+		}
+
+		@Override
+		public void getTooltip(ITooltipBuilder tooltip, double mouseX, double mouseY) {
 		}
 
 		@Override

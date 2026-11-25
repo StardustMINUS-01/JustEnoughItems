@@ -40,8 +40,8 @@ public class RecipeGuiLayouts implements IInputTarget {
 
 	private final RecipeSlotClickTargetFactory clickTargetFactory;
 	private final List<IRecipeLayoutWithButtons<?>> recipeLayoutsWithButtons = new ArrayList<>();
-	@Nullable
-	private IInputTarget cachedInputHandler;
+	private @Nullable IInputTarget cachedControlsInputHandler;
+	private @Nullable IInputTarget cachedApiInputHandler;
 	private @Nullable ImmutableRect2i viewport;
 
 	RecipeGuiLayouts(RecipeSlotClickTargetFactory clickTargetFactory) {
@@ -69,14 +69,24 @@ public class RecipeGuiLayouts implements IInputTarget {
 		}
 	}
 
-	private IInputTarget getRecipeInputHandler() {
-		if (cachedInputHandler == null) {
+	private IInputTarget getControlsInputHandler() {
+		if (cachedControlsInputHandler == null) {
 			List<IInputTarget> handlers = this.recipeLayoutsWithButtons.stream()
-				.map(IRecipeLayoutWithButtons::createUserInputHandler)
+				.map(IRecipeLayoutWithButtons::createControlsInputHandler)
 				.toList();
-			cachedInputHandler = new InputGroup("RecipeGuiLayouts", handlers);
+			cachedControlsInputHandler = new InputGroup("Recipe controls", handlers);
 		}
-		return cachedInputHandler;
+		return cachedControlsInputHandler;
+	}
+
+	private IInputTarget getApiInputHandler() {
+		if (cachedApiInputHandler == null) {
+			List<IInputTarget> handlers = this.recipeLayoutsWithButtons.stream()
+				.map(IRecipeLayoutWithButtons::createApiInputHandler)
+				.toList();
+			cachedApiInputHandler = new InputGroup("Recipe API callbacks", handlers);
+		}
+		return cachedApiInputHandler;
 	}
 
 	@Override
@@ -84,17 +94,16 @@ public class RecipeGuiLayouts implements IInputTarget {
 		if (!isInsideViewport(input.getMouseX(), input.getMouseY())) {
 			return Optional.empty();
 		}
-		return getRecipeInputHandler().beginInput(screen, input, keyBindings)
+		return getControlsInputHandler().beginInput(screen, input, keyBindings)
 			.map(interaction -> new ReleaseInsideBounds(interaction, this::isInsideViewport));
 	}
 
-	/**
-	 * Routes otherwise unhandled input to the hovered recipe's deprecated category callback.
-	 * Mouse callbacks run only when released inside the original recipe and the visible viewport.
-	 */
-	public Optional<IInputInteraction> beginLegacyCategoryInput(UserInput input) {
-		return getRecipeLayoutUnderMouse(input.getMouseX(), input.getMouseY())
-			.flatMap(layout -> layout.beginLegacyCategoryInput(input))
+	/** Routes otherwise unhandled input to recipe API callbacks within the visible viewport. */
+	public Optional<IInputInteraction> beginApiInput(Screen screen, UserInput input, IInternalKeyMappings keyBindings) {
+		if (!isInsideViewport(input.getMouseX(), input.getMouseY())) {
+			return Optional.empty();
+		}
+		return getApiInputHandler().beginInput(screen, input, keyBindings)
 			.map(interaction -> new ReleaseInsideBounds(interaction, this::isInsideViewport));
 	}
 
@@ -103,12 +112,14 @@ public class RecipeGuiLayouts implements IInputTarget {
 		if (!isInsideViewport(mouseX, mouseY)) {
 			return false;
 		}
-		return getRecipeInputHandler().scroll(mouseX, mouseY, scrollX, scrollY);
+		return getControlsInputHandler().scroll(mouseX, mouseY, scrollX, scrollY) ||
+			getApiInputHandler().scroll(mouseX, mouseY, scrollX, scrollY);
 	}
 
 	@Override
 	public void resetInput() {
-		getRecipeInputHandler().resetInput();
+		getControlsInputHandler().resetInput();
+		getApiInputHandler().resetInput();
 	}
 
 	public boolean isInsideViewport(double mouseX, double mouseY) {
@@ -122,7 +133,15 @@ public class RecipeGuiLayouts implements IInputTarget {
 	public void setRecipeLayoutsWithButtons(List<IRecipeLayoutWithButtons<?>> recipeLayoutsWithButtons) {
 		this.recipeLayoutsWithButtons.clear();
 		this.recipeLayoutsWithButtons.addAll(recipeLayoutsWithButtons);
-		this.cachedInputHandler = null;
+		this.cachedControlsInputHandler = null;
+		this.cachedApiInputHandler = null;
+	}
+
+	public List<IRecipeLayoutDrawable<?>> getVisibleRecipeLayouts() {
+		return this.recipeLayoutsWithButtons.stream()
+			.<IRecipeLayoutDrawable<?>>map(IRecipeLayoutWithButtons::getRecipeLayout)
+			.filter(layout -> viewport == null || viewport.intersects(new ImmutableRect2i(layout.getRectWithBorder())))
+			.toList();
 	}
 
 	public Map<FocusedRecipe, Map<Integer, BookmarkIngredientKey>> captureInputSelections() {
@@ -339,6 +358,8 @@ public class RecipeGuiLayouts implements IInputTarget {
 				String recipeInfo = ErrorUtil.getRecipeInfo(recipeLayout);
 				LOGGER.error("Recipe crashed:\n{}", recipeInfo, e);
 				recipeLayoutsWithButtons.set(i, new RecipeLayoutWithButtonsErrored<>(recipeLayout));
+				cachedControlsInputHandler = null;
+				cachedApiInputHandler = null;
 			}
 		}
 	}

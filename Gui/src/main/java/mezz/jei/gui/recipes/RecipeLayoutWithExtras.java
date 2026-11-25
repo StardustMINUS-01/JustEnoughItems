@@ -91,7 +91,7 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	}
 
 	@Override
-	public IInputTarget createUserInputHandler() {
+	public IInputTarget createControlsInputHandler() {
 		List<IInputTarget> inputHandlers = new ArrayList<>();
 		if (favoriteButton != null) {
 			inputHandlers.add(favoriteButton.createInputHandler());
@@ -125,7 +125,12 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 		}
 		inputHandlers.add(new CandidateScrollInputHandler(recipeLayout, inputSlotSelectionState));
 
-		return delegate.createUserInputHandler(inputHandlers);
+		return delegate.createControlsInputHandler(inputHandlers);
+	}
+
+	@Override
+	public IInputTarget createApiInputHandler() {
+		return delegate.createApiInputHandler();
 	}
 
 	private void shareRecipe(UserInput input) {
@@ -180,11 +185,6 @@ final class RecipeLayoutWithExtras<R> implements IRecipeLayoutWithButtons<R> {
 	@Override
 	public IRecipeLayoutDrawable<R> getRecipeLayout() {
 		return recipeLayout;
-	}
-
-	@Override
-	public Optional<IInputInteraction> beginLegacyCategoryInput(UserInput input) {
-		return delegate.beginLegacyCategoryInput(input);
 	}
 
 	@Override

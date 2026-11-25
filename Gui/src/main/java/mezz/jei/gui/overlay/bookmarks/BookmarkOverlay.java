@@ -1,5 +1,6 @@
 package mezz.jei.gui.overlay.bookmarks;
 
+import mezz.jei.api.gui.buttons.ButtonSnapshot;
 import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.api.ingredients.IIngredientType;
@@ -60,6 +61,7 @@ import mezz.jei.gui.overlay.ingredients.IngredientGridWithNavigation;
 import mezz.jei.gui.overlay.ingredients.IngredientListSlot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
 
@@ -244,6 +246,7 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		return bookmarkList;
 	}
 
+	@Override
 	public boolean isListDisplayed() {
 		if (favorites.isPresent() && !favorites.get().panelState().isBookmarkPanelVisible()) {
 			return false;
@@ -428,9 +431,49 @@ public class BookmarkOverlay implements IRecipeFocusSource, IBookmarkOverlay {
 		historyButton.updateBounds(favorites.isPresent() ? calculateHistoryButtonArea(nextButtonArea) : nextButtonArea);
 	}
 
+	@Override
 	public boolean hasRoom() {
 		updateScreenPropertiesIfDirty();
 		return contents.hasRoom();
+	}
+
+	@Override
+	public ScreenRectangle getBounds() {
+		updateScreenPropertiesIfDirty();
+		return contents.getBackgroundArea().toScreenRectangle();
+	}
+
+	@Override
+	public ScreenRectangle getGridBounds() {
+		updateScreenPropertiesIfDirty();
+		return contents.getIngredientGridArea().toScreenRectangle();
+	}
+
+	@Override
+	public int getPageIndex() {
+		updateScreenPropertiesIfDirty();
+		return contents.getPageIndex();
+	}
+
+	@Override
+	public int getPageCount() {
+		updateScreenPropertiesIfDirty();
+		return contents.getPageCount();
+	}
+
+	@Override
+	public ButtonSnapshot getNextButton() {
+		return contents.getNextButton(isListDisplayed());
+	}
+
+	@Override
+	public ButtonSnapshot getBackButton() {
+		return contents.getBackButton(isListDisplayed());
+	}
+
+	public Optional<ButtonSnapshot> getBookmarkToggleButton() {
+		updateScreenPropertiesIfDirty();
+		return Optional.of(bookmarkButton.getSnapshot(guiPropertiesCache.hasValidScreen()));
 	}
 
 	private void markScreenPropertiesDirty() {

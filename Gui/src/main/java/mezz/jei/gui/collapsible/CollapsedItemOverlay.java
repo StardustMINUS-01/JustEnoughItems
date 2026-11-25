@@ -6,6 +6,7 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
+import mezz.jei.api.ingredients.rendering.IIngredientRenderContext;
 import mezz.jei.common.util.SafeIngredientUtil;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -58,7 +59,7 @@ public final class CollapsedItemOverlay implements IDrawable {
 		IIngredientType<Object> type = (IIngredientType<Object>) typedIngredient.getType();
 		guiGraphics.pose().pushPose();
 		guiGraphics.pose().translate(0, 0, z);
-		SafeIngredientUtil.render(guiGraphics, renderer, type, typedIngredient.getIngredient(), x, y);
+		SafeIngredientUtil.render(guiGraphics, renderer, type, typedIngredient.getIngredient(), x, y, IIngredientRenderContext.INGREDIENT);
 		guiGraphics.pose().popPose();
 	}
 }

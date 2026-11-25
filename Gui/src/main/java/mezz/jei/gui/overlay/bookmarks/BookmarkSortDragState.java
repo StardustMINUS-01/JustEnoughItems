@@ -7,6 +7,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.api.ingredients.rendering.IIngredientRenderContext;
 import mezz.jei.common.util.SafeIngredientUtil;
 import mezz.jei.gui.bookmarks.BookmarkGroup;
 import mezz.jei.gui.bookmarks.BookmarkGroupManager;
@@ -548,7 +549,7 @@ public final class BookmarkSortDragState {
 	) {
 		IIngredientType<T> type = typedIngredient.getType();
 		IIngredientRenderer<T> renderer = ingredientManager.getIngredientRenderer(type);
-		SafeIngredientUtil.render(guiGraphics, renderer, typedIngredient, x, y);
+		SafeIngredientUtil.render(guiGraphics, renderer, typedIngredient, x, y, IIngredientRenderContext.INGREDIENT);
 	}
 
 	private void hide(

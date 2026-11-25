@@ -1,5 +1,6 @@
 package mezz.jei.gui.overlay;
 
+import mezz.jei.api.gui.buttons.ButtonSnapshot;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientListOverlay;
@@ -38,6 +39,7 @@ import mezz.jei.gui.search.ISearchCompletionProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.jetbrains.annotations.Nullable;
@@ -94,7 +96,7 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 				keyboardFocus.focus(keyboardNavigation);
 			}
 		});
-		this.configButtonController = new ConfigButtonController(this::isSearchDisplayed, this::isListHiddenWhenNotSearching, clientConfig.hideIngredientsWhenNotSearching(), toggleState, keyBindings);
+		this.configButtonController = new ConfigButtonController(this::isSearchDisplayed, this::isListHiddenWhenNotSearching, clientConfig.hideIngredientsWhenNotSearching(), toggleState, keyBindings, this::getConfigButtonArea, this::isQuickConfigAvailable);
 		this.configButton = new IconButton(configButtonController);
 		this.controller = IngredientListOverlayController.create(
 			this.guiPropertiesCache,
@@ -127,6 +129,51 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	public boolean isListDisplayed() {
 		updateScreenPropertiesIfDirty();
 		return this.controller.isListDisplayed();
+	}
+
+	@Override
+	public boolean hasRoom() {
+		updateScreenPropertiesIfDirty();
+		return contents.hasRoom();
+	}
+
+	@Override
+	public ScreenRectangle getBounds() {
+		updateScreenPropertiesIfDirty();
+		return contents.getBackgroundArea().toScreenRectangle();
+	}
+
+	@Override
+	public ScreenRectangle getGridBounds() {
+		updateScreenPropertiesIfDirty();
+		return contents.getIngredientGridArea().toScreenRectangle();
+	}
+
+	@Override
+	public int getPageIndex() {
+		updateScreenPropertiesIfDirty();
+		return contents.getPageIndex();
+	}
+
+	@Override
+	public int getPageCount() {
+		updateScreenPropertiesIfDirty();
+		return contents.getPageCount();
+	}
+
+	@Override
+	public ButtonSnapshot getNextButton() {
+		return contents.getNextButton(isListDisplayed());
+	}
+
+	@Override
+	public ButtonSnapshot getBackButton() {
+		return contents.getBackButton(isListDisplayed());
+	}
+
+	public Optional<ButtonSnapshot> getConfigButton() {
+		updateScreenPropertiesIfDirty();
+		return Optional.of(configButton.getSnapshot(controller.hasValidScreen()));
 	}
 
 	/** Returns whether automatic compacting is enabled and full effect bars would overlap this overlay. */
@@ -202,6 +249,14 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		return this.searchInputLayer;
 	}
 
+	private ImmutableRect2i getConfigButtonArea() {
+		return configButton.getArea();
+	}
+
+	private boolean isQuickConfigAvailable() {
+		return controller.hasValidScreen() && toggleState.isOverlayEnabled();
+	}
+
 	public void drawScreen(Minecraft minecraft, GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		drawBackground(guiGraphics);
 		drawForeground(minecraft, guiGraphics, mouseX, mouseY, partialTicks);
@@ -244,8 +299,8 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 			this.searchField.drawForeground(guiGraphics, mouseX, mouseY, partialTicks);
 		}
 		if (this.controller.hasValidScreen()) {
+			this.configButton.setForcePressed(configButtonController.isQuickMenuOpen());
 			this.configButton.draw(guiGraphics, mouseX, mouseY, partialTicks);
-
 		}
 		if (this.controller.hasValidScreen() && toggleState.isOverlayEnabled()) {
 			this.lookupHistoryOverlay.draw(minecraft, guiGraphics, mouseX, mouseY, partialTicks);

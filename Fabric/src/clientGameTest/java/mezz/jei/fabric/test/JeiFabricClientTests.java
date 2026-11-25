@@ -1,7 +1,10 @@
 package mezz.jei.fabric.test;
 
+import mezz.jei.test.client.ClientTestUtil;
+import mezz.jei.test.client.SpriteRenderingTest;
 import net.fabricmc.api.ClientModInitializer;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +37,7 @@ public final class JeiFabricClientTests implements ClientModInitializer {
 			case "guiResize" -> FabricClientTestRunner.register("fabric-client-gui-resize", "resize", () -> {
 				try (FabricClientTestWorld ignored = FabricClientTestWorld.create()) {
 					JeiGuiResizeClientGameTest.run();
+					RecipeGuiScrollingClientTest.run();
 				}
 			});
 			default -> FabricClientTestRunner.register(
@@ -50,7 +54,12 @@ public final class JeiFabricClientTests implements ClientModInitializer {
 
 	private static void registerAllTests() {
 		List<FabricClientTestRunner.ClientTestCase> testCases = new ArrayList<>();
+		testCases.add(new FabricClientTestRunner.ClientTestCase("fabric-client-gametest", "configGuiKeyModifiers", ConfigGuiKeyModifiersClientGameTest::run));
+		testCases.add(new FabricClientTestRunner.ClientTestCase("fabric-client-gametest", "quickConfig", QuickConfigClientGameTest::run));
 		testCases.add(ItemBatchRenderingClientGameTest.getTestCase());
+		testCases.add(new FabricClientTestRunner.ClientTestCase("fabric-client-rendering", "arrowSprites", () -> ClientTestUtil.runOnClient(SpriteRenderingTest::run, Duration.ofSeconds(30))));
+		testCases.add(IngredientDecoratorClientGameTest.getTestCase());
+		testCases.add(FakeMenuClientGameTest.getTestCase());
 		testCases.add(ChatItemLinksClientGameTest.getTestCase());
 		testCases.addAll(JeiFabricClientRecipeSyncTests.getTestCases());
 		testCases.add(JeiFabricCreativeInventoryClientGameTest.getTestCase());

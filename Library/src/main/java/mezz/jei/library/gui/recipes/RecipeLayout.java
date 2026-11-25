@@ -1,7 +1,9 @@
 package mezz.jei.library.gui.recipes;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import mezz.jei.api.ingredients.rendering.IIngredientRenderContext;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.drawable.IDrawableAnimated;
 import mezz.jei.api.gui.drawable.IDrawableStatic;
@@ -243,7 +245,7 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 				// defensive push/pop to protect against recipe category drawables changing the last pose
 				poseStack.pushPose();
 				{
-					drawable.draw(guiGraphics);
+					drawable.draw(guiGraphics, 0, 0, IIngredientRenderContext.ICON);
 
 					// rendered text often messes with the color, this clears it
 					RenderSystem.setShaderColor(1, 1, 1, 1);
@@ -276,56 +278,66 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	public void drawOverlays(GuiGraphics guiGraphics, int mouseX, int mouseY) {
 		ensureRecipeExtrasAreCreated();
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-
-		final int recipeMouseX = mouseX - area.getX();
-		final int recipeMouseY = mouseY - area.getY();
-
 		RenderSystem.disableBlend();
 
-		IRecipeSlotsView recipeCategorySlotsView = () -> Collections.unmodifiableList(recipeCategorySlots);
-		RecipeSlotUnderMouse hoveredSlotResult = getSlotUnderMouse(mouseX, mouseY).orElse(null);
-
-		if (hoveredSlotResult != null) {
-			IRecipeSlotDrawable hoveredSlot = hoveredSlotResult.slot();
-
-			hoveredSlot.drawTooltip(guiGraphics, mouseX, mouseY);
+		RecipeSlotUnderMouse hoveredSlot = getSlotUnderMouse(mouseX, mouseY).orElse(null);
+		if (hoveredSlot != null) {
+			hoveredSlot.slot().drawTooltip(guiGraphics, mouseX, mouseY);
 		} else if (isMouseOver(mouseX, mouseY)) {
-			JeiTooltip tooltip = new JeiTooltip();
-			try {
-				recipeCategory.getTooltip(tooltip, recipe, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
-				for (IRecipeCategoryDecorator<R> decorator : recipeCategoryDecorators) {
-					decorator.decorateTooltips(tooltip, recipe, recipeCategory, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
-				}
-			} catch (RuntimeException e) {
-				LIMITED_LOGGER.log(
-					Level.ERROR,
-					"recipe.category.tooltip.crash",
-					logger -> {
-						logger.error(
-							"Error while getting tooltip from recipe:\n{}",
-							ErrorUtil.getRecipeInfo(recipeCategory, recipe),
-							e
-						);
-					}
-				);
-			}
-
-			RecipeWidgetTooltipDispatcher.addWidgetTooltips(
-				tooltip,
-				allWidgets,
-				recipeMouseX,
-				recipeMouseY,
-				area.width(),
-				area.height()
-			);
-
-			if (tooltip.isEmpty() && shapelessIcon != null) {
-				if (shapelessIcon.isMouseOver(recipeMouseX, recipeMouseY)) {
-					shapelessIcon.addTooltip(tooltip);
-				}
-			}
-			tooltip.draw(guiGraphics, mouseX, mouseY);
+			getRecipeTooltip(mouseX, mouseY).draw(guiGraphics, mouseX, mouseY);
 		}
+	}
+
+	@Override
+	public void getTooltip(ITooltipBuilder tooltip, double mouseX, double mouseY) {
+		ensureRecipeExtrasAreCreated();
+		RecipeSlotUnderMouse hoveredSlot = getSlotUnderMouse(mouseX, mouseY).orElse(null);
+		if (hoveredSlot != null) {
+			hoveredSlot.slot().getTooltip(tooltip);
+		} else if (isMouseOver(mouseX, mouseY)) {
+			getRecipeTooltip(mouseX, mouseY).copyTo(tooltip);
+		}
+	}
+
+	private JeiTooltip getRecipeTooltip(double mouseX, double mouseY) {
+		double recipeMouseX = mouseX - area.getX();
+		double recipeMouseY = mouseY - area.getY();
+		IRecipeSlotsView recipeCategorySlotsView = () -> Collections.unmodifiableList(recipeCategorySlots);
+		JeiTooltip tooltip = new JeiTooltip();
+		try {
+			recipeCategory.getTooltip(tooltip, recipe, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
+			for (IRecipeCategoryDecorator<R> decorator : recipeCategoryDecorators) {
+				decorator.decorateTooltips(tooltip, recipe, recipeCategory, recipeCategorySlotsView, recipeMouseX, recipeMouseY);
+			}
+		} catch (RuntimeException e) {
+			LIMITED_LOGGER.log(
+				Level.ERROR,
+				"recipe.category.tooltip.crash",
+				logger -> {
+					logger.error(
+						"Error while getting tooltip from recipe:\n{}",
+						ErrorUtil.getRecipeInfo(recipeCategory, recipe),
+						e
+					);
+				}
+			);
+		}
+
+		RecipeWidgetTooltipDispatcher.addWidgetTooltips(
+			tooltip,
+			allWidgets,
+			recipeMouseX,
+			recipeMouseY,
+			area.width(),
+			area.height()
+		);
+
+		if (tooltip.isEmpty() && shapelessIcon != null) {
+			if (shapelessIcon.isMouseOver(recipeMouseX, recipeMouseY)) {
+				shapelessIcon.addTooltip(tooltip);
+			}
+		}
+		return tooltip;
 	}
 
 	@Override
@@ -423,8 +435,19 @@ public class RecipeLayout<R> implements IRecipeLayoutDrawable<R>, IRecipeExtrasB
 	}
 
 	@Override
+	public List<IRecipeWidget> getWidgets() {
+		ensureRecipeExtrasAreCreated();
+		return List.copyOf(allWidgets);
+	}
+
+	@Override
 	public R getRecipe() {
 		return recipe;
+	}
+
+	@Override
+	public boolean isShapeless() {
+		return shapelessIcon != null;
 	}
 
 	@Override

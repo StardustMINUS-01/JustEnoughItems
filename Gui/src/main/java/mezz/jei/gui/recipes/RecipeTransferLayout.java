@@ -1,5 +1,7 @@
 package mezz.jei.gui.recipes;
 
+import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.widgets.IRecipeWidget;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
@@ -20,6 +22,21 @@ record RecipeTransferLayout<R>(IRecipeLayoutDrawable<R> delegate, Supplier<IReci
 	@Override
 	public IRecipeSlotsView getRecipeSlotsView() {
 		return slots.get();
+	}
+
+	@Override
+	public List<IRecipeWidget> getWidgets() {
+		return delegate.getWidgets();
+	}
+
+	@Override
+	public boolean isShapeless() {
+		return delegate.isShapeless();
+	}
+
+	@Override
+	public void getTooltip(ITooltipBuilder tooltip, double mouseX, double mouseY) {
+		delegate.getTooltip(tooltip, mouseX, mouseY);
 	}
 
 	@Override
