@@ -9,7 +9,7 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.core.definitions.AEItems;
 import appeng.crafting.pattern.AEProcessingPattern;
-import appeng.helpers.IPatternTerminalMenuHost;
+import appeng.menu.SlotSemantics;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import appeng.util.CraftingRecipeUtil;
 import appeng.util.inv.PlayerInternalInventory;
@@ -17,6 +17,8 @@ import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
@@ -70,8 +72,12 @@ public final class JeiRecipeChainPatternEncodingService {
 			}
 		}
 
-		int writableCount = countWritable(preparedEntries);
-		if (!hasBlankPatterns(patternMenu, player, writableCount)) {
+		List<Slot> patternSlots = new ArrayList<>(patternMenu.getSlots(SlotSemantics.BLANK_PATTERN));
+		patternSlots.addAll(patternMenu.getSlots(SlotSemantics.ENCODED_PATTERN));
+		TerminalBlankPatterns blanks = new TerminalBlankPatterns(patternSlots, AEItems.BLANK_PATTERN.asItem());
+		boolean creative = player.getAbilities().instabuild;
+		PlayerInternalInventory playerInv = new PlayerInternalInventory(player.getInventory());
+		if (!creative && blanks.count() < countWritable(preparedEntries)) {
 			entries.addAll(entriesForInsufficientBlankPatterns(preparedEntries));
 			return new JeiBatchPatternEncodeResult(
 				0,
@@ -90,21 +96,9 @@ public final class JeiRecipeChainPatternEncodingService {
 				continue;
 			}
 
-			ItemStack encodedPattern = preparedEntry.encodedPattern;
-			PlayerInternalInventory playerInv = new PlayerInternalInventory(player.getInventory());
-			if (!canInsertIntoPlayerInventory(playerInv, encodedPattern)) {
-				stopReason = JeiPatternEncodeStopReason.NO_INVENTORY_SPACE;
+			stopReason = blanks.writePattern(playerInv, preparedEntry.encodedPattern, creative);
+			if (stopReason != JeiPatternEncodeStopReason.NONE) {
 				addNotProcessedEntries(entries, requests, i);
-				break;
-			}
-			if (!insertIntoPlayerInventory(playerInv, encodedPattern)) {
-				stopReason = JeiPatternEncodeStopReason.NO_INVENTORY_SPACE;
-				addNotProcessedEntries(entries, requests, i);
-				break;
-			}
-			if (!consumeBlankPatterns(patternMenu, player, 1)) {
-				stopReason = JeiPatternEncodeStopReason.NO_BLANK_PATTERN;
-				addNotProcessedEntries(entries, requests, i + 1);
 				break;
 			}
 
@@ -563,61 +557,39 @@ public final class JeiRecipeChainPatternEncodingService {
 		return !networkHasPattern.test(primaryOutput);
 	}
 
-	private static boolean hasBlankPatterns(PatternEncodingTermMenu menu, ServerPlayer player, int amount) {
-		if (amount <= 0 || player.getAbilities().instabuild) {
-			return true;
+	record TerminalBlankPatterns(List<Slot> slots, Item blankPattern) {
+		int count() {
+			return slots.stream().map(Slot::getItem).filter(stack -> stack.is(blankPattern)).mapToInt(ItemStack::getCount).sum();
 		}
-		InternalInventory blanks = getBlankPatternInventory(menu);
-		return blanks != null && countBlankPatterns(blanks) >= amount;
-	}
 
-	private static boolean consumeBlankPatterns(PatternEncodingTermMenu menu, ServerPlayer player, int amount) {
-		if (amount <= 0 || player.getAbilities().instabuild) {
-			return true;
-		}
-		InternalInventory blanks = getBlankPatternInventory(menu);
-		return blanks != null && consumeBlankPatterns(blanks, amount);
-	}
-
-	@Nullable
-	private static InternalInventory getBlankPatternInventory(PatternEncodingTermMenu menu) {
-		if (menu.getHost() instanceof IPatternTerminalMenuHost host) {
-			return host.getLogic().getBlankPatternInv();
-		}
-		return null;
-	}
-
-	private static int countBlankPatterns(InternalInventory blanks) {
-		int count = 0;
-		for (int i = 0; i < blanks.size(); i++) {
-			ItemStack stack = blanks.getStackInSlot(i);
-			if (!stack.isEmpty() && AEItems.BLANK_PATTERN.is(stack)) {
-				count += stack.getCount();
+		JeiPatternEncodeStopReason writePattern(InternalInventory destination, ItemStack pattern, boolean creative) {
+			if (!destination.simulateAdd(pattern).isEmpty()) {
+				return JeiPatternEncodeStopReason.NO_INVENTORY_SPACE;
 			}
-		}
-		return count;
-	}
-
-	private static boolean consumeBlankPatterns(InternalInventory blanks, int amount) {
-		for (int i = 0; i < blanks.size() && amount > 0; i++) {
-			ItemStack stack = blanks.getStackInSlot(i);
-			if (stack.isEmpty() || !AEItems.BLANK_PATTERN.is(stack)) {
-				continue;
+			Slot source = null;
+			ItemStack blank = ItemStack.EMPTY;
+			if (!creative) {
+				for (Slot slot : slots) {
+					if (slot.getItem().is(blankPattern)) {
+						blank = slot.remove(1);
+						if (!blank.isEmpty()) {
+							source = slot;
+							break;
+						}
+					}
+				}
+				if (source == null) {
+					return JeiPatternEncodeStopReason.NO_BLANK_PATTERN;
+				}
 			}
-			int taken = Math.min(amount, stack.getCount());
-			stack.shrink(taken);
-			amount -= taken;
-			blanks.setItemDirect(i, stack);
+			if (!destination.addItems(pattern).isEmpty()) {
+				if (source != null) {
+					source.set(blank.copyWithCount(source.getItem().getCount() + 1));
+				}
+				return JeiPatternEncodeStopReason.NO_INVENTORY_SPACE;
+			}
+			return JeiPatternEncodeStopReason.NONE;
 		}
-		return amount <= 0;
-	}
-
-	private static boolean canInsertIntoPlayerInventory(PlayerInternalInventory inventory, ItemStack encodedPattern) {
-		return inventory.simulateAdd(encodedPattern).isEmpty();
-	}
-
-	private static boolean insertIntoPlayerInventory(PlayerInternalInventory inventory, ItemStack encodedPattern) {
-		return inventory.addItems(encodedPattern).isEmpty();
 	}
 
 	private static boolean isValidStack(@Nullable GenericStack stack) {

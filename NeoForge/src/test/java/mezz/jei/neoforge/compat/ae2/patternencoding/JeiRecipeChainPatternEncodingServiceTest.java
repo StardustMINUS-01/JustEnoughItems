@@ -3,15 +3,18 @@ package mezz.jei.neoforge.compat.ae2.patternencoding;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
+import appeng.util.inv.AppEngInternalInventory;
 import mezz.jei.gui.compat.ae2.JeiPatternEncodeMode;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.jetbrains.annotations.Nullable;
 
@@ -57,6 +61,46 @@ public class JeiRecipeChainPatternEncodingServiceTest {
 
 		Assertions.assertEquals(JeiPatternEncodeStopReason.NOT_PATTERN_ENCODING_TERMINAL, result.stopReason());
 		Assertions.assertEquals(1, result.notProcessedCount());
+	}
+
+	@ParameterizedTest
+	@CsvSource({"1, 1", "0, 2", "2, 0"})
+	public void encodingConsumesBlanksAcrossTerminalSlots(int inputCount, int editingCount) {
+		var terminal = new SimpleContainer(2);
+		var input = new Slot(terminal, 0, 0, 0);
+		var editing = new Slot(terminal, 1, 0, 0);
+		input.set(new ItemStack(Items.PAPER, inputCount));
+		editing.set(new ItemStack(Items.PAPER, editingCount));
+		var blanks = new JeiRecipeChainPatternEncodingService.TerminalBlankPatterns(List.of(input, editing), Items.PAPER);
+		var destination = new AppEngInternalInventory(1);
+		var pattern = new ItemStack(Items.MAP);
+
+		Assertions.assertEquals(2, blanks.count());
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NONE, blanks.writePattern(destination, pattern, false));
+		Assertions.assertEquals(Math.max(0, inputCount - 1), input.getItem().getCount());
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NONE, blanks.writePattern(destination, pattern, false));
+		Assertions.assertEquals(0, blanks.count());
+		editing.set(pattern.copy());
+		Assertions.assertEquals(0, blanks.count());
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NO_BLANK_PATTERN, blanks.writePattern(destination, pattern, false));
+		Assertions.assertTrue(editing.getItem().is(Items.MAP));
+		Assertions.assertEquals(2, destination.getStackInSlot(0).getCount());
+	}
+
+	@Test
+	public void fullInventoryAndCreativeEncodingKeepTheBlank() {
+		Slot input = new Slot(new SimpleContainer(1), 0, 0, 0);
+		input.set(new ItemStack(Items.PAPER));
+		var blanks = new JeiRecipeChainPatternEncodingService.TerminalBlankPatterns(List.of(input), Items.PAPER);
+		var destination = new AppEngInternalInventory(1);
+		destination.setItemDirect(0, new ItemStack(Items.STONE));
+		var pattern = new ItemStack(Items.MAP);
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NO_INVENTORY_SPACE, blanks.writePattern(destination, pattern, false));
+		Assertions.assertEquals(1, blanks.count());
+		destination.setItemDirect(0, ItemStack.EMPTY);
+		Assertions.assertEquals(JeiPatternEncodeStopReason.NONE, blanks.writePattern(destination, pattern, true));
+		Assertions.assertEquals(1, blanks.count());
+		Assertions.assertTrue(destination.getStackInSlot(0).is(Items.MAP));
 	}
 
 	@ParameterizedTest
