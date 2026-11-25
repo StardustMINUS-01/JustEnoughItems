@@ -132,13 +132,14 @@ public class CollapsedGroupElement<T> implements IElement<T> {
 		delegate.tick();
 	}
 
+	public static boolean isToggleInput(UserInput input) {
+		InputConstants.Key key = input.getKey();
+		return key.getType() == InputConstants.Type.MOUSE && key.getValue() == GLFW.GLFW_MOUSE_BUTTON_LEFT && InputModifiers.hasAlt(input);
+	}
+
 	@Override
 	public Optional<InputAction> prepareAction(UserInput input, IInternalKeyMappings keyBindings) {
-		if (!allowToggle || !InputModifiers.hasAlt(input)) {
-			return Optional.empty();
-		}
-		InputConstants.Key key = input.getKey();
-		if (key.getType() != InputConstants.Type.MOUSE || key.getValue() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+		if (!allowToggle || !isToggleInput(input)) {
 			return Optional.empty();
 		}
 		return Optional.of(InputAction.run(() -> {

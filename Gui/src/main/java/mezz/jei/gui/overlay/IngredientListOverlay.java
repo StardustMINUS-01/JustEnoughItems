@@ -12,9 +12,12 @@ import mezz.jei.common.gui.InventoryEffectRenderer;
 import mezz.jei.common.input.IInputTarget;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.MouseUtil;
+import mezz.jei.common.input.UserInput;
+import mezz.jei.common.input.interaction.IInputInteraction;
 import mezz.jei.common.input.handlers.InputGroup.Child;
 import mezz.jei.common.input.handlers.InputGroup;
 import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.collapsible.CollapsedGroupElement;
 import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.input.DragSource;
@@ -376,11 +379,23 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 			"IngredientListOverlay",
 			new Child(this::isHistoryDisplayed, lookupHistoryOverlay.getResizeInputHandler()),
 			new Child(this::isListDisplayed, contents.getResizeInputHandler()),
+			new Child(this::isListDisplayed, (screen, input, bindings) -> prepareGroupToggle(input, bindings)),
 			new Child(this::isListDisplayed, contents.createDeleteItemInputHandler()),
 			new Child(controller::hasValidScreen, configButton.createInputHandler(input -> input.is(keys.getToggleCheatModeConfigButton()))),
 			new Child(this::isListDisplayed, contents.createInputHandler()),
 			new Child(this::isHistoryDisplayed, lookupHistoryOverlay.createInputHandler())
 		);
+	}
+
+	private Optional<IInputInteraction> prepareGroupToggle(UserInput input, IInternalKeyMappings keys) {
+		if (!CollapsedGroupElement.isToggleInput(input)) {
+			return Optional.empty();
+		}
+		return contents.getIngredientUnderMouse(input.getMouseX(), input.getMouseY())
+			.filter(clicked -> clicked.getElement() instanceof CollapsedGroupElement<?>)
+			.findFirst()
+			.flatMap(clicked -> clicked.getElement().prepareAction(input, keys)
+				.map(action -> action.within(clicked::isMouseOver).when(this::isListDisplayed)));
 	}
 
 	private List<DragSource> createDragSources() {
