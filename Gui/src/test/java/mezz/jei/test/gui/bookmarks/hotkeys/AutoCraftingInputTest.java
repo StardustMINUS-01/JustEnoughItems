@@ -121,8 +121,9 @@ public class AutoCraftingInputTest {
 			input(0, mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.item(key("material"), 1))));
 		List<PlayToServerPacket> packets = new ArrayList<>();
 		AtomicBoolean valid = new AtomicBoolean(true);
+		AtomicReference<List<ItemStack>> available = new AtomicReference<>(List.of(new ItemStack(Items.OAK_PLANKS)));
 		var task = BookmarkAutoCraftingBridge.createTask(chain, Set.of(), 9, 7, inventory::get,
-			() -> List.of(new ItemStack(Items.OAK_PLANKS)), uid -> Optional.of(layout()),
+			() -> available.getAndSet(List.of()), uid -> Optional.of(layout()),
 			packets::add, valid::get, craftAll)
 			.orElseThrow();
 

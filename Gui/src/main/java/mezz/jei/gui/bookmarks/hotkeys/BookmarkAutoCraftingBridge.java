@@ -18,6 +18,7 @@ import mezz.jei.gui.bookmarks.BookmarkItemMetadata;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import mezz.jei.common.network.packets.PacketCraftingGridCraft;
 import mezz.jei.common.network.packets.PlayToServerPacket;
+import mezz.jei.common.network.packets.PacketProcessingStationCraft;
 import mezz.jei.gui.bookmarks.chain.AutoCraftingManager;
 import mezz.jei.gui.bookmarks.chain.BookmarkCraftingScope;
 import mezz.jei.gui.bookmarks.chain.RecipeChainInput;
@@ -25,6 +26,7 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -75,7 +78,8 @@ public final class BookmarkAutoCraftingBridge {
 			recipeLayoutResolver,
 			packetSender,
 			stillValid,
-			craftAll
+			craftAll,
+			BookmarkProcessingStations::createCurrentRequest
 		));
 	}
 
@@ -105,21 +109,28 @@ public final class BookmarkAutoCraftingBridge {
 				if (craftedOnePacket.get()) {
 					return false;
 				}
-				return craft(
+				boolean accepted = craft(
 					recipeUid,
 					multiplier,
 					targetSlotCount,
 					containerId,
 					availableStacksSupplier,
 					recipeLayoutResolver,
-					packetSender,
-					simulate,
-					craftedOnePacket
+					0, 0, BookmarkProcessingStations::createCurrentRequest,
+					simulate ? null : (packet, available) -> sendPacket(packet, packetSender)
 				);
+				craftedOnePacket.set(accepted);
+				return accepted;
 			},
 			craftedOnePacket::get
 		);
 		return result.processed();
+	}
+
+	@FunctionalInterface
+	interface ProcessingRequestFactory {
+		Optional<PacketProcessingStationCraft> create(IRecipeLayoutDrawable<?> layout, int containerId, int multiplier,
+			int taskId, int requestId, List<ItemStack> available);
 	}
 
 	public static final class Task {
@@ -134,6 +145,7 @@ public final class BookmarkAutoCraftingBridge {
 		private final Consumer<PlayToServerPacket> packetSender;
 		private final BooleanSupplier stillValid;
 		private final boolean craftAll;
+		private final ProcessingRequestFactory processingRequests;
 		private boolean active = true;
 		private boolean waitingForAck;
 		private boolean waitingForInventorySync;
@@ -148,7 +160,7 @@ public final class BookmarkAutoCraftingBridge {
 		private boolean processingRequest;
 		private List<ItemStack> dispatchedStacks = List.of();
 
-		private Task(
+		Task(
 			List<RecipeChainInput> chainInputs,
 			Set<ResourceLocation> collapsedRecipeIds,
 			int targetSlotCount,
@@ -158,7 +170,8 @@ public final class BookmarkAutoCraftingBridge {
 			Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
 			Consumer<PlayToServerPacket> packetSender,
 			BooleanSupplier stillValid,
-			boolean craftAll
+			boolean craftAll,
+			ProcessingRequestFactory processingRequests
 		) {
 			this.chainInputs = List.copyOf(chainInputs);
 			this.collapsedRecipeIds = Set.copyOf(collapsedRecipeIds);
@@ -170,6 +183,7 @@ public final class BookmarkAutoCraftingBridge {
 			this.packetSender = packetSender;
 			this.stillValid = stillValid;
 			this.craftAll = craftAll;
+			this.processingRequests = processingRequests;
 		}
 
 		public int taskId() {
@@ -276,8 +290,6 @@ public final class BookmarkAutoCraftingBridge {
 			AtomicBoolean craftedOnePacket = new AtomicBoolean(false);
 			int requestId = nextRequestId++;
 			dispatchedInventorySnapshot = List.copyOf(inventorySupplier.get());
-			dispatchedStacks = availableStacksSupplier.get().stream().map(ItemStack::copy).toList();
-			processingRequest = false;
 			if (craftAll) {
 				if (!craftAllExpansionInventoryCaptured) {
 					craftAllExpansionInventorySnapshot = dispatchedInventorySnapshot;
@@ -295,10 +307,6 @@ public final class BookmarkAutoCraftingBridge {
 					if (craftedOnePacket.get()) {
 						return false;
 					}
-					var layout = recipeLayoutResolver.apply(recipeUid);
-					if (layout.isPresent() && !RecipeTypes.CRAFTING.equals(layout.get().getRecipeCategory().getRecipeType())) {
-						processingRequest = true;
-					}
 					return craft(
 						recipeUid,
 						multiplier,
@@ -306,12 +314,14 @@ public final class BookmarkAutoCraftingBridge {
 						containerId,
 						availableStacksSupplier,
 						recipeLayoutResolver,
-						packetSender,
-						false,
-						taskId,
-						requestId,
-						craftedOnePacket,
-						() -> dispatchedRecipeUid = recipeUid
+						taskId, requestId, processingRequests,
+						(packet, available) -> {
+							craftedOnePacket.set(true);
+							dispatchedRecipeUid = recipeUid;
+							processingRequest = packet instanceof PacketProcessingStationCraft;
+							dispatchedStacks = processingRequest ? available.stream().map(ItemStack::copy).toList() : List.of();
+							sendPacket(packet, packetSender);
+						}
 					);
 				},
 				craftedOnePacket::get
@@ -393,60 +403,24 @@ public final class BookmarkAutoCraftingBridge {
 		int containerId,
 		Supplier<List<ItemStack>> availableStacksSupplier,
 		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PlayToServerPacket> packetSender,
-		boolean simulate,
-		AtomicBoolean craftedOnePacket
-	) {
-		return craft(
-			recipeUid,
-			multiplier,
-			targetSlotCount,
-			containerId,
-			availableStacksSupplier,
-			recipeLayoutResolver,
-			packetSender,
-			simulate,
-			0,
-			0,
-			craftedOnePacket,
-			() -> {
-			}
-		);
-	}
-
-	private static boolean craft(
-		ResourceLocation recipeUid,
-		int multiplier,
-		int targetSlotCount,
-		int containerId,
-		Supplier<List<ItemStack>> availableStacksSupplier,
-		Function<ResourceLocation, Optional<IRecipeLayoutDrawable<?>>> recipeLayoutResolver,
-		Consumer<PlayToServerPacket> packetSender,
-		boolean simulate,
 		int taskId,
 		int requestId,
-		AtomicBoolean craftedOnePacket,
-		Runnable afterCraftAccepted
+		ProcessingRequestFactory processingRequests,
+		@Nullable BiConsumer<PlayToServerPacket, List<ItemStack>> onCraftAccepted
 	) {
 		IRecipeLayoutDrawable<?> recipeLayout = recipeLayoutResolver.apply(recipeUid).orElse(null);
 		if (recipeLayout == null) {
 			return false;
 		}
+		List<ItemStack> availableStacks = availableStacksSupplier.get();
 		if (!RecipeTypes.CRAFTING.equals(recipeLayout.getRecipeCategory().getRecipeType())) {
-			return BookmarkProcessingStations.createCurrentRequest(recipeLayout, containerId, multiplier, taskId, requestId, availableStacksSupplier.get())
-				.map(packet -> {
-					craftedOnePacket.set(true);
-					afterCraftAccepted.run();
-					if (!simulate) {
-						BookmarkProcessingStations.markDispatched(packet);
-						packetSender.accept(packet);
-					}
-					return true;
-				})
-				.orElse(false);
+			var packet = processingRequests.create(recipeLayout, containerId, multiplier, taskId, requestId, availableStacks);
+			if (onCraftAccepted != null) {
+				packet.ifPresent(request -> onCraftAccepted.accept(request, availableStacks));
+			}
+			return packet.isPresent();
 		}
 
-		List<ItemStack> availableStacks = copyStacks(availableStacksSupplier.get());
 		Optional<BookmarkCraftingGridFill> fill = BookmarkCraftingGridFill.create(
 			recipeLayout,
 			targetSlotCount,
@@ -457,12 +431,17 @@ public final class BookmarkAutoCraftingBridge {
 			return false;
 		}
 
-		craftedOnePacket.set(true);
-		afterCraftAccepted.run();
-		if (!simulate) {
-			packetSender.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, recipeUid, fill.get().multiplier(), fill.get().targetStacks()));
+		if (onCraftAccepted != null) {
+			onCraftAccepted.accept(new PacketCraftingGridCraft(containerId, taskId, requestId, recipeUid, fill.get().multiplier(), fill.get().targetStacks()), availableStacks);
 		}
 		return true;
+	}
+
+	private static void sendPacket(PlayToServerPacket packet, Consumer<PlayToServerPacket> packetSender) {
+		if (packet instanceof PacketProcessingStationCraft processing) {
+			BookmarkProcessingStations.markDispatched(processing);
+		}
+		packetSender.accept(packet);
 	}
 
 	private static boolean canCraft(List<ItemStack> targetStacks, int multiplier, List<ItemStack> availableStacks) {
