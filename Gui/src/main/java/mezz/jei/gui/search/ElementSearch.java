@@ -246,8 +246,11 @@ public class ElementSearch implements IElementSearch {
 		this.prefixedSearchables.forEach((prefixInfo, value) -> {
 			if (prefixInfo.getMode() != SearchMode.DISABLED) {
 				ISearchStorage<IListElement<?>> storage = value.getSearchStorage();
-				LOGGER.info("ElementSearch {} Storage Stats: {}", prefixInfo, storage.statistics());
+				logStatistics(prefixInfo, storage.statistics());
 			}
 		});
+	}
+	static void logStatistics(PrefixInfo<?, ?> prefix, String statistics) {
+		LOGGER.info("ElementSearch {} Storage Stats: {}", prefix, statistics);
 	}
 }

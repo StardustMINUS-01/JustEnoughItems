@@ -1,9 +1,38 @@
 package mezz.jei.common.config;
 
+import mezz.jei.common.search.compact.PinyinOption;
 import net.mezzdev.config.api.value.IConfigValue;
 import net.mezzdev.config.api.schema.builder.IConfigCategoryBuilder;
 
 public class IngredientFilterConfig implements IIngredientFilterConfig {
+	public enum SearchBackendPriority {
+		RESPECT_PLUGIN_OVERRIDE, PREFER_NATIVE_WHEN_PINYIN_ENABLED
+	}
+
+	private final java.util.EnumMap<PinyinOption, IConfigValue<Boolean>> pinyin = new java.util.EnumMap<>(PinyinOption.class);
+	private final IConfigValue<SearchBackendPriority> priority;
+
+	public int pinyinFlags() {
+		if (!pinyin.get(PinyinOption.ENABLED).get()) {
+			return pinyin.get(PinyinOption.FOLD).get() ? PinyinOption.FOLD.bit : 0;
+		}
+		int flags = 0;
+		for (var entry : pinyin.entrySet()) {
+			if (entry.getValue().get()) {
+				flags |= entry.getKey().bit;
+			}
+		}
+		return flags;
+	}
+
+	public boolean preferNativeSearch() {
+		return priority.get() == SearchBackendPriority.PREFER_NATIVE_WHEN_PINYIN_ENABLED && pinyin.get(PinyinOption.ENABLED).get();
+	}
+
+	public java.util.Map<PinyinOption, IConfigValue<Boolean>> pinyinOptions() {
+		return java.util.Collections.unmodifiableMap(pinyin);
+	}
+
 	private final IConfigValue<SearchMode> modNameSearchMode;
 	private final IConfigValue<SearchMode> tooltipSearchMode;
 	private final IConfigValue<SearchMode> tagSearchMode;
@@ -17,6 +46,10 @@ public class IngredientFilterConfig implements IIngredientFilterConfig {
 	private final IConfigValue<Boolean> searchIngredientAliases;
 
 	public IngredientFilterConfig(IConfigCategoryBuilder search) {
+		for (var option : PinyinOption.values()) {
+			pinyin.put(option, search.addBoolean(option.key, false).build());
+		}
+		priority = search.addEnum("searchBackendPriority", SearchBackendPriority.RESPECT_PLUGIN_OVERRIDE).build();
 		modNameSearchMode = search.addEnum("modNameSearchMode", SearchMode.REQUIRE_PREFIX)
 			.build();
 		tagSearchMode = search.addEnum("tagSearchMode", SearchMode.REQUIRE_PREFIX)

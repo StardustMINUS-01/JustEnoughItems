@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
+import mezz.jei.common.search.compact.PinyinQuery;
 import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 
 import java.util.HashSet;
@@ -27,9 +28,22 @@ final class RecipeSearchTextMatcher implements IRecipeSearchTextMatcher {
 
 	static Supplier<IRecipeSearchTextMatcher> createFactory(ISearchStorageBuilderFactory factory, RecipeSearchQuery query) {
 		Set<String> tokens = query.getRecipeTokens();
-		synchronized (factory) {
-			if (tokens.isEmpty() || factory.create("recipe_filter_strings").getClass() == CompactSearchStorageBuilder.class)
+		if (tokens.isEmpty()) {
+			return () -> DEFAULT;
+		}
+		if (factory instanceof CompactSearchStorageBuilder.Factory nativeFactory) {
+			int flags = nativeFactory.options().getAsInt();
+			if (flags == 0) {
 				return () -> DEFAULT;
+			}
+			var queries = new java.util.HashMap<String, PinyinQuery>();
+			for (String token : tokens) {
+				queries.put(token, PinyinQuery.compile(token, flags));
+			}
+			return () -> (text, token) -> {
+				var compiled = queries.get(token);
+				return text.contains(token) || compiled != null && compiled.matches(text);
+			};
 		}
 		return () -> new RecipeSearchTextMatcher(factory, tokens);
 	}

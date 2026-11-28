@@ -10,6 +10,7 @@ import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IngredientSortStage;
 import mezz.jei.common.config.SearchMode;
 import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
+import mezz.jei.common.search.compact.PinyinOption;
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -54,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -101,7 +103,7 @@ class IngredientFilterTest {
 		});
 		IIngredientManager manager = proxy(IIngredientManager.class, (p, m, a) -> switch (m.getName()) {
 			case "getIngredientHelper" -> helper;
-			case "getIngredientAliases" -> ((ITypedIngredient<?>) a[0]).getItemStack().orElseThrow().is(Items.STONE) ? List.of("rockalias") : List.of();
+			case "getIngredientAliases" -> ((ITypedIngredient<?>) a[0]).getItemStack().orElseThrow().is(Items.STONE) ? List.of("rockalias", "铸件") : List.of();
 			case "getRegisteredIngredientTypes" -> List.of(VanillaTypes.ITEM_STACK);
 			default -> m.invoke(baseManager, a);
 		});
@@ -127,10 +129,18 @@ class IngredientFilterTest {
 			};
 		}, infos, mods, visibility,
 			new IngredientTypeSortingConfig(configManager.createInMemorySortingConfig(Comparator.<String>naturalOrder(), true)),
-			null, customBackend ? AliasSearchStorageBuilder::new : CompactSearchStorageBuilder.FACTORY, proxy(IClientToggleState.class, (p, m, a) -> null));
+			null, customBackend ? AliasSearchStorageBuilder::new : new CompactSearchStorageBuilder.Factory(configs.getNativeSearchConfig()::pinyinFlags), proxy(IClientToggleState.class, (p, m, a) -> null));
 
 		assertEquals(List.of(Items.DIRT, Items.STONE), items(filter));
 		assertTrue(comparisons.get() > 0);
+		text.setFilterText("stone | dirt");
+		assertEquals(List.of(Items.DIRT, Items.STONE), items(filter));
+		text.setFilterText("sto one -dirt");
+		assertEquals(List.of(Items.STONE), items(filter));
+		text.setFilterText("dirt stone");
+		assertTrue(items(filter).isEmpty());
+		text.setFilterText("-stone");
+		assertEquals(List.of(Items.DIRT), items(filter));
 		text.setFilterText("stone");
 		assertEquals(List.of(Items.STONE), items(filter));
 		comparisons.set(0);
@@ -181,7 +191,7 @@ class IngredientFilterTest {
 		assertFalse(changed.test(item(Items.STONE), "dirt"));
 		assertTrue(narrowed.test(item(Items.STONE), "stone"), "a later query must not mutate an earlier snapshot");
 		assertEquals(customBackend, snapshot.test(item(Items.STONE), "shitou"));
-		assertEquals(customBackend, snapshot.test(item(Items.STONE), "queryalias"), "custom Lucene subclass query overrides must not be bypassed");
+		assertEquals(customBackend, snapshot.test(item(Items.STONE), "queryalias"), "custom storage query overrides must not be bypassed");
 		assertTrue(snapshot.test(item(Items.STONE), "#rocks"));
 		assertFalse(snapshot.test(item(Items.STONE), "#c:rocks"));
 		assertFalse(snapshot.test(item(Items.STONE), "rocks"));
@@ -221,6 +231,19 @@ class IngredientFilterTest {
 		filter.rebuildItemFilter();
 		var rebuilt = filter.createRecipeSearchSnapshot(Set.of("rockalias"), aliasesEnabled);
 		assertTrue(rebuilt.test(item(Items.STONE), "rockalias"));
+		var options = configs.getNativeSearchConfig().pinyinOptions();
+		text.setFilterText("zu");
+		var before = filter.createRecipeSearchSnapshot(Set.of("zu"));
+		assertTrue(items(filter).isEmpty());
+		options.get(PinyinOption.ENABLED).set(true);
+		options.get(PinyinOption.Z_ZH).set(true);
+		assertEquals(customBackend ? List.of() : List.of(Items.STONE), items(filter));
+		var during = filter.createRecipeSearchSnapshot(Set.of("zu"), before);
+		assertEquals(!customBackend, during.test(item(Items.STONE), "zu"));
+		assertFalse(before.test(item(Items.STONE), "zu"));
+		options.get(PinyinOption.Z_ZH).set(false);
+		assertTrue(items(filter).isEmpty());
+		assertEquals(!customBackend, during.test(item(Items.STONE), "zu"));
 		verifyRecipeSession(filter, manager);
 	}
 

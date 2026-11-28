@@ -120,7 +120,9 @@ public class AdvancedSearchRegistrationTest {
 				}
 			}
 		};
-		ISearchStorageBuilder<String> builder = PluginLoader.createSearchStorageFactory(List.of(plugin)).create("names");
+		var nativeFactory = new CompactSearchStorageBuilder.Factory(() -> 1);
+		Assertions.assertSame(nativeFactory, PluginLoader.createSearchStorageFactory(List.of(plugin), nativeFactory, true));
+		ISearchStorageBuilder<String> builder = PluginLoader.createSearchStorageFactory(List.of(plugin), nativeFactory, false).create("names");
 		builder.put("old changed", "changed");
 		builder.put("old unchanged", "unchanged");
 		ISearchStorage<String> storage = builder.build();

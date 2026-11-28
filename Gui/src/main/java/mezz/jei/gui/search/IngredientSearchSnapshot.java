@@ -3,9 +3,10 @@ package mezz.jei.gui.search;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import mezz.jei.api.helpers.IModIdHelper;
-import mezz.jei.api.ingredients.IIngredientType;
+import mezz.jei.gui.search.ElementCorpus.IngredientKey;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.ingredients.subtypes.UidContext;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
+import mezz.jei.common.search.compact.PinyinQuery;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.config.IIngredientFilterConfig;
@@ -15,7 +16,6 @@ import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import mezz.jei.gui.ingredients.ListElementInfo;
 import mezz.jei.gui.ingredients.ListElement;
-import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntMaps;
 import org.jetbrains.annotations.Nullable;
 
 /** Query-local material results, captured by the index owner and read by recipe workers. */
@@ -39,7 +41,7 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 	private final IIngredientManager ingredientManager;
 	private final IIngredientFilterConfig config;
 	private final IModIdHelper modIdHelper;
-	private final boolean literalBackend;
+	private final int nativeFlags;
 	private final ISearchStorageBuilderFactory storageFactory;
 
 	public IngredientSearchSnapshot(Set<String> tokens, IElementSearch search, ElementPrefixParser parser,
@@ -49,13 +51,15 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		this.config = config;
 		this.modIdHelper = modIdHelper;
 		this.storageFactory = storageFactory;
-		this.literalBackend = storageFactory == CompactSearchStorageBuilder.FACTORY;
+		this.nativeFlags = storageFactory instanceof CompactSearchStorageBuilder.Factory factory ? factory.options().getAsInt() : 0;
 		this.search = search;
 		this.identityRevision = identityRevision;
 		this.searchRevision = searchRevision;
 		boolean sameIdentities = previous != null && previous.search == search && previous.identityRevision == identityRevision;
 		IngredientIdentities identities = sameIdentities ? previous.identities : null;
-		if (identities == null && !tokens.isEmpty()) {
+		if (identities == null && !tokens.isEmpty() && search instanceof ElementCorpus corpus) {
+			identities = new IngredientIdentities(corpus.snapshotIngredientIds(), Reference2IntMaps.emptyMap());
+		} else if (identities == null && !tokens.isEmpty()) {
 			var elements = search.getAllIngredients();
 			identities = new IngredientIdentities(elements.size());
 			for (IListElement<?> element : elements) {
@@ -68,7 +72,8 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		if (tokens.isEmpty())
 			return;
 		var elementIds = identities.elementIds();
-		long bytesPerTerm = ((elementIds.size() + 63L) / 64) * Long.BYTES;
+		int elementCount = search instanceof ElementCorpus ? search.getAllIngredients().size() : elementIds.size();
+		long bytesPerTerm = ((elementCount + 63L) / 64) * Long.BYTES;
 		long remaining = MAX_MATCH_BYTES;
 		if (sameIdentities && previous.searchRevision == searchRevision) {
 			// Only carry forward conditions still used by this query, never a search-history cache.
@@ -85,7 +90,7 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 				continue;
 			var parsed = parser.parseToken(token);
 			if (parsed.isEmpty()) {
-				terms.put(token, new TermMatches("", List.of(), new BitSet(), true));
+				terms.put(token, new TermMatches("", List.of(), new BitSet(), true, null));
 				continue;
 			}
 			var info = parsed.get();
@@ -93,16 +98,22 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 				? parser.allPrefixInfos().stream().filter(field -> field.getMode() == SearchMode.ENABLED).toList()
 				: List.of(info.prefixInfo());
 			boolean indexed = bytesPerTerm <= remaining;
-			BitSet hits = new BitSet(indexed ? elementIds.size() : 0);
-			if (indexed) {
+			BitSet hits;
+			if (indexed && search instanceof ElementCorpus corpus) {
+				hits = corpus.getMatchBits(info);
+				remaining -= bytesPerTerm;
+			} else if (indexed) {
+				hits = new BitSet(elementCount);
 				search.collectSearchResults(info, element -> {
 					int id = elementIds.getInt(element);
 					if (id >= 0)
 						hits.set(id);
 				});
 				remaining -= bytesPerTerm;
+			} else {
+				hits = new BitSet();
 			}
-			terms.put(token, new TermMatches(info.token(), fields, hits, indexed));
+			terms.put(token, new TermMatches(info.token(), fields, hits, indexed, PinyinQuery.compile(info.token(), nativeFlags)));
 		}
 	}
 
@@ -130,10 +141,10 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 			return false;
 		for (var field : term.fields()) {
 			var strings = field.getStrings(info);
-			if (literalBackend) {
+			if (storageFactory instanceof CompactSearchStorageBuilder.Factory) {
 				for (String string : strings) {
 					String text = string.trim();
-					if (!text.isEmpty() && text.contains(term.token()))
+					if (!text.isEmpty() && (text.contains(term.token()) || term.pinyin() != null && term.pinyin().matches(text)))
 						return true;
 				}
 			} else {
@@ -154,12 +165,10 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 	}
 
 	private <T> IngredientKey getKey(ITypedIngredient<T> ingredient) {
-		var helper = ingredientManager.getIngredientHelper(ingredient.getType());
-		return new IngredientKey(ingredient.getType(), helper.getUid(ingredient.getIngredient(), UidContext.Ingredient));
+		return IngredientKey.of(ingredient, ingredientManager);
 	}
 
-	private record IngredientKey(IIngredientType<?> type, Object uid) {}
-	private record IngredientIdentities(Object2IntOpenHashMap<IngredientKey> ingredientIds, Reference2IntOpenHashMap<IListElement<?>> elementIds) {
+	private record IngredientIdentities(Object2IntOpenHashMap<IngredientKey> ingredientIds, Reference2IntMap<IListElement<?>> elementIds) {
 		private IngredientIdentities(int size) {
 			this(new Object2IntOpenHashMap<>(size), new Reference2IntOpenHashMap<>(size));
 			ingredientIds.defaultReturnValue(-1);
@@ -167,5 +176,5 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		}
 	}
 	private record CandidateTerm(IngredientKey ingredient, String token) {}
-	private record TermMatches(String token, List<PrefixInfo<IListElementInfo<?>, IListElement<?>>> fields, BitSet hits, boolean indexed) {}
+	private record TermMatches(String token, List<PrefixInfo<IListElementInfo<?>, IListElement<?>>> fields, BitSet hits, boolean indexed, @Nullable PinyinQuery pinyin) {}
 }

@@ -149,7 +149,9 @@ public final class JeiStarter {
 		);
 		stopCallbacks.add(jeiHelpers::onRuntimeStopped);
 
-		ISearchStorageBuilderFactory searchStorageBuilderFactory = PluginLoader.createSearchStorageFactory(plugins);
+		var searchConfig = jeiClientConfigs.getNativeSearchConfig();
+		ISearchStorageBuilderFactory searchStorageBuilderFactory = PluginLoader.createSearchStorageFactory(plugins,
+			new mezz.jei.common.search.compact.CompactSearchStorageBuilder.Factory(searchConfig::pinyinFlags), searchConfig.preferNativeSearch());
 
 		RecipeManager recipeManager = PluginLoader.createRecipeManager(
 			plugins,

@@ -199,9 +199,18 @@ public final class PluginLoader {
 	}
 
 	public static ISearchStorageBuilderFactory createSearchStorageFactory(List<IModPlugin> plugins) {
-		ISearchStorageBuilderFactory defaultSearchStorageBuilderFactory = CompactSearchStorageBuilder.FACTORY;
+		return createSearchStorageFactory(plugins, CompactSearchStorageBuilder.FACTORY, false);
+	}
+
+	public static ISearchStorageBuilderFactory createSearchStorageFactory(List<IModPlugin> plugins, CompactSearchStorageBuilder.Factory defaultSearchStorageBuilderFactory, boolean preferNative) {
 		AdvancedSearchRegistration searchRegistration = new AdvancedSearchRegistration(defaultSearchStorageBuilderFactory);
 		PluginCaller.callOnPlugins("Registering advanced search", plugins, p -> p.registerAdvancedSearch(searchRegistration));
+		if (preferNative) {
+			if (searchRegistration.getSearchStorageBuilderFactoryOverride().filter(factory -> factory != defaultSearchStorageBuilderFactory).isPresent()) {
+				com.mojang.logging.LogUtils.getLogger().warn("A registered search backend was overridden by the native pinyin search preference. Select RESPECT_PLUGIN_OVERRIDE to use the registered backend.");
+			}
+			return defaultSearchStorageBuilderFactory;
+		}
 		return searchRegistration.getSearchStorageBuilderFactoryOverride()
 			.map(RemovalFallbackSearchStorage::wrap)
 			.orElse(defaultSearchStorageBuilderFactory);

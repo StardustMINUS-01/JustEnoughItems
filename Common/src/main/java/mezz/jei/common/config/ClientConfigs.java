@@ -12,7 +12,7 @@ import java.util.Objects;
 
 public class ClientConfigs implements IClientConfigs {
 	private final IClientConfig clientConfig;
-	private final IIngredientFilterConfig ingredientFilterConfig;
+	private final IngredientFilterConfig ingredientFilterConfig;
 	private final IIngredientGridConfig ingredientListConfig;
 	private final IIngredientGridConfig bookmarkListConfig;
 	private final ISortingConfig<String> recipeCategorySortingConfig;
@@ -73,6 +73,10 @@ public class ClientConfigs implements IClientConfigs {
 	@Override
 	public IClientConfig getClientConfig() {
 		return clientConfig;
+	}
+
+	public IngredientFilterConfig getNativeSearchConfig() {
+		return ingredientFilterConfig;
 	}
 
 	@Override

@@ -148,7 +148,7 @@ public class IngredientFilterTest {
 	}
 
 	private void setupFilter() {
-		setupFilter(null, SearchBackend.LUCENE);
+		setupFilter(null, SearchBackend.NATIVE);
 	}
 
 	private void setupFilter(@Nullable DynamicIngredientData data, SearchBackend backend) {
@@ -204,7 +204,7 @@ public class IngredientFilterTest {
 			@Override
 			public void registerAdvancedSearch(IAdvancedSearchRegistration registration) {
 				switch (backend) {
-					case LUCENE -> {}
+					case NATIVE -> {}
 					case CUSTOM_STORAGE -> registration.replaceSearchStorage((ISearchStorageFactory) PrefixSearchStorage::new);
 					case CUSTOM_BUILDER -> registration.replaceSearchStorage((ISearchStorageBuilderFactory) PrefixSearchStorage::new);
 				}
@@ -303,7 +303,7 @@ public class IngredientFilterTest {
 			Assertions.assertTrue(ingredientFilter.getFilteredIngredients(TestIngredient.TYPE).isEmpty(), search);
 		}
 		filterTextSource.setFilterText("er crystal");
-		if (backend != SearchBackend.LUCENE) {
+		if (backend != SearchBackend.NATIVE) {
 			Assertions.assertTrue(ingredientFilter.getFilteredIngredients(TestIngredient.TYPE).isEmpty());
 		} else {
 			Assertions.assertEquals(List.of(new TestIngredient(0)), ingredientFilter.getFilteredIngredients(TestIngredient.TYPE));
@@ -415,7 +415,7 @@ public class IngredientFilterTest {
 	@Test
 	public void refreshPreservesVisibilityAndIgnoresUnregisteredIngredients() {
 		DynamicIngredientData data = new DynamicIngredientData();
-		setupFilter(data, SearchBackend.LUCENE);
+		setupFilter(data, SearchBackend.NATIVE);
 		Assertions.assertNotNull(ingredientManager);
 		Assertions.assertNotNull(ingredientFilter);
 		Assertions.assertNotNull(ingredientVisibility);
@@ -488,7 +488,7 @@ public class IngredientFilterTest {
 		Assertions.assertTrue(data.nameReads.isEmpty());
 		Assertions.assertTrue(searchStorageBuilderFactory.getAndClearCreatedIds().isEmpty());
 		filterTextSource.setFilterText("$qua");
-		if (backend == SearchBackend.LUCENE) {
+		if (backend == SearchBackend.NATIVE) {
 			Assertions.assertEquals(List.of(ingredient), ingredientFilter.getFilteredIngredients(TestIngredient.TYPE));
 		} else {
 			Assertions.assertTrue(ingredientFilter.getFilteredIngredients(TestIngredient.TYPE).isEmpty());
@@ -804,7 +804,7 @@ public class IngredientFilterTest {
 				return super.getUid(ingredient, context);
 			}
 		};
-		setupFilter(data, SearchBackend.LUCENE);
+		setupFilter(data, SearchBackend.NATIVE);
 		Assertions.assertNotNull(ingredientFilter);
 		Assertions.assertNotNull(filterTextSource);
 		Assertions.assertNotNull(ingredientFilterConfig);
@@ -1027,7 +1027,7 @@ public class IngredientFilterTest {
 	}
 
 	private enum SearchBackend {
-		LUCENE,
+		NATIVE,
 		CUSTOM_STORAGE,
 		CUSTOM_BUILDER
 	}

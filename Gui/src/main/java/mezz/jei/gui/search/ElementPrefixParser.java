@@ -8,6 +8,7 @@ import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.config.IIngredientFilterConfig;
 import mezz.jei.common.config.SearchMode;
 import mezz.jei.common.search.LimitedStringStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.common.search.PrefixInfo;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
@@ -31,7 +32,8 @@ public class ElementPrefixParser {
 		IColorHelper colorHelper,
 		ISearchStorageBuilderFactory searchStorageBuilderFactory
 	) {
-		ISearchStorageBuilderFactory limitedStringStorageBuilderFactory = createLimitedStringStorageBuilderFactory(searchStorageBuilderFactory);
+		ISearchStorageBuilderFactory limitedStringStorageBuilderFactory = searchStorageBuilderFactory instanceof CompactSearchStorageBuilder.Factory
+			? searchStorageBuilderFactory : createLimitedStringStorageBuilderFactory(searchStorageBuilderFactory);
 
 		this.noPrefix = new PrefixInfo<>(
 			"unprefixed",

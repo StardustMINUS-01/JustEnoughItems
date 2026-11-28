@@ -11,6 +11,8 @@ import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.DebugConfig;
+import mezz.jei.common.config.IngredientFilterConfig;
+import mezz.jei.common.search.compact.PinyinOption;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
@@ -23,6 +25,8 @@ import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.overlay.ingredients.IIngredientGridSource;
 import mezz.jei.gui.search.ElementPrefixParser;
 import mezz.jei.gui.search.ElementSearch;
+import mezz.jei.gui.search.ElementCorpus;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.gui.search.ElementSearchIndex;
 import mezz.jei.gui.search.IElementSearch;
 import mezz.jei.gui.search.IngredientSearchSnapshot;
@@ -111,8 +115,20 @@ public class IngredientFilter
 		this.sortIndexUpdater = sortIndexUpdater;
 		this.elementPrefixParser = new ElementPrefixParser(ingredientManager, config, colorHelper, searchStorageBuilderFactory);
 		this.searchStorageBuilderFactory = searchStorageBuilderFactory;
-		this.elementSearch = new ElementSearch(elementPrefixParser, ingredients, ingredientManager);
+		this.elementSearch = createElementSearch(ingredients);
 		addConfigListeners(clientConfig, config);
+		if (elementSearch instanceof ElementCorpus && config instanceof IngredientFilterConfig nativeConfig) {
+			for (var entry : nativeConfig.pinyinOptions().entrySet()) {
+				Internal.registerRuntimeListenerRemoval(entry.getValue().addListener(change -> {
+					if (entry.getKey() == PinyinOption.ENABLED && change.newValue() && elementSearch instanceof ElementCorpus corpus) {
+						corpus.warmPinyin();
+					}
+					invalidateCache();
+					invalidateCandidateCache();
+					notifyListenersOfChange();
+				}));
+			}
+		}
 
 		LOGGER.info("Adding {} ingredients", ingredients.size());
 		cacheElementInfos(ingredients);
@@ -132,6 +148,13 @@ public class IngredientFilter
 		});
 
 		clientToggleState.addEditModeToggleListener(this);
+	}
+
+	private IElementSearch createElementSearch(Collection<IListElementInfo<?>> infos) {
+		if (searchStorageBuilderFactory instanceof CompactSearchStorageBuilder.Factory nativeFactory) {
+			return new ElementCorpus(elementPrefixParser, infos, ingredientManager, nativeFactory.options());
+		}
+		return new ElementSearch(elementPrefixParser, infos, ingredientManager);
 	}
 
 	private void addConfigListeners(IClientConfig clientConfig, IIngredientFilterConfig config) {
@@ -184,6 +207,8 @@ public class IngredientFilter
 			ingredientManager, config, modIdHelper, searchStorageBuilderFactory, ingredientIdentityRevision, completionRevision, previous);
 	}
 
+
+
 	public long getIngredientSearchRevision() {
 		updateDirtyState();
 		return completionRevision;
@@ -199,7 +224,7 @@ public class IngredientFilter
 		this.elementInfoCache.clear();
 		cacheElementInfos(elementInfos);
 		this.sortIndexUpdater.apply(elementInfos);
-		this.elementSearch = new ElementSearch(this.elementPrefixParser, elementInfos, ingredientManager);
+		this.elementSearch = createElementSearch(elementInfos);
 		this.dirtyIngredients.clear();
 		this.dirtySearchIndexes.clear();
 		this.ingredientAliasesDirty = false;
@@ -279,6 +304,7 @@ public class IngredientFilter
 		}
 		if (changed) {
 			invalidateCache();
+			invalidateCandidateCache();
 			notifyListenersOfChange();
 		}
 	}
@@ -291,6 +317,9 @@ public class IngredientFilter
 		) && isIngredientTypeVisible(typedIngredient.getType());
 		if (element.isVisible() != visible) {
 			element.setVisible(visible);
+			if (elementSearch instanceof ElementCorpus corpus) {
+				corpus.updateVisibility(element);
+			}
 			return true;
 		}
 		return false;
@@ -303,6 +332,7 @@ public class IngredientFilter
 		IListElement<V> match = this.elementSearch.findElement(ingredient, ingredientHelper);
 		if (match != null && updateHiddenState(match)) {
 			invalidateCache();
+			invalidateCandidateCache();
 			notifyListenersOfChange();
 		}
 	}
@@ -320,6 +350,7 @@ public class IngredientFilter
 		}
 		if (changed) {
 			invalidateCache();
+			invalidateCandidateCache();
 			notifyListenersOfChange();
 		}
 	}
@@ -360,11 +391,18 @@ public class IngredientFilter
 			.filter(s -> !s.isEmpty())
 			.toList();
 
-		if (searchTokens.isEmpty()) {
+		if (searchTokens.isEmpty() || elementSearch instanceof ElementCorpus) {
 			if (sortedIngredients == null) {
 				sortedIngredients = this.elementSearch.getAllIngredients().parallelStream()
 					.sorted(ingredientComparator)
 					.toList();
+			}
+			if (!searchTokens.isEmpty() && elementSearch instanceof ElementCorpus corpus) {
+				long[] matches = corpus.emptyMatches();
+				for (SearchTokens group : searchTokens) {
+					corpus.unionGroup(group.toSearch(), group.toRemove(), matches);
+				}
+				return corpus.visibleMatches(sortedIngredients, matches).map(IListElement::getTypedIngredient);
 			}
 			return sortedIngredients.stream()
 				.filter(IListElement::isVisible)
