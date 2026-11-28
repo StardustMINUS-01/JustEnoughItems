@@ -8,11 +8,13 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.bookmarks.CraftingStackMatcher;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackLinkedSet;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public record BookmarkCraftingGridFill(
@@ -159,26 +161,20 @@ public record BookmarkCraftingGridFill(
 		for (ItemStack stack : orderedCandidates(slot)) {
 			IngredientGroup group = findOrCreateGroup(groups, stack);
 			group.recipeAmount += stack.getCount();
-			candidates.add(new Candidate(stack.copy(), group));
+			candidates.add(new Candidate(stack, group));
 		}
 		return candidates;
 	}
 
-	private static List<ItemStack> orderedCandidates(IRecipeSlotView slot) {
-		List<ItemStack> candidates = new ArrayList<>();
-		slot.getDisplayedItemStack()
-			.filter(stack -> !stack.isEmpty())
-			.ifPresent(stack -> addCandidate(candidates, stack));
-		slot.getItemStacks()
-			.filter(stack -> !stack.isEmpty())
-			.forEach(stack -> addCandidate(candidates, stack));
+	private static Set<ItemStack> orderedCandidates(IRecipeSlotView slot) {
+		Set<ItemStack> candidates = ItemStackLinkedSet.createTypeAndComponentsSet();
+		slot.getDisplayedItemStack().ifPresent(stack -> addCandidate(candidates, stack));
+		slot.getItemStacks().sequential().forEachOrdered(stack -> addCandidate(candidates, stack));
 		return candidates;
 	}
 
-	private static void addCandidate(List<ItemStack> candidates, ItemStack stack) {
-		boolean duplicate = candidates.stream()
-			.anyMatch(candidate -> CraftingStackMatcher.matchesExactStack(candidate, stack));
-		if (!duplicate) {
+	private static void addCandidate(Set<ItemStack> candidates, ItemStack stack) {
+		if (!stack.isEmpty() && !candidates.contains(stack)) {
 			candidates.add(stack.copy());
 		}
 	}

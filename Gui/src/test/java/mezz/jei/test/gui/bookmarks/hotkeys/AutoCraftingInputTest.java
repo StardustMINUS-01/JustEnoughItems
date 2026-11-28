@@ -19,6 +19,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.item;
+import static mezz.jei.test.gui.fixtures.ItemStackIngredientTestFixtures.typed;
 import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.ingredient;
 import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.input;
 import static mezz.jei.test.gui.fixtures.RecipeChainTestFixtures.key;
@@ -160,6 +162,23 @@ public class AutoCraftingInputTest {
 		for (int i = 0; i < slots; i++)
 			assertTrue(fill.targetStacks().get(i).is(materials.get(i)));
 		assertTrue(BookmarkCraftingGridFill.create(layout, slots + 1, 1).isEmpty());
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	void retainsDisplayedCandidateAmountAndDistinctComponents(boolean useOtherVariant) {
+		ItemStack displayed = new ItemStack(Items.STONE, 3);
+		displayed.set(DataComponents.CUSTOM_NAME, Component.literal("displayed"));
+		ItemStack other = new ItemStack(Items.STONE, 2);
+		other.set(DataComponents.CUSTOM_NAME, Component.literal("other"));
+		var slot = RecipeLayoutTestFixtures.slot(mezz.jei.api.recipe.RecipeIngredientRole.INPUT,
+			List.of(typed(displayed.copyWithCount(1)), typed(other)), typed(displayed));
+		var layout = new RecipeLayoutTestFixtures.TestRecipeLayout(
+			new RecipeLayoutTestFixtures.TestRecipeCategory(RecipeTypes.STONECUTTING, RECIPE),
+			new Object(), List.of(slot), List.of());
+		ItemStack expected = useOtherVariant ? other : displayed;
+		var fill = BookmarkCraftingGridFill.create(layout, 1, 1, List.of(expected.copyWithCount(8))).orElseThrow();
+		assertTrue(ItemStack.matches(expected, fill.targetStacks().getFirst()));
 	}
 
 	@ParameterizedTest
