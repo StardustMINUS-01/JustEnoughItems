@@ -1827,8 +1827,9 @@ public class BookmarkList implements IProjectedIngredientGridSource {
 		}
 		if (metadata.type().recipeRole() == RecipeIngredientRole.INPUT) {
 			List<BookmarkRecipeSelection.Choice> choices = new ArrayList<>();
-			for (int index = 0; index < bookmarksList.size(); index++) {
-				IBookmark entry = bookmarksList.get(index);
+			for (var iterator = bookmarksList.listIterator(); iterator.hasNext();) {
+				int index = iterator.nextIndex();
+				IBookmark entry = iterator.next();
 				var info = bookmarkGroups.getItemMetadata(entry);
 				if (entry != bookmark && (!synchronize || metadata.recipeUid() == null ||
 					info.groupId() != metadata.groupId() ||

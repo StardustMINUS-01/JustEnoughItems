@@ -14,12 +14,14 @@ import mezz.jei.gui.bookmarks.chain.RecipeChainMath;
 import mezz.jei.gui.bookmarks.tree.RecipeTreeViewState;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntFunction;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
@@ -205,9 +207,18 @@ public class BookmarkGroupManager<T> {
 
 	public void refreshRecipeChainDetails(List<T> orderedItems) {
 		recipeChainDetails.clear();
-		for (BookmarkGroup group : groups.values()) {
-			if (group.craftingMode()) {
-				refreshRecipeChainDetails(group, orderedItems);
+		List<BookmarkGroup> craftingGroups = groups.values().stream().filter(BookmarkGroup::craftingMode).toList();
+		if (craftingGroups.size() == 1) {
+			BookmarkGroup group = craftingGroups.getFirst();
+			recipeChainDetails.put(group.id(), RecipeChainMath.refresh(createRecipeChainInputs(group, orderedItems), group.collapsedRecipeIds()));
+		} else if (!craftingGroups.isEmpty()) {
+			Map<Integer, List<RecipeChainInput>> byGroup = new HashMap<>();
+			for (BookmarkGroup group : craftingGroups) {
+				byGroup.put(group.id(), new ArrayList<>());
+			}
+			collectRecipeChainInputs(orderedItems, byGroup::get);
+			for (BookmarkGroup group : craftingGroups) {
+				recipeChainDetails.put(group.id(), RecipeChainMath.refresh(byGroup.remove(group.id()), group.collapsedRecipeIds()));
 			}
 		}
 		recipeChainDetailsDirty = false;
@@ -224,22 +235,21 @@ public class BookmarkGroupManager<T> {
 		}
 	}
 
-	private void refreshRecipeChainDetails(BookmarkGroup group, List<T> orderedItems) {
-		List<RecipeChainInput> inputs = createRecipeChainInputs(group, orderedItems);
-		recipeChainDetails.put(group.id(), RecipeChainMath.refresh(inputs, group.collapsedRecipeIds()));
-	}
-
 	private List<RecipeChainInput> createRecipeChainInputs(BookmarkGroup group, List<T> orderedItems) {
 		List<RecipeChainInput> inputs = new ArrayList<>();
+		collectRecipeChainInputs(orderedItems, id -> id == group.id() ? inputs : null);
+		return List.copyOf(inputs);
+	}
+
+	private void collectRecipeChainInputs(List<T> orderedItems, IntFunction<@Nullable List<RecipeChainInput>> inputsForGroup) {
 		for (var iterator = orderedItems.listIterator(); iterator.hasNext();) {
 			int index = iterator.nextIndex();
-			T item = iterator.next();
-			BookmarkItemMetadata metadata = getItemMetadata(item);
-			if (group.id() == metadata.groupId()) {
+			BookmarkItemMetadata metadata = getItemMetadata(iterator.next());
+			List<RecipeChainInput> inputs = inputsForGroup.apply(metadata.groupId());
+			if (inputs != null) {
 				inputs.add(new RecipeChainInput(index, metadata));
 			}
 		}
-		return List.copyOf(inputs);
 	}
 
 	public List<T> getVisibleItems(List<T> orderedItems) {

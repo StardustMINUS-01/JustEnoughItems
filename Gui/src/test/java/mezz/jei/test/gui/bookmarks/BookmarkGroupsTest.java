@@ -199,6 +199,29 @@ public class BookmarkGroupsTest {
 	}
 
 	@Test
+	public void keepsGlobalIndicesWhenRefreshingInterleavedGroups() {
+		int plates = groups.createGroup("Plates");
+		int gears = groups.createGroup("Gears");
+		int empty = groups.createGroup("Empty");
+		groups.setCraftingMode(plates, true);
+		groups.setCraftingMode(gears, true);
+		groups.setCraftingMode(empty, true);
+		addPlateRecipe(plates, 2);
+		groups.setItemMetadata("gear", metadata(gears, BookmarkItemType.RESULT, "test:gear", "gear", 1, 1));
+		groups.setItemMetadata("rod", metadata(gears, BookmarkItemType.INGREDIENT, "test:gear", "rod", 4, 1));
+		var orderedItems = List.of("gear", "plate", "ordinary", "rod", "ingot");
+		groups.markRecipeChainDetailsDirty(orderedItems);
+
+		Assertions.assertEquals(Set.of(1, 4), groups.getRecipeChainDetails(plates).orElseThrow().calculatedItems().keySet());
+		Assertions.assertEquals(Set.of(0, 3), groups.getRecipeChainDetails(gears).orElseThrow().calculatedItems().keySet());
+		Assertions.assertTrue(groups.getRecipeChainDetails(empty).orElseThrow().calculatedItems().isEmpty());
+
+		groups.setCraftingMode(gears, false);
+		groups.markRecipeChainDetailsDirty(orderedItems);
+		Assertions.assertTrue(groups.getRecipeChainDetails(gears).isEmpty());
+	}
+
+	@Test
 	public void refreshesDirtyDetails() {
 		int id = groups.createGroup("Machines");
 		groups.setCraftingMode(id, true);
