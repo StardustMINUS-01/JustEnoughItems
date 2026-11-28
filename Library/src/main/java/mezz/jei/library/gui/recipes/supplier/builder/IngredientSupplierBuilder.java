@@ -16,6 +16,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import it.unimi.dsi.fastutil.ints.IntArrays;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.Set;
 
 /**
@@ -111,15 +113,30 @@ public class IngredientSupplierBuilder implements IRecipeLayoutBuilder {
 
 	public RecipeIngredientSupplier buildIngredientSupplier() {
 		Map<RecipeIngredientRole, List<ITypedIngredient<?>>> ingredientsByRole = new EnumMap<>(RecipeIngredientRole.class);
-		ingredientSlotBuilders.forEach(
-			(role, builders) -> ingredientsByRole.put(
-				role,
-				builders.stream()
-					.flatMap(builder -> builder.getAllIngredients().stream())
-					.filter(Objects::nonNull)
-					.toList()
-			)
-		);
+		var wide = new EnumMap<RecipeIngredientRole, int[]>(RecipeIngredientRole.class);
+		ingredientSlotBuilders.forEach((role, builders) -> {
+			var values = new ArrayList<ITypedIngredient<?>>();
+			IntArrayList ranges = null;
+			for (var slot : builders) {
+				int start = values.size();
+				for (var ingredient : slot.getAllIngredients())
+					if (ingredient != null)
+						values.add(ingredient);
+				if (values.size() - start >= 4 && (role == RecipeIngredientRole.INPUT || role == RecipeIngredientRole.OUTPUT)) {
+					if (builders.size() == 1)
+						wide.put(role, mezz.jei.common.recipes.IRecipeMaterialCacheInternal.RegisteredMaterials.WHOLE_SLOT);
+					else {
+						if (ranges == null)
+							ranges = new IntArrayList();
+						ranges.add(start);
+						ranges.add(values.size());
+					}
+				}
+			}
+			if (ranges != null)
+				wide.put(role, ranges.toIntArray());
+			ingredientsByRole.put(role, values);
+		});
 		List<FocusLink> focusLinks = this.focusLinkedSlots.stream()
 			.map(linkedSlots -> linkedSlots.stream()
 				.map(slot -> new FocusLink.Slot(slot.getRole(), slot.getAllIngredients()))
@@ -127,6 +144,8 @@ public class IngredientSupplierBuilder implements IRecipeLayoutBuilder {
 			)
 			.map(FocusLink::new)
 			.toList();
-		return new RecipeIngredientSupplier(ingredientsByRole, focusLinks);
+		return new RecipeIngredientSupplier(ingredientsByRole, focusLinks,
+			wide.getOrDefault(RecipeIngredientRole.INPUT, IntArrays.EMPTY_ARRAY),
+			wide.getOrDefault(RecipeIngredientRole.OUTPUT, IntArrays.EMPTY_ARRAY));
 	}
 }

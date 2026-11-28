@@ -119,6 +119,7 @@ public class InternalRecipeManagerPluginTest {
 		manager.addRecipes(alpha, List.of("alpha recipe"));
 		manager.addRecipes(beta, List.of("beta recipe"));
 		manager.addRecipes(gamma, List.of("gamma recipe"));
+		var dynamicName = new java.util.concurrent.atomic.AtomicReference<>("dynamic recipe");
 		manager.addPlugins(List.of(new IRecipeManagerPlugin() {
 			@Override
 			public <V> List<RecipeType<?>> getRecipeTypes(IFocus<V> focus) {
@@ -140,11 +141,20 @@ public class InternalRecipeManagerPluginTest {
 			public <T> List<T> getRecipes(IRecipeCategory<T> category) {
 				RecipeType<T> type = category.getRecipeType();
 				if (type.equals(dynamic)) {
-					return List.of(type.getRecipeClass().cast("dynamic recipe"));
+					return List.of(type.getRecipeClass().cast(dynamicName.get()));
 				}
 				return List.of();
 			}
 		}));
+		var publicManager = new mezz.jei.library.recipes.RecipeManager(manager, ingredientManager, ImmutableListMultimap.of(), List.of());
+		assertEquals(List.of("alpha recipe"), publicManager.getVisibleRecipes(alphaCategory));
+		assertEquals(List.of("dynamic recipe"), publicManager.getVisibleRecipes(dynamicCategory));
+		dynamicName.set("changed recipe");
+		assertEquals(List.of("changed recipe"), publicManager.getVisibleRecipes(dynamicCategory));
+		manager.hideRecipes(alpha, List.of("alpha recipe"));
+		assertTrue(publicManager.getVisibleRecipes(alphaCategory).isEmpty());
+		manager.unhideRecipes(alpha, List.of("alpha recipe"));
+		assertEquals(List.of("alpha recipe"), publicManager.getVisibleRecipes(alphaCategory));
 		ITypedIngredient<TestIngredient> ingredient = typedIngredient(ingredientManager, INPUT);
 		List<IFocus<?>> recipes = List.of(new Focus<>(RecipeIngredientRole.OUTPUT, ingredient));
 		List<IFocus<?>> uses = List.of(
@@ -525,6 +535,7 @@ public class InternalRecipeManagerPluginTest {
 		var handled = new java.util.concurrent.atomic.AtomicBoolean(true);
 		var entered = new java.util.concurrent.CountDownLatch(1);
 		var release = new java.util.concurrent.CountDownLatch(1);
+		var partialFailure = new java.util.concurrent.atomic.AtomicBoolean(true);
 		var candidates = new java.util.concurrent.atomic.AtomicReference<>(List.of(INPUT, CATALYST, INPUT));
 		TestRecipeCategory category = new TestRecipeCategory() {
 			@Override
@@ -540,6 +551,8 @@ public class InternalRecipeManagerPluginTest {
 					}
 				}
 				builder.addSlot(RecipeIngredientRole.INPUT).addIngredients(INGREDIENT_TYPE, candidates.get());
+				if (recipe.equals("partial") && partialFailure.getAndSet(false))
+					throw new IllegalStateException("fixture extraction stopped");
 				builder.addSlot(RecipeIngredientRole.OUTPUT).addIngredient(INGREDIENT_TYPE, CATALYST);
 				builder.addInvisibleIngredients(RecipeIngredientRole.CATALYST).addIngredient(INGREDIENT_TYPE, INPUT);
 				builder.addSlot(RecipeIngredientRole.RENDER_ONLY).addIngredient(INGREDIENT_TYPE, CATALYST);
@@ -552,7 +565,7 @@ public class InternalRecipeManagerPluginTest {
 
 			@Override
 			public ResourceLocation getRegistryName(String recipe) {
-				return ResourceLocation.parse("test:shared_recipe_id");
+				return recipe.equals("partial") ? null : ResourceLocation.parse("test:shared_recipe_id");
 			}
 		};
 		var visibility = (mezz.jei.api.runtime.IIngredientVisibility) java.lang.reflect.Proxy.newProxyInstance(
@@ -626,6 +639,18 @@ public class InternalRecipeManagerPluginTest {
 			manager.getRecipeIngredients(category, "blocked");
 			assertEquals(12, calls.get(), "an extraction racing with invalidation must not refill the cleared cache");
 		}
+		String partial = "partial";
+		internal.addRecipes(RECIPE_TYPE, List.of(partial));
+		org.junit.jupiter.api.Assertions.assertNull(manager.getRegisteredRecipeMaterials(category, partial));
+		assertEquals(1, manager.getRecipeIngredients(category, partial).getIngredients(RecipeIngredientRole.OUTPUT).size());
+		assertEquals(14, calls.get(), "an incomplete registered layout must be retried through the dynamic path");
+		org.junit.jupiter.api.Assertions.assertNotNull(manager.getCachedDynamicMaterials(category, partial, Set.of(RecipeIngredientRole.OUTPUT)));
+		long revision = manager.getRecipeMaterialRevision();
+		internal.hideRecipeCategory(RECIPE_TYPE);
+		assertTrue(manager.getRecipeMaterialRevision() > revision);
+		revision = manager.getRecipeMaterialRevision();
+		internal.unhideRecipeCategory(RECIPE_TYPE);
+		assertTrue(manager.getRecipeMaterialRevision() > revision);
 	}
 
 	private static EnumMap<RecipeIngredientRole, RecipeMap> createRoleMaps(IIngredientManager ingredientManager) {

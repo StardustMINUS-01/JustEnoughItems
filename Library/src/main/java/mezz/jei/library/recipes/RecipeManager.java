@@ -37,6 +37,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.jetbrains.annotations.Nullable;
 
 public class RecipeManager implements IRecipeManager, IRecipeVisibility, IRecipeMaterialCacheInternal {
 	private final RecipeManagerInternal internal;
@@ -201,6 +202,46 @@ public class RecipeManager implements IRecipeManager, IRecipeVisibility, IRecipe
 	@Override
 	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
 		return getRecipeIngredients(recipeCategory, recipe, EnumSet.allOf(RecipeIngredientRole.class));
+	}
+
+	@Override
+	public @Nullable IIngredientSupplier getCachedDynamicMaterials(IRecipeCategory<?> category, Object recipe, Set<RecipeIngredientRole> roles) {
+		return internal.materialCache().cachedDynamic(category, recipe, roles);
+	}
+
+	@Override
+	public List<IRecipeCategory<?>> getRegisteredCategories() {
+		return internal.getRegisteredCategories();
+	}
+
+	@Override
+	public <T> List<T> getVisibleRecipes(IRecipeCategory<T> category) {
+		return internal.getVisibleRecipes(category);
+	}
+
+	@Override
+	public int getRegisteredRecipeCount(IRecipeCategory<?> category) {
+		return internal.getRegisteredRecipeCount(category);
+	}
+
+	@Override
+	public <T> List<T> getRegisteredRecipes(IRecipeCategory<T> category, int minimumSize) {
+		return internal.getRegisteredRecipes(category, minimumSize);
+	}
+
+	@Override
+	public long getRecipeVisibilityRevision() {
+		return internal.getRecipeVisibilityRevision();
+	}
+
+	@Override
+	public long getRecipeMaterialRevision() {
+		return internal.materialCache().revision();
+	}
+
+	@Override
+	public @Nullable IRecipeMaterialCacheInternal.RegisteredMaterials getRegisteredRecipeMaterials(IRecipeCategory<?> category, Object recipe) {
+		return internal.materialCache().registered(category, recipe);
 	}
 
 	@Override

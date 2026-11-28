@@ -61,6 +61,10 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	private Snapshot recipeCategorySortingSnapshot;
 	private final Runnable removeRecipeCategorySortingConfigChangeListener;
 
+	private long visibilityRevision;
+	private final java.util.Map<RecipeType<?>, VisibleRecipes<?>> visibleLists = new java.util.HashMap<>();
+	private record VisibleRecipes<T>(List<T> visible, Set<T> registered) {}
+
 	@Nullable
 	@Unmodifiable
 	private List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
@@ -141,6 +145,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		if (!addedRecipes.isEmpty()) {
 			recipeTypeData.addRecipes(addedRecipes);
 			recipeCategoriesVisibleCache = null;
+			visibleLists.clear();
 		}
 	}
 
@@ -182,8 +187,27 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		return recipeMaterialCache.getIngredients(category, recipe, ingredientManager, roles);
 	}
 
+	long getRecipeVisibilityRevision() { return visibilityRevision; }
+
+	List<IRecipeCategory<?>> getRegisteredCategories() {
+		return recipeCategories;
+	}
+
+	int getRegisteredRecipeCount(IRecipeCategory<?> category) {
+		return recipeTypeDataMap.get(category.getRecipeType()).getRecipeCount();
+	}
+
+	<T> List<T> getRegisteredRecipes(IRecipeCategory<T> category, int minimumSize) {
+		return recipeTypeDataMap.get(category.getRecipeType()).snapshotRecipes(minimumSize);
+	}
+
+	RecipeMaterialCache materialCache() {
+		return recipeMaterialCache;
+	}
+
 	public void invalidateRecipeMaterials() {
 		recipeMaterialCache.invalidateAll();
+		visibleLists.clear();
 	}
 
 	public boolean isCategoryHidden(IRecipeCategory<?> recipeCategory, IFocusGroup focuses) {
@@ -265,6 +289,32 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		return categoryStream.sorted(this.recipeCategoryComparator);
 	}
 
+	@SuppressWarnings("unchecked")
+	<T> List<T> getVisibleRecipes(IRecipeCategory<T> category) {
+		var type = category.getRecipeType();
+		if (isRecipeTypeHidden(type))
+			return List.of();
+		var data = recipeTypeDataMap.get(type);
+		var focuses = mezz.jei.library.focus.FocusGroup.EMPTY;
+		var cached = (VisibleRecipes<T>) visibleLists.computeIfAbsent(type, ignored -> {
+			var seen = new java.util.HashSet<T>();
+			var visible = new ArrayList<T>();
+			for (T recipe : data.getRecipes()) {
+				if (seen.add(recipe) && !data.getHiddenRecipes().contains(recipe) && isRecipeVisible(data, recipe, focuses))
+					visible.add(recipe);
+			}
+			return new VisibleRecipes<>(List.copyOf(visible), seen);
+		});
+		var extra = pluginManager.getAdditionalRecipes(category)
+			.filter(recipe -> !cached.registered.contains(recipe)).distinct()
+			.filter(recipe -> !data.getHiddenRecipes().contains(recipe) && isRecipeVisible(data, recipe, focuses)).toList();
+		if (extra.isEmpty())
+			return cached.visible;
+		var result = new ArrayList<>(cached.visible);
+		result.addAll(extra);
+		return List.copyOf(result);
+	}
+
 	public <T> Stream<T> getRecipesStream(RecipeType<T> recipeType, IFocusGroup focuses, boolean includeHidden) {
 		if (!includeHidden && isRecipeTypeHidden(recipeType)) {
 			return Stream.empty();
@@ -288,6 +338,11 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	private <T> boolean isRecipeVisible(RecipeTypeData<T> recipeTypeData, T recipe, IFocusGroup focuses) {
 		List<FocusLink> focusLinks = getFocusLinks(recipeTypeData, recipe);
 		for (FocusLink focusLink : focusLinks) {
+			if (focuses.isEmpty()) {
+				if (!focusLink.hasVisibleCombination(ingredient -> ingredientVisibility.isIngredientVisible(ingredient, UidContext.Recipe)))
+					return false;
+				continue;
+			}
 			Set<Integer> visibleIndexes = focusLink.getVisibleIngredientIndexes(
 				focuses,
 				ingredientManager,
@@ -348,7 +403,9 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 
 	@Override
 	public <V> void onIngredientVisibilityChanged(ITypedIngredient<V> ingredient, boolean visible) {
+		visibilityRevision++;
 		recipeCategoriesVisibleCache = null;
+		visibleLists.clear();
 	}
 
 	@Override
@@ -358,7 +415,9 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		boolean visible
 	) {
 		if (contexts.contains(UidContext.Recipe)) {
+			visibilityRevision++;
 			recipeCategoriesVisibleCache = null;
+			visibleLists.clear();
 		}
 	}
 
@@ -375,13 +434,16 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 	}
 
 	private void onRecipeCategorySortingConfigChanged() {
+		visibilityRevision++;
 		recipeCategorySortingSnapshot = null;
 		recipeCategoriesVisibleCache = null;
+		visibleLists.clear();
 	}
 
 	public void onRuntimeStopped() {
 		removeRecipeCategorySortingConfigChangeListener.run();
 		recipeMaterialCache.clear();
+		visibleLists.clear();
 	}
 
 	public <T> void hideRecipes(RecipeType<T> recipeType, Collection<T> recipes) {
@@ -391,6 +453,7 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		for (T recipe : recipes)
 			recipeMaterialCache.invalidate(recipeTypeData.getRecipeCategory(), recipe);
 		recipeCategoriesVisibleCache = null;
+		visibleLists.clear();
 	}
 
 	public <T> void unhideRecipes(RecipeType<T> recipeType, Collection<T> recipes) {
@@ -400,17 +463,22 @@ public class RecipeManagerInternal implements IIngredientVisibility.IListener {
 		for (T recipe : recipes)
 			recipeMaterialCache.invalidate(recipeTypeData.getRecipeCategory(), recipe);
 		recipeCategoriesVisibleCache = null;
+		visibleLists.clear();
 	}
 
 	public void hideRecipeCategory(RecipeType<?> recipeType) {
-		hiddenRecipeTypes.add(recipeType);
+		if (hiddenRecipeTypes.add(recipeType))
+			recipeMaterialCache.categoryVisibilityChanged();
 		recipeCategoriesVisibleCache = null;
+		visibleLists.clear();
 	}
 
 	public void unhideRecipeCategory(RecipeType<?> recipeType) {
 		recipeTypeDataMap.validate(recipeType);
-		hiddenRecipeTypes.remove(recipeType);
+		if (hiddenRecipeTypes.remove(recipeType))
+			recipeMaterialCache.categoryVisibilityChanged();
 		recipeCategoriesVisibleCache = null;
+		visibleLists.clear();
 	}
 
 	public <T> Optional<RecipeType<T>> getRecipeType(ResourceLocation recipeUid, Class<? extends T> recipeClass) {

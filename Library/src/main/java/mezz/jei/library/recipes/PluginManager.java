@@ -22,9 +22,11 @@ import java.util.stream.Stream;
 public class PluginManager {
 	private static final Logger LOGGER = LogManager.getLogger();
 
+	private final IRecipeManagerPlugin internal;
 	private List<IRecipeManagerPlugin> plugins = new ArrayList<>();
 
 	public PluginManager(IRecipeManagerPlugin internalRecipeManagerPlugin) {
+		this.internal = internalRecipeManagerPlugin;
 		this.plugins.add(internalRecipeManagerPlugin);
 	}
 
@@ -42,6 +44,10 @@ public class PluginManager {
 			recipes = recipes.filter(notHidden);
 		}
 		return recipes;
+	}
+
+	<T> Stream<T> getAdditionalRecipes(IRecipeCategory<T> category) {
+		return plugins.stream().filter(plugin -> plugin != internal).flatMap(plugin -> getRecipes(plugin, category));
 	}
 
 	public Stream<RecipeType<?>> getRecipeTypes(IFocusGroup focusGroup) {

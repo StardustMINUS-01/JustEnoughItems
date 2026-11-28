@@ -39,6 +39,8 @@ public class FocusedRecipes<T> implements IFocusedRecipes<T> {
 	@Unmodifiable
 	public List<T> getRecipes() {
 		if (recipes == null) {
+			if (focuses.isEmpty() && recipeManager instanceof mezz.jei.common.recipes.IRecipeMaterialCacheInternal materials)
+				return recipes = materials.getVisibleRecipes(recipeCategory);
 			recipes = recipeManager.createRecipeLookup(recipeCategory.getRecipeType())
 				.limitFocus(focuses.getAllFocuses())
 				.get()

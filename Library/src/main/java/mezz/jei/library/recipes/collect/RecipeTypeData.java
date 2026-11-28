@@ -42,7 +42,13 @@ public class RecipeTypeData<T> {
 		return Collections.unmodifiableList(recipes);
 	}
 
-	public void addRecipes(Collection<T> recipes) {
+	public synchronized int getRecipeCount() { return recipes.size(); }
+
+	public synchronized List<T> snapshotRecipes(int minimumSize) {
+		return recipes.size() < minimumSize ? List.of() : List.copyOf(recipes);
+	}
+
+	public synchronized void addRecipes(Collection<T> recipes) {
 		this.recipes.addAll(recipes);
 	}
 

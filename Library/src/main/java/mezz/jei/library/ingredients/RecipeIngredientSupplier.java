@@ -3,7 +3,6 @@ package mezz.jei.library.ingredients;
 import mezz.jei.api.runtime.IIngredientManager;
 import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -17,12 +16,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import it.unimi.dsi.fastutil.ints.IntArrays;
+import mezz.jei.common.recipes.IRecipeMaterialCacheInternal;
 import java.util.function.Predicate;
 
 /**
  * Ingredients collected from a recipe layout, including focus links needed when recipe visibility is checked.
  */
-public class RecipeIngredientSupplier implements IIngredientSupplier {
+public class RecipeIngredientSupplier implements IRecipeMaterialCacheInternal.RegisteredMaterials {
+	private final int[] inputSlots, outputSlots;
+	@Override
+	public int[] wideSlots(RecipeIngredientRole role) { return role == RecipeIngredientRole.INPUT ? inputSlots : outputSlots; }
 	private final Map<RecipeIngredientRole, List<ITypedIngredient<?>>> ingredientsByRole;
 	private final List<FocusLink> focusLinks;
 
@@ -34,6 +38,12 @@ public class RecipeIngredientSupplier implements IIngredientSupplier {
 		Map<RecipeIngredientRole, List<ITypedIngredient<?>>> ingredientsByRole,
 		List<FocusLink> focusLinks
 	) {
+		this(ingredientsByRole, focusLinks, IntArrays.EMPTY_ARRAY, IntArrays.EMPTY_ARRAY);
+	}
+
+	public RecipeIngredientSupplier(Map<RecipeIngredientRole, List<ITypedIngredient<?>>> ingredientsByRole, List<FocusLink> focusLinks, int[] inputSlots, int[] outputSlots) {
+		this.inputSlots = inputSlots;
+		this.outputSlots = outputSlots;
 		EnumMap<RecipeIngredientRole, List<ITypedIngredient<?>>> copiedIngredients = new EnumMap<>(RecipeIngredientRole.class);
 		ingredientsByRole.forEach((role, ingredients) -> copiedIngredients.put(role, List.copyOf(ingredients)));
 		this.ingredientsByRole = Collections.unmodifiableMap(copiedIngredients);
@@ -53,6 +63,25 @@ public class RecipeIngredientSupplier implements IIngredientSupplier {
 	public record FocusLink(List<Slot> slots) {
 		public FocusLink {
 			slots = List.copyOf(slots);
+		}
+
+		public boolean hasVisibleCombination(Predicate<ITypedIngredient<?>> isVisible) {
+			if (slots.isEmpty() || slots.getFirst().ingredients().isEmpty())
+				return true;
+			int size = slots.getFirst().ingredients().size();
+			for (int i = 0; i < size; i++) {
+				boolean visible = true;
+				for (Slot slot : slots) {
+					var values = slot.ingredients();
+					if (i >= values.size() || values.get(i) != null && !isVisible.test(values.get(i))) {
+						visible = false;
+						break;
+					}
+				}
+				if (visible)
+					return true;
+			}
+			return false;
 		}
 
 		public @Nullable Set<Integer> getVisibleIngredientIndexes(
