@@ -1,8 +1,5 @@
 package mezz.jei.gui.overlay.bookmarks;
 
-import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.Internal;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
@@ -12,15 +9,10 @@ import mezz.jei.gui.overlay.ingredients.IngredientGrid;
 import net.minecraft.client.gui.GuiGraphics;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 public final class FavoriteRecipeSortDragState {
-	private static final int DRAG_OVERLAY_COLOR = 0x66555555;
-
 	private final Kind kind;
 	private final FocusedRecipe sourceRecipe;
 	private final @Nullable FavoriteRecipePanelState.RecipeInputKey sourceInputKey;
@@ -138,16 +130,7 @@ public final class FavoriteRecipeSortDragState {
 	}
 
 	public boolean drawSourceSlotOverlays(GuiGraphics guiGraphics) {
-		for (ImmutableRect2i area : sourceSlotOverlayAreas) {
-			guiGraphics.fill(
-				area.getX(),
-				area.getY(),
-				area.getX() + area.getWidth(),
-				area.getY() + area.getHeight(),
-				DRAG_OVERLAY_COLOR
-			);
-		}
-		return !sourceSlotOverlayAreas.isEmpty();
+		return BookmarkSortDragState.drawSlotOverlays(guiGraphics, sourceSlotOverlayAreas);
 	}
 
 	public boolean drawTargetSlotOverlays(GuiGraphics guiGraphics) {
@@ -168,21 +151,8 @@ public final class FavoriteRecipeSortDragState {
 	}
 
 	public boolean drawDraggedItems(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		if (!active || previewSlots.isEmpty()) {
-			return false;
-		}
-		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		for (BookmarkSortDragState.PreviewSlot<FavoriteRecipeElement<?>> slot : previewSlots) {
-			ITypedIngredient<?> typedIngredient = slot.element().getTypedIngredient();
-			BookmarkSortDragState.drawIngredient(
-				guiGraphics,
-				ingredientManager,
-				typedIngredient,
-				mouseX + dragOffsetX + slot.relativeX(),
-				mouseY + dragOffsetY + slot.relativeY()
-			);
-		}
-		return true;
+		return active && BookmarkSortDragState.drawPreviewSlots(guiGraphics, previewSlots, mouseX + dragOffsetX, mouseY + dragOffsetY,
+			FavoriteRecipeElement::getTypedIngredient);
 	}
 
 	private boolean updateRecipe(
@@ -190,15 +160,9 @@ public final class FavoriteRecipeSortDragState {
 		List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> panelSlots,
 		double mouseY
 	) {
-		Optional<FavoriteRecipeMovePlan> movePlan = FavoriteRecipeMovePlan.create(toRecipePanelSlots(panelSlots), sourceRecipe, mouseY);
-		if (movePlan.isEmpty()) {
-			targetSlotOverlayAreas = List.of();
-			return false;
-		}
-
-		FavoriteRecipeMovePlan plan = movePlan.get();
-		targetSlotOverlayAreas = plan.targetAreas();
-		return store.moveFavorite(sourceRecipe, plan.targetRecipe(), plan.offset());
+		return FavoriteRecipeMovePlan.create(panelSlots, sourceRecipe, mouseY)
+			.map(plan -> store.moveFavorite(sourceRecipe, plan.targetRecipe(), plan.offset()))
+			.orElse(false);
 	}
 
 	private boolean updateInput(
@@ -208,10 +172,8 @@ public final class FavoriteRecipeSortDragState {
 		double mouseY
 	) {
 		if (sourceInputKey == null) {
-			targetSlotOverlayAreas = List.of();
 			return false;
 		}
-		List<FavoriteRecipePanelState.RecipeInputKey> inputOrder = getInputOrder(panelSlots);
 		Optional<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> targetSlot = panelSlots.stream()
 			.filter(slot -> slot.area().contains(mouseX, mouseY))
 			.filter(slot -> sourceRecipe.equals(slot.item().getFocusedRecipe()))
@@ -219,21 +181,18 @@ public final class FavoriteRecipeSortDragState {
 			.filter(slot -> slot.item().getRecipeInputKey().isPresent())
 			.findFirst();
 		if (targetSlot.isEmpty()) {
-			targetSlotOverlayAreas = List.of();
 			return false;
 		}
 		FavoriteRecipePanelState.RecipeInputKey targetInputKey = targetSlot.get().item().getRecipeInputKey().orElseThrow();
 		if (sourceInputKey.equals(targetInputKey)) {
-			targetSlotOverlayAreas = List.of();
 			return false;
 		}
+		var inputOrder = getInputOrder(panelSlots);
 		int sourceIndex = inputOrder.indexOf(sourceInputKey);
 		int targetIndex = inputOrder.indexOf(targetInputKey);
 		if (sourceIndex < 0 || targetIndex < 0) {
-			targetSlotOverlayAreas = List.of();
 			return false;
 		}
-		targetSlotOverlayAreas = List.of(targetSlot.get().area());
 		int offset = sourceIndex < targetIndex ? 1 : 0;
 		return panelState.moveRecipeInput(sourceRecipe, inputOrder, sourceInputKey, targetInputKey, offset);
 	}
@@ -246,69 +205,29 @@ public final class FavoriteRecipeSortDragState {
 		if (!previewSlots.isEmpty() || sourceSlots.isEmpty()) {
 			return;
 		}
-		ImmutableRect2i origin = getPreviewOrigin(sourceSlots);
-		previewSlots = sourceSlots.stream()
-			.map(slot -> new BookmarkSortDragState.PreviewSlot<FavoriteRecipeElement<?>>(
-				slot.item(),
-				slot.area().getX() - origin.getX(),
-				slot.area().getY() - origin.getY(),
-				slot.area().getWidth(),
-				slot.area().getHeight()
-			))
-			.toList();
+		ImmutableRect2i origin = kind == Kind.INPUT ? sourceArea : sourceSlots.stream()
+			.min(BookmarkPanelLayout.SLOT_ORDER).orElseThrow().area();
+		previewSlots = BookmarkSortDragState.toPreviewSlots(sourceSlots, origin);
 	}
 
 	private List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> getSourceSlots(
 		List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> panelSlots
 	) {
-		return switch (kind) {
-			case RECIPE -> panelSlots.stream()
-				.filter(slot -> sourceRecipe.equals(slot.item().getFocusedRecipe()))
-				.toList();
-			case INPUT -> panelSlots.stream()
-				.filter(slot -> sourceRecipe.equals(slot.item().getFocusedRecipe()))
-				.filter(slot -> slot.item().getRecipeInputKey().filter(key -> key.equals(sourceInputKey)).isPresent())
-				.toList();
-		};
-	}
-
-	private ImmutableRect2i getPreviewOrigin(List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> sourceSlots) {
-		if (kind == Kind.INPUT) {
-			return sourceArea;
-		}
-		return sourceSlots.stream()
-			.map(BookmarkPanelLayout.PanelSlot::area)
-			.min(Comparator.comparingInt(ImmutableRect2i::getY).thenComparingInt(ImmutableRect2i::getX))
-			.orElse(sourceArea);
+		return panelSlots.stream()
+			.filter(slot -> sourceRecipe.equals(slot.item().getFocusedRecipe()))
+			.filter(slot -> kind == Kind.RECIPE || slot.item().getRecipeInputKey().filter(key -> key.equals(sourceInputKey)).isPresent())
+			.toList();
 	}
 
 	private List<FavoriteRecipePanelState.RecipeInputKey> getInputOrder(
 		List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> panelSlots
 	) {
-		Set<FavoriteRecipePanelState.RecipeInputKey> seen = new HashSet<>();
 		return panelSlots.stream()
-			.sorted(Comparator.comparingInt((BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>> slot) -> slot.area().getY())
-				.thenComparingInt(slot -> slot.area().getX()))
-			.map(BookmarkPanelLayout.PanelSlot::item)
-			.filter(element -> sourceRecipe.equals(element.getFocusedRecipe()))
-			.filter(element -> !element.isFavoriteTarget())
-			.map(FavoriteRecipeElement::getRecipeInputKey)
+			.filter(slot -> sourceRecipe.equals(slot.item().getFocusedRecipe()) && !slot.item().isFavoriteTarget())
+			.sorted(BookmarkPanelLayout.SLOT_ORDER)
+			.map(slot -> slot.item().getRecipeInputKey())
 			.flatMap(Optional::stream)
-			.filter(seen::add)
-			.toList();
-	}
-
-	private static List<BookmarkPanelLayout.PanelSlot<FocusedRecipe>> toRecipePanelSlots(
-		List<BookmarkPanelLayout.PanelSlot<FavoriteRecipeElement<?>>> panelSlots
-	) {
-		return panelSlots.stream()
-			.map(slot -> new BookmarkPanelLayout.PanelSlot<>(
-				slot.item().getFocusedRecipe(),
-				slot.groupId(),
-				slot.area(),
-				slot.shadow(),
-				slot.item().getFocusedRecipe()
-			))
+			.distinct()
 			.toList();
 	}
 

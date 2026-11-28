@@ -19,12 +19,16 @@ import mezz.jei.gui.favorites.FavoriteRecipeElement;
 import mezz.jei.gui.favorites.FavoriteRecipePanelState;
 import mezz.jei.gui.favorites.FavoriteRecipeStore;
 import mezz.jei.gui.input.FocusedRecipe;
+import mezz.jei.common.util.ImmutableRect2i;
+import mezz.jei.gui.overlay.bookmarks.BookmarkPanelLayout.PanelSlot;
+import mezz.jei.gui.overlay.bookmarks.FavoriteRecipeSortDragState;
 import mezz.jei.gui.overlay.elements.IElement;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Proxy;
@@ -59,6 +63,33 @@ public class FavoriteGridSourceTest {
 		FavoriteRecipeElement<?> element = (FavoriteRecipeElement<?>) source.getElements().getFirst();
 
 		Assertions.assertTrue(element.getAmountText().isEmpty());
+	}
+
+	@ParameterizedTest
+	@CsvSource({"-1, 0", "17.5, 0", "18, 1", "35.5, 1", "45, 1", "63, 2", "99, 2"})
+	void dropsRelativeToTheWholeFavoriteRecipe(double mouseY, int expectedIndex) {
+		var plate = recipe("plate");
+		var bolt = recipe("bolt");
+		var store = store("gear", RECIPE);
+		store.setFavorite(BookmarkIngredientKey.of(TYPE.getUid(), "plate"), plate, Map.of());
+		store.setFavorite(BookmarkIngredientKey.of(TYPE.getUid(), "bolt"), bolt, Map.of());
+		var state = new FavoriteRecipePanelState();
+		var elements = source(store, state, new CountingInputsResolver()).getElements();
+		var gearElement = (FavoriteRecipeElement<?>) elements.get(0);
+		var sourceArea = new ImmutableRect2i(0, 90, 18, 18);
+		var slots = List.<PanelSlot<FavoriteRecipeElement<?>>>of(
+			new PanelSlot<>(gearElement, 1, new ImmutableRect2i(0, 18, 18, 18), false),
+			new PanelSlot<>((FavoriteRecipeElement<?>) elements.get(1), 2, new ImmutableRect2i(0, 54, 18, 18), false),
+			new PanelSlot<>((FavoriteRecipeElement<?>) elements.get(2), 3, sourceArea, false),
+			new PanelSlot<>(gearElement, 1, new ImmutableRect2i(18, 0, 18, 18), false)
+		);
+
+		var drag = FavoriteRecipeSortDragState.recipe(bolt, sourceArea, 4, 94, 0, 0);
+		drag.update(store, state, slots, 4, mouseY, 1);
+
+		var order = store.entries().stream().map(FavoriteRecipeStore.Entry::recipe).toList();
+		Assertions.assertEquals(expectedIndex, order.indexOf(bolt));
+		Assertions.assertTrue(order.indexOf(RECIPE) < order.indexOf(plate));
 	}
 
 	@Test

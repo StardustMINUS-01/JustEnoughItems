@@ -1,8 +1,6 @@
 package mezz.jei.gui.overlay.bookmarks;
 
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.Internal;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.BookmarkRowLayout;
@@ -44,15 +42,6 @@ class GroupPanelDrag {
 	private @Nullable BookmarkPanelLayout.RowSlot<IBookmark> globalEnd;
 	private Set<IBookmark> selected = Set.of();
 	private Set<IBookmark> released = Set.of();
-
-	public GroupPanelDrag(
-		BookmarkOverlay overlay,
-		GroupPanelSlot startSlot,
-		boolean exclude,
-		@Nullable BookmarkHotkeyAction clickFallbackAction
-	) {
-		this(overlay, startSlot, exclude, clickFallbackAction, false);
-	}
 
 	public GroupPanelDrag(
 		BookmarkOverlay overlay,
@@ -185,7 +174,6 @@ class GroupPanelDrag {
 		if (dropPreviewSlots.isEmpty()) {
 			return;
 		}
-		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		BookmarkGroupDropBridge.GroupDropHighlightProvider highlightProvider = BookmarkGroupDropBridge.getGroupDropHighlightProvider();
 		if (highlightProvider != null && !overlay.getToggleState().isCheatItemsEnabled()) {
 			List<ITypedIngredient<?>> ingredients = new ArrayList<>(dropPreviewSlots.size());
@@ -195,16 +183,8 @@ class GroupPanelDrag {
 			List<Rect2i> dropAreas = highlightProvider.getDropAreas(ingredients);
 			GhostIngredientDrag.drawTargets(guiGraphics, mouseX, mouseY, dropAreas);
 		}
-		for (BookmarkSortDragState.PreviewSlot<IBookmark> slot : dropPreviewSlots) {
-			ITypedIngredient<?> ingredient = slot.element().getElement().getTypedIngredient();
-			BookmarkSortDragState.drawIngredient(
-				guiGraphics,
-				ingredientManager,
-				ingredient,
-				mouseX + dragOffsetX + slot.relativeX(),
-				mouseY + dragOffsetY + slot.relativeY()
-			);
-		}
+		BookmarkSortDragState.drawPreviewSlots(guiGraphics, dropPreviewSlots, mouseX + dragOffsetX, mouseY + dragOffsetY,
+			bookmark -> bookmark.getElement().getTypedIngredient());
 		List<BookmarkSortDragState.FloatingGroupPanelSlot> floatingSlots = BookmarkSortDragState.getFloatingGroupPanelSlots(
 			allPreviewSlots,
 			mouseX,

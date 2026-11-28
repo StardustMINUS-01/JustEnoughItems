@@ -28,6 +28,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BookmarkPanelProjectionTest {
 	@Test
+	void mixedRowKeepsLeftmostSlotAndFirstNonDefaultGroup() {
+		var slots = List.of(
+			new BookmarkPanelLayout.PanelSlot<>("last", 9, new ImmutableRect2i(48, 0, 12, 12), false),
+			new BookmarkPanelLayout.PanelSlot<>("next row", 0, new ImmutableRect2i(2, 18, 18, 18), false),
+			new BookmarkPanelLayout.PanelSlot<>("first group", 7, new ImmutableRect2i(32, 0, 16, 16), false),
+			new BookmarkPanelLayout.PanelSlot<>("leftmost", 0, new ImmutableRect2i(10, 0, 20, 15), false)
+		);
+		assertEquals(List.of(
+			new BookmarkPanelLayout.RowSlot<>("leftmost", 7, new ImmutableRect2i(2, 0, 20, 15)),
+			new BookmarkPanelLayout.RowSlot<>("next row", 0, new ImmutableRect2i(2, 18, 18, 18))
+		), BookmarkPanelLayout.createRowSlots(slots));
+	}
+
+	@Test
 	void selectsAcrossPages() {
 		var display = IntStream.range(0, 12).mapToObj(i -> createDisplaySlot(i, "item" + i)).toList();
 		var slots = BookmarkPanelLayout.globalSlots(display, BookmarkRowLayout.RowLayout.create(3, List.of(2, 1, 3)));

@@ -159,17 +159,7 @@ public final class BookmarkSortDragState {
 	}
 
 	public boolean drawSourceSlotOverlays(GuiGraphics guiGraphics, List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots) {
-		List<ImmutableRect2i> areas = getSourceSlotOverlayAreas(panelSlots);
-		for (ImmutableRect2i area : areas) {
-			guiGraphics.fill(
-				area.getX(),
-				area.getY(),
-				area.getX() + area.getWidth(),
-				area.getY() + area.getHeight(),
-				DRAG_OVERLAY_COLOR
-			);
-		}
-		return !areas.isEmpty();
+		return drawSlotOverlays(guiGraphics, getSourceSlotOverlayAreas(panelSlots));
 	}
 
 	public List<ImmutableRect2i> getTargetSlotOverlayAreas() {
@@ -191,7 +181,10 @@ public final class BookmarkSortDragState {
 	}
 
 	public boolean drawTargetSlotOverlays(GuiGraphics guiGraphics) {
-		List<ImmutableRect2i> areas = getTargetSlotOverlayAreas();
+		return drawSlotOverlays(guiGraphics, getTargetSlotOverlayAreas());
+	}
+
+	static boolean drawSlotOverlays(GuiGraphics guiGraphics, List<ImmutableRect2i> areas) {
 		for (ImmutableRect2i area : areas) {
 			guiGraphics.fill(
 				area.getX(),
@@ -214,19 +207,17 @@ public final class BookmarkSortDragState {
 	}
 
 	public boolean drawDraggedItems(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		if (!active || previewSlots.isEmpty()) {
+		return active && drawPreviewSlots(guiGraphics, previewSlots, mouseX + dragOffsetX, mouseY + dragOffsetY,
+			bookmark -> bookmark.getElement().getTypedIngredient());
+	}
+
+	static <T> boolean drawPreviewSlots(GuiGraphics guiGraphics, List<PreviewSlot<T>> slots, int x, int y, Function<T, ITypedIngredient<?>> ingredient) {
+		if (slots.isEmpty()) {
 			return false;
 		}
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
-		for (PreviewSlot<IBookmark> slot : previewSlots) {
-			ITypedIngredient<?> typedIngredient = slot.element().getElement().getTypedIngredient();
-			drawIngredient(
-				guiGraphics,
-				ingredientManager,
-				typedIngredient,
-				mouseX + dragOffsetX + slot.relativeX(),
-				mouseY + dragOffsetY + slot.relativeY()
-			);
+		for (PreviewSlot<T> slot : slots) {
+			drawIngredient(guiGraphics, ingredientManager, ingredient.apply(slot.element()), x + slot.relativeX(), y + slot.relativeY());
 		}
 		return true;
 	}
@@ -325,10 +316,10 @@ public final class BookmarkSortDragState {
 		BookmarkMoveSelection selection = BookmarkMoveSelection.create(bookmarkList, sourceBookmark);
 		hide(selection.bookmarks(), visiblePanelSlots, sourceArea);
 
-		List<BookmarkPanelLayout.RowSlot<IBookmark>> rowSlots = BookmarkPanelLayout.createRowSlots(projectedPanelSlots);
 		int currentSourceGroupId = bookmarkList.getBookmarkGroupId(sourceBookmark);
 		Optional<BookmarkPanelLayout.PanelSlot<IBookmark>> targetSlot = findSlotAt(projectedPanelSlots, mouseX, mouseY);
 		if (selection.crossGroupMove()) {
+			var rowSlots = BookmarkPanelLayout.createRowSlots(projectedPanelSlots);
 			return updateCrossGroupItem(bookmarkList, selection, currentSourceGroupId, projectedPanelSlots, rowSlots, targetSlot, mouseY);
 		}
 		return updateConcreteSlotItem(bookmarkList, selection, currentSourceGroupId, targetSlot);
@@ -416,17 +407,14 @@ public final class BookmarkSortDragState {
 		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
 		double mouseY
 	) {
-		Optional<Integer> gridLeftX = panelSlots.stream()
+		var gridLeftX = panelSlots.stream()
 			.map(BookmarkPanelLayout.PanelSlot::area)
 			.mapToInt(ImmutableRect2i::getX)
-			.min()
-			.stream()
-			.boxed()
-			.findFirst();
+			.min();
 		if (gridLeftX.isEmpty()) {
 			return Optional.empty();
 		}
-		return findSlotAt(panelSlots, gridLeftX.get(), mouseY);
+		return findSlotAt(panelSlots, gridLeftX.getAsInt(), mouseY);
 	}
 
 	private static Optional<BookmarkPanelLayout.RowSlot<IBookmark>> findRowByY(
@@ -464,18 +452,6 @@ public final class BookmarkSortDragState {
 		int offset = getConcreteSlotOffset(bookmarkList, sourceBookmark, targetBookmark);
 		selection.moveToBookmark(bookmarkList, targetBookmark, currentSourceGroupId, offset);
 		return true;
-	}
-
-	private static boolean usesConcreteSlotSort(
-		BookmarkList bookmarkList,
-		IBookmark sourceBookmark,
-		BookmarkMoveSelection selection
-	) {
-		if (selection.movesRecipe()) {
-			return false;
-		}
-		BookmarkItemMetadata sourceMetadata = bookmarkList.getBookmarkMetadata(sourceBookmark);
-		return sourceMetadata.recipeUid() != null && !sourceMetadata.type().isGraphOutput();
 	}
 
 	private static boolean canSortOverConcreteTarget(BookmarkList bookmarkList, IBookmark sourceBookmark, IBookmark targetBookmark) {
@@ -540,7 +516,7 @@ public final class BookmarkSortDragState {
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	static <T> void drawIngredient(
+	private static <T> void drawIngredient(
 		GuiGraphics guiGraphics,
 		IIngredientManager ingredientManager,
 		ITypedIngredient<T> typedIngredient,
@@ -581,8 +557,8 @@ public final class BookmarkSortDragState {
 		DRAG_PLACEHOLDER
 	}
 
-	static List<PreviewSlot<IBookmark>> toPreviewSlots(
-		List<BookmarkPanelLayout.PanelSlot<IBookmark>> panelSlots,
+	static <T> List<PreviewSlot<T>> toPreviewSlots(
+		List<BookmarkPanelLayout.PanelSlot<T>> panelSlots,
 		ImmutableRect2i origin
 	) {
 		return panelSlots.stream()

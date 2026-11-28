@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Optional;
 
 public final class BookmarkPanelLayout {
+	static final Comparator<PanelSlot<?>> SLOT_ORDER = Comparator.comparingInt((PanelSlot<?> slot) -> slot.area().getY())
+		.thenComparingInt(slot -> slot.area().getX());
+
 	private BookmarkPanelLayout() {
 	}
 
@@ -54,21 +57,15 @@ public final class BookmarkPanelLayout {
 
 	public static <T> List<RowSlot<T>> createRowSlots(List<PanelSlot<T>> panelSlots, int gridLeftX) {
 		List<PanelSlot<T>> sortedSlots = panelSlots.stream()
-			.sorted(Comparator.comparingInt((PanelSlot<T> slot) -> slot.area().getY()).thenComparingInt(slot -> slot.area().getX()))
+			.sorted(SLOT_ORDER)
 			.toList();
 		List<RowSlot<T>> rowSlots = new ArrayList<>();
 		for (PanelSlot<T> panelSlot : sortedSlots) {
-			Optional<RowSlot<T>> rowSlot = rowSlots.stream()
-				.filter(slot -> slot.area().getY() == panelSlot.area().getY())
-				.findFirst();
-			if (rowSlot.isEmpty()) {
+			RowSlot<T> current = rowSlots.isEmpty() ? null : rowSlots.getLast();
+			if (current == null || current.area().getY() != panelSlot.area().getY()) {
 				rowSlots.add(new RowSlot<>(panelSlot.item(), panelSlot.groupId(), withGridLeft(panelSlot.area(), gridLeftX)));
-			} else if (rowSlot.get().groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID &&
-				!(panelSlot.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID)
-			) {
-				int index = rowSlots.indexOf(rowSlot.get());
-				RowSlot<T> current = rowSlot.get();
-				rowSlots.set(index, new RowSlot<>(current.item(), panelSlot.groupId(), current.area()));
+			} else if (current.groupId() == BookmarkGroupManager.DEFAULT_GROUP_ID && panelSlot.groupId() != BookmarkGroupManager.DEFAULT_GROUP_ID) {
+				rowSlots.set(rowSlots.size() - 1, new RowSlot<>(current.item(), panelSlot.groupId(), current.area()));
 			}
 		}
 		return rowSlots;
@@ -168,7 +165,7 @@ public final class BookmarkPanelLayout {
 		List<PanelSlot<T>> recipeSlots = panelSlots.stream()
 			.filter(slot -> anchorSlot.groupId() == slot.groupId())
 			.filter(slot -> anchorSlot.recipeKey().equals(slot.recipeKey()))
-			.sorted(Comparator.comparingInt((PanelSlot<T> slot) -> slot.area().getY()).thenComparingInt(slot -> slot.area().getX()))
+			.sorted(SLOT_ORDER)
 			.toList();
 		if (recipeSlots.isEmpty()) {
 			return Optional.empty();
