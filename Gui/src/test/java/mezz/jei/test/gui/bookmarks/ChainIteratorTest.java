@@ -8,7 +8,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,6 +74,39 @@ public class ChainIteratorTest {
 			batches++;
 		}
 		Assertions.assertTrue(batches < 5);
+		Assertions.assertFalse(iterator.hasNext());
+	}
+
+	@ParameterizedTest
+	@CsvSource({"2,0", "32,0", "32,16", "32,32", "128,64", "512,256"})
+	public void waitsForConsumers(int size, int stocked) {
+		List<RecipeChainInput> inputs = new ArrayList<>();
+		List<RecipeChainInput> inventory = new ArrayList<>();
+		Map<ResourceLocation, Long> consumers = new LinkedHashMap<>();
+		inputs.add(input(0, result(TABLE, key("table"), 1, 1)));
+		inputs.add(input(1, ingredient(TABLE, key("stick"), 2)));
+		for (int i = 0; i < size; i++) {
+			var branch = ResourceLocation.fromNamespaceAndPath("test", "branch_" + i);
+			var product = key("branch_" + i);
+			inputs.add(input(inputs.size(), ingredient(TABLE, product, 1)));
+			inputs.add(input(inputs.size(), result(branch, product, 1, 1)));
+			inputs.add(input(inputs.size(), ingredient(branch, key("stick"), 3)));
+			if (i < stocked) {
+				inventory.add(input(10000 + i, item(product, 1)));
+			} else {
+				consumers.put(branch, 1L);
+			}
+		}
+		inputs.add(input(inputs.size(), result(STICK, key("stick"), 1, 1)));
+		inputs.add(input(inputs.size(), ingredient(STICK, key("plank"), 1)));
+		var iterator = createIterator(inputs);
+		iterator.updateInventory(inventory);
+		Assertions.assertEquals(Map.of(TABLE, 1L), iterator.next());
+		if (!consumers.isEmpty()) {
+			Assertions.assertEquals(consumers, iterator.next());
+		}
+		Assertions.assertEquals(Map.of(STICK, 2L + 3L * (size - stocked)), iterator.next());
+		Assertions.assertEquals(Map.of(), iterator.next());
 		Assertions.assertFalse(iterator.hasNext());
 	}
 
