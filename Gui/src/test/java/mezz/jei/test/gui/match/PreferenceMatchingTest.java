@@ -72,6 +72,17 @@ public class PreferenceMatchingTest {
 	}
 
 	@Test
+	public void findsUniqueWinnerAfterConflictingCandidates() {
+		var rules = new RecipePreferenceRules(List.of(rule("test:out", "test:a; test:b", "test:best*; test:other")));
+		var outputs = List.of(item("test:out"));
+		var bestInput = candidate("test:other", List.of(item("test:a")), outputs);
+		var bestRecipe = candidate("test:best_recipe", List.of(item("test:b")), outputs);
+		var winner = candidate("test:best_both", List.of(item("test:a")), outputs);
+
+		Assertions.assertEquals(Optional.of(winner.recipe()), rules.resolvePreferredRecipe(List.of(bestInput, bestRecipe, winner)));
+	}
+
+	@Test
 	public void preservesTies() {
 		RecipePreferenceRule rule = rule(
 			"gtceu:lv_circuit",

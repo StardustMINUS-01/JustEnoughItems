@@ -24,7 +24,7 @@ public final class RecipePreferenceRules {
 			return Optional.of(uniqueCandidates.getFirst().recipe());
 		}
 		for (RecipePreferenceRule rule : rules) {
-			List<FocusedRecipe> preferred = resolve(rule, uniqueCandidates);
+			List<FocusedRecipe> preferred = resolve(rule, uniqueCandidates, true);
 			if (preferred.size() == 1) {
 				return Optional.of(preferred.getFirst());
 			}
@@ -38,7 +38,7 @@ public final class RecipePreferenceRules {
 			return List.of(uniqueCandidates.getFirst().recipe());
 		}
 		for (RecipePreferenceRule rule : rules) {
-			List<FocusedRecipe> preferred = resolve(rule, uniqueCandidates);
+			List<FocusedRecipe> preferred = resolve(rule, uniqueCandidates, false);
 			if (!preferred.isEmpty()) {
 				return preferred;
 			}
@@ -65,7 +65,8 @@ public final class RecipePreferenceRules {
 
 	private static List<FocusedRecipe> resolve(
 		RecipePreferenceRule rule,
-		List<RecipePreferenceCandidate> candidates
+		List<RecipePreferenceCandidate> candidates,
+		boolean requireUnique
 	) {
 		List<RankedCandidate> ranked = new ArrayList<>();
 		for (RecipePreferenceCandidate candidate : candidates) {
@@ -87,6 +88,21 @@ public final class RecipePreferenceRules {
 			.filter(candidate -> !inputActive || candidate.inputRank().isPresent())
 			.filter(candidate -> !recipeActive || candidate.recipeRank().isPresent())
 			.toList();
+		if (requireUnique && !eligible.isEmpty()) {
+			RankedCandidate best = eligible.getFirst();
+			for (RankedCandidate candidate : eligible) {
+				if (dominates(candidate, best, inputActive, recipeActive)) {
+					best = candidate;
+				}
+			}
+			// A unique winner must dominate every other eligible recipe.
+			for (RankedCandidate candidate : eligible) {
+				if (candidate != best && !dominates(best, candidate, inputActive, recipeActive)) {
+					return List.of();
+				}
+			}
+			return List.of(best.candidate().recipe());
+		}
 		List<RankedCandidate> best = eligible.stream()
 			.filter(candidate -> eligible.stream().noneMatch(other -> dominates(other, candidate, inputActive, recipeActive)))
 			.toList();
