@@ -5,7 +5,6 @@ import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.common.search.LimitedStringStorage;
 import mezz.jei.common.search.LimitedStringStorageBuilder;
-import mezz.jei.common.search.LuceneSearchStorage;
 import mezz.jei.common.search.RemovalFallbackSearchStorage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -53,7 +52,7 @@ public class LimitedStringStorageTest {
 
 	@Test
 	public void removesEmptyGroupsFromTheBackingIndexAndPreservesSharedMembers() {
-		LuceneSearchStorage<Set<String>> backing = new LuceneSearchStorage<>();
+		ISearchStorage<Set<String>> backing = new mezz.jei.common.search.compact.CompactSearchStorageBuilder<Set<String>>().build();
 		LimitedStringStorage<String> storage = new LimitedStringStorage<>(backing);
 		String first = new String("equal");
 		String second = new String("equal");

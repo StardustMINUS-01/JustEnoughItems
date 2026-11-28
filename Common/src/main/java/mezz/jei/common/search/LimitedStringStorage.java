@@ -51,11 +51,7 @@ public class LimitedStringStorage<T> implements ISearchStorage<T> {
 	}
 
 	public void collectSearchResults(String token, Consumer<T> consumer) {
-		if (backingStorage.getClass() == LuceneSearchStorage.class && backingStorage instanceof LuceneSearchStorage<Set<T>> lucene) {
-			lucene.collectSearchResults(token, values -> values.forEach(consumer));
-		} else {
-			getSearchResults(token, values -> values.forEach(consumer));
-		}
+		getSearchResults(token, values -> values.forEach(consumer));
 	}
 
 	@Override

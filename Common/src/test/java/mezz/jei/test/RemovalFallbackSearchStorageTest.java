@@ -2,7 +2,7 @@ package mezz.jei.test;
 
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.common.search.RemovalFallbackSearchStorage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -63,7 +63,7 @@ public class RemovalFallbackSearchStorageTest {
 
 	@Test
 	public void usesNativeDeletionWithoutRequestingRebuild() {
-		ISearchStorageBuilder<Object> builder = RemovalFallbackSearchStorage.wrap(LuceneSearchStorageBuilder::new).create();
+		ISearchStorageBuilder<Object> builder = RemovalFallbackSearchStorage.wrap(CompactSearchStorageBuilder::new).create();
 		List<Object> values = new ArrayList<>();
 		for (int i = 0; i < 2048; i++) {
 			Object value = new Object();

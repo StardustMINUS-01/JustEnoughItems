@@ -38,7 +38,6 @@ val mezzConfigApiDependency: String by rootProject.extra
 val mezzConfigNeoForgeDependency: String by rootProject.extra
 val mezzConfigGuiApiDependency: String by rootProject.extra
 val mezzConfigGuiNeoForgeDependency: String by rootProject.extra
-val luceneVersion = gradleProperty("luceneVersion")
 
 // set by ORG_GRADLE_PROJECT_modrinthToken in Jenkinsfile
 val modrinthToken = optionalGradleProperty("modrinthToken")
@@ -204,9 +203,6 @@ dependencies {
 		compileOnly(it)
 	}
 	modShadeImplementation("net.mezzdev:deduplicating-runner:${deduplicatingRunnerVersion}") {
-		isTransitive = false
-	}
-	modShadeImplementation("org.apache.lucene:lucene-core:${luceneVersion}") {
 		isTransitive = false
 	}
 	compileOnly("org.spongepowered:mixin:0.8.5")

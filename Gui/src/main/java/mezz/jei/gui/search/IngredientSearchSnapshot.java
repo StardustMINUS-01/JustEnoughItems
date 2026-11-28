@@ -15,8 +15,7 @@ import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import mezz.jei.gui.ingredients.ListElementInfo;
 import mezz.jei.gui.ingredients.ListElement;
-import mezz.jei.common.search.LuceneSearchStorage;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -50,7 +49,7 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		this.config = config;
 		this.modIdHelper = modIdHelper;
 		this.storageFactory = storageFactory;
-		this.literalBackend = storageFactory == LuceneSearchStorageBuilder.FACTORY;
+		this.literalBackend = storageFactory == CompactSearchStorageBuilder.FACTORY;
 		this.search = search;
 		this.identityRevision = identityRevision;
 		this.searchRevision = searchRevision;
@@ -134,7 +133,7 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 			if (literalBackend) {
 				for (String string : strings) {
 					String text = string.trim();
-					if (!text.isEmpty() && LuceneSearchStorage.matchesLiteral(text, term.token()))
+					if (!text.isEmpty() && text.contains(term.token()))
 						return true;
 				}
 			} else {

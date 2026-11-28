@@ -12,7 +12,7 @@ import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.api.search.ISearchStorageFactory;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import mezz.jei.gui.ingredients.IngredientListElementFactory;
@@ -346,7 +346,7 @@ public class ElementSearchIngredientsTest {
 	}
 
 	private static SearchFixture createFixture(Collection<TestIngredient> extraIngredients) {
-		return createFixture(extraIngredients, LuceneSearchStorageBuilder::new);
+		return createFixture(extraIngredients, CompactSearchStorageBuilder::new);
 	}
 
 	private static SearchFixture createFixture(Collection<TestIngredient> extraIngredients, ISearchStorageBuilderFactory factory) {

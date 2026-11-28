@@ -1,7 +1,7 @@
 package mezz.jei.gui.search;
 
 import mezz.jei.api.search.ISearchStorage;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.gui.ingredients.ListElementInfo;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
@@ -23,7 +23,7 @@ public class TooltipSearchTest {
 		));
 		assertEquals(Set.of("attack damage: +7", "attack speed: +2"), strings);
 
-		LuceneSearchStorageBuilder<String> builder = new LuceneSearchStorageBuilder<>();
+		CompactSearchStorageBuilder<String> builder = new CompactSearchStorageBuilder<>();
 		for (String string : strings) {
 			builder.put(string, "sword");
 		}

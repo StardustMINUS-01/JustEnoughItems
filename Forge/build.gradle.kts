@@ -31,7 +31,6 @@ val mezzConfigCurseForgeProjectSlug = gradleProperty("mezzConfigCurseForgeProjec
 val mezzConfigModrinthProjectId = gradleProperty("mezzConfigModrinthProjectId")
 val mezzConfigGuiCurseForgeProjectSlug = gradleProperty("mezzConfigGuiCurseForgeProjectSlug")
 val mezzConfigGuiModrinthProjectId = gradleProperty("mezzConfigGuiModrinthProjectId")
-val luceneVersion = gradleProperty("luceneVersion")
 val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
 val mezzConfigApiDependency: String by rootProject.extra
 val mezzConfigForgeDependency: String by rootProject.extra
@@ -172,9 +171,6 @@ dependencies {
 	mezzConfigLocalRuntime(mezzConfigGuiForgeDependency)
 	dependencyProjects.forEach {
 		compileOnly(it)
-	}
-	modShadeImplementation("org.apache.lucene:lucene-core:${luceneVersion}") {
-		isTransitive = false
 	}
 	modShadeImplementation("net.mezzdev:deduplicating-runner:${deduplicatingRunnerVersion}") {
 		isTransitive = false

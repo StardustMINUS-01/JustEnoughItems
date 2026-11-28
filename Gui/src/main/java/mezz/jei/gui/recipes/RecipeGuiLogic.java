@@ -17,7 +17,7 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.config.RecipeSorterStage;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.common.config.RecipeGuiNavigationMode;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.common.util.ImmutableSize2i;
@@ -135,7 +135,7 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 			focusFactory,
 			bookmarkFactory,
 			preferenceRulesSupplier,
-			LuceneSearchStorageBuilder.FACTORY
+			CompactSearchStorageBuilder.FACTORY
 		);
 	}
 

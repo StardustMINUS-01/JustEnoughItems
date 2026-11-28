@@ -59,7 +59,6 @@ val mezzConfigApiDependency: String by rootProject.extra
 val mezzConfigFabricDependency: String by rootProject.extra
 val mezzConfigGuiApiDependency: String by rootProject.extra
 val mezzConfigGuiFabricDependency: String by rootProject.extra
-val luceneVersion = gradleProperty("luceneVersion")
 
 // set by ORG_GRADLE_PROJECT_modrinthToken in Jenkinsfile
 val modrinthToken = optionalGradleProperty("modrinthToken")
@@ -223,9 +222,6 @@ dependencies {
     vanillaDependencyProjects.forEach {
         compileOnly(it)
         localRuntime(it)
-    }
-    modShadeImplementation("org.apache.lucene:lucene-core:${luceneVersion}") {
-        isTransitive = false
     }
     embeddedLibraries("net.mezzdev:deduplicating-runner:${deduplicatingRunnerVersion}") {
         isTransitive = false

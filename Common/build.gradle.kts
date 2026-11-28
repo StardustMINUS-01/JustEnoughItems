@@ -23,7 +23,6 @@ val neoformVersionAndTimestamp = "$minecraftVersion-$neoformTimestamp"
 val deduplicatingRunnerVersion = gradleProperty("deduplicatingRunnerVersion")
 val mezzConfigApiDependency: String by rootProject.extra
 val mezzConfigNeoForgeDependency: String by rootProject.extra
-val luceneVersion = gradleProperty("luceneVersion")
 
 val baseArchivesName = "${modId}-${minecraftVersion}-common"
 val apiArchivesName = "${modId}-${minecraftVersion}-common-api"
@@ -99,9 +98,6 @@ dependencies {
         isTransitive = false
     }
     implementation(mezzConfigApiDependency)
-    implementation("org.apache.lucene:lucene-core:${luceneVersion}") {
-        isTransitive = false
-    }
 	testFixturesCompileOnly("org.jspecify:jspecify:1.0.0")
 	"datagenCompileOnly"("org.jspecify:jspecify:1.0.0")
 	testImplementation(

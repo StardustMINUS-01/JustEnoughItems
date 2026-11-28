@@ -5,7 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -28,7 +28,7 @@ final class RecipeSearchTextMatcher implements IRecipeSearchTextMatcher {
 	static Supplier<IRecipeSearchTextMatcher> createFactory(ISearchStorageBuilderFactory factory, RecipeSearchQuery query) {
 		Set<String> tokens = query.getRecipeTokens();
 		synchronized (factory) {
-			if (tokens.isEmpty() || factory.create("recipe_filter_strings").getClass() == LuceneSearchStorageBuilder.class)
+			if (tokens.isEmpty() || factory.create("recipe_filter_strings").getClass() == CompactSearchStorageBuilder.class)
 				return () -> DEFAULT;
 		}
 		return () -> new RecipeSearchTextMatcher(factory, tokens);

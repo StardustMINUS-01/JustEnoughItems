@@ -1,7 +1,7 @@
 package mezz.jei.test.gui.recipes.filtering;
 
 import mezz.jei.api.recipe.RecipeType;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.gui.favorites.preferences.RecipePreferenceRules;
 import mezz.jei.gui.recipes.filtering.RecipeFilterMode;
 import mezz.jei.gui.recipes.filtering.RecipeSearchQuery;
@@ -236,7 +236,7 @@ public class RecipeSearchSessionTest {
 			.toList();
 	}
 
-	private static final class AliasSearchStorageBuilder<T> extends LuceneSearchStorageBuilder<T> {
+	private static final class AliasSearchStorageBuilder<T> extends CompactSearchStorageBuilder<T> {
 		@Override
 		public void put(String key, T value) {
 			super.put(key, value);

@@ -25,7 +25,6 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import mezz.jei.common.search.LuceneSearchStorage;
 import mezz.jei.common.search.LimitedStringStorage;
 
 public class ElementSearch implements IElementSearch {
@@ -199,9 +198,7 @@ public class ElementSearch implements IElementSearch {
 	}
 
 	private static void collectSearchResults(ISearchStorage<IListElement<?>> storage, String token, Consumer<IListElement<?>> consumer) {
-		if (storage.getClass() == LuceneSearchStorage.class && storage instanceof LuceneSearchStorage<IListElement<?>> lucene) {
-			lucene.collectSearchResults(token, consumer);
-		} else if (storage.getClass() == LimitedStringStorage.class && storage instanceof LimitedStringStorage<IListElement<?>> limited) {
+		if (storage.getClass() == LimitedStringStorage.class && storage instanceof LimitedStringStorage<IListElement<?>> limited) {
 			limited.collectSearchResults(token, consumer);
 		} else {
 			storage.getSearchResults(token, values -> values.forEach(consumer));

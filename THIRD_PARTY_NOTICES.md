@@ -39,3 +39,7 @@ Note: mezz.jei.gui.bookmarks.chain.RecipeChainMath contains portions adapted
 from GTNH NEI (see the GTNewHorizons NotEnoughItems section above), while its
 graph-based chain computation (via RecipeChainGraph and RecipeChainPlan) is an
 original addition.
+
+## Unicode Unihan data
+
+The Chinese search dictionary is derived from Unicode 17.0.0 Unihan readings and variants, © 2025 Unicode, Inc. The Unicode License v3 accompanies the dictionary in META-INF/LICENSE-unihan.txt. [Unicode data files](https://www.unicode.org/Public/17.0.0/ucd/Unihan.zip)

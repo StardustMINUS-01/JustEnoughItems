@@ -9,8 +9,7 @@ import mezz.jei.common.config.ClientConfigs;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IngredientSortStage;
 import mezz.jei.common.config.SearchMode;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
-import mezz.jei.common.search.LuceneSearchStorage;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -128,7 +127,7 @@ class IngredientFilterTest {
 			};
 		}, infos, mods, visibility,
 			new IngredientTypeSortingConfig(configManager.createInMemorySortingConfig(Comparator.<String>naturalOrder(), true)),
-			null, customBackend ? AliasSearchStorageBuilder::new : LuceneSearchStorageBuilder.FACTORY, proxy(IClientToggleState.class, (p, m, a) -> null));
+			null, customBackend ? AliasSearchStorageBuilder::new : CompactSearchStorageBuilder.FACTORY, proxy(IClientToggleState.class, (p, m, a) -> null));
 
 		assertEquals(List.of(Items.DIRT, Items.STONE), items(filter));
 		assertTrue(comparisons.get() > 0);
@@ -237,7 +236,7 @@ class IngredientFilterTest {
 				return (IIngredientSupplier) role -> List.of(item(Items.STONE));
 			throw new AssertionError(m);
 		});
-		RecipeSearchSession session = new RecipeSearchSession(recipes, LuceneSearchStorageBuilder.FACTORY);
+		RecipeSearchSession session = new RecipeSearchSession(recipes, CompactSearchStorageBuilder.FACTORY);
 		session.setIngredientSearch(filter);
 		try {
 			var query = RecipeSearchQuery.parse("i:stone");
@@ -261,11 +260,25 @@ class IngredientFilterTest {
 	}
 
 	private static final class AliasSearchStorageBuilder<T> implements ISearchStorageBuilder<T> {
-		private final LuceneSearchStorage<T> storage = new LuceneSearchStorage<>() {
+		private final ISearchStorage<T> backing = new CompactSearchStorageBuilder<T>().build();
+		private final ISearchStorage<T> storage = new ISearchStorage<>() {
 			@Override
 			public void getSearchResults(String token, java.util.function.Consumer<java.util.Collection<T>> consumer) {
-				super.getSearchResults(token.equals("queryalias") ? "shitou" : token, consumer);
+				backing.getSearchResults(token.equals("queryalias") ? "shitou" : token, consumer);
 			}
+			@Override
+			public void getAllElements(java.util.function.Consumer<java.util.Collection<T>> consumer) {
+				backing.getAllElements(consumer);
+			}
+			@Override
+			public void put(String key, T value) {
+				backing.put(key, value);
+			}
+			@Override
+			public String statistics() {
+				return backing.statistics();
+			}
+
 		};
 
 		@Override

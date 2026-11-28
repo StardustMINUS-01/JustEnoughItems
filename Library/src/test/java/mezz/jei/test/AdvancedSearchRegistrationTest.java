@@ -6,8 +6,7 @@ import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.api.search.ISearchStorageBuilder;
 import mezz.jei.api.search.ISearchStorageBuilderFactory;
 import mezz.jei.api.search.ISearchStorageFactory;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
-import mezz.jei.common.search.LuceneSearchStorage;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.common.search.LimitedStringStorageBuilder;
 import mezz.jei.library.load.PluginLoader;
 import mezz.jei.library.load.registration.AdvancedSearchRegistration;
@@ -26,10 +25,10 @@ import java.util.function.Consumer;
 
 public class AdvancedSearchRegistrationTest {
 	@Test
-	public void defaultStorageUsesLuceneSearchStorageBuilder() {
+	public void defaultStorageUsesCompactSearchStorageBuilder() {
 		ISearchStorageBuilder<String> searchStorageBuilder = PluginLoader.createSearchStorageFactory(List.of()).create();
 
-		Assertions.assertInstanceOf(LuceneSearchStorageBuilder.class, searchStorageBuilder);
+		Assertions.assertInstanceOf(CompactSearchStorageBuilder.class, searchStorageBuilder);
 	}
 
 	@Test
@@ -37,7 +36,7 @@ public class AdvancedSearchRegistrationTest {
 		AdvancedSearchRegistration searchRegistration = new AdvancedSearchRegistration();
 		ISearchStorageBuilder<String> searchStorageBuilder = searchRegistration.getDefaultSearchStorageBuilderFactory().create();
 
-		Assertions.assertInstanceOf(LuceneSearchStorageBuilder.class, searchStorageBuilder);
+		Assertions.assertInstanceOf(CompactSearchStorageBuilder.class, searchStorageBuilder);
 	}
 
 	@Test
@@ -54,7 +53,7 @@ public class AdvancedSearchRegistrationTest {
 			}
 		};
 		ISearchStorageBuilder<String> builder = PluginLoader.createSearchStorageFactory(List.of(plugin)).create("names");
-		Assertions.assertInstanceOf(LuceneSearchStorageBuilder.class, builder);
+		Assertions.assertInstanceOf(CompactSearchStorageBuilder.class, builder);
 	}
 
 	@Test
@@ -94,7 +93,7 @@ public class AdvancedSearchRegistrationTest {
 					registration.replaceSearchStorage(new ISearchStorageBuilderFactory() {
 						@Override
 						public <T> ISearchStorageBuilder<T> create() {
-							return new LuceneSearchStorageBuilder<>() {
+							return new CompactSearchStorageBuilder<>() {
 								@Override
 								public ISearchStorage<T> build() {
 									ISearchStorage<T> storage = super.build();
@@ -113,7 +112,7 @@ public class AdvancedSearchRegistrationTest {
 					registration.replaceSearchStorage(new ISearchStorageFactory() {
 						@Override
 						public <T> ISearchStorage<T> createSearchStorage() {
-							LuceneSearchStorage<T> storage = new LuceneSearchStorage<>();
+							ISearchStorage<T> storage = new CompactSearchStorageBuilder<T>().build();
 							registeredStorages.add(storage);
 							return storage;
 						}

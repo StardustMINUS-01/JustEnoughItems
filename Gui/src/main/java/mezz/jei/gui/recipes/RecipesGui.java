@@ -47,7 +47,7 @@ import mezz.jei.common.input.handlers.InputGroup;
 import mezz.jei.common.input.interaction.IInputInteraction;
 import mezz.jei.common.input.interaction.InputAction;
 import mezz.jei.common.input.interaction.MouseDrag;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.common.transfer.RecipeTransferService;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
@@ -257,7 +257,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 			focusFactory,
 			bookmarkFactory,
 			recipeFeatures == null ? () -> RecipePreferenceRules.EMPTY : recipeFeatures.preferenceRulesSupplier(),
-			recipeFeatures == null ? LuceneSearchStorageBuilder.FACTORY : recipeFeatures.searchStorageBuilderFactory()
+			recipeFeatures == null ? CompactSearchStorageBuilder.FACTORY : recipeFeatures.searchStorageBuilderFactory()
 		);
 		this.logic = navigationLogic;
 		this.scrollbar = new ScrollbarWidget(this.logic);

@@ -2,26 +2,20 @@ package mezz.jei.test;
 
 import mezz.jei.api.search.ISearchStorage;
 import mezz.jei.common.search.LimitedStringStorageBuilder;
-import mezz.jei.common.search.LuceneSearchStorageBuilder;
-import mezz.jei.common.search.LuceneSearchStorage;
+import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
 import mezz.jei.common.search.LimitedStringStorage;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LRUQueryCache;
-import org.apache.lucene.search.QueryCache;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
-@Isolated("Temporarily replaces Lucene's default query cache")
-public class LuceneSearchStorageTest {
+public class SearchStorageContractTest {
 	@Test
 	public void matchesLiteralSubstringsAcrossWordsAndUnicode() {
-		LuceneSearchStorageBuilder<String> builder = new LuceneSearchStorageBuilder<>();
+		CompactSearchStorageBuilder<String> builder = new CompactSearchStorageBuilder<>();
 		builder.put("aer crystal", "crystal");
 		builder.put("星の結晶 🧪", "unicode");
 		builder.put("a*b?c\\d", "punctuation");
@@ -38,7 +32,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void returnsAllMatchingValuesWithoutRankingOrTruncation() {
-		LuceneSearchStorageBuilder<Object> builder = new LuceneSearchStorageBuilder<>();
+		CompactSearchStorageBuilder<Object> builder = new CompactSearchStorageBuilder<>();
 		Set<Object> expected = Collections.newSetFromMap(new IdentityHashMap<>());
 		for (int i = 0; i < 1500; i++) {
 			Object value = new Object();
@@ -53,7 +47,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void preservesValueMappingAcrossRuntimeBatchesAndSegmentMerges() {
-		LuceneSearchStorageBuilder<String> builder = new LuceneSearchStorageBuilder<>();
+		CompactSearchStorageBuilder<String> builder = new CompactSearchStorageBuilder<>();
 		builder.put("original", "original value");
 		ISearchStorage<String> storage = builder.build();
 		for (int batch = 0; batch < 30; batch++) {
@@ -72,7 +66,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void supportsEmptyIndexesAndRuntimeOnlyIngredients() {
-		ISearchStorage<String> storage = new LuceneSearchStorageBuilder<String>().build();
+		ISearchStorage<String> storage = new CompactSearchStorageBuilder<String>().build();
 		Assertions.assertTrue(search(storage, "crystal").isEmpty());
 		Assertions.assertTrue(allElements(storage).isEmpty());
 		storage.put("aer crystal", "aer");
@@ -81,31 +75,31 @@ public class LuceneSearchStorageTest {
 	}
 
 	@Test
-	public void skipsStringsAboveTheUtf8TermLimitWithoutRemovingTheirValues() {
+	public void indexesLongStringsAndTheirAliases() {
 		String atLimit = "結".repeat(10_922);
 		String aboveLimit = atLimit + "x";
-		LuceneSearchStorageBuilder<String> builder = new LuceneSearchStorageBuilder<>();
+		CompactSearchStorageBuilder<String> builder = new CompactSearchStorageBuilder<>();
 		builder.put(atLimit, "boundary");
 		builder.put(aboveLimit, "long");
 		builder.put("valid alias", "long");
 		builder.put(aboveLimit, "only oversized");
 		ISearchStorage<String> storage = builder.build();
-		Assertions.assertEquals(Set.of("boundary"), search(storage, "結"));
-		Assertions.assertTrue(search(storage, "x").isEmpty());
-		Assertions.assertTrue(search(storage, aboveLimit).isEmpty());
+		Assertions.assertEquals(Set.of("boundary", "long", "only oversized"), search(storage, "結"));
+		Assertions.assertEquals(Set.of("long", "only oversized"), search(storage, "x"));
+		Assertions.assertEquals(Set.of("long", "only oversized"), search(storage, aboveLimit));
 		Assertions.assertEquals(Set.of("long"), search(storage, "alias"));
 		Assertions.assertEquals(Set.of("boundary", "long", "only oversized"), allElements(storage));
 	}
 
 	@Test
-	public void skipsOversizedRuntimeStringsAndKeepsOtherSearchKeys() {
-		LuceneSearchStorageBuilder<String> builder = new LuceneSearchStorageBuilder<>();
+	public void indexesLongRuntimeStringsAndKeepsOtherSearchKeys() {
+		CompactSearchStorageBuilder<String> builder = new CompactSearchStorageBuilder<>();
 		builder.put("original", "original");
 		ISearchStorage<String> storage = builder.build();
 		storage.put("x".repeat(32_767) + "skipped", "runtime");
 		storage.put("runtime alias", "runtime");
 		storage.put("another ingredient", "another");
-		Assertions.assertTrue(search(storage, "skipped").isEmpty());
+		Assertions.assertEquals(Set.of("runtime"), search(storage, "skipped"));
 		Assertions.assertEquals(Set.of("runtime"), search(storage, "alias"));
 		Assertions.assertEquals(Set.of("original"), search(storage, "original"));
 		Assertions.assertEquals(Set.of("another"), search(storage, "another"));
@@ -114,7 +108,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void updatesSharedKeysAndIndexesNewKeysInLimitedStringStorage() {
-		LimitedStringStorageBuilder<String> builder = new LimitedStringStorageBuilder<>(LuceneSearchStorageBuilder::new);
+		LimitedStringStorageBuilder<String> builder = new LimitedStringStorageBuilder<>(CompactSearchStorageBuilder::new);
 		builder.put("shared", "first");
 		ISearchStorage<String> storage = builder.build();
 		storage.put("shared", "second");
@@ -126,7 +120,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void replacesAllKeysWithoutResurrectingRemovedOrPendingEntries() {
-		LuceneSearchStorageBuilder<Object> builder = new LuceneSearchStorageBuilder<>();
+		CompactSearchStorageBuilder<Object> builder = new CompactSearchStorageBuilder<>();
 		Object crystal = new Object();
 		Object other = new Object();
 		builder.put("mysterious crystal", crystal);
@@ -158,7 +152,7 @@ public class LuceneSearchStorageTest {
 	public void removesValuesByIdentityIncludingOversizedAndUncommittedKeys() {
 		String first = new String("equal value");
 		String second = new String("equal value");
-		ISearchStorage<String> storage = new LuceneSearchStorageBuilder<String>().build();
+		ISearchStorage<String> storage = new CompactSearchStorageBuilder<String>().build();
 		storage.put("x".repeat(32_767), first);
 		storage.put("pending", first);
 		storage.put("retained", second);
@@ -170,7 +164,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void removesAllUncommittedValuesBeforeTheFirstSearch() {
-		ISearchStorage<Object> storage = new LuceneSearchStorageBuilder<Object>().build();
+		ISearchStorage<Object> storage = new CompactSearchStorageBuilder<Object>().build();
 		Object removed = new Object();
 		storage.put("pending", removed);
 		Assertions.assertTrue(storage.removeAll(List.of(removed)));
@@ -184,7 +178,7 @@ public class LuceneSearchStorageTest {
 
 	@Test
 	public void removesSharedKeyMembersWithoutRemovingOtherValues() {
-		LimitedStringStorageBuilder<String> builder = new LimitedStringStorageBuilder<>(LuceneSearchStorageBuilder::new);
+		LimitedStringStorageBuilder<String> builder = new LimitedStringStorageBuilder<>(CompactSearchStorageBuilder::new);
 		String first = new String("equal value");
 		String second = new String("equal value");
 		builder.put("shared", first);
@@ -202,48 +196,14 @@ public class LuceneSearchStorageTest {
 		Assertions.assertTrue(allElements(storage).isEmpty());
 	}
 
-	@Test
-	public void doesNotPopulateLucenesSharedCache() {
-		QueryCache previousCache = IndexSearcher.getDefaultQueryCache();
-		LRUQueryCache sharedCache = new LRUQueryCache(128, 4L * 1024 * 1024);
-		IndexSearcher.setDefaultQueryCache(sharedCache);
-		try {
-			LuceneSearchStorageBuilder<String> builder = new LuceneSearchStorageBuilder<>();
-			// Lucene only caches queries for sufficiently large segments.
-			for (int i = 0; i < 20_000; i++) {
-				builder.put("cached ingredient " + i, "initial");
-			}
-			ISearchStorage<String> storage = builder.build();
-			for (int i = 0; i < 10; i++) {
-				Assertions.assertEquals(Set.of("initial"), search(storage, "cached"));
-			}
-			Assertions.assertEquals(0, sharedCache.getCacheCount());
-
-			storage.put("cached runtime ingredient", "added");
-			for (int i = 0; i < 10; i++) {
-				Assertions.assertEquals(Set.of("initial", "added"), search(storage, "cached"));
-			}
-			storage.removeAll(List.of("initial"));
-			storage.put("replacement", "replacement");
-			for (int i = 0; i < 10; i++) {
-				Assertions.assertEquals(Set.of("added"), search(storage, "cached"));
-				Assertions.assertEquals(Set.of("replacement"), search(storage, "replacement"));
-			}
-			Assertions.assertEquals(0, sharedCache.getCacheCount());
-		} finally {
-			IndexSearcher.setDefaultQueryCache(previousCache);
-		}
-	}
-
 	private static <T> Set<T> search(ISearchStorage<T> storage, String token) {
 		Set<T> results = Collections.newSetFromMap(new IdentityHashMap<>());
 		storage.getSearchResults(token, results::addAll);
-		Set<T> collected = Collections.newSetFromMap(new IdentityHashMap<>());
-		if (storage instanceof LuceneSearchStorage<T> lucene)
-			lucene.collectSearchResults(token, collected::add);
-		else if (storage instanceof LimitedStringStorage<T> limited)
+		if (storage instanceof LimitedStringStorage<T> limited) {
+			Set<T> collected = Collections.newSetFromMap(new IdentityHashMap<>());
 			limited.collectSearchResults(token, collected::add);
-		Assertions.assertEquals(results, collected, "streamed hits must preserve the storage's matching and update behavior");
+			Assertions.assertEquals(results, collected);
+		}
 		return results;
 	}
 
