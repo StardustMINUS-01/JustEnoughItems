@@ -78,10 +78,6 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 		mezz.jei.gui.compat.ae2.PatternEncodingFeedback.INSTANCE.clear();
 		mezz.jei.gui.input.InteractiveTooltipController.INSTANCE.stop();
 		mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.clear();
-		mezz.jei.common.Internal.getOptionalJeiRuntime().ifPresent(runtime -> {
-			if (runtime.getRecipesGui() instanceof mezz.jei.gui.recipes.RecipesGui gui)
-				gui.stopRecipeSearch();
-		});
 		mezz.jei.gui.chat.ChatRecipeTooltip.INSTANCE.onRuntimeStopped();
 		LOGGER.info("Stopping JEI GUI");
 		runtimeSubscriptions.clear();

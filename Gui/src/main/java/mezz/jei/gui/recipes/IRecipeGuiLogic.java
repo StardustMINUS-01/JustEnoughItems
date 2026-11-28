@@ -41,6 +41,8 @@ public interface IRecipeGuiLogic extends IScrollbarController {
 	default void applyRecipeResultFilter(RecipeFilterMode mode, String query) {
 	}
 
+	default void stopRecipeSearch() { clearRecipeResultSnapshot(); }
+
 	default void clearRecipeResultSnapshot() {
 	}
 

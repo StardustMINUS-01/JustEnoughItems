@@ -14,6 +14,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.function.BiPredicate;
 
 public final class RecipeSearchQuery {
@@ -73,6 +74,12 @@ public final class RecipeSearchQuery {
 			.toList());
 	}
 
+	boolean onlyMatchesCatalysts() {
+		return !isEmpty() && alternatives.stream().allMatch(terms -> terms.stream().allMatch(term -> term.scope == Scope.CATALYST));
+	}
+
+	Set<RecipeIngredientRole> ingredientRoles() { return ingredientRoles; }
+
 	public Set<String> getRecipeTokens() {
 		return alternatives.stream().flatMap(List::stream).filter(term -> term.scope() == Scope.RECIPE || term.scope() == Scope.ALL)
 			.map(SearchTerm::value).collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -84,11 +91,28 @@ public final class RecipeSearchQuery {
 	}
 
 	public <T> boolean matches(IRecipeCategory<T> category, T recipe, IRecipeManager recipes,
-		java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts, IRecipeSearchTextMatcher matcher,
+		Supplier<List<ITypedIngredient<?>>> catalysts, IRecipeSearchTextMatcher matcher,
 		BiPredicate<ITypedIngredient<?>, String> ingredientMatcher) {
+		return matches(new RecipeMaterials<>(category, recipe, recipes, catalysts, matcher, ingredientMatcher, ingredientRoles));
+	}
+
+	<T> boolean matchesCached(IRecipeCategory<T> category, T recipe, IIngredientSupplier supplier,
+		IRecipeSearchTextMatcher matcher, BiPredicate<ITypedIngredient<?>, String> ingredientMatcher) {
+		var context = new RecipeMaterials<>(category, recipe, null, null, matcher, ingredientMatcher, ingredientRoles);
+		context.materials = supplier;
+		return matches(context);
+	}
+
+	<T> boolean matchesDynamic(IRecipeCategory<T> category, T recipe, IRecipeManager recipes, IRecipeSearchTextMatcher matcher,
+		BiPredicate<ITypedIngredient<?>, String> ingredientMatcher, BiPredicate<List<ITypedIngredient<?>>, String> roleMatcher) {
+		var context = new RecipeMaterials<>(category, recipe, recipes, null, matcher, ingredientMatcher, ingredientRoles);
+		context.roleMatcher = roleMatcher;
+		return matches(context);
+	}
+
+	private boolean matches(RecipeMaterials<?> materials) {
 		if (isEmpty())
 			return true;
-		RecipeMaterials<T> materials = new RecipeMaterials<>(category, recipe, recipes, catalysts, matcher, ingredientMatcher, ingredientRoles);
 		for (List<SearchTerm> alternative : alternatives) {
 			boolean matches = true;
 			for (SearchTerm term : alternative) {
@@ -108,13 +132,14 @@ public final class RecipeSearchQuery {
 		private final T recipe;
 		private final IRecipeManager recipes;
 		private final BiPredicate<ITypedIngredient<?>, String> ingredientMatcher;
-		private final java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts;
+		private final Supplier<List<ITypedIngredient<?>>> catalysts;
 		private @Nullable IIngredientSupplier materials;
+		private @Nullable BiPredicate<List<ITypedIngredient<?>>, String> roleMatcher;
 		private final IRecipeSearchTextMatcher matcher;
 		private final Set<RecipeIngredientRole> roles;
 
 		private RecipeMaterials(IRecipeCategory<T> category, T recipe, IRecipeManager recipes,
-			java.util.function.Supplier<List<ITypedIngredient<?>>> catalysts, IRecipeSearchTextMatcher matcher,
+			Supplier<List<ITypedIngredient<?>>> catalysts, IRecipeSearchTextMatcher matcher,
 			BiPredicate<ITypedIngredient<?>, String> ingredientMatcher, Set<RecipeIngredientRole> roles) {
 			this.category = category;
 			this.recipe = recipe;
@@ -128,7 +153,7 @@ public final class RecipeSearchQuery {
 		private boolean matches(SearchTerm term) {
 			return switch (term.scope()) {
 				case ALL -> matchesRole(RecipeIngredientRole.INPUT, term) || matchesRole(RecipeIngredientRole.OUTPUT, term) ||
-					matchesIngredients(catalysts.get(), term) || matchesRecipe(term);
+					(catalysts != null && matchesIngredients(catalysts.get(), term)) || matchesRecipe(term);
 				case INPUT -> matchesRole(RecipeIngredientRole.INPUT, term);
 				case OUTPUT -> matchesRole(RecipeIngredientRole.OUTPUT, term);
 				case CATALYST -> matchesIngredients(catalysts.get(), term);
@@ -139,7 +164,8 @@ public final class RecipeSearchQuery {
 		private boolean matchesRole(RecipeIngredientRole role, SearchTerm term) {
 			if (materials == null)
 				materials = recipes.getRecipeIngredients(category, recipe, roles);
-			return matchesIngredients(materials.getIngredients(role), term);
+			var candidates = materials.getIngredients(role);
+			return roleMatcher == null ? matchesIngredients(candidates, term) : roleMatcher.test(candidates, term.ingredientToken());
 		}
 
 		private boolean matchesIngredients(List<ITypedIngredient<?>> candidates, SearchTerm term) {
@@ -153,7 +179,7 @@ public final class RecipeSearchQuery {
 		private boolean matchesRecipe(SearchTerm term) {
 			if (term.matchType() == MatchType.TAG)
 				return false;
-			if (matchesRecipeText(category.getTitle().getString(), term) || matchesRecipeText(category.getRecipeType().getUid().toString(), term))
+			if (catalysts != null && (matchesRecipeText(category.getTitle().getString(), term) || matchesRecipeText(category.getRecipeType().getUid().toString(), term)))
 				return true;
 			var id = category.getRegistryName(recipe);
 			return id != null && matchesRecipeText(id.toString(), term) ||
@@ -170,6 +196,73 @@ public final class RecipeSearchQuery {
 			return matcher.contains(text.toLowerCase(Locale.ROOT), value);
 		}
 	}
+
+	boolean sameTerms(RecipeSearchQuery other) {
+		return alternatives.equals(other.alternatives);
+	}
+
+	boolean narrows(RecipeSearchQuery previous, boolean nativeBackend) {
+		if (alternatives.size() != 1 || previous.alternatives.size() != 1)
+			return false;
+		var terms = alternatives.getFirst();
+		for (var old : previous.alternatives.getFirst()) {
+			if (terms.contains(old))
+				continue;
+			if (!nativeBackend || old.excluded || old.value.isEmpty() ||
+				!Character.isLetterOrDigit(old.value.codePointAt(0)) || Character.isHighSurrogate(old.value.charAt(old.value.length() - 1)) ||
+				terms.stream().noneMatch(term -> !term.excluded && term.scope == old.scope && term.matchType == old.matchType && term.value.startsWith(old.value)))
+				return false;
+		}
+		return true;
+	}
+
+	List<List<SearchTerm>> branches() {
+		return alternatives;
+	}
+
+	record Compiled(boolean always, RecipeSearchQuery residual) {
+		boolean constant() {
+			return residual.isEmpty();
+		}
+	}
+
+	Compiled compileForCategory(IRecipeCategory<?> category, Supplier<List<ITypedIngredient<?>>> catalysts,
+		IRecipeSearchTextMatcher text, BiPredicate<ITypedIngredient<?>, String> ingredients) {
+		List<List<SearchTerm>> branches = new ArrayList<>();
+		String title = null, uid = null;
+		for (var alternative : alternatives) {
+			List<SearchTerm> terms = new ArrayList<>();
+			boolean impossible = false;
+			for (var term : alternative) {
+				boolean categoryHit = false;
+				if ((term.scope == Scope.ALL || term.scope == Scope.RECIPE) && term.matchType != MatchType.TAG) {
+					if (title == null) {
+						title = category.getTitle().getString().toLowerCase(Locale.ROOT);
+						uid = category.getRecipeType().getUid().toString();
+					}
+					categoryHit = term.matchesText(title, text) || term.matchesText(uid, text);
+				}
+				if (!categoryHit && (term.scope == Scope.ALL || term.scope == Scope.CATALYST))
+					categoryHit = catalysts.get().stream().anyMatch(i -> ingredients.test(i, term.ingredientToken));
+				if (categoryHit || term.scope == Scope.CATALYST || term.scope == Scope.RECIPE && term.matchType == MatchType.TAG) {
+					if (categoryHit == term.excluded) {
+						impossible = true;
+						break;
+					}
+				} else {
+					terms.add(term);
+				}
+			}
+			if (!impossible) {
+				if (terms.isEmpty())
+					return new Compiled(true, EMPTY);
+				branches.add(List.copyOf(terms));
+			}
+		}
+		return new Compiled(isEmpty(), branches.isEmpty() ? EMPTY : new RecipeSearchQuery(List.copyOf(branches)));
+	}
+
+	private static final RecipeSearchQuery EMPTY = new RecipeSearchQuery(List.of());
 
 	public boolean hasInputTerms() {
 		return !inputAlternatives.isEmpty();
@@ -189,7 +282,7 @@ public final class RecipeSearchQuery {
 		return text.length() == 1 && !Character.isLetterOrDigit(text.charAt(0)) && text.charAt(0) != '-' && text.charAt(0) != '|';
 	}
 
-	private enum Scope {
+	enum Scope {
 		ALL,
 		INPUT,
 		OUTPUT,
@@ -197,14 +290,23 @@ public final class RecipeSearchQuery {
 		RECIPE
 	}
 
-	private enum MatchType {
+	enum MatchType {
 		TEXT,
 		TAG,
 		MOD,
 		RESOURCE_LOCATION
 	}
 
-	private record SearchTerm(Scope scope, MatchType matchType, String value, boolean excluded) {
+	record SearchTerm(Scope scope, MatchType matchType, String value, boolean excluded, String ingredientToken) {
+		SearchTerm(Scope scope, MatchType matchType, String value, boolean excluded) {
+			this(scope, matchType, value, excluded, switch (matchType) {
+				case TEXT -> value;
+				case TAG -> "#" + value;
+				case MOD -> "@" + value;
+				case RESOURCE_LOCATION -> "&" + value;
+			});
+		}
+
 		private static SearchTerm parse(String token, boolean excluded) {
 			Scope scope = Scope.ALL;
 			if (token.length() > 2 && token.charAt(1) == ':') {
@@ -234,13 +336,17 @@ public final class RecipeSearchQuery {
 			return new SearchTerm(scope, matchType, Translator.toLowercaseWithLocale(token), excluded);
 		}
 
-		private String ingredientToken() {
-			return switch (matchType) {
-				case TEXT -> value;
-				case TAG -> "#" + value;
-				case MOD -> "@" + value;
-				case RESOURCE_LOCATION -> "&" + value;
-			};
+		boolean canMatchResourceId() {
+			if ((scope != Scope.ALL && scope != Scope.RECIPE) || matchType == MatchType.TAG)
+				return false;
+			for (int i = 0; i < value.length(); i++)
+				if (value.charAt(i) > 127)
+					return false;
+			return true;
+		}
+
+		boolean matchesText(String lower, IRecipeSearchTextMatcher matcher) {
+			return matcher.contains(matchType == MatchType.MOD ? getNamespace(lower) : lower, value);
 		}
 
 		private static String getNamespace(String value) {

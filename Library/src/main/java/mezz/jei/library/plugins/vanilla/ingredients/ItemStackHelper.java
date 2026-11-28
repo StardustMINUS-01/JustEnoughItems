@@ -9,6 +9,7 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.common.Internal;
+import mezz.jei.common.ingredients.IItemUidHelperInternal;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientConfigs;
 import mezz.jei.common.platform.IPlatformItemStackHelper;
@@ -33,7 +34,7 @@ import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public class ItemStackHelper implements IIngredientHelper<ItemStack> {
+public class ItemStackHelper implements IIngredientHelper<ItemStack>, IItemUidHelperInternal {
 	private final StackHelper stackHelper;
 	private final IColorHelper colorHelper;
 	private final TagKey<Item> itemHiddenFromRecipeViewers;
@@ -88,6 +89,11 @@ public class ItemStackHelper implements IIngredientHelper<ItemStack> {
 	@Override
 	public Object getGroupingUid(ItemStack ingredient) {
 		return ingredient.getItem();
+	}
+
+	@Override
+	public final boolean canUseItemAsUid(ItemStack stack) {
+		return getClass() == ItemStackHelper.class && stackHelper.getClass() == StackHelper.class && !hasSubtypes(stack);
 	}
 
 	@Override

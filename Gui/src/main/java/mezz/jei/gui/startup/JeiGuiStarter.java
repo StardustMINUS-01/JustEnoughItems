@@ -406,6 +406,7 @@ public class JeiGuiStarter {
 			focusUtil,
 			ingredientListOverlay
 		);
+		jeiClientConfigs.registerRuntimeListenerRemoval(recipesGui::stopRecipeSearch);
 		recipesGui.setIngredientSearch(ingredientFilter);
 		registration.setGuiRuntime(new JeiGuiRuntime(
 			ingredientListOverlay,

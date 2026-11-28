@@ -943,7 +943,7 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	}
 
 	public void stopRecipeSearch() {
-		logic.clearRecipeResultSnapshot();
+		logic.stopRecipeSearch();
 	}
 
 	@Override

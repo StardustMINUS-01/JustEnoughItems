@@ -3,6 +3,9 @@ package mezz.jei.gui.search;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import mezz.jei.api.helpers.IModIdHelper;
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.common.ingredients.IItemUidHelperInternal;
+import mezz.jei.common.ingredients.itemStacks.TypedItemStack;
 import mezz.jei.gui.search.ElementCorpus.IngredientKey;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.common.search.compact.CompactSearchStorageBuilder;
@@ -34,8 +37,20 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 	private static final long MAX_MATCH_BYTES = 8L * 1024 * 1024;
 	private final @Nullable IngredientIdentities identities;
 	private final IElementSearch search;
-	private final long identityRevision;
-	private final long searchRevision;
+	final long identityRevision;
+	final long searchRevision;
+	final int nativeOptions() { return nativeFlags; }
+	private @Nullable OrphanIngredientCorpus recipeCorpus;
+
+	public void useRecipeCorpus(OrphanIngredientCorpus corpus) { recipeCorpus = corpus; }
+
+	int elementCount() { return identities.ingredientIds.size(); }
+	int elementId(IngredientKey key) { return identities.ingredientIds.getInt(key); }
+	TermMatches term(String token) { return terms.get(token); }
+
+	IListElementInfo<?> describe(ITypedIngredient<?> ingredient) {
+		return ListElementInfo.createFromElement(new ListElement<>(ingredient, 0), ingredientManager, config, modIdHelper);
+	}
 	private final Map<String, TermMatches> terms = new HashMap<>();
 	private final Cache<CandidateTerm, Boolean> extraMatches = CacheBuilder.newBuilder().maximumSize(8192).build();
 	private final IIngredientManager ingredientManager;
@@ -57,7 +72,7 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		this.searchRevision = searchRevision;
 		boolean sameIdentities = previous != null && previous.search == search && previous.identityRevision == identityRevision;
 		IngredientIdentities identities = sameIdentities ? previous.identities : null;
-		if (identities == null && !tokens.isEmpty() && search instanceof ElementCorpus corpus) {
+		if (identities == null && search instanceof ElementCorpus corpus) {
 			identities = new IngredientIdentities(corpus.snapshotIngredientIds(), Reference2IntMaps.emptyMap());
 		} else if (identities == null && !tokens.isEmpty()) {
 			var elements = search.getAllIngredients();
@@ -75,13 +90,13 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		int elementCount = search instanceof ElementCorpus ? search.getAllIngredients().size() : elementIds.size();
 		long bytesPerTerm = ((elementCount + 63L) / 64) * Long.BYTES;
 		long remaining = MAX_MATCH_BYTES;
-		if (sameIdentities && previous.searchRevision == searchRevision) {
+		if (sameIdentities && previous.nativeFlags == nativeFlags && previous.searchRevision == searchRevision) {
 			// Only carry forward conditions still used by this query, never a search-history cache.
 			for (String token : tokens) {
 				TermMatches cached = previous.terms.get(token);
 				if (cached != null && cached.indexed()) {
 					terms.put(token, cached);
-					remaining -= cached.hits().size() / Byte.SIZE;
+					remaining -= (long) cached.hits().length * Long.BYTES;
 				}
 			}
 		}
@@ -90,7 +105,7 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 				continue;
 			var parsed = parser.parseToken(token);
 			if (parsed.isEmpty()) {
-				terms.put(token, new TermMatches("", List.of(), new BitSet(), true, null));
+				terms.put(token, new TermMatches("", List.of(), new long[0], true, null));
 				continue;
 			}
 			var info = parsed.get();
@@ -98,23 +113,34 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 				? parser.allPrefixInfos().stream().filter(field -> field.getMode() == SearchMode.ENABLED).toList()
 				: List.of(info.prefixInfo());
 			boolean indexed = bytesPerTerm <= remaining;
-			BitSet hits;
+			long[] hits;
 			if (indexed && search instanceof ElementCorpus corpus) {
-				hits = corpus.getMatchBits(info);
+				hits = corpus.getMatchWords(info);
 				remaining -= bytesPerTerm;
 			} else if (indexed) {
-				hits = new BitSet(elementCount);
+				var bits = new BitSet(elementCount);
 				search.collectSearchResults(info, element -> {
 					int id = elementIds.getInt(element);
 					if (id >= 0)
-						hits.set(id);
+						bits.set(id);
 				});
+				hits = bits.toLongArray();
 				remaining -= bytesPerTerm;
 			} else {
-				hits = new BitSet();
+				hits = new long[0];
 			}
 			terms.put(token, new TermMatches(info.token(), fields, hits, indexed, PinyinQuery.compile(info.token(), nativeFlags)));
 		}
+	}
+
+	/** Read-only words shared with recipe workers; null means this term requires on-demand matching. */
+	public long @Nullable [] getMaterialBits(String token) {
+		var term = terms.get(token);
+		return term != null && term.indexed ? term.hits : null;
+	}
+
+	public boolean hasNativeIds() {
+		return search instanceof ElementCorpus;
 	}
 
 	@Override
@@ -123,7 +149,9 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		IngredientKey key = getKey(ingredient);
 		int id = identities.ingredientIds().getInt(key);
 		if (id >= 0 && term.indexed())
-			return term.hits().get(id);
+			return (id >>> 6) < term.hits.length && (term.hits[id >>> 6] & (1L << id)) != 0;
+		if (recipeCorpus != null && term.indexed())
+			return recipeCorpus.testExtra(key, ingredient, token, this);
 		CandidateTerm candidate = new CandidateTerm(key, token);
 		Boolean cached = extraMatches.getIfPresent(candidate);
 		if (cached != null)
@@ -164,7 +192,12 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		return false;
 	}
 
-	private <T> IngredientKey getKey(ITypedIngredient<T> ingredient) {
+	boolean canUseItemAsUid(TypedItemStack stack) {
+		return ingredientManager.getIngredientHelper(VanillaTypes.ITEM_STACK) instanceof IItemUidHelperInternal helper &&
+			helper.canUseItemAsUid(stack.getIngredient());
+	}
+
+	<T> IngredientKey getKey(ITypedIngredient<T> ingredient) {
 		return IngredientKey.of(ingredient, ingredientManager);
 	}
 
@@ -176,5 +209,5 @@ public final class IngredientSearchSnapshot implements BiPredicate<ITypedIngredi
 		}
 	}
 	private record CandidateTerm(IngredientKey ingredient, String token) {}
-	private record TermMatches(String token, List<PrefixInfo<IListElementInfo<?>, IListElement<?>>> fields, BitSet hits, boolean indexed, @Nullable PinyinQuery pinyin) {}
+	record TermMatches(String token, List<PrefixInfo<IListElementInfo<?>, IListElement<?>>> fields, long[] hits, boolean indexed, @Nullable PinyinQuery pinyin) {}
 }

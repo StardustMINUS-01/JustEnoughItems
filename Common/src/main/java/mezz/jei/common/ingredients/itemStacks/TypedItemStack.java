@@ -74,6 +74,10 @@ public abstract sealed class TypedItemStack implements ITypedIngredient<ItemStac
 		return VanillaTypes.ITEM_STACK;
 	}
 
+	public final java.util.Optional<Item> getPlainSingleItem() {
+		return this instanceof NormalizedTypedItem ? Optional.of(getItem()) : Optional.empty();
+	}
+
 	protected abstract Item getItem();
 
 	protected abstract ItemStack createItemStackUncached();

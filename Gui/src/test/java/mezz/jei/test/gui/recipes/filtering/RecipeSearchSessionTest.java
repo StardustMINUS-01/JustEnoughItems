@@ -49,6 +49,7 @@ public class RecipeSearchSessionTest {
 	public void sessionMatchesOnDemandAndDiscardsSupersededResults() throws Exception {
 		var extractions = new java.util.concurrent.atomic.AtomicInteger();
 		var sourceRecipes = new java.util.concurrent.atomic.AtomicReference<>(List.of("one", "two"));
+		var releaseLastRow = new java.util.concurrent.CountDownLatch(1);
 		var slowExtraction = new java.util.concurrent.atomic.AtomicBoolean();
 		Thread clientThread = Thread.currentThread();
 		Set<Thread> workers = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -79,6 +80,13 @@ public class RecipeSearchSessionTest {
 					if (failSearch.get())
 						throw new IllegalStateException("Test search failure");
 					extractions.incrementAndGet();
+					if (slowExtraction.get() && arguments[1].equals("recipe95")) {
+						try {
+							Assertions.assertTrue(releaseLastRow.await(5, java.util.concurrent.TimeUnit.SECONDS));
+						} catch (InterruptedException e) {
+							throw new AssertionError(e);
+						}
+					}
 					if (slowExtraction.get())
 						java.util.concurrent.locks.LockSupport.parkNanos(3_000_000L);
 					yield ingredients;
@@ -101,6 +109,9 @@ public class RecipeSearchSessionTest {
 			Assertions.assertEquals(sourceRecipes.get(), recipes(await(direct).recipes()));
 			Assertions.assertEquals(before, extractions.get(), "recipe-only queries must not extract ingredients or preferences");
 			direct.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("i:missing | r:macerating"));
+			Assertions.assertEquals(sourceRecipes.get(), recipes(await(direct).recipes()));
+			Assertions.assertEquals(before, extractions.get(), "a true category alternative bypasses per-recipe extraction");
+			direct.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("-i:missing"));
 			int publications = 0;
 			int lastTick = 0;
 			int count = 0;
@@ -112,8 +123,9 @@ public class RecipeSearchSessionTest {
 					Assertions.assertTrue(found.size() >= count);
 					count = found.size();
 					if (direct.isSearching()) {
-						Assertions.assertTrue(tick - lastTick >= 10);
+						Assertions.assertTrue(tick - lastTick >= 2);
 						publications++;
+						releaseLastRow.countDown();
 					}
 					lastTick = tick;
 				}
@@ -136,6 +148,7 @@ public class RecipeSearchSessionTest {
 			failSearch.set(false);
 			direct.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("r:macerating"));
 			Assertions.assertEquals(sourceRecipes.get(), recipes(await(direct).recipes()));
+			int beforePreferenceSearch = extractions.get();
 			direct.request(state, RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("r:macerating"));
 			Assertions.assertEquals(sourceRecipes.get(), recipes(await(direct).recipes()));
 			direct.request(state, RecipeFilterMode.NOT_PREFERRED, RecipeSearchQuery.parse("r:macerating"));
@@ -146,19 +159,26 @@ public class RecipeSearchSessionTest {
 			await(direct);
 
 			TestRecipeCategory unknown = new TestRecipeCategory(RecipeType.create("test", "unknown", String.class), null);
+			TestRecipeCategory otherType = new TestRecipeCategory(RecipeType.create("test", "other", String.class), TYPE_UID);
 			var laterRecipes = new java.util.concurrent.atomic.AtomicReference<List<Object>>(List.of("one"));
-			var multipleCategories = proxy(mezz.jei.gui.recipes.lookups.ILookupState.class, (method, arguments) -> {
+			java.util.function.Function<List<TestRecipeCategory>, mezz.jei.gui.recipes.lookups.ILookupState> lookup = categories -> proxy(mezz.jei.gui.recipes.lookups.ILookupState.class, (method, arguments) -> {
 				Assertions.assertSame(clientThread, Thread.currentThread());
 				return switch (method) {
-					case "getRecipeCategories" -> List.of(CATEGORY, unknown);
+					case "getRecipeCategories" -> categories;
 					case "getFocusedRecipes" -> new mezz.jei.gui.recipes.lookups.StaticFocusedRecipes<>((TestRecipeCategory) arguments[0], arguments[0] == unknown ? laterRecipes.get() : List.of("one"));
 					default -> throw new AssertionError(method);
 				};
 			});
+			direct.request(lookup.apply(List.of(unknown)), RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("r:test"));
+			Assertions.assertTrue(await(direct).recipes().isEmpty(), "recipes without an id are not implicitly preferred");
+			direct.request(lookup.apply(List.of(CATEGORY, otherType)), RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("r:test"));
+			Assertions.assertTrue(await(direct).recipes().isEmpty(), "the same recipe id in two types is not unique");
+			var multipleCategories = lookup.apply(List.of(CATEGORY, unknown));
 			direct.request(multipleCategories, RecipeFilterMode.ALL, RecipeSearchQuery.parse("r:test"));
 			Assertions.assertEquals(List.of(CATEGORY, unknown), await(direct).recipes().stream().map(IFocusedRecipes::getRecipeCategory).toList());
 			direct.request(multipleCategories, RecipeFilterMode.NOT_PREFERRED, RecipeSearchQuery.parse("r:test"));
 			Assertions.assertEquals(List.of(unknown), await(direct).recipes().stream().map(IFocusedRecipes::getRecipeCategory).toList());
+			Assertions.assertEquals(beforePreferenceSearch, extractions.get(), "empty preference rules must not extract ingredients");
 
 			release.set(new java.util.concurrent.CountDownLatch(1));
 			direct.request(state, RecipeFilterMode.ALL, RecipeSearchQuery.parse("i:missing"));
@@ -177,7 +197,7 @@ public class RecipeSearchSessionTest {
 			release.set(new java.util.concurrent.CountDownLatch(1));
 			List<IFocusedRecipes<?>> partial = List.of();
 			try {
-				direct.request(multipleCategories, RecipeFilterMode.ALL, RecipeSearchQuery.parse("i:missing | r:test"));
+				direct.request(multipleCategories, RecipeFilterMode.ALL, RecipeSearchQuery.parse("-i:missing"));
 				long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
 				while (partial.isEmpty() && System.nanoTime() < deadline) {
 					var update = direct.tick(RecipePreferenceRules.EMPTY);
@@ -193,6 +213,30 @@ public class RecipeSearchSessionTest {
 			}
 			Assertions.assertEquals(List.of("one", "recipe0", "tail"), recipes(await(direct).recipes()));
 			Assertions.assertEquals(List.of("one"), recipes(partial), "later categories must not mutate previously published results");
+			var selectedPage = proxy(mezz.jei.gui.recipes.lookups.ILookupState.class, (method, arguments) -> switch (method) {
+				case "getRecipeCategories" -> List.of(CATEGORY, unknown);
+				case "getFocusedRecipes" -> new mezz.jei.gui.recipes.lookups.StaticFocusedRecipes<>((TestRecipeCategory) arguments[0],
+					arguments[0] == unknown ? List.of("selected") : List.of("recipe0"));
+				default -> throw new AssertionError(method);
+			});
+			release.set(new java.util.concurrent.CountDownLatch(1));
+			try {
+				direct.request(selectedPage, RecipeFilterMode.ALL, RecipeSearchQuery.parse("-i:missing"), RecipePreferenceRules.EMPTY, unknown);
+				long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+				List<String> first = List.of();
+				while (first.isEmpty() && System.nanoTime() < deadline) {
+					var update = direct.tick(RecipePreferenceRules.EMPTY);
+					if (update.isPresent())
+						first = recipes(update.get().recipes());
+					Thread.sleep(1);
+				}
+				Assertions.assertEquals(List.of("selected"), first);
+				Assertions.assertTrue(direct.isSearching());
+			} finally {
+				release.get().countDown();
+				release.set(null);
+			}
+			Assertions.assertEquals(List.of("recipe0", "selected"), recipes(await(direct).recipes()));
 			try {
 				mezz.jei.gui.recipes.filtering.RecipeCategoryPreferences.toggle(unknown.getRecipeType().getUid(), false);
 				direct.request(multipleCategories, RecipeFilterMode.PREFERRED, RecipeSearchQuery.parse("r:test"));

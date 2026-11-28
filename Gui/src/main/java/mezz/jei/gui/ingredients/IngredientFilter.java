@@ -87,6 +87,7 @@ public class IngredientFilter
 	private final Set<IListElement<?>> dirtyIngredients = Collections.newSetFromMap(new IdentityHashMap<>());
 	private long completionRevision;
 	private long ingredientIdentityRevision;
+	private long recipeIndexGeneration;
 	private final Set<ElementSearchIndex> dirtySearchIndexes = EnumSet.noneOf(ElementSearchIndex.class);
 	private boolean ingredientAliasesDirty;
 	private boolean sortIndexesDirty;
@@ -185,7 +186,10 @@ public class IngredientFilter
 		IListElement<V> element = info.getElement();
 		updateHiddenState(element);
 
+		int previousCount = elementSearch instanceof ElementCorpus ? elementSearch.getAllIngredients().size() : -1;
 		this.elementSearch.add(info, ingredientManager);
+		if (previousCount >= 0 && previousCount == elementSearch.getAllIngredients().size())
+			recipeIndexGeneration++;
 		this.sortedIngredients = null;
 		this.elementInfoCache.put(element, info);
 
@@ -207,7 +211,9 @@ public class IngredientFilter
 			ingredientManager, config, modIdHelper, searchStorageBuilderFactory, ingredientIdentityRevision, completionRevision, previous);
 	}
 
+	public long getRecipeIndexGeneration() { return recipeIndexGeneration; }
 
+	public long getRecipeIdentityRevision() { return ingredientIdentityRevision; }
 
 	public long getIngredientSearchRevision() {
 		updateDirtyState();
@@ -215,6 +221,7 @@ public class IngredientFilter
 	}
 
 	public void rebuildItemFilter() {
+		recipeIndexGeneration++;
 		ingredientIdentityRevision++;
 		this.sortedIngredients = null;
 		this.invalidateCache();
@@ -452,6 +459,7 @@ public class IngredientFilter
 			}
 		}
 		if (changed) {
+			recipeIndexGeneration++;
 			ingredientIdentityRevision++;
 			invalidateCache();
 			invalidateCandidateCache();
