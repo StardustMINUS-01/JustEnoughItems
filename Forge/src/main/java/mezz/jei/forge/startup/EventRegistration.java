@@ -1,5 +1,6 @@
 package mezz.jei.forge.startup;
 
+import net.minecraftforge.event.TickEvent;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mezz.jei.forge.events.RuntimeEventSubscriptions;
 import mezz.jei.forge.input.ForgeUserInput;
@@ -23,6 +24,7 @@ public class EventRegistration {
 
 		GuiEventHandler guiEventHandler = eventHandlers.guiEventHandler();
 		registerGuiHandler(subscriptions, guiEventHandler);
+		subscriptions.register(TickEvent.ClientTickEvent.Post.class, event -> guiEventHandler.tickRecipeWarmup());
 	}
 
 	private static void registerClientInputHandler(RuntimeEventSubscriptions subscriptions, ClientInputHandler handler) {

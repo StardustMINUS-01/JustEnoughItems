@@ -1178,6 +1178,10 @@ public class RecipesGui extends Screen implements IRecipesGui, IRecipeFocusSourc
 	) {
 	}
 
+	public void tickRecipeWarmup(boolean lowMemory) {
+		navigationLogic.tickRecipeWarmup(lowMemory);
+	}
+
 	public void setIngredientSearch(IngredientFilter ingredientSearch) {
 		navigationLogic.setIngredientSearch(ingredientSearch);
 	}

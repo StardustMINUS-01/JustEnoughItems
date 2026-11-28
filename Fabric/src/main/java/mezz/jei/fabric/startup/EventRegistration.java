@@ -1,5 +1,6 @@
 package mezz.jei.fabric.startup;
 
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import mezz.jei.common.input.InputPhase;
 import mezz.jei.common.input.UserInput;
 import mezz.jei.fabric.events.JeiCharTypedEvents;
@@ -35,6 +36,10 @@ public class EventRegistration {
 	}
 
 	private void registerEvents() {
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (guiEventHandler != null)
+				guiEventHandler.tickRecipeWarmup();
+		});
 		ScreenEvents.BEFORE_INIT.register((client, screen, scaledWidth, scaledHeight) -> registerScreenEvents(screen));
 		JeiCharTypedEvents.BEFORE_CHAR_TYPED.register(this::beforeCharTyped);
 		ScreenEvents.AFTER_INIT.register(this::afterInit);

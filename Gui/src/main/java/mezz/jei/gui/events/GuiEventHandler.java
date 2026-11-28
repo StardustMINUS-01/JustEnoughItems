@@ -38,6 +38,12 @@ public class GuiEventHandler {
 	private final GuiInputScene inputScene;
 	private @Nullable mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner autoCraftingRunner;
 
+	private Runnable recipeWarmupTick = () -> {};
+
+	public void setRecipeWarmupTick(Runnable tick) {
+		recipeWarmupTick = tick;
+	}
+
 	public void setAutoCraftingRunner(mezz.jei.gui.bookmarks.hotkeys.BookmarkAutoCraftingRunner runner) {
 		this.autoCraftingRunner = runner;
 	}
@@ -87,6 +93,10 @@ public class GuiEventHandler {
 		bookmarkOverlay.getScreenPropertiesUpdater()
 			.updateScreen(screen)
 			.update();
+	}
+
+	public void tickRecipeWarmup() {
+		recipeWarmupTick.run();
 	}
 
 	public void onClientTick() {

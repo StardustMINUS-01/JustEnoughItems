@@ -1,5 +1,6 @@
 package mezz.jei.gui.search;
 
+import mezz.jei.api.constants.VanillaTypes;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Interner;
@@ -44,6 +45,13 @@ public final class OrphanIngredientCorpus {
 
 	public boolean canUseItemAsUid(TypedItemStack stack) {
 		return base.canUseItemAsUid(stack);
+	}
+
+	public int findKnownItemId(TypedItemStack stack) {
+		if (!base.canUseItemAsUid(stack))
+			return -1;
+		var type = VanillaTypes.ITEM_STACK;
+		return base.elementId(new IngredientKey(type, stack.getBaseIngredient(type)));
 	}
 
 	public int resolve(ITypedIngredient<?> ingredient) {

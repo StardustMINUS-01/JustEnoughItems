@@ -355,6 +355,7 @@ public class ClientConfigMigrationTest {
 			recipeSorting
 		);
 
+		assertTrue(configs.isLowMemorySearchEnabled());
 		IClientConfig client = configs.getClientConfig();
 		assertEquals(SearchBarPosition.CENTERED, client.searchBarPosition().get());
 		assertEquals(411, client.maxRecipeGuiHeight().get());
@@ -433,6 +434,7 @@ public class ClientConfigMigrationTest {
 			false,
 			reloadedRecipeSorting
 		);
+		assertTrue(reloaded.isLowMemorySearchEnabled());
 		assertFalse(reloaded.getClientConfig().bookmarkOutputAsRecipe().get());
 		assertFalse(reloaded.getClientConfig().recipeSyncWarningEnabled().get());
 		assertFalse(reloaded.getClientConfig().recipeSlotCyclingEnabled().get());

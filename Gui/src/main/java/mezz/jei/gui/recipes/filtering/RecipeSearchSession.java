@@ -56,6 +56,10 @@ public final class RecipeSearchSession {
 	private @Nullable ILookupState view;
 	private @Nullable RecipeSearchPage page;
 	private @Nullable GlobalRecipeIndexCache global;
+	private @Nullable Object warmupWorld;
+	private boolean lowMemory;
+	private long stableSince, observedMaterials, observedIdentities;
+	private long lastIdleInvalidation, previousIdleInvalidation;
 	private @Nullable ILookupState deferred;
 	private RecipeFilterMode deferredMode;
 	private RecipeSearchQuery deferredQuery;
@@ -93,7 +97,9 @@ public final class RecipeSearchSession {
 		started = System.nanoTime();
 		var categories = RecipeCategoryPreferences.get();
 		long ingredients = ingredientSearch == null ? 0 : ingredientSearch.getIngredientSearchRevision();
-		prepareIndex(selected);
+		var index = prepareIndex();
+		if (index != null && !lowMemory)
+			index.warm(selected);
 		if (mode.isUnrestricted() && query.isEmpty()) {
 			if (view != state || categoryPreferences != categories || (page != null && this.mode != mode && !page.allowsSameCategories(mode)))
 				resetView();
@@ -226,20 +232,63 @@ public final class RecipeSearchSession {
 		}
 	}
 
-	private void prepareIndex(@Nullable IRecipeCategory<?> selected) {
+	public void tickWarmup(@Nullable Object world, boolean ready, boolean lowMemory, long now) {
+		this.lowMemory = lowMemory;
+		if (world != warmupWorld) {
+			if (warmupWorld != null)
+				clear();
+			warmupWorld = world;
+			stableSince = now;
+			lastIdleInvalidation = previousIdleInvalidation = 0;
+		}
+		if (ingredientSearch == null || !(searchStorageBuilderFactory instanceof CompactSearchStorageBuilder.Factory) ||
+			!(recipeManager instanceof IRecipeMaterialCacheInternal))
+			return;
+		long materials = materialRevision();
+		long identities = ingredientSearch.getRecipeIndexGeneration();
+		if (materials != observedMaterials || identities != observedIdentities) {
+			if (global != null && global.isIdleWarmup()) {
+				global.stop();
+				global = null;
+				previousIdleInvalidation = lastIdleInvalidation;
+				lastIdleInvalidation = now;
+			}
+			observedMaterials = materials;
+			observedIdentities = identities;
+			stableSince = now;
+		}
+		if ((lowMemory || !ready) && global != null) {
+			if (global.isIdleWarmup()) {
+				global.stop();
+				global = null;
+			} else if (lowMemory)
+				global.disableWarmup();
+		}
+		if (world == null || !ready || lowMemory) {
+			stableSince = now;
+			return;
+		}
+		if (global != null || now - stableSince < 3_000_000_000L ||
+			(previousIdleInvalidation != 0 && now - previousIdleInvalidation < 60_000_000_000L) || !ingredientSearch.canWarmRecipeIndex())
+			return;
+		var index = prepareIndex();
+		if (index != null)
+			index.warmIdle();
+	}
+
+	private @Nullable GlobalRecipeIndexCache prepareIndex() {
 		if (ingredientSearch == null || !(recipeManager instanceof IRecipeMaterialCacheInternal materials) ||
 			!(searchStorageBuilderFactory instanceof CompactSearchStorageBuilder.Factory))
-			return;
+			return null;
 		long revision = materials.getRecipeMaterialRevision();
 		long identity = ingredientSearch.getRecipeIndexGeneration();
-		if (global != null && global.materialRevision == revision && global.identityRevision == identity)
-			return;
-		if (global != null)
-			global.stop();
-		var snapshot = ingredientSearch.createRecipeSearchSnapshot(Set.of(), null);
-		global = snapshot.hasNativeIds() ? new GlobalRecipeIndexCache(materials, snapshot, revision, identity) : null;
-		if (global != null)
-			global.warm(selected);
+		if (global == null || global.materialRevision != revision || global.identityRevision != identity) {
+			if (global != null)
+				global.stop();
+			var snapshot = ingredientSearch.createRecipeSearchSnapshot(Set.of(), null);
+			global = snapshot.hasNativeIds() ? new GlobalRecipeIndexCache(materials, snapshot, revision, identity) : null;
+		}
+		return global;
 	}
 
 	private ForkJoinPool executor() {
@@ -361,6 +410,7 @@ public final class RecipeSearchSession {
 	}
 
 	public void clear() {
+		warmupWorld = null;
 		resetView();
 		ingredientSnapshot = null;
 		if (global != null)

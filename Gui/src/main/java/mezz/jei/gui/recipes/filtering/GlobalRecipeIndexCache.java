@@ -20,6 +20,34 @@ final class GlobalRecipeIndexCache {
 	final long materialRevision;
 	final long identityRevision;
 	private volatile boolean stopped;
+	private enum Warmup { NONE, IDLE, PAGE }
+	private volatile Warmup warmup = Warmup.NONE;
+
+	boolean isIdleWarmup() { return warmup == Warmup.IDLE; }
+	void disableWarmup() { warmup = Warmup.NONE; }
+
+	static final class IdleBudget {
+		int rows = 200_000;
+		long associations = 4_000_000;
+
+		void countRow(long width) {
+			if (width > 16_384 || (associations -= width) < 0)
+				throw new CancellationException();
+		}
+	}
+	private IdleBudget idleBudget;
+
+	void warmIdle() {
+		idleBudget = new IdleBudget();
+		warmup = Warmup.IDLE;
+		warmers.execute(() -> {
+			for (var category : categories) {
+				if (stopped || !isIdleWarmup() || idleBudget.rows <= 0 || idleBudget.associations <= 0)
+					return;
+				warmCategory(category, Warmup.IDLE);
+			}
+		});
+	}
 	private final ForkJoinPool warmers = new ForkJoinPool(Math.clamp(Runtime.getRuntime().availableProcessors() / 4, 1, 4), pool -> {
 		var thread = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
 		thread.setName("JEI Recipe Warmup-" + thread.getPoolIndex());
@@ -47,20 +75,31 @@ final class GlobalRecipeIndexCache {
 	}
 
 	void warm(IRecipeCategory<?> selected) {
+		if (warmup == Warmup.PAGE)
+			return;
+		warmup = Warmup.PAGE;
 		if (selected != null)
-			warmers.execute(() -> warmCategory(selected));
+			warmers.execute(() -> warmCategory(selected, Warmup.PAGE));
 		if (crafting != null && crafting != selected)
-			warmers.execute(() -> warmCategory(crafting));
+			warmers.execute(() -> warmCategory(crafting, Warmup.PAGE));
 		warmers.execute(() -> categories.parallelStream()
 			.filter(category -> category != selected && category != crafting && !stopped)
-			.forEach(this::warmCategory));
+			.forEach(category -> warmCategory(category, Warmup.PAGE)));
 	}
 
-	private void warmCategory(IRecipeCategory<?> category) {
+	private void warmCategory(IRecipeCategory<?> category, Warmup mode) {
 		try {
-			var index = build(category, 512);
-			if (index != null)
-				index.paths(this::checkActive);
+			Runnable checkpoint = () -> {
+				checkActive();
+				if (warmup != mode)
+					throw new CancellationException();
+			};
+			checkpoint.run();
+			if (mode == Warmup.IDLE && materials.getRegisteredRecipeCount(category) > Math.min(65_536, idleBudget.rows))
+				return;
+			var index = build(category, mode == Warmup.IDLE ? 1 : 512, checkpoint, mode == Warmup.IDLE);
+			if (index != null && mode == Warmup.PAGE)
+				index.paths(checkpoint);
 		} catch (CancellationException ignored) {
 			// The cache has been superseded.
 		} catch (RuntimeException | LinkageError e) {
@@ -74,18 +113,30 @@ final class GlobalRecipeIndexCache {
 		return slot == null ? null : (CompactRecipeIndex<T>) slot.index;
 	}
 
-	@SuppressWarnings("unchecked")
 	<T> CompactRecipeIndex<T> build(IRecipeCategory<T> category, int minimumSize) {
+		return build(category, minimumSize, this::checkActive, false);
+	}
+
+	@SuppressWarnings("unchecked")
+	private <T> CompactRecipeIndex<T> build(IRecipeCategory<T> category, int minimumSize, Runnable checkpoint, boolean idle) {
 		var slot = slots.get(category);
 		if (slot == null)
 			return null;
 		synchronized (slot) {
-			checkActive();
+			checkpoint.run();
 			if (slot.index == null) {
 				var registered = materials.getRegisteredRecipes(category, minimumSize);
 				if (registered.isEmpty() && minimumSize > 0)
 					return null;
-				slot.index = new CompactRecipeIndex<>(category, registered, materials, orphans, this::checkActive);
+				if (idle && registered.size() > Math.min(65_536, idleBudget.rows))
+					return null;
+				var built = new CompactRecipeIndex<>(category, registered, materials, orphans, checkpoint, idle ? idleBudget : null);
+				checkpoint.run();
+				if (idle && built.recipes.isEmpty())
+					return null;
+				slot.index = built;
+				if (idle)
+					idleBudget.rows -= built.recipes.size();
 			}
 			return (CompactRecipeIndex<T>) slot.index;
 		}

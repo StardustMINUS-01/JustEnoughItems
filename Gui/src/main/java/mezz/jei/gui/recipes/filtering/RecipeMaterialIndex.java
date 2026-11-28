@@ -1,5 +1,6 @@
 package mezz.jei.gui.recipes.filtering;
 
+import java.util.concurrent.CancellationException;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -44,15 +45,20 @@ final class RecipeMaterialIndex {
 		private final Reference2IntOpenHashMap<Item> plain = new Reference2IntOpenHashMap<>();
 		private final Reference2IntOpenHashMap<Item> itemIds = new Reference2IntOpenHashMap<>(0);
 
-		Resolver(OrphanIngredientCorpus orphans) {
+		private final boolean idle;
+		Resolver(OrphanIngredientCorpus orphans, boolean idle) {
+			this.idle = idle;
 			this.orphans = orphans;
 			plain.defaultReturnValue(-1);
 			itemIds.defaultReturnValue(-1);
 		}
 
 		int resolve(ITypedIngredient<?> ingredient) {
-			if (!(ingredient instanceof TypedItemStack stack))
+			if (!(ingredient instanceof TypedItemStack stack)) {
+				if (idle)
+					throw new CancellationException();
 				return orphans.resolve(ingredient);
+			}
 			var item = stack.getPlainSingleItem().orElse(null);
 			int id = item == null ? -1 : plain.getInt(item);
 			if (id < 0) {
@@ -68,6 +74,14 @@ final class RecipeMaterialIndex {
 			int id = itemIds.getInt(item);
 			if (id >= 0)
 				return id;
+			if (idle) {
+				id = orphans.findKnownItemId(stack);
+				if (id < 0)
+					throw new CancellationException();
+				if (itemIds.size() < MAX_CACHED_ITEMS)
+					itemIds.put(item, id);
+				return id;
+			}
 			id = orphans.resolve(stack);
 			if (itemIds.size() < MAX_CACHED_ITEMS && orphans.canUseItemAsUid(stack))
 				itemIds.put(item, id);

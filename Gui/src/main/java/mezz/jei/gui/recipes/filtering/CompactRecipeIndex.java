@@ -1,5 +1,6 @@
 package mezz.jei.gui.recipes.filtering;
 
+import org.jetbrains.annotations.Nullable;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
@@ -20,7 +21,7 @@ final class CompactRecipeIndex<T> {
 	private final RecipeMaterialIndex inputs, outputs;
 	private volatile RecipePathIndex paths;
 
-	CompactRecipeIndex(IRecipeCategory<T> category, List<T> registered, IRecipeMaterialCacheInternal materials, OrphanIngredientCorpus orphans, Runnable checkpoint) {
+	CompactRecipeIndex(IRecipeCategory<T> category, List<T> registered, IRecipeMaterialCacheInternal materials, OrphanIngredientCorpus orphans, Runnable checkpoint, @Nullable GlobalRecipeIndexCache.IdleBudget idle) {
 		this.category = category;
 		ids = new Reference2IntOpenHashMap<>(registered.size(), 0.9f);
 		ids.defaultReturnValue(-1);
@@ -39,15 +40,19 @@ final class CompactRecipeIndex<T> {
 		if (ids.size() < registered.size() / 2)
 			ids.trim();
 		recipes = rows.size() == registered.size() ? registered : List.copyOf(rows);
-		var resolver = new RecipeMaterialIndex.Resolver(orphans);
+		var resolver = new RecipeMaterialIndex.Resolver(orphans, idle != null);
 		var in = new RecipeMaterialIndex.Builder(rows.size(), resolver);
 		var out = new RecipeMaterialIndex.Builder(rows.size(), resolver);
 		for (int row = 0; row < known.size(); row++) {
 			if ((row & 255) == 0)
 				checkpoint.run();
 			var supplier = known.get(row);
-			in.add(row, supplier.getIngredients(RecipeIngredientRole.INPUT), supplier.wideSlots(RecipeIngredientRole.INPUT));
-			out.add(row, supplier.getIngredients(RecipeIngredientRole.OUTPUT), supplier.wideSlots(RecipeIngredientRole.OUTPUT));
+			var inputs = supplier.getIngredients(RecipeIngredientRole.INPUT);
+			var outputs = supplier.getIngredients(RecipeIngredientRole.OUTPUT);
+			if (idle != null)
+				idle.countRow((long) inputs.size() + outputs.size());
+			in.add(row, inputs, supplier.wideSlots(RecipeIngredientRole.INPUT));
+			out.add(row, outputs, supplier.wideSlots(RecipeIngredientRole.OUTPUT));
 		}
 		inputs = new RecipeMaterialIndex(in, checkpoint);
 		outputs = new RecipeMaterialIndex(out, checkpoint);

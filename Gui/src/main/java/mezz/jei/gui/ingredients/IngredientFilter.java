@@ -211,6 +211,10 @@ public class IngredientFilter
 			ingredientManager, config, modIdHelper, searchStorageBuilderFactory, ingredientIdentityRevision, completionRevision, previous);
 	}
 
+	public boolean canWarmRecipeIndex() {
+		return elementSearch instanceof ElementCorpus && !ingredientAliasesDirty && dirtyIngredients.isEmpty() && dirtySearchIndexes.isEmpty() && !sortIndexesDirty;
+	}
+
 	public long getRecipeIndexGeneration() { return recipeIndexGeneration; }
 
 	public long getRecipeIdentityRevision() { return ingredientIdentityRevision; }

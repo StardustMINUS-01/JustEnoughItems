@@ -354,6 +354,13 @@ public class RecipeGuiLogic implements IRecipeGuiLogic {
 		return displayedSearchQuery.matchesInputCandidate(ingredient, searchIngredientMatcher);
 	}
 
+	void tickRecipeWarmup(boolean lowMemory) {
+		var client = net.minecraft.client.Minecraft.getInstance();
+		boolean ready = client.player != null && client.getOverlay() == null && Internal.getOptionalJeiRuntime().isPresent();
+		boolean smallHeap = Runtime.getRuntime().maxMemory() < 3L * 1024 * 1024 * 1024;
+		searchSession.tickWarmup(client.level, ready, lowMemory || smallHeap, System.nanoTime());
+	}
+
 	void setIngredientSearch(IngredientFilter ingredientSearch) {
 		searchSession.setIngredientSearch(ingredientSearch);
 	}

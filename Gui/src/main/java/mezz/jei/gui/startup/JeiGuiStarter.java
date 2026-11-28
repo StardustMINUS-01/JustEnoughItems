@@ -408,6 +408,7 @@ public class JeiGuiStarter {
 		);
 		jeiClientConfigs.registerRuntimeListenerRemoval(recipesGui::stopRecipeSearch);
 		recipesGui.setIngredientSearch(ingredientFilter);
+		recipesGui.tickRecipeWarmup(jeiClientConfigs.isLowMemorySearchEnabled());
 		registration.setGuiRuntime(new JeiGuiRuntime(
 			ingredientListOverlay,
 			bookmarkOverlay,
@@ -443,6 +444,7 @@ public class JeiGuiStarter {
 			input.scene()
 		);
 		guiEventHandler.setAutoCraftingRunner(bookmarkAutoCraftingRunner);
+		guiEventHandler.setRecipeWarmupTick(() -> recipesGui.tickRecipeWarmup(jeiClientConfigs.isLowMemorySearchEnabled()));
 		ResourceReloadHandler resourceReloadHandler = new ResourceReloadHandler(
 			ingredientListOverlay,
 			ingredientFilter,

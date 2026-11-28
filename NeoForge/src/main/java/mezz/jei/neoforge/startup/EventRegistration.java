@@ -182,6 +182,7 @@ public class EventRegistration {
 			}
 		});
 		subscriptions.register(ClientTickEvent.Post.class, event -> {
+			guiEventHandler.tickRecipeWarmup();
 			if (Minecraft.getInstance().screen != null) {
 				guiEventHandler.onClientTick();
 			}

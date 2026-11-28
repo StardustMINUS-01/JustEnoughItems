@@ -5,6 +5,8 @@ import net.mezzdev.config.api.sorting.ISortingConfig;
 public interface IClientConfigs {
 	IClientConfig getClientConfig();
 
+	default boolean isLowMemorySearchEnabled() { return false; }
+
 	IIngredientFilterConfig getIngredientFilterConfig();
 
 	IIngredientGridConfig getIngredientListConfig();

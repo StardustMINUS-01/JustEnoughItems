@@ -265,6 +265,7 @@ class IngredientFilterTest {
 			verifyOrphanSearch(filter, manager, configs);
 			verifyIndexedRecipes(filter, true);
 			verifyIndexedRecipes(filter, false);
+			verifyIdleWarmup(filter);
 			verifySharedRecipeIndex(filter);
 			verifyDeferredCapture(filter);
 		}
@@ -438,6 +439,47 @@ class IngredientFilterTest {
 			session.cancel();
 			assertTrue(session.tick(RecipePreferenceRules.EMPTY).isEmpty());
 			assertEquals(List.of(second), seen);
+		} finally {
+			session.clear();
+		}
+	}
+
+	private static void verifyIdleWarmup(IngredientFilter filter) throws Exception {
+		var version = new AtomicInteger();
+		var attempts = new java.util.concurrent.LinkedBlockingQueue<Integer>();
+		var category = new TestRecipeCategory(RecipeType.create("test", "idle", Integer.class), ResourceLocation.parse("test:idle"));
+		var manager = (IRecipeManager) Proxy.newProxyInstance(IRecipeManager.class.getClassLoader(),
+			new Class<?>[]{IRecipeManager.class, IRecipeMaterialCacheInternal.class}, (p, m, a) -> switch (m.getName()) {
+				case "getRecipeMaterialRevision" -> (long) version.get();
+				case "getRegisteredCategories" -> List.of(category);
+				case "getRegisteredRecipeCount" -> 512;
+				case "getRegisteredRecipes" -> {
+					attempts.add(version.get());
+					yield List.of();
+				}
+				default -> throw new AssertionError(m);
+			});
+		var session = new RecipeSearchSession(manager, CompactSearchStorageBuilder.FACTORY);
+		session.setIngredientSearch(filter);
+		var world = new Object();
+		try {
+			session.tickWarmup(world, true, true, 0);
+			session.tickWarmup(world, true, true, 5_000_000_000L);
+			session.tickWarmup(world, true, false, 6_000_000_000L);
+			assertNull(attempts.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS));
+			session.tickWarmup(world, true, false, 9_000_000_000L);
+			assertEquals(0, attempts.poll(5, java.util.concurrent.TimeUnit.SECONDS));
+			version.incrementAndGet();
+			session.tickWarmup(world, true, false, 10_000_000_000L);
+			session.tickWarmup(world, true, false, 13_000_000_000L);
+			assertEquals(1, attempts.poll(5, java.util.concurrent.TimeUnit.SECONDS));
+			version.incrementAndGet();
+			session.tickWarmup(world, true, false, 14_000_000_000L);
+			session.tickWarmup(world, true, false, 18_000_000_000L);
+			assertNull(attempts.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS));
+			session.tickWarmup(null, false, false, 19_000_000_000L);
+			session.tickWarmup(new Object(), true, false, 100_000_000_000L);
+			assertNull(attempts.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS));
 		} finally {
 			session.clear();
 		}

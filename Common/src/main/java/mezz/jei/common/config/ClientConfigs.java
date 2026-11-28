@@ -1,5 +1,6 @@
 package mezz.jei.common.config;
 
+import net.mezzdev.config.api.value.IConfigValue;
 import mezz.jei.api.gui.placement.HorizontalAlignment;
 import net.mezzdev.config.api.schema.builder.IConfigCategoryBuilder;
 import net.mezzdev.config.api.schema.builder.IConfigEditorCategoryBuilder;
@@ -12,6 +13,7 @@ import java.util.Objects;
 
 public class ClientConfigs implements IClientConfigs {
 	private final IClientConfig clientConfig;
+	private final IConfigValue<Boolean> lowMemorySlowSearchEnabled;
 	private final IngredientFilterConfig ingredientFilterConfig;
 	private final IIngredientGridConfig ingredientListConfig;
 	private final IIngredientGridConfig bookmarkListConfig;
@@ -24,6 +26,7 @@ public class ClientConfigs implements IClientConfigs {
 		boolean isDev,
 		ISortingConfig<String> recipeCategorySortingConfig
 	) {
+		lowMemorySlowSearchEnabled = builder.addCategory("performance").addBoolean("lowMemorySlowSearchEnabled", false).build();
 		IConfigCategoryBuilder search = builder.addCategory("search");
 		IConfigCategoryBuilder lists = builder.addCategory("lists");
 		IConfigCategoryBuilder ingredientList = builder.addCategory("ingredientList");
@@ -68,6 +71,11 @@ public class ClientConfigs implements IClientConfigs {
 		this.bookmarkListConfig = bookmarkListConfig;
 		this.recipeCategorySortingConfig = Objects.requireNonNull(recipeCategorySortingConfig);
 		builder.build();
+	}
+
+	@Override
+	public boolean isLowMemorySearchEnabled() {
+		return lowMemorySlowSearchEnabled.get();
 	}
 
 	@Override

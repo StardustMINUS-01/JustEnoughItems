@@ -324,6 +324,8 @@
   "jei.config.client.input.recipeSlotCyclingEnabled": "Recipe Slot Cycling",
   "jei.config.client.input.recipeSlotCyclingEnabled.description": "Automatically cycle through ingredients in recipe slots over time.",
   "jei.config.client.performance": "Performance",
+  "jei.config.client.performance.lowMemorySlowSearchEnabled": "Low-memory recipe search",
+  "jei.config.client.performance.lowMemorySlowSearchEnabled.description": "Build recipe indexes on demand and skip background preloading.",
   "jei.config.client.performance.description": "Options that trade speed for lower memory use.",
   "jei.config.client.advanced": "Advanced",
   "jei.config.client.advanced.description": "Options for troubleshooting and unusual cases.",

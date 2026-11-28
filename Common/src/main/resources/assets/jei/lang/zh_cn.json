@@ -132,6 +132,8 @@
   "jei.config.client.input.recipeSlotCyclingEnabled": "配方槽位循环",
   "jei.config.client.input.recipeSlotCyclingEnabled.description": "随时间自动循环切换配方槽位中的材料。",
   "jei.config.client.performance": "性能",
+  "jei.config.client.performance.lowMemorySlowSearchEnabled": "低内存配方搜索",
+  "jei.config.client.performance.lowMemorySlowSearchEnabled.description": "按需构建配方索引，关闭后台预热。",
   "jei.config.client.performance.description": "JEI中与性能优化相关的配置选项。",
   "jei.config.client.advanced": "高级",
   "jei.config.client.advanced.description": "用于更改JEI功能方式的高级配置选项。",
